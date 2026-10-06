@@ -20,19 +20,23 @@ use App\Http\Controllers\Pelayanan\KunjunganController;
 use App\Http\Controllers\Pelayanan\PasienController;
 use App\Http\Controllers\Pelayanan\PemeriksaanController;
 use App\Http\Controllers\Pelayanan\ScreeningController;
+use App\Http\Controllers\Pendaftaran\RegistrationController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\Stok\PenjualanLangsungController;
 use App\Http\Controllers\Stok\PurchaseOrderController;
 use App\Http\Controllers\UserController;
+use App\Http\Middleware\EnsureAdminRole;
+use App\Http\Middleware\EnsureRegistrationRole;
+use App\Http\Middleware\RedirectRegistrationRole;
 use Illuminate\Support\Facades\Route;
 
 // Auth
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
-Route::post('/login', [LoginController::class, 'login'])->middleware('guest');
+Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 // Authenticated routes
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', RedirectRegistrationRole::class])->group(function () {
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -144,7 +148,39 @@ Route::middleware(['auth'])->group(function () {
     Route::put('setting', [SettingController::class, 'update'])->name('setting.update');
     Route::post('setting/logo', [SettingController::class, 'uploadLogo'])->name('setting.logo');
 
-    Route::resource('users', UserController::class);
-    Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
-    Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+    Route::middleware(EnsureAdminRole::class)->group(function () {
+        Route::resource('users', UserController::class);
+        Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+        Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+    });
+
+    // Pendaftaran (Registration Role)
+    Route::prefix('pendaftaran')->name('pendaftaran.')->withoutMiddleware(RedirectRegistrationRole::class)->middleware(EnsureRegistrationRole::class)->group(function () {
+        Route::get('/', [RegistrationController::class, 'dashboard'])->name('dashboard');
+
+        Route::get('laporan-kunjungan', [RegistrationController::class, 'laporanKunjungan'])->name('laporan-kunjungan');
+        Route::get('kunjungan/{kunjungan}/cetak-antrian', [RegistrationController::class, 'cetakAntrian'])->name('cetak-antrian');
+        Route::get('kunjungan/{kunjungan}/edit', [RegistrationController::class, 'editKunjungan'])->name('edit-kunjungan');
+        Route::put('kunjungan/{kunjungan}', [RegistrationController::class, 'updateKunjungan'])->name('update-kunjungan');
+        Route::post('kunjungan/{kunjungan}/batal', [RegistrationController::class, 'batalKunjungan'])->name('batal-kunjungan');
+
+        Route::get('pendaftaran-baru', [RegistrationController::class, 'pendaftaranBaru'])->name('pendaftaran-baru');
+        Route::post('pendaftaran-baru', [RegistrationController::class, 'storePasienBaru'])->name('store-pasien-baru');
+
+        Route::get('pendaftaran-lama', [RegistrationController::class, 'pendaftaranLama'])->name('pendaftaran-lama');
+        Route::post('pendaftaran-lama', [RegistrationController::class, 'storePasienLama'])->name('store-pasien-lama');
+        Route::get('pasien/search', [RegistrationController::class, 'searchPasien'])->name('pasien.search');
+        Route::get('pasien/{pasien}/detail', [RegistrationController::class, 'getPasienDetail'])->name('pasien.detail');
+
+        Route::get('database-pasien', [RegistrationController::class, 'databasePasien'])->name('database-pasien');
+
+        Route::get('kunjungan-per-poli', [RegistrationController::class, 'kunjunganPerPoli'])->name('kunjungan-per-poli');
+
+        Route::get('laporan-top-diagnosa', [RegistrationController::class, 'laporanTopDiagnosa'])->name('laporan-top-diagnosa');
+
+        Route::get('jadwal-praktik', [RegistrationController::class, 'jadwalPraktik'])->name('jadwal-praktik');
+        Route::post('jadwal-praktik', [RegistrationController::class, 'storeJadwalPraktik'])->name('store-jadwal-praktik');
+        Route::delete('jadwal-praktik/{jadwal}', [RegistrationController::class, 'destroyJadwalPraktik'])->name('destroy-jadwal-praktik');
+        Route::get('dokter/by-poli', [RegistrationController::class, 'getDokterByPoli'])->name('dokter.by-poli');
+    });
 });

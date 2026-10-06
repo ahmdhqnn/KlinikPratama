@@ -39,6 +39,8 @@
 .badge-red    { @apply bg-red-100 text-red-800; }
 .badge-gray   { @apply bg-gray-100 text-gray-800; }
 .badge-purple { @apply bg-purple-100 text-purple-800; }
+.badge-indigo { @apply bg-indigo-100 text-indigo-800; }
+.badge-success { @apply bg-emerald-100 text-emerald-800; }
 
 /* Form input focus */
 .form-input:focus {

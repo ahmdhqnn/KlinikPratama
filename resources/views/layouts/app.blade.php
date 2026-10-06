@@ -28,6 +28,24 @@
 
         {{-- Nav --}}
         <nav class="flex-1 px-2 py-4 space-y-1">
+            @if(auth()->user()->role === 'pendaftaran')
+            @foreach([
+                ['pendaftaran.dashboard', 'Dashboard'],
+                ['pendaftaran.laporan-kunjungan', 'Laporan Kunjungan'],
+                ['pendaftaran.pendaftaran-baru', 'Pendaftaran Pasien Baru'],
+                ['pendaftaran.pendaftaran-lama', 'Pendaftaran Pasien Lama'],
+                ['pendaftaran.database-pasien', 'Database Pasien'],
+                ['pendaftaran.kunjungan-per-poli', 'Kunjungan Per Poli'],
+                ['pendaftaran.laporan-top-diagnosa', 'Laporan Top Diagnosa'],
+                ['pendaftaran.jadwal-praktik', 'Jadwal Praktik Dokter'],
+            ] as [$routeName, $label])
+            <a href="{{ route($routeName) }}"
+               class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                      {{ request()->routeIs($routeName) ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }}">
+                {{ $label }}
+            </a>
+            @endforeach
+            @else
             {{-- Dashboard --}}
             <a href="{{ route('dashboard') }}"
                class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors
@@ -190,6 +208,7 @@
                     Manajemen User
                 </a>
             </div>
+            @endif
         </nav>
 
         {{-- User info at bottom --}}
@@ -226,7 +245,7 @@
                     @endif
                 </div>
                 <div class="flex items-center space-x-4">
-                    <span class="text-sm text-gray-500">{{ now()->isoFormat('dddd, D MMMM Y') }}</span>
+                    <span class="text-sm text-gray-500">{{ now()->locale('id')->isoFormat('dddd, D MMMM Y') }}</span>
                 </div>
             </div>
         </header>

@@ -59,4 +59,19 @@ class RmeAuthFlowTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('Kunjungan Terkini Hari Ini');
     }
+
+    public function test_login_is_rate_limited_after_repeated_failed_attempts(): void
+    {
+        foreach (range(1, 5) as $attempt) {
+            $this->post('/login', [
+                'email' => 'unknown@example.com',
+                'password' => 'wrong-password',
+            ])->assertSessionHasErrors('email');
+        }
+
+        $this->post('/login', [
+            'email' => 'unknown@example.com',
+            'password' => 'wrong-password',
+        ])->assertTooManyRequests();
+    }
 }
