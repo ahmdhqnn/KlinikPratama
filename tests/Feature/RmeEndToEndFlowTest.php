@@ -1,0 +1,167 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\DepoObat;
+use App\Models\Kunjungan;
+use App\Models\Obat;
+use App\Models\Pasien;
+use App\Models\Poliklinik;
+use App\Models\Tagihan;
+use App\Models\Tindakan;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class RmeEndToEndFlowTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_full_clinical_workflow_from_registration_to_payment(): void
+    {
+        // 1. Setup Admin & Master Data
+        $admin = User::create([
+            'name' => 'Admin Klinik',
+            'email' => 'admin@klinik.com',
+            'password' => bcrypt('password'),
+            'role' => 'admin',
+            'is_active' => true,
+        ]);
+
+        $depo = DepoObat::create(['kode' => 'APT', 'nama' => 'Apotek Utama', 'is_active' => true]);
+        $poli = Poliklinik::create(['kode' => 'PU', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'depo_obat_id' => $depo->id, 'is_active' => true]);
+        $obat = Obat::create([
+            'kode' => 'OBT01',
+            'nama' => 'Paracetamol 500mg',
+            'satuan_besar' => 'Box',
+            'satuan_kecil' => 'Tablet',
+            'konversi_satuan' => 10,
+            'harga_beli' => 1000,
+            'harga_jual' => 2000,
+            'stok' => 100,
+            'stok_minimum' => 10,
+            'jenis' => 'obat',
+            'is_active' => true,
+        ]);
+        $tindakan = Tindakan::create([
+            'kode' => 'TDK01',
+            'nama' => 'Konsultasi & Pemeriksaan Dokter',
+            'kategori' => 'medis',
+            'poliklinik_id' => $poli->id,
+            'tarif' => 50000,
+            'tarif_dokter' => 35000,
+            'tarif_asisten' => 5000,
+            'tarif_klinik' => 10000,
+            'is_active' => true,
+        ]);
+
+        // 2. Registrasi Pasien Baru
+        $resPasien = $this->actingAs($admin)->post('/pelayanan/pasien', [
+            'nama' => 'Ahmad Pasien',
+            'nik' => '3201234567890001',
+            'tanggal_lahir' => '1995-08-17',
+            'jenis_kelamin' => 'L',
+            'telepon' => '08123456789',
+        ]);
+        $resPasien->assertRedirect();
+        $this->assertDatabaseHas('pasien', ['nama' => 'Ahmad Pasien']);
+        $pasien = Pasien::where('nama', 'Ahmad Pasien')->first();
+
+        // 3. Pendaftaran Kunjungan
+        $resKunjungan = $this->actingAs($admin)->post('/pelayanan/kunjungan', [
+            'pasien_id' => $pasien->id,
+            'poliklinik_id' => $poli->id,
+            'tanggal' => today()->toDateString(),
+            'jenis_pasien' => 'baru',
+            'jenis_bayar' => 'umum',
+        ]);
+        $resKunjungan->assertRedirect();
+        $kunjungan = Kunjungan::where('pasien_id', $pasien->id)->first();
+        $this->assertNotNull($kunjungan);
+        $this->assertEquals('menunggu', $kunjungan->status);
+
+        // 4. Screening Tanda Vital
+        $resScreening = $this->actingAs($admin)->post("/pelayanan/kunjungan/{$kunjungan->id}/screening", [
+            'td_sistole' => 120,
+            'td_diastole' => 80,
+            'nadi' => 78,
+            'suhu' => 36.6,
+            'keluhan' => 'Demam dan sakit kepala ringan',
+        ]);
+        $resScreening->assertRedirect();
+        $kunjungan->refresh();
+        $this->assertEquals('pemeriksaan', $kunjungan->status);
+        $this->assertDatabaseHas('screening', ['kunjungan_id' => $kunjungan->id, 'td_sistole' => 120]);
+
+        // 5. Dokter Konsultasi: Diagnosa, Tindakan, Resep
+        $this->actingAs($admin)->post("/pelayanan/pemeriksaan/{$kunjungan->id}", [
+            'anamnesis' => 'Pasien mengeluh demam 2 hari',
+            'pemeriksaan_fisik' => 'Faring hiperemis (-), Cor/Pulmo DBN',
+        ]);
+
+        $this->actingAs($admin)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/diagnosa", [
+            'kode_icd10' => 'R50.9',
+            'nama_diagnosa' => 'Demam, tidak spesifik',
+            'jenis' => 'utama',
+        ]);
+
+        $this->actingAs($admin)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/tindakan", [
+            'tindakan_id' => $tindakan->id,
+            'jumlah' => 1,
+        ]);
+
+        $this->actingAs($admin)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/resep", [
+            'obat_id' => $obat->id,
+            'jumlah' => 10,
+            'aturan_pakai' => '3 x 1 tablet sehari sesudah makan',
+            'jenis' => 'jadi',
+        ]);
+
+        // Selesai pemeriksaan dokter -> diteruskan ke farmasi
+        $this->actingAs($admin)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/selesai");
+        $kunjungan->refresh();
+        $this->assertEquals('farmasi', $kunjungan->status);
+
+        // 6. Farmasi Dispensing & Potong Stok
+        $resFarmasiStore = $this->actingAs($admin)->post("/pelayanan/farmasi/{$kunjungan->id}", [
+            'items' => [
+                [
+                    'obat_id' => $obat->id,
+                    'jumlah_diberikan' => 10,
+                    'aturan_pakai' => '3 x 1 tablet sehari',
+                ],
+            ],
+        ]);
+        $resFarmasiStore->assertSessionHasNoErrors();
+
+        $resFarmasiSelesai = $this->actingAs($admin)->post("/pelayanan/farmasi/{$kunjungan->id}/selesai");
+        $resFarmasiSelesai->assertRedirect(route('pelayanan.farmasi.index'));
+        $kunjungan->refresh();
+        $this->assertEquals('kasir', $kunjungan->status);
+
+        // Verifikasi stok obat berkurang dari 100 menjadi 90
+        $obat->refresh();
+        $this->assertEquals(90, $obat->stok);
+
+        // 7. Kasir & Pembayaran Tagihan
+        $resKasir = $this->actingAs($admin)->post("/pelayanan/kasir/{$kunjungan->id}", [
+            'metode_bayar' => 'tunai',
+            'bayar' => 100000,
+            'diskon' => 0,
+            'items' => [
+                ['nama' => 'Konsultasi Dokter', 'jenis' => 'tindakan', 'jumlah' => 1, 'tarif' => 50000],
+                ['nama' => 'Paracetamol 500mg (10 Tab)', 'jenis' => 'obat', 'jumlah' => 1, 'tarif' => 20000],
+            ],
+        ]);
+        $resKasir->assertRedirect();
+        $kunjungan->refresh();
+        $this->assertEquals('selesai', $kunjungan->status);
+
+        // Verifikasi tagihan lunas dan kembalian benar (100.000 - 70.000 = 30.000)
+        $tagihan = Tagihan::where('kunjungan_id', $kunjungan->id)->first();
+        $this->assertNotNull($tagihan);
+        $this->assertEquals('lunas', $tagihan->status);
+        $this->assertEquals(70000, $tagihan->total);
+        $this->assertEquals(30000, $tagihan->kembalian);
+    }
+}

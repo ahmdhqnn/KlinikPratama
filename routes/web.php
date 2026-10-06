@@ -1,0 +1,150 @@
+<?php
+
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\LaporanController;
+use App\Http\Controllers\Master\AlkesController;
+use App\Http\Controllers\Master\AsuransiController;
+use App\Http\Controllers\Master\BiayaAdminController;
+use App\Http\Controllers\Master\BiayaPendaftaranController;
+use App\Http\Controllers\Master\DepoObatController;
+use App\Http\Controllers\Master\LaboratoriumController;
+use App\Http\Controllers\Master\NakesController;
+use App\Http\Controllers\Master\ObatController;
+use App\Http\Controllers\Master\PaketTindakanController;
+use App\Http\Controllers\Master\PoliklinikController;
+use App\Http\Controllers\Master\TindakanController;
+use App\Http\Controllers\Pelayanan\FarmasiController;
+use App\Http\Controllers\Pelayanan\KasirController;
+use App\Http\Controllers\Pelayanan\KunjunganController;
+use App\Http\Controllers\Pelayanan\PasienController;
+use App\Http\Controllers\Pelayanan\PemeriksaanController;
+use App\Http\Controllers\Pelayanan\ScreeningController;
+use App\Http\Controllers\SettingController;
+use App\Http\Controllers\Stok\PenjualanLangsungController;
+use App\Http\Controllers\Stok\PurchaseOrderController;
+use App\Http\Controllers\UserController;
+use Illuminate\Support\Facades\Route;
+
+// Auth
+Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
+Route::post('/login', [LoginController::class, 'login'])->middleware('guest');
+Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+
+// Authenticated routes
+Route::middleware(['auth'])->group(function () {
+    // Dashboard
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Master Data
+    Route::prefix('master')->name('master.')->group(function () {
+        Route::resource('depo-obat', DepoObatController::class);
+        Route::resource('poliklinik', PoliklinikController::class);
+        Route::post('poliklinik/{poliklinik}/ruang', [PoliklinikController::class, 'storeRuang'])->name('poliklinik.ruang.store');
+        Route::delete('poliklinik/ruang/{ruang}', [PoliklinikController::class, 'destroyRuang'])->name('poliklinik.ruang.destroy');
+
+        Route::resource('tindakan', TindakanController::class);
+        Route::post('tindakan/{tindakan}/bhp', [TindakanController::class, 'storeBhp'])->name('tindakan.bhp.store');
+        Route::delete('tindakan/bhp/{bhp}', [TindakanController::class, 'destroyBhp'])->name('tindakan.bhp.destroy');
+
+        Route::resource('laboratorium', LaboratoriumController::class);
+        Route::post('laboratorium/{laboratorium}/indikator', [LaboratoriumController::class, 'storeIndikator'])->name('laboratorium.indikator.store');
+        Route::delete('laboratorium/indikator/{indikator}', [LaboratoriumController::class, 'destroyIndikator'])->name('laboratorium.indikator.destroy');
+        Route::post('laboratorium/{laboratorium}/bhp', [LaboratoriumController::class, 'storeBhp'])->name('laboratorium.bhp.store');
+        Route::delete('laboratorium/bhp/{bhp}', [LaboratoriumController::class, 'destroyBhp'])->name('laboratorium.bhp.destroy');
+
+        Route::resource('paket-tindakan', PaketTindakanController::class);
+        Route::post('paket-tindakan/{paketTindakan}/item', [PaketTindakanController::class, 'storeItem'])->name('paket-tindakan.item.store');
+        Route::delete('paket-tindakan/item/{item}', [PaketTindakanController::class, 'destroyItem'])->name('paket-tindakan.item.destroy');
+        Route::resource('biaya-admin', BiayaAdminController::class);
+        Route::resource('biaya-pendaftaran', BiayaPendaftaranController::class);
+        Route::resource('nakes', NakesController::class);
+
+        Route::resource('obat', ObatController::class);
+        Route::get('obat-export', [ObatController::class, 'export'])->name('obat.export');
+        Route::post('obat-import', [ObatController::class, 'import'])->name('obat.import');
+        Route::get('obat-template', [ObatController::class, 'template'])->name('obat.template');
+        Route::get('obat/{obat}/stok', [ObatController::class, 'stok'])->name('obat.stok');
+        Route::post('obat/{obat}/tambah-stok', [ObatController::class, 'tambahStok'])->name('obat.tambah-stok');
+
+        Route::resource('alkes', AlkesController::class);
+        Route::resource('asuransi', AsuransiController::class);
+        Route::post('asuransi/{asuransi}/harga', [AsuransiController::class, 'storeHarga'])->name('asuransi.harga.store');
+        Route::delete('asuransi/harga/{harga}', [AsuransiController::class, 'destroyHarga'])->name('asuransi.harga.destroy');
+    });
+
+    // Pelayanan
+    Route::prefix('pelayanan')->name('pelayanan.')->group(function () {
+        Route::resource('pasien', PasienController::class);
+        Route::get('pasien-export', [PasienController::class, 'export'])->name('pasien.export');
+        Route::post('pasien-import', [PasienController::class, 'import'])->name('pasien.import');
+        Route::get('pasien-template', [PasienController::class, 'template'])->name('pasien.template');
+        Route::get('pasien/{pasien}/rekam-medis', [PasienController::class, 'rekamMedis'])->name('pasien.rekam-medis');
+        Route::post('pasien/gabung', [PasienController::class, 'gabung'])->name('pasien.gabung');
+
+        Route::resource('kunjungan', KunjunganController::class);
+        Route::get('antrian', [KunjunganController::class, 'antrian'])->name('antrian');
+        Route::post('kunjungan/{kunjungan}/batal', [KunjunganController::class, 'batal'])->name('kunjungan.batal');
+
+        Route::get('screening', [ScreeningController::class, 'index'])->name('screening.index');
+        Route::get('screening/{kunjungan}', [ScreeningController::class, 'show'])->name('screening.show');
+        Route::post('screening/{kunjungan}', [ScreeningController::class, 'store'])->name('screening.store');
+        Route::put('screening/{kunjungan}', [ScreeningController::class, 'update'])->name('screening.update');
+        Route::post('kunjungan/{kunjungan}/screening', [ScreeningController::class, 'store'])->name('kunjungan.screening.store');
+
+        Route::get('pemeriksaan', [PemeriksaanController::class, 'index'])->name('pemeriksaan.index');
+        Route::get('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'show'])->name('pemeriksaan.show');
+        Route::post('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'store'])->name('pemeriksaan.store');
+        Route::put('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'update'])->name('pemeriksaan.update');
+        Route::post('pemeriksaan/{kunjungan}/diagnosa', [PemeriksaanController::class, 'storeDiagnosa'])->name('pemeriksaan.diagnosa.store');
+        Route::delete('pemeriksaan/diagnosa/{diagnosa}', [PemeriksaanController::class, 'destroyDiagnosa'])->name('pemeriksaan.diagnosa.destroy');
+        Route::post('pemeriksaan/{kunjungan}/resep', [PemeriksaanController::class, 'storeResep'])->name('pemeriksaan.resep.store');
+        Route::delete('pemeriksaan/resep/{resepObat}', [PemeriksaanController::class, 'destroyResep'])->name('pemeriksaan.resep.destroy');
+        Route::post('pemeriksaan/{kunjungan}/tindakan', [PemeriksaanController::class, 'storeTindakan'])->name('pemeriksaan.tindakan.store');
+        Route::delete('pemeriksaan/tindakan/{tindakanKunjungan}', [PemeriksaanController::class, 'destroyTindakan'])->name('pemeriksaan.tindakan.destroy');
+        Route::post('pemeriksaan/{kunjungan}/surat', [PemeriksaanController::class, 'storeSurat'])->name('pemeriksaan.surat.store');
+        Route::post('pemeriksaan/{kunjungan}/rujukan', [PemeriksaanController::class, 'storeRujukan'])->name('pemeriksaan.rujukan.store');
+        Route::post('pemeriksaan/{kunjungan}/selesai', [PemeriksaanController::class, 'selesai'])->name('pemeriksaan.selesai');
+        Route::get('icd10/search', [PemeriksaanController::class, 'searchIcd10'])->name('icd10.search');
+
+        Route::get('farmasi', [FarmasiController::class, 'index'])->name('farmasi.index');
+        Route::get('farmasi/{kunjungan}', [FarmasiController::class, 'show'])->name('farmasi.show');
+        Route::post('farmasi/{kunjungan}', [FarmasiController::class, 'store'])->name('farmasi.store');
+        Route::post('farmasi/{kunjungan}/selesai', [FarmasiController::class, 'selesai'])->name('farmasi.selesai');
+
+        Route::get('kasir', [KasirController::class, 'index'])->name('kasir.index');
+        Route::get('kasir/{kunjungan}', [KasirController::class, 'show'])->name('kasir.show');
+        Route::post('kasir/{kunjungan}', [KasirController::class, 'store'])->name('kasir.store');
+        Route::get('kasir/{tagihan}/kuitansi', [KasirController::class, 'kuitansi'])->name('kasir.kuitansi');
+    });
+
+    // Manajemen Stok
+    Route::prefix('stok')->name('stok.')->group(function () {
+        Route::resource('purchase-order', PurchaseOrderController::class);
+        Route::post('purchase-order/{purchaseOrder}/kirim', [PurchaseOrderController::class, 'kirim'])->name('purchase-order.kirim');
+        Route::get('purchase-order/{purchaseOrder}/terima', [PurchaseOrderController::class, 'terimaBarang'])->name('purchase-order.terima.form');
+        Route::post('purchase-order/{purchaseOrder}/terima', [PurchaseOrderController::class, 'prosesTerima'])->name('purchase-order.terima');
+
+        Route::resource('penjualan-langsung', PenjualanLangsungController::class);
+        Route::get('penjualan-langsung/{penjualanLangsung}/nota', [PenjualanLangsungController::class, 'nota'])->name('penjualan-langsung.nota');
+    });
+
+    // Laporan
+    Route::prefix('laporan')->name('laporan.')->group(function () {
+        Route::get('kunjungan', [LaporanController::class, 'kunjungan'])->name('kunjungan');
+        Route::get('pendapatan', [LaporanController::class, 'pendapatan'])->name('pendapatan');
+        Route::get('stok', [LaporanController::class, 'stok'])->name('stok');
+        Route::get('laboratorium', [LaporanController::class, 'laboratorium'])->name('laboratorium');
+        Route::get('kunjungan/export', [LaporanController::class, 'exportKunjungan'])->name('kunjungan.export');
+        Route::get('pendapatan/export', [LaporanController::class, 'exportPendapatan'])->name('pendapatan.export');
+    });
+
+    // Setting
+    Route::get('setting', [SettingController::class, 'index'])->name('setting.index');
+    Route::put('setting', [SettingController::class, 'update'])->name('setting.update');
+    Route::post('setting/logo', [SettingController::class, 'uploadLogo'])->name('setting.logo');
+
+    Route::resource('users', UserController::class);
+    Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+    Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+});

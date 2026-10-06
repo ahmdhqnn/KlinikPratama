@@ -1,0 +1,62 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class RmeAuthFlowTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_unauthenticated_user_is_redirected_to_login(): void
+    {
+        $response = $this->get('/');
+
+        $response->assertRedirect('/login');
+    }
+
+    public function test_login_screen_can_be_rendered(): void
+    {
+        $response = $this->get('/login');
+
+        $response->assertStatus(200);
+        $response->assertSee('Masuk ke Sistem');
+    }
+
+    public function test_admin_can_login_with_valid_credentials(): void
+    {
+        $user = User::create([
+            'name' => 'Administrator',
+            'email' => 'admin@klinik.com',
+            'password' => bcrypt('password'),
+            'role' => 'admin',
+            'is_active' => true,
+        ]);
+
+        $response = $this->post('/login', [
+            'email' => 'admin@klinik.com',
+            'password' => 'password',
+        ]);
+
+        $response->assertRedirect('/');
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_authenticated_admin_can_view_dashboard(): void
+    {
+        $user = User::create([
+            'name' => 'Administrator',
+            'email' => 'admin@klinik.com',
+            'password' => bcrypt('password'),
+            'role' => 'admin',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($user)->get('/');
+
+        $response->assertStatus(200);
+        $response->assertSee('Kunjungan Terkini Hari Ini');
+    }
+}
