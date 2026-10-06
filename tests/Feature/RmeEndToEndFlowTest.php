@@ -87,6 +87,13 @@ class RmeEndToEndFlowTest extends TestCase
             'nadi' => 78,
             'suhu' => 36.6,
             'keluhan' => 'Demam dan sakit kepala ringan',
+            'nyeri_dada' => 'tidak',
+            'kondisi_psikiatri' => 'normal',
+            'nadi_teraba' => 'teraba',
+            'kejang' => 'tidak',
+            'pola_pernapasan' => 'normal',
+            'kesadaran' => 'sadar',
+            'risiko_jatuh_visual' => 'rendah',
         ]);
         $resScreening->assertRedirect();
         $kunjungan->refresh();

@@ -28,6 +28,7 @@ class SettingController extends Controller
             'nip_kepala' => ['nullable', 'string', 'max:50'],
             'tagline' => ['nullable', 'string', 'max:200'],
             'website' => ['nullable', 'string', 'max:100'],
+            'pelaksana_ttv' => ['required', 'in:perawat,pendaftaran'],
         ]);
 
         $setting = KlinikSetting::first();

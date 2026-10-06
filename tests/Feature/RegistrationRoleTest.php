@@ -63,6 +63,22 @@ class RegistrationRoleTest extends TestCase
         $this->actingAs($user)->get(route('users.index'))->assertForbidden();
     }
 
+    public function test_perawat_can_access_its_dashboard_and_screening_but_not_registration_management(): void
+    {
+        $user = User::create([
+            'name' => 'Perawat Klinik',
+            'email' => 'perawat@klinik.test',
+            'password' => bcrypt('password'),
+            'role' => 'perawat',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->get(route('perawat.dashboard'))->assertOk();
+        $this->actingAs($user)->get(route('pelayanan.screening.index'))->assertOk();
+        $this->actingAs($user)->get(route('pendaftaran.pendaftaran-baru'))->assertForbidden();
+        $this->actingAs($user)->get(route('users.index'))->assertForbidden();
+    }
+
     public function test_admin_can_manage_users(): void
     {
         $user = User::create([
@@ -74,6 +90,38 @@ class RegistrationRoleTest extends TestCase
         ]);
 
         $this->actingAs($user)->get(route('users.index'))->assertOk();
+    }
+
+    public function test_admin_can_create_perawat_account_and_matching_nakes_profile(): void
+    {
+        $admin = User::create([
+            'name' => 'Administrator',
+            'email' => 'admin-create@klinik.test',
+            'password' => bcrypt('password'),
+            'role' => 'admin',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('users.store'), [
+            'name' => 'Perawat Baru',
+            'email' => 'perawat-baru@klinik.test',
+            'password' => 'password',
+            'role' => 'perawat',
+            'is_active' => '1',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('users', [
+            'email' => 'perawat-baru@klinik.test',
+            'role' => 'perawat',
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseHas('nakes', [
+            'nama' => 'Perawat Baru',
+            'jabatan' => 'perawat',
+            'user_id' => User::where('email', 'perawat-baru@klinik.test')->value('id'),
+            'is_active' => true,
+        ]);
     }
 
     public function test_new_patient_registration_saves_identity_and_creates_a_new_visit(): void

@@ -25,9 +25,11 @@ class LoginController extends Controller
         if (Auth::attempt([...$credentials, 'is_active' => true], $request->boolean('remember'))) {
             $request->session()->regenerate();
 
-            $destination = $request->user()->role === 'pendaftaran'
-                ? route('pendaftaran.dashboard')
-                : route('dashboard');
+            $destination = match ($request->user()->role) {
+                'pendaftaran' => route('pendaftaran.dashboard'),
+                'perawat' => route('perawat.dashboard'),
+                default => route('dashboard'),
+            };
 
             return redirect()->intended($destination);
         }

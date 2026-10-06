@@ -18,5 +18,15 @@ class KlinikSetting extends Model
         'nip_kepala',
         'tagline',
         'website',
+        'pelaksana_ttv',
     ];
+
+    protected $attributes = [
+        'pelaksana_ttv' => 'perawat',
+    ];
+
+    public static function pelaksanaTtv(): string
+    {
+        return static::query()->value('pelaksana_ttv') ?? 'perawat';
+    }
 }

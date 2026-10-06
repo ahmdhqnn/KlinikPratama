@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pendaftaran;
 use App\Http\Controllers\Controller;
 use App\Models\Asuransi;
 use App\Models\JadwalDokter;
+use App\Models\KlinikSetting;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Pasien;
@@ -132,7 +133,7 @@ class RegistrationController extends Controller
             return $pasien;
         });
 
-        return redirect()->route('pendaftaran.laporan-kunjungan')
+        return redirect()->to($this->afterRegistrationUrl())
             ->with('success', "Pasien {$pasien->nama} (No. RM: {$pasien->no_rm}) berhasil didaftarkan.");
     }
 
@@ -193,8 +194,17 @@ class RegistrationController extends Controller
             ]);
         });
 
-        return redirect()->route('pendaftaran.laporan-kunjungan')
+        return redirect()->to($this->afterRegistrationUrl())
             ->with('success', "Pasien {$pasien->nama} berhasil didaftarkan untuk kunjungan baru.");
+    }
+
+    private function afterRegistrationUrl(): string
+    {
+        if (KlinikSetting::pelaksanaTtv() === 'pendaftaran') {
+            return route('pelayanan.screening.index');
+        }
+
+        return route('pendaftaran.laporan-kunjungan');
     }
 
     public function databasePasien(Request $request): View

@@ -45,6 +45,28 @@
                 {{ $label }}
             </a>
             @endforeach
+            @if(\App\Models\KlinikSetting::pelaksanaTtv() === 'pendaftaran')
+            <a href="{{ route('pelayanan.screening.index') }}"
+               class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                      {{ request()->routeIs('pelayanan.screening.*') ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }}">
+                Pemeriksaan TTV & Skrining
+            </a>
+            @endif
+            @elseif(auth()->user()->role === 'perawat')
+            @foreach([
+                ['perawat.dashboard', 'Dashboard'],
+                ['pelayanan.screening.index', 'Daftar Kunjungan'],
+                ['pelayanan.pasien.index', 'Database Pasien'],
+                ['pendaftaran.jadwal-praktik', 'Jadwal Praktik Dokter'],
+                ['pendaftaran.laporan-top-diagnosa', 'Laporan Top Diagnosa'],
+                ['pendaftaran.kunjungan-per-poli', 'Kunjungan Per Poli'],
+            ] as [$routeName, $label])
+            <a href="{{ route($routeName) }}"
+               class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                      {{ request()->routeIs($routeName) ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }}">
+                {{ $label }}
+            </a>
+            @endforeach
             @else
             {{-- Dashboard --}}
             <a href="{{ route('dashboard') }}"

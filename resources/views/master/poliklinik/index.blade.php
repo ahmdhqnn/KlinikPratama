@@ -102,7 +102,7 @@
             </div>
             <form :action="isEdit ? '{{ url('master/poliklinik') }}/' + editId : '{{ route('master.poliklinik.store') }}'" method="POST">
                 @csrf
-                <span x-show="isEdit"><input type="hidden" name="_method" value="PUT"></span>
+                <input type="hidden" name="_method" value="PUT" x-bind:disabled="!isEdit">
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Kode <span class="text-red-500">*</span></label>

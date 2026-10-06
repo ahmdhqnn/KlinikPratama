@@ -21,12 +21,14 @@ use App\Http\Controllers\Pelayanan\PasienController;
 use App\Http\Controllers\Pelayanan\PemeriksaanController;
 use App\Http\Controllers\Pelayanan\ScreeningController;
 use App\Http\Controllers\Pendaftaran\RegistrationController;
+use App\Http\Controllers\PerawatDashboardController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\Stok\PenjualanLangsungController;
 use App\Http\Controllers\Stok\PurchaseOrderController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsureRegistrationRole;
+use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\RedirectRegistrationRole;
 use Illuminate\Support\Facades\Route;
 
@@ -39,6 +41,9 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 Route::middleware(['auth', RedirectRegistrationRole::class])->group(function () {
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/perawat/dashboard', PerawatDashboardController::class)
+        ->middleware(EnsureRole::class.':admin,perawat')
+        ->name('perawat.dashboard');
 
     // Master Data
     Route::prefix('master')->name('master.')->group(function () {
@@ -90,11 +95,13 @@ Route::middleware(['auth', RedirectRegistrationRole::class])->group(function () 
         Route::get('antrian', [KunjunganController::class, 'antrian'])->name('antrian');
         Route::post('kunjungan/{kunjungan}/batal', [KunjunganController::class, 'batal'])->name('kunjungan.batal');
 
-        Route::get('screening', [ScreeningController::class, 'index'])->name('screening.index');
-        Route::get('screening/{kunjungan}', [ScreeningController::class, 'show'])->name('screening.show');
-        Route::post('screening/{kunjungan}', [ScreeningController::class, 'store'])->name('screening.store');
-        Route::put('screening/{kunjungan}', [ScreeningController::class, 'update'])->name('screening.update');
-        Route::post('kunjungan/{kunjungan}/screening', [ScreeningController::class, 'store'])->name('kunjungan.screening.store');
+        Route::middleware(EnsureRole::class.':admin,perawat,pendaftaran')->group(function (): void {
+            Route::get('screening', [ScreeningController::class, 'index'])->name('screening.index');
+            Route::get('screening/{kunjungan}', [ScreeningController::class, 'show'])->name('screening.show');
+            Route::post('screening/{kunjungan}', [ScreeningController::class, 'store'])->name('screening.store');
+            Route::put('screening/{kunjungan}', [ScreeningController::class, 'update'])->name('screening.update');
+            Route::post('kunjungan/{kunjungan}/screening', [ScreeningController::class, 'store'])->name('kunjungan.screening.store');
+        });
 
         Route::get('pemeriksaan', [PemeriksaanController::class, 'index'])->name('pemeriksaan.index');
         Route::get('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'show'])->name('pemeriksaan.show');
@@ -144,9 +151,11 @@ Route::middleware(['auth', RedirectRegistrationRole::class])->group(function () 
     });
 
     // Setting
-    Route::get('setting', [SettingController::class, 'index'])->name('setting.index');
-    Route::put('setting', [SettingController::class, 'update'])->name('setting.update');
-    Route::post('setting/logo', [SettingController::class, 'uploadLogo'])->name('setting.logo');
+    Route::middleware(EnsureAdminRole::class)->group(function (): void {
+        Route::get('setting', [SettingController::class, 'index'])->name('setting.index');
+        Route::put('setting', [SettingController::class, 'update'])->name('setting.update');
+        Route::post('setting/logo', [SettingController::class, 'uploadLogo'])->name('setting.logo');
+    });
 
     Route::middleware(EnsureAdminRole::class)->group(function () {
         Route::resource('users', UserController::class);

@@ -42,6 +42,15 @@
                 <textarea name="alamat" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{{ old('alamat', $setting->alamat) }}</textarea>
             </div>
 
+            <div class="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                <label class="block text-sm font-semibold text-gray-800 mb-1">Pelaksana Pemeriksaan TTV</label>
+                <p class="text-xs text-gray-600 mb-3">Tentukan role yang menerima pasien setelah proses pendaftaran.</p>
+                <select name="pelaksana_ttv" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <option value="perawat" @selected(($setting->pelaksana_ttv ?? 'perawat') === 'perawat')>Perawat</option>
+                    <option value="pendaftaran" @selected(($setting->pelaksana_ttv ?? 'perawat') === 'pendaftaran')>Staf Pendaftaran</option>
+                </select>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Nama Kepala Klinik / Penanggung Jawab</label>

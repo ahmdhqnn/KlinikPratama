@@ -15,6 +15,15 @@ class Screening extends Model
         'berat_badan', 'tinggi_badan', 'spo2', 'respirasi',
         'riwayat_penyakit', 'riwayat_alergi', 'risiko_jatuh',
         'risiko_nyeri', 'skrining_gizi', 'pemeriksaan_fisik',
+        'lingkar_perut', 'fungsi_penciuman', 'tingkat_kesadaran',
+        'alergi_jenis', 'alergi_reaksi', 'penyakit_nama', 'penyakit_keterangan',
+        'nyeri_dada', 'kondisi_psikiatri', 'nadi_teraba', 'kejang',
+        'pola_pernapasan', 'kesadaran', 'risiko_jatuh_visual',
+        'kesimpulan_triase', 'prioritas_layanan',
+    ];
+
+    protected $casts = [
+        'lingkar_perut' => 'decimal:1',
     ];
 
     public function kunjungan(): BelongsTo

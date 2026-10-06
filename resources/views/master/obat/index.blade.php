@@ -148,7 +148,7 @@
             </div>
             <form :action="isEdit ? '{{ url('master/obat') }}/' + editId : '{{ route('master.obat.store') }}'" method="POST">
                 @csrf
-                <span x-show="isEdit"><input type="hidden" name="_method" value="PUT"></span>
+                <input type="hidden" name="_method" value="PUT" x-bind:disabled="!isEdit">
                 <div class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div>

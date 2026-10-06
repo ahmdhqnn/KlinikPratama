@@ -14,6 +14,12 @@ class EnsureRegistrationRole
             return redirect()->route('login');
         }
 
+        if ($request->user()->role === 'perawat'
+            && $request->isMethod('GET')
+            && $request->is('pendaftaran/database-pasien', 'pendaftaran/kunjungan-per-poli', 'pendaftaran/laporan-top-diagnosa', 'pendaftaran/jadwal-praktik')) {
+            return $next($request);
+        }
+
         if (! in_array($request->user()->role, ['admin', 'pendaftaran'], true)) {
             abort(403, 'Unauthorized access.');
         }

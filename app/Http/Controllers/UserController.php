@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Nakes;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
@@ -35,7 +37,10 @@ class UserController extends Controller
         $data['password'] = Hash::make($data['password']);
         $data['is_active'] = $request->boolean('is_active');
 
-        User::create($data);
+        DB::transaction(function () use ($data): void {
+            $user = User::create($data);
+            $this->syncNakesProfile($user);
+        });
 
         return back()->with('success', 'User berhasil ditambahkan.');
     }
@@ -50,7 +55,10 @@ class UserController extends Controller
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
-        $user->update($data);
+        DB::transaction(function () use ($data, $user): void {
+            $user->update($data);
+            $this->syncNakesProfile($user->fresh());
+        });
 
         return back()->with('success', 'User berhasil diperbarui.');
     }
@@ -84,5 +92,69 @@ class UserController extends Controller
         $user->update(['password' => Hash::make($request->password)]);
 
         return back()->with('success', 'Password user berhasil direset.');
+    }
+
+    private function syncNakesProfile(User $user): void
+    {
+        $nakesRoles = ['dokter', 'perawat', 'farmasi', 'kasir', 'pendaftaran'];
+
+        if (! in_array($user->role, $nakesRoles, true)) {
+            return;
+        }
+
+        $nakes = $user->nakes()->first();
+        $jabatan = $user->role;
+        $kategori = in_array($jabatan, ['dokter', 'perawat'], true) ? 'medis' : 'non_medis';
+
+        if ($nakes) {
+            $nakes->update([
+                'nama' => $user->name,
+                'jabatan' => $jabatan,
+                'kategori' => $kategori,
+                'is_active' => $user->is_active,
+            ]);
+
+            return;
+        }
+
+        $nakes = Nakes::withTrashed()->where('user_id', $user->id)->first();
+        if ($nakes) {
+            $nakes->restore();
+            $nakes->update([
+                'nama' => $user->name,
+                'jabatan' => $jabatan,
+                'kategori' => $kategori,
+                'is_active' => $user->is_active,
+            ]);
+
+            return;
+        }
+
+        Nakes::create([
+            'kode' => $this->generateNakesCode($jabatan),
+            'nama' => $user->name,
+            'kategori' => $kategori,
+            'jabatan' => $jabatan,
+            'user_id' => $user->id,
+            'is_active' => $user->is_active,
+        ]);
+    }
+
+    private function generateNakesCode(string $jabatan): string
+    {
+        $prefix = match ($jabatan) {
+            'dokter' => 'DR',
+            'perawat' => 'PRW',
+            'farmasi' => 'FAR',
+            'kasir' => 'KSR',
+            'pendaftaran' => 'REG',
+            default => 'NKS',
+        };
+
+        do {
+            $code = $prefix.'-'.str()->upper(str()->random(6));
+        } while (Nakes::withTrashed()->where('kode', $code)->exists());
+
+        return $code;
     }
 }

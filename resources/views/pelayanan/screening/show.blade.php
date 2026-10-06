@@ -70,6 +70,11 @@
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                 </div>
                 <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Lingkar Perut (cm)</label>
+                    <input type="number" step="0.1" name="lingkar_perut" value="{{ old('lingkar_perut', $kunjungan->screening?->lingkar_perut) }}" placeholder="80"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+                <div>
                     <label class="block text-xs font-medium text-gray-700 mb-1">SpO2 (%)</label>
                     <input type="number" name="spo2" value="{{ old('spo2', $kunjungan->screening?->spo2) }}" placeholder="98"
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
@@ -134,6 +139,52 @@
                             <option value="lebih">Gizi Lebih / Obesitas</option>
                         </select>
                     </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Jenis Alergi</label>
+                        <input type="text" name="alergi_jenis" value="{{ old('alergi_jenis', $kunjungan->screening?->alergi_jenis) }}" placeholder="Makanan, obat, atau lainnya"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Reaksi Alergi (opsional)</label>
+                        <input type="text" name="alergi_reaksi" value="{{ old('alergi_reaksi', $kunjungan->screening?->alergi_reaksi) }}" placeholder="Gatal-gatal, sesak, dll."
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Nama Penyakit</label>
+                        <input type="text" name="penyakit_nama" value="{{ old('penyakit_nama', $kunjungan->screening?->penyakit_nama) }}" placeholder="Hipertensi, diabetes, dll."
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Keterangan Penyakit</label>
+                        <input type="text" name="penyakit_keterangan" value="{{ old('penyakit_keterangan', $kunjungan->screening?->penyakit_keterangan) }}" placeholder="Sejak kapan atau catatan lain"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                </div>
+
+                <h4 class="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4 pb-2 border-b border-gray-100">
+                    Skrining Visual / Triase Awal
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    @foreach([
+                        'nyeri_dada' => ['Nyeri dada', ['tidak' => 'Tidak', 'ya' => 'Ya']],
+                        'kejang' => ['Kejang', ['tidak' => 'Tidak', 'ya' => 'Ya']],
+                        'nadi_teraba' => ['Keterabaan nadi', ['teraba' => 'Teraba', 'tidak_teraba' => 'Tidak teraba']],
+                        'pola_pernapasan' => ['Pola pernapasan', ['normal' => 'Normal', 'tidak_normal' => 'Tidak normal']],
+                        'kesadaran' => ['Kesadaran', ['sadar' => 'Sadar', 'menurun' => 'Menurun', 'tidak_sadar' => 'Tidak sadar']],
+                        'kondisi_psikiatri' => ['Kondisi psikiatri', ['normal' => 'Normal', 'terganggu' => 'Terganggu']],
+                        'risiko_jatuh_visual' => ['Risiko jatuh', ['rendah' => 'Rendah', 'sedang' => 'Sedang', 'tinggi' => 'Tinggi']],
+                    ] as $name => [$label, $options])
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">{{ $label }}</label>
+                        <select name="{{ $name }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            @foreach($options as $value => $optionLabel)
+                            <option value="{{ $value }}" @selected(old($name, $kunjungan->screening?->{$name}) === $value)>{{ $optionLabel }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @endforeach
                 </div>
             </div>
 
