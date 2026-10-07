@@ -73,6 +73,7 @@ class PasienController extends Controller
 
     public function show(Pasien $pasien): View
     {
+        $this->authorizeDoctorPatient($pasien);
         $pasien->load(['asuransi', 'kunjungan' => fn ($q) => $q->with(['poliklinik', 'dokter', 'tagihan'])->latest()->limit(20)]);
 
         return view('pelayanan.pasien.show', compact('pasien'));
@@ -119,12 +120,27 @@ class PasienController extends Controller
 
     public function rekamMedis(Pasien $pasien): View
     {
+        $this->authorizeDoctorPatient($pasien);
         $pasien->load(['kunjungan' => fn ($q) => $q->with([
             'poliklinik', 'dokter', 'screening', 'pemeriksaan.diagnosa', 'resep.resepObat.obat',
             'tindakanKunjungan.tindakan', 'tagihan', 'suratMedis', 'labHasil.laboratorium',
         ])->latest()]);
 
         return view('pelayanan.pasien.rekam-medis', compact('pasien'));
+    }
+
+    private function authorizeDoctorPatient(Pasien $pasien): void
+    {
+        if (auth()->user()->role !== 'dokter') {
+            return;
+        }
+
+        $doctorId = auth()->user()->nakes?->id;
+        abort_unless(
+            $doctorId && $pasien->kunjungan()->where('dokter_id', $doctorId)->exists(),
+            403,
+            'Pasien bukan tanggung jawab dokter ini.'
+        );
     }
 
     public function gabung(Request $request): RedirectResponse

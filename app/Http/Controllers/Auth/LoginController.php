@@ -28,6 +28,7 @@ class LoginController extends Controller
             $destination = match ($request->user()->role) {
                 'pendaftaran' => route('pendaftaran.dashboard'),
                 'perawat' => route('perawat.dashboard'),
+                'dokter' => route('dokter.dashboard'),
                 default => route('dashboard'),
             };
 

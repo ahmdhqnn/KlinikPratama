@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class UserController extends Controller
@@ -21,7 +22,13 @@ class UserController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        return view('users.index', compact('users'));
+        $dokterList = Nakes::query()
+            ->where('jabatan', 'dokter')
+            ->where('is_active', true)
+            ->orderBy('nama')
+            ->get(['id', 'nama', 'kode', 'user_id']);
+
+        return view('users.index', compact('users', 'dokterList'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -32,6 +39,14 @@ class UserController extends Controller
             'password' => ['required', 'min:6'],
             'role' => ['required', 'in:admin,dokter,perawat,farmasi,kasir,pendaftaran'],
             'is_active' => ['boolean'],
+            'nakes_id' => [
+                Rule::requiredIf($request->input('role') === 'dokter'),
+                'nullable',
+                Rule::exists('nakes', 'id')->where(fn ($query) => $query
+                    ->where('jabatan', 'dokter')
+                    ->where('is_active', true)
+                    ->whereNull('user_id')),
+            ],
         ]);
 
         $data['password'] = Hash::make($data['password']);
@@ -39,7 +54,7 @@ class UserController extends Controller
 
         DB::transaction(function () use ($data): void {
             $user = User::create($data);
-            $this->syncNakesProfile($user);
+            $this->syncNakesProfile($user, $data['nakes_id'] ?? null);
         });
 
         return back()->with('success', 'User berhasil ditambahkan.');
@@ -52,12 +67,22 @@ class UserController extends Controller
             'email' => ['required', 'email', "unique:users,email,{$user->id}"],
             'role' => ['required', 'in:admin,dokter,perawat,farmasi,kasir,pendaftaran'],
             'is_active' => ['boolean'],
+            'nakes_id' => [
+                Rule::requiredIf($request->input('role') === 'dokter'),
+                'nullable',
+                Rule::exists('nakes', 'id')->where(fn ($query) => $query
+                    ->where('jabatan', 'dokter')
+                    ->where('is_active', true)
+                    ->where(function ($query) use ($user): void {
+                        $query->whereNull('user_id')->orWhere('user_id', $user->id);
+                    })),
+            ],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
         DB::transaction(function () use ($data, $user): void {
             $user->update($data);
-            $this->syncNakesProfile($user->fresh());
+            $this->syncNakesProfile($user->fresh(), $data['nakes_id'] ?? null);
         });
 
         return back()->with('success', 'User berhasil diperbarui.');
@@ -94,12 +119,29 @@ class UserController extends Controller
         return back()->with('success', 'Password user berhasil direset.');
     }
 
-    private function syncNakesProfile(User $user): void
+    private function syncNakesProfile(User $user, ?int $nakesId = null): void
     {
         $nakesRoles = ['dokter', 'perawat', 'farmasi', 'kasir', 'pendaftaran'];
 
         if (! in_array($user->role, $nakesRoles, true)) {
             return;
+        }
+
+        if ($user->role === 'dokter') {
+            $selectedNakes = Nakes::findOrFail($nakesId);
+            $currentNakes = $user->nakes;
+
+            if ($currentNakes && $currentNakes->isNot($selectedNakes)) {
+                $currentNakes->update(['user_id' => null]);
+            }
+
+            $selectedNakes->update(['user_id' => $user->id]);
+
+            return;
+        }
+
+        if ($user->nakes?->jabatan === 'dokter') {
+            $user->nakes->update(['user_id' => null]);
         }
 
         $nakes = $user->nakes()->first();

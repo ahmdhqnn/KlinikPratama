@@ -101,6 +101,8 @@
                         <div class="bg-gray-50 p-4 rounded-lg text-sm space-y-2">
                             <p><strong>Anamnesis:</strong> {{ $kunjungan->pemeriksaan->anamnesis ?? '-' }}</p>
                             <p><strong>Pemeriksaan Fisik:</strong> {{ $kunjungan->pemeriksaan->pemeriksaan_fisik ?? '-' }}</p>
+                            <p><strong>Edukasi:</strong> {{ $kunjungan->pemeriksaan->edukasi ?? '-' }}</p>
+                            <p><strong>Catatan Dokter:</strong> {{ $kunjungan->pemeriksaan->catatan ?? '-' }}</p>
                             @if($kunjungan->pemeriksaan->kontrol_berikutnya)
                             <p class="text-blue-600 font-semibold">📅 Janji Kontrol: {{ date('d/m/Y', strtotime($kunjungan->pemeriksaan->kontrol_berikutnya)) }}</p>
                             @endif

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DokterDashboardController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\Master\AlkesController;
 use App\Http\Controllers\Master\AsuransiController;
@@ -44,9 +45,17 @@ Route::middleware(['auth', RedirectRegistrationRole::class])->group(function () 
     Route::get('/perawat/dashboard', PerawatDashboardController::class)
         ->middleware(EnsureRole::class.':admin,perawat')
         ->name('perawat.dashboard');
+    Route::prefix('dokter')->name('dokter.')->middleware(EnsureRole::class.':dokter')->group(function (): void {
+        Route::get('/', [DokterDashboardController::class, 'index'])->name('dashboard');
+        Route::get('kunjungan', [DokterDashboardController::class, 'appointments'])->name('kunjungan');
+        Route::get('janji-kunjungan', [DokterDashboardController::class, 'appointments'])->name('janji-kunjungan');
+        Route::get('pasien', [DokterDashboardController::class, 'patients'])->name('pasien');
+        Route::get('stok-obat', [DokterDashboardController::class, 'stock'])->name('stok-obat');
+        Route::get('laporan-top-diagnosa', [DokterDashboardController::class, 'topDiagnoses'])->name('laporan-top-diagnosa');
+    });
 
     // Master Data
-    Route::prefix('master')->name('master.')->group(function () {
+    Route::prefix('master')->name('master.')->middleware(EnsureAdminRole::class)->group(function () {
         Route::resource('depo-obat', DepoObatController::class);
         Route::resource('poliklinik', PoliklinikController::class);
         Route::post('poliklinik/{poliklinik}/ruang', [PoliklinikController::class, 'storeRuang'])->name('poliklinik.ruang.store');
@@ -84,16 +93,20 @@ Route::middleware(['auth', RedirectRegistrationRole::class])->group(function () 
 
     // Pelayanan
     Route::prefix('pelayanan')->name('pelayanan.')->group(function () {
-        Route::resource('pasien', PasienController::class);
+        Route::middleware(EnsureRole::class.':admin,perawat,pendaftaran,dokter')->group(function (): void {
+            Route::resource('pasien', PasienController::class);
+            Route::get('pasien/{pasien}/rekam-medis', [PasienController::class, 'rekamMedis'])->name('pasien.rekam-medis');
+        });
         Route::get('pasien-export', [PasienController::class, 'export'])->name('pasien.export');
         Route::post('pasien-import', [PasienController::class, 'import'])->name('pasien.import');
         Route::get('pasien-template', [PasienController::class, 'template'])->name('pasien.template');
-        Route::get('pasien/{pasien}/rekam-medis', [PasienController::class, 'rekamMedis'])->name('pasien.rekam-medis');
         Route::post('pasien/gabung', [PasienController::class, 'gabung'])->name('pasien.gabung');
 
-        Route::resource('kunjungan', KunjunganController::class);
-        Route::get('antrian', [KunjunganController::class, 'antrian'])->name('antrian');
-        Route::post('kunjungan/{kunjungan}/batal', [KunjunganController::class, 'batal'])->name('kunjungan.batal');
+        Route::middleware(EnsureRole::class.':admin,perawat,pendaftaran')->group(function (): void {
+            Route::resource('kunjungan', KunjunganController::class);
+            Route::get('antrian', [KunjunganController::class, 'antrian'])->name('antrian');
+            Route::post('kunjungan/{kunjungan}/batal', [KunjunganController::class, 'batal'])->name('kunjungan.batal');
+        });
 
         Route::middleware(EnsureRole::class.':admin,perawat,pendaftaran')->group(function (): void {
             Route::get('screening', [ScreeningController::class, 'index'])->name('screening.index');
@@ -103,34 +116,40 @@ Route::middleware(['auth', RedirectRegistrationRole::class])->group(function () 
             Route::post('kunjungan/{kunjungan}/screening', [ScreeningController::class, 'store'])->name('kunjungan.screening.store');
         });
 
-        Route::get('pemeriksaan', [PemeriksaanController::class, 'index'])->name('pemeriksaan.index');
-        Route::get('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'show'])->name('pemeriksaan.show');
-        Route::post('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'store'])->name('pemeriksaan.store');
-        Route::put('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'update'])->name('pemeriksaan.update');
-        Route::post('pemeriksaan/{kunjungan}/diagnosa', [PemeriksaanController::class, 'storeDiagnosa'])->name('pemeriksaan.diagnosa.store');
-        Route::delete('pemeriksaan/diagnosa/{diagnosa}', [PemeriksaanController::class, 'destroyDiagnosa'])->name('pemeriksaan.diagnosa.destroy');
-        Route::post('pemeriksaan/{kunjungan}/resep', [PemeriksaanController::class, 'storeResep'])->name('pemeriksaan.resep.store');
-        Route::delete('pemeriksaan/resep/{resepObat}', [PemeriksaanController::class, 'destroyResep'])->name('pemeriksaan.resep.destroy');
-        Route::post('pemeriksaan/{kunjungan}/tindakan', [PemeriksaanController::class, 'storeTindakan'])->name('pemeriksaan.tindakan.store');
-        Route::delete('pemeriksaan/tindakan/{tindakanKunjungan}', [PemeriksaanController::class, 'destroyTindakan'])->name('pemeriksaan.tindakan.destroy');
-        Route::post('pemeriksaan/{kunjungan}/surat', [PemeriksaanController::class, 'storeSurat'])->name('pemeriksaan.surat.store');
-        Route::post('pemeriksaan/{kunjungan}/rujukan', [PemeriksaanController::class, 'storeRujukan'])->name('pemeriksaan.rujukan.store');
-        Route::post('pemeriksaan/{kunjungan}/selesai', [PemeriksaanController::class, 'selesai'])->name('pemeriksaan.selesai');
-        Route::get('icd10/search', [PemeriksaanController::class, 'searchIcd10'])->name('icd10.search');
+        Route::middleware(EnsureRole::class.':admin,dokter')->group(function (): void {
+            Route::get('pemeriksaan', [PemeriksaanController::class, 'index'])->name('pemeriksaan.index');
+            Route::get('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'show'])->name('pemeriksaan.show');
+            Route::post('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'store'])->name('pemeriksaan.store');
+            Route::put('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'update'])->name('pemeriksaan.update');
+            Route::post('pemeriksaan/{kunjungan}/diagnosa', [PemeriksaanController::class, 'storeDiagnosa'])->name('pemeriksaan.diagnosa.store');
+            Route::delete('pemeriksaan/diagnosa/{diagnosa}', [PemeriksaanController::class, 'destroyDiagnosa'])->name('pemeriksaan.diagnosa.destroy');
+            Route::post('pemeriksaan/{kunjungan}/resep', [PemeriksaanController::class, 'storeResep'])->name('pemeriksaan.resep.store');
+            Route::delete('pemeriksaan/resep/{resepObat}', [PemeriksaanController::class, 'destroyResep'])->name('pemeriksaan.resep.destroy');
+            Route::post('pemeriksaan/{kunjungan}/tindakan', [PemeriksaanController::class, 'storeTindakan'])->name('pemeriksaan.tindakan.store');
+            Route::delete('pemeriksaan/tindakan/{tindakanKunjungan}', [PemeriksaanController::class, 'destroyTindakan'])->name('pemeriksaan.tindakan.destroy');
+            Route::post('pemeriksaan/{kunjungan}/surat', [PemeriksaanController::class, 'storeSurat'])->name('pemeriksaan.surat.store');
+            Route::post('pemeriksaan/{kunjungan}/rujukan', [PemeriksaanController::class, 'storeRujukan'])->name('pemeriksaan.rujukan.store');
+            Route::post('pemeriksaan/{kunjungan}/selesai', [PemeriksaanController::class, 'selesai'])->name('pemeriksaan.selesai');
+            Route::get('icd10/search', [PemeriksaanController::class, 'searchIcd10'])->name('icd10.search');
+        });
 
-        Route::get('farmasi', [FarmasiController::class, 'index'])->name('farmasi.index');
-        Route::get('farmasi/{kunjungan}', [FarmasiController::class, 'show'])->name('farmasi.show');
-        Route::post('farmasi/{kunjungan}', [FarmasiController::class, 'store'])->name('farmasi.store');
-        Route::post('farmasi/{kunjungan}/selesai', [FarmasiController::class, 'selesai'])->name('farmasi.selesai');
+        Route::middleware(EnsureRole::class.':admin,farmasi')->group(function (): void {
+            Route::get('farmasi', [FarmasiController::class, 'index'])->name('farmasi.index');
+            Route::get('farmasi/{kunjungan}', [FarmasiController::class, 'show'])->name('farmasi.show');
+            Route::post('farmasi/{kunjungan}', [FarmasiController::class, 'store'])->name('farmasi.store');
+            Route::post('farmasi/{kunjungan}/selesai', [FarmasiController::class, 'selesai'])->name('farmasi.selesai');
+        });
 
-        Route::get('kasir', [KasirController::class, 'index'])->name('kasir.index');
-        Route::get('kasir/{kunjungan}', [KasirController::class, 'show'])->name('kasir.show');
-        Route::post('kasir/{kunjungan}', [KasirController::class, 'store'])->name('kasir.store');
-        Route::get('kasir/{tagihan}/kuitansi', [KasirController::class, 'kuitansi'])->name('kasir.kuitansi');
+        Route::middleware(EnsureRole::class.':admin,kasir')->group(function (): void {
+            Route::get('kasir', [KasirController::class, 'index'])->name('kasir.index');
+            Route::get('kasir/{kunjungan}', [KasirController::class, 'show'])->name('kasir.show');
+            Route::post('kasir/{kunjungan}', [KasirController::class, 'store'])->name('kasir.store');
+            Route::get('kasir/{tagihan}/kuitansi', [KasirController::class, 'kuitansi'])->name('kasir.kuitansi');
+        });
     });
 
     // Manajemen Stok
-    Route::prefix('stok')->name('stok.')->group(function () {
+    Route::prefix('stok')->name('stok.')->middleware(EnsureAdminRole::class)->group(function () {
         Route::resource('purchase-order', PurchaseOrderController::class);
         Route::post('purchase-order/{purchaseOrder}/kirim', [PurchaseOrderController::class, 'kirim'])->name('purchase-order.kirim');
         Route::get('purchase-order/{purchaseOrder}/terima', [PurchaseOrderController::class, 'terimaBarang'])->name('purchase-order.terima.form');
@@ -141,7 +160,7 @@ Route::middleware(['auth', RedirectRegistrationRole::class])->group(function () 
     });
 
     // Laporan
-    Route::prefix('laporan')->name('laporan.')->group(function () {
+    Route::prefix('laporan')->name('laporan.')->middleware(EnsureAdminRole::class)->group(function () {
         Route::get('kunjungan', [LaporanController::class, 'kunjungan'])->name('kunjungan');
         Route::get('pendapatan', [LaporanController::class, 'pendapatan'])->name('pendapatan');
         Route::get('stok', [LaporanController::class, 'stok'])->name('stok');

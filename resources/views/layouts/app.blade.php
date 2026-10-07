@@ -67,6 +67,38 @@
                 {{ $label }}
             </a>
             @endforeach
+            @elseif(auth()->user()->role === 'dokter')
+            @foreach([
+                ['dokter.dashboard', 'Dashboard'],
+                ['dokter.kunjungan', 'Daftar Kunjungan'],
+                ['dokter.janji-kunjungan', 'Janji Kunjungan'],
+                ['dokter.pasien', 'Database Pasien'],
+                ['dokter.stok-obat', 'Lihat Stok Obat'],
+                ['dokter.laporan-top-diagnosa', 'Laporan Top Diagnosa'],
+            ] as [$routeName, $label])
+            <a href="{{ route($routeName) }}"
+               class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                      {{ request()->routeIs($routeName) ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }}">
+                {{ $label }}
+            </a>
+            @endforeach
+            <a href="{{ route('pelayanan.pemeriksaan.index') }}"
+               class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                      {{ request()->routeIs('pelayanan.pemeriksaan.*') ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }}">
+                Pemeriksaan Dokter
+            </a>
+            @elseif(auth()->user()->role === 'farmasi')
+            <a href="{{ route('pelayanan.farmasi.index') }}"
+               class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                      {{ request()->routeIs('pelayanan.farmasi.*') ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }}">
+                Antrian Farmasi
+            </a>
+            @elseif(auth()->user()->role === 'kasir')
+            <a href="{{ route('pelayanan.kasir.index') }}"
+               class="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                      {{ request()->routeIs('pelayanan.kasir.*') ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white' }}">
+                Antrian Kasir
+            </a>
             @else
             {{-- Dashboard --}}
             <a href="{{ route('dashboard') }}"

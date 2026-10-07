@@ -23,6 +23,30 @@ class RedirectRegistrationRole
             abort(403, 'Unauthorized access.');
         }
 
+        if ($request->user()?->role === 'dokter' && $request->routeIs('dashboard')) {
+            return redirect()->route('dokter.dashboard');
+        }
+
+        if ($request->user()?->role === 'dokter' && ! $this->isAllowedForDoctor($request)) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        if ($request->user()?->role === 'farmasi' && ! $this->isAllowedForPharmacy($request)) {
+            if ($request->routeIs('dashboard')) {
+                return redirect()->route('pelayanan.farmasi.index');
+            }
+
+            abort(403, 'Unauthorized access.');
+        }
+
+        if ($request->user()?->role === 'kasir' && ! $this->isAllowedForCashier($request)) {
+            if ($request->routeIs('dashboard')) {
+                return redirect()->route('pelayanan.kasir.index');
+            }
+
+            abort(403, 'Unauthorized access.');
+        }
+
         return $next($request);
     }
 
@@ -42,5 +66,26 @@ class RedirectRegistrationRole
             'pendaftaran.jadwal-praktik',
             'logout',
         );
+    }
+
+    private function isAllowedForDoctor(Request $request): bool
+    {
+        return $request->routeIs(
+            'dokter.*',
+            'pelayanan.pemeriksaan.*',
+            'pelayanan.pasien.show',
+            'pelayanan.pasien.rekam-medis',
+            'logout',
+        );
+    }
+
+    private function isAllowedForPharmacy(Request $request): bool
+    {
+        return $request->routeIs('pelayanan.farmasi.*', 'logout');
+    }
+
+    private function isAllowedForCashier(Request $request): bool
+    {
+        return $request->routeIs('pelayanan.kasir.*', 'logout');
     }
 }

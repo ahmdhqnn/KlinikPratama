@@ -75,7 +75,7 @@
                                         class="text-xs text-yellow-600 hover:text-yellow-800 font-medium">
                                     Reset Password
                                 </button>
-                                <button @click="openEdit({{ $user->id }}, '{{ addslashes($user->name) }}', '{{ $user->email }}', '{{ $user->role }}', {{ $user->is_active ? 'true' : 'false' }})"
+                                <button @click="openEdit({{ $user->id }}, '{{ addslashes($user->name) }}', '{{ $user->email }}', '{{ $user->role }}', {{ $user->is_active ? 'true' : 'false' }}, '{{ $user->nakes?->id }}')"
                                         class="text-xs text-blue-600 hover:text-blue-800 font-medium">
                                     Edit
                                 </button>
@@ -136,6 +136,16 @@
                             <option value="pendaftaran">Petugas Pendaftaran</option>
                         </select>
                     </div>
+                    <div x-show="form.role === 'dokter'" x-cloak>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Profil Dokter <span class="text-red-500">*</span></label>
+                        <select name="nakes_id" x-model="form.nakes_id" :required="form.role === 'dokter'" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="">Pilih dokter yang terhubung</option>
+                            @foreach($dokterList as $dokter)
+                            <option value="{{ $dokter->id }}">{{ $dokter->nama }} ({{ $dokter->kode }}){{ $dokter->user_id ? ' - sudah terhubung' : '' }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Kunjungan dan rekam medis dokter mengikuti profil ini.</p>
+                    </div>
                     <div class="flex items-center">
                         <input type="hidden" name="is_active" value="0">
                         <input type="checkbox" name="is_active" id="usr_is_active" value="1" x-model="form.is_active" class="w-4 h-4 text-blue-600 rounded">
@@ -184,17 +194,17 @@ function userPage() {
         editId: null,
         resetId: null,
         resetName: '',
-        form: { name: '', email: '', password: '', role: 'perawat', is_active: true },
+        form: { name: '', email: '', password: '', role: 'perawat', is_active: true, nakes_id: '' },
         openCreate() {
             this.isEdit = false;
             this.editId = null;
-            this.form = { name: '', email: '', password: '', role: 'perawat', is_active: true };
+            this.form = { name: '', email: '', password: '', role: 'perawat', is_active: true, nakes_id: '' };
             this.showModal = true;
         },
-        openEdit(id, name, email, role, isActive) {
+        openEdit(id, name, email, role, isActive, nakesId) {
             this.isEdit = true;
             this.editId = id;
-            this.form = { name, email, password: '', role, is_active: isActive };
+            this.form = { name, email, password: '', role, is_active: isActive, nakes_id: nakesId || '' };
             this.showModal = true;
         },
         openReset(id, name) {

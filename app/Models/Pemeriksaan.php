@@ -12,7 +12,7 @@ class Pemeriksaan extends Model
 
     protected $fillable = [
         'kunjungan_id', 'dokter_id', 'anamnesis',
-        'pemeriksaan_fisik', 'catatan', 'kontrol_berikutnya', 'status',
+        'pemeriksaan_fisik', 'catatan', 'edukasi', 'kontrol_berikutnya', 'status',
     ];
 
     protected $casts = ['kontrol_berikutnya' => 'date'];

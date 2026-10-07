@@ -164,6 +164,11 @@
                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                         </div>
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Edukasi Pasien</label>
+                        <textarea name="edukasi" rows="3" placeholder="Anjuran pola makan, cara penggunaan obat, larangan, dan jadwal kontrol"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500">{{ old('edukasi', $kunjungan->pemeriksaan?->edukasi) }}</textarea>
+                    </div>
 
                     <div class="flex justify-end pt-3">
                         <button type="submit" class="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">
@@ -198,6 +203,11 @@
                                 <option value="utama">Diagnosis Utama</option>
                                 <option value="tambahan">Diagnosis Tambahan</option>
                             </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Nama Obat Luar</label>
+                            <input type="text" name="nama_obat" placeholder="Isi jika resep luar"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                         </div>
                     </div>
 
