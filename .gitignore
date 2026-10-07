@@ -1,0 +1,89 @@
+# Environment files
+.env
+.env.backup
+.env.*.backup
+.env.production
+.env.local
+
+# IDE & Editor files
+.idea/
+.vscode/
+.cursor/
+.nova/
+.zed/
+.codex/
+.phpactor.json
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# PHP & Build files
+/vendor/
+/node_modules/
+composer.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+_ide_helper.php
+.phpunit.result.cache
+/.phpunit.cache/
+
+# Public assets
+/public/build
+/public/storage
+/public/hot
+/public/fonts-manifest.dev.json
+
+# Storage files
+/storage/*.key
+/storage/logs/
+/storage/cache/
+/storage/sessions/
+/storage/pail
+/storage/framework/cache/
+/storage/framework/sessions/
+/storage/framework/views/
+
+# Test files
+.phpunit.result.cache
+coverage/
+.coverage/
+
+# AI & Agent files
+.agents/
+.ai/
+AGENTS.md
+CLAUDE.md
+
+# Database & Seeders
+/database/seeders/
+!/database/seeders/
+!/database/seeders/*.php
+database.sqlite
+*.db
+
+# Misc files
+auth.json
+Homestead.json
+Homestead.yaml
+*.log
+*.tmp
+.editorconfig_local
+.vscode_local/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Local development
+/.env.local
+/.env.*.local
+/local/
+/temp/
