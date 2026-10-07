@@ -15,19 +15,19 @@ export default function NurseDashboard({ stats, visits }: Props) {
             <Head title="Dashboard Perawat" />
             <div className="space-y-6">
                 <div>
-                    <p className="text-sm font-medium text-blue-700">Pelayanan keperawatan</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Ringkasan skrining pasien</h2>
-                    <p className="mt-1 text-sm text-slate-500">Pantau antrean, pemeriksaan tanda vital, dan prioritas triase hari ini.</p>
+                    <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ringkasan skrining pasien</h2>
+                    <p className="mt-1 text-sm text-neutral-500">Pantau antrean, pemeriksaan tanda vital, dan prioritas triase hari ini.</p>
                 </div>
                 <section aria-label="Statistik keperawatan" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    <StatCard description="Menunggu atau sedang menjalani skrining" icon={<HeartPulse className="size-5" />} iconClassName="bg-blue-50 text-blue-700" label="Menunggu tanda vital" value={stats.menunggu_ttv} />
-                    <StatCard description="Siap mendapat pemeriksaan dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-violet-50 text-violet-700" label="Siap ke dokter" value={stats.siap_dokter} />
+                    <StatCard description="Menunggu atau sedang menjalani skrining" icon={<HeartPulse className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Menunggu tanda vital" value={stats.menunggu_ttv} />
+                    <StatCard description="Siap mendapat pemeriksaan dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Siap ke dokter" value={stats.siap_dokter} />
                     <StatCard description="Triase merah yang perlu perhatian" icon={<AlertTriangle className="size-5" />} iconClassName="bg-red-50 text-red-700" label="Triase darurat" value={stats.triase_darurat} />
                 </section>
                 <Card className="overflow-hidden">
-                    <CardHeader className="border-b border-slate-100">
+                    <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><ClipboardCheck className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><ClipboardCheck className="size-5" /></span>
                             <div><CardTitle>Antrean pelayanan hari ini</CardTitle><CardDescription className="mt-1">Kunjungan terlama ditampilkan lebih dahulu.</CardDescription></div>
                         </div>
                     </CardHeader>

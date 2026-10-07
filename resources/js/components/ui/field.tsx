@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Label } from '@/components/ui/label';
 
 export function Field({
     children,
@@ -15,9 +16,9 @@ export function Field({
 }) {
     return (
         <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-slate-700" htmlFor={htmlFor}>
+            <Label className="block" htmlFor={htmlFor}>
                 {label}{required && <span className="ml-1 text-red-600" aria-hidden="true">*</span>}
-            </label>
+            </Label>
             {children}
             {error && <p className="text-xs font-medium text-red-600" id={`${htmlFor}-error`}>{error}</p>}
         </div>

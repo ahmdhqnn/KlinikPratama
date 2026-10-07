@@ -6,15 +6,19 @@ export function Table({ className, ...props }: TableHTMLAttributes<HTMLTableElem
 }
 
 export function TableHeader({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-    return <thead className={cn('bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500', className)} {...props} />;
+    return <thead className={cn('bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-500', className)} {...props} />;
 }
 
 export function TableBody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-    return <tbody className={cn('divide-y divide-slate-100', className)} {...props} />;
+    return <tbody className={cn('divide-y divide-neutral-100', className)} {...props} />;
+}
+
+export function TableFooter({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
+    return <tfoot className={cn('border-t-2 border-neutral-800', className)} {...props} />;
 }
 
 export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
-    return <tr className={cn('transition-colors hover:bg-slate-50/80', className)} {...props} />;
+    return <tr className={cn('transition-colors hover:bg-neutral-50/80', className)} {...props} />;
 }
 
 export function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {

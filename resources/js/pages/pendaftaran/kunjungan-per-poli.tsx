@@ -6,8 +6,10 @@ import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { NativeSelect } from '@/components/ui/native-select';
+import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Label } from '@/components/ui/label';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface Clinic {
     id: number;
@@ -49,45 +51,45 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
             <Head title="Kunjungan Per Poliklinik" />
             <div className="space-y-6">
                 <div>
-                    <p className="text-sm font-medium text-blue-700">Pemantauan antrean klinik</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Kunjungan per poliklinik</h2>
-                    <p className="mt-1 text-sm text-slate-500">Pantau alur kunjungan pada poliklinik dan tanggal tertentu.</p>
+                    <p className="text-sm font-medium text-neutral-700">Pemantauan antrean klinik</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Kunjungan per poliklinik</h2>
+                    <p className="mt-1 text-sm text-neutral-500">Pantau alur kunjungan pada poliklinik dan tanggal tertentu.</p>
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
                         <form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto] xl:items-end" onSubmit={applyFilters}>
-                            <label className="space-y-1.5 text-sm font-medium text-slate-700">
+                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
                                 <span>Poliklinik</span>
-                                <NativeSelect onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} required value={filters.poliklinikId}>
+                                <Select onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} required value={filters.poliklinikId}>
                                     <option value="">Pilih poliklinik</option>
                                     {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
-                                </NativeSelect>
-                            </label>
-                            <label className="space-y-1.5 text-sm font-medium text-slate-700">
+                                </Select>
+                            </Label>
+                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
                                 <span>Tanggal kunjungan</span>
-                                <Input onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} required type="date" value={filters.tanggal} />
-                            </label>
-                            <label className="space-y-1.5 text-sm font-medium text-slate-700">
+                                <DatePicker onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} required  value={filters.tanggal} />
+                            </Label>
+                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
                                 <span>Status</span>
-                                <NativeSelect onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}>
+                                <Select onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}>
                                     <option value="">Semua status</option>
                                     {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                                </NativeSelect>
-                            </label>
+                                </Select>
+                            </Label>
                             <Button disabled={clinics.length === 0} type="submit"><Search className="size-4" />Terapkan filter</Button>
                         </form>
                     </CardContent>
                 </Card>
                 <section aria-label="Ringkasan antrean poliklinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <StatCard description="Kunjungan sesuai filter saat ini" icon={<Activity className="size-5" />} iconClassName="bg-blue-50 text-blue-700" label="Total kunjungan" value={stats.total} />
+                    <StatCard description="Kunjungan sesuai filter saat ini" icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan" value={stats.total} />
                     <StatCard description="Belum memulai skrining" icon={<Clock3 className="size-5" />} iconClassName="bg-amber-50 text-amber-700" label="Menunggu" value={stats.waiting} />
-                    <StatCard description="Sedang dalam skrining perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-cyan-50 text-cyan-700" label="Skrining" value={stats.screening} />
-                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-violet-50 text-violet-700" label="Pemeriksaan" value={stats.examination} />
+                    <StatCard description="Sedang dalam skrining perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Skrining" value={stats.screening} />
+                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan" value={stats.examination} />
                 </section>
                 <Card className="overflow-hidden">
-                    <CardHeader className="border-b border-slate-100">
+                    <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><CalendarDays className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><CalendarDays className="size-5" /></span>
                             <div><CardTitle>Daftar pasien</CardTitle><CardDescription className="mt-1">Urutan antrean mengikuti waktu pendaftaran.</CardDescription></div>
                         </div>
                     </CardHeader>
@@ -98,13 +100,13 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                 <TableBody>
                                     {visits.length > 0 ? visits.map((visit) => (
                                         <TableRow key={visit.id}>
-                                            <TableCell className="font-mono text-xs text-slate-600">{visit.number}</TableCell>
-                                            <TableCell><p className="font-medium text-slate-900">{visit.patient}</p><p className="mt-0.5 text-xs text-slate-500">{visit.medicalRecordNumber}</p></TableCell>
-                                            <TableCell className="text-slate-600">{visit.doctor}</TableCell>
+                                            <TableCell className="font-mono text-xs text-neutral-600">{visit.number}</TableCell>
+                                            <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
+                                            <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
                                             <TableCell><StatusBadge status={visit.status} /></TableCell>
-                                            <TableCell className="text-right">{visit.ticketUrl ? <Button asChild size="sm" variant="secondary"><a href={visit.ticketUrl} rel="noreferrer" target="_blank"><Printer className="size-4" />Cetak antrean</a></Button> : <span className="text-xs text-slate-400">—</span>}</TableCell>
+                                            <TableCell className="text-right">{visit.ticketUrl ? <Button asChild size="sm" variant="secondary"><a href={visit.ticketUrl} rel="noreferrer" target="_blank"><Printer className="size-4" />Cetak antrean</a></Button> : <span className="text-xs text-neutral-400">—</span>}</TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-slate-500" colSpan={5}>{clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'}</TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={5}>{clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'}</TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

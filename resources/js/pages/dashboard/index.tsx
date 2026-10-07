@@ -13,6 +13,8 @@ import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface DashboardProps {
     stats: {
@@ -88,13 +90,13 @@ function StatCard({
 }) {
     return (
         <Card className="min-w-0">
-            <CardContent className="flex items-start justify-between gap-4 p-5 sm:p-6">
+            <CardContent className="flex min-h-32 items-center justify-between gap-4 p-5 sm:p-6">
                 <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-500">{label}</p>
-                    <p className="mt-3 truncate text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">{value}</p>
-                    <p className="mt-2 text-xs text-slate-500">{detail}</p>
+                    <p className="text-sm font-medium text-neutral-500">{label}</p>
+                    <p className="mt-3 truncate text-2xl font-semibold tracking-tight text-neutral-950 sm:text-3xl">{value}</p>
+                    <p className="mt-2 text-xs text-neutral-500">{detail}</p>
                 </div>
-                <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${accent}`}>
+                <span className={`flex size-12 shrink-0 items-center justify-center rounded-xl ${accent}`}>
                     {icon}
                 </span>
             </CardContent>
@@ -111,11 +113,11 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, recen
             <div className="space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>
-                        <p className="text-sm font-medium text-blue-700">Ikhtisar operasional</p>
-                        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Selamat datang di Klinik Pratama</h2>
-                        <p className="mt-1 text-sm text-slate-500">Pantau aktivitas pelayanan klinik hari ini.</p>
+                        <p className="text-sm font-medium text-neutral-700">Ikhtisar operasional</p>
+                        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Selamat datang di Klinik Pratama</h2>
+                        <p className="mt-1 text-sm text-neutral-500">Pantau aktivitas pelayanan klinik hari ini.</p>
                     </div>
-                    <Button asChild variant="secondary">
+                    <Button asChild>
                         <a href="/pelayanan/kunjungan/create">
                             <ClipboardPlus className="size-4" />
                             Buat kunjungan
@@ -125,28 +127,28 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, recen
 
                 <section aria-label="Ringkasan klinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard
-                        accent="bg-blue-50 text-blue-700"
+                        accent="bg-neutral-900 text-neutral-50"
                         detail="Data pasien terdaftar"
                         icon={<UsersRound className="size-5" />}
                         label="Total pasien"
                         value={formatNumber(stats.totalPatients)}
                     />
                     <StatCard
-                        accent="bg-emerald-50 text-emerald-700"
+                        accent="bg-neutral-900 text-neutral-50"
                         detail="Kunjungan aktif hari ini"
                         icon={<CalendarCheck2 className="size-5" />}
                         label="Kunjungan hari ini"
                         value={formatNumber(stats.visitsToday)}
                     />
                     <StatCard
-                        accent="bg-violet-50 text-violet-700"
+                        accent="bg-neutral-900 text-neutral-50"
                         detail="Akumulasi bulan berjalan"
                         icon={<ClipboardList className="size-5" />}
                         label="Kunjungan bulan ini"
                         value={formatNumber(stats.visitsThisMonth)}
                     />
                     <StatCard
-                        accent="bg-amber-50 text-amber-700"
+                        accent="bg-neutral-900 text-neutral-50"
                         detail="Transaksi yang telah lunas"
                         icon={<CircleDollarSign className="size-5" />}
                         label="Pendapatan bulan ini"
@@ -164,10 +166,10 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, recen
                             {Object.entries(statusLabels).map(([status, label]) => (
                                 <div className="flex items-center justify-between gap-3" key={status}>
                                     <div className="flex items-center gap-3">
-                                        <span className={`size-2 rounded-full ${status === 'selesai' ? 'bg-emerald-500' : status === 'batal' ? 'bg-red-500' : 'bg-blue-500'}`} />
-                                        <span className="text-sm text-slate-600">{label}</span>
+                                        <span className={`size-2 rounded-full ${status === 'selesai' ? 'bg-emerald-500' : status === 'batal' ? 'bg-red-500' : 'bg-neutral-500'}`} />
+                                        <span className="text-sm text-neutral-600">{label}</span>
                                     </div>
-                                    <span className="min-w-8 rounded-full bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-700">
+                                    <span className="min-w-8 rounded-full bg-neutral-100 px-2 py-1 text-center text-xs font-semibold text-neutral-700">
                                         {formatNumber(visitStatuses[status] ?? 0)}
                                     </span>
                                 </div>
@@ -189,33 +191,33 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, recen
                                 <CardTitle>Tren kunjungan</CardTitle>
                                 <CardDescription>Pergerakan kunjungan selama tujuh hari terakhir.</CardDescription>
                             </div>
-                            <span className="rounded-lg bg-blue-50 p-2 text-blue-700"><CalendarPlus2 className="size-4" /></span>
+                            <span className="rounded-lg bg-neutral-50 p-2 text-neutral-700"><CalendarPlus2 className="size-4" /></span>
                         </CardHeader>
                         <CardContent>
                             {visitsByDay.length > 0 ? (
-                                <div className="flex h-44 items-end gap-3 border-b border-slate-100 pb-2">
+                                <div className="flex h-44 items-end gap-3 border-b border-neutral-100 pb-2">
                                     {visitsByDay.map((day) => (
                                         <div className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2" key={day.tanggal}>
-                                            <span className="text-xs font-medium text-slate-500">{formatNumber(day.jumlah)}</span>
+                                            <span className="text-xs font-medium text-neutral-500">{formatNumber(day.jumlah)}</span>
                                             <div className="flex h-28 w-full items-end justify-center">
                                                 <div
                                                     aria-label={`${formatNumber(day.jumlah)} kunjungan`}
-                                                    className="w-full max-w-10 rounded-t-md bg-blue-500 transition-all hover:bg-blue-600"
+                                                    className="w-full max-w-10 rounded-t-md bg-neutral-950 transition-all hover:bg-neutral-800 "
                                                     style={{ height: `${Math.max(8, (day.jumlah / peakVisits) * 100)}%` }}
                                                 />
                                             </div>
-                                            <span className="text-xs text-slate-500">{formatWeekday(day.tanggal)}</span>
+                                            <span className="text-xs text-neutral-500">{formatWeekday(day.tanggal)}</span>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="flex h-44 items-center justify-center rounded-xl bg-slate-50 text-sm text-slate-500">
+                                <div className="flex h-44 items-center justify-center rounded-xl bg-neutral-50 text-sm text-neutral-500">
                                     Belum ada data kunjungan dalam periode ini.
                                 </div>
                             )}
-                            <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+                            <div className="mt-4 flex items-center justify-between text-xs text-neutral-500">
                                 <span>Data kunjungan harian</span>
-                                <a className="inline-flex items-center gap-1 font-medium text-blue-700 hover:text-blue-800" href="/laporan/kunjungan">
+                                <a className="inline-flex items-center gap-1 font-medium text-neutral-700 hover:text-neutral-800" href="/laporan/kunjungan">
                                     Lihat laporan <ArrowUpRight className="size-3.5" />
                                 </a>
                             </div>
@@ -224,7 +226,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, recen
                 </section>
 
                 <Card className="overflow-hidden">
-                    <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-slate-100">
+                    <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-neutral-100">
                         <div className="space-y-1.5">
                             <CardTitle>Kunjungan terkini</CardTitle>
                             <CardDescription>Daftar kunjungan pasien hari ini.</CardDescription>
@@ -236,41 +238,35 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, recen
                         </Button>
                     </CardHeader>
                     <div className="overflow-x-auto">
-                        <table className="w-full min-w-[760px] text-left text-sm">
-                            <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                <tr>
-                                    <th className="px-5 py-3.5">No. kunjungan</th>
-                                    <th className="px-5 py-3.5">Pasien</th>
-                                    <th className="px-5 py-3.5">Poliklinik</th>
-                                    <th className="px-5 py-3.5">Dokter</th>
-                                    <th className="px-5 py-3.5">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
+                        <Table className="min-w-[760px]">
+                            <TableHeader><tr>
+                                <TableHead>No. kunjungan</TableHead>
+                                <TableHead>Pasien</TableHead>
+                                <TableHead>Poliklinik</TableHead>
+                                <TableHead>Dokter</TableHead>
+                                <TableHead>Status</TableHead>
+                            </tr></TableHeader>
+                            <TableBody>
                                 {recentVisits.length > 0 ? recentVisits.map((visit) => (
-                                    <tr className="transition-colors hover:bg-slate-50/80" key={visit.id}>
-                                        <td className="whitespace-nowrap px-5 py-4 font-mono text-xs text-slate-600">{visit.number}</td>
-                                        <td className="px-5 py-4">
-                                            <p className="font-medium text-slate-900">{visit.patient}</p>
-                                            <p className="mt-0.5 text-xs text-slate-500">{visit.medicalRecordNumber}</p>
-                                        </td>
-                                        <td className="px-5 py-4 text-slate-600">{visit.clinic}</td>
-                                        <td className="px-5 py-4 text-slate-600">{visit.doctor ?? 'Belum ditentukan'}</td>
-                                        <td className="px-5 py-4">
+                                    <TableRow key={visit.id}>
+                                        <TableCell className="whitespace-nowrap font-mono text-xs text-neutral-600">{visit.number}</TableCell>
+                                        <TableCell>
+                                            <p className="font-medium text-neutral-900">{visit.patient}</p>
+                                            <p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p>
+                                        </TableCell>
+                                        <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
+                                        <TableCell className="text-neutral-600">{visit.doctor ?? 'Belum ditentukan'}</TableCell>
+                                        <TableCell>
                                             <Badge variant={statusVariants[visit.status] ?? 'default'}>
                                                 {statusLabels[visit.status] ?? visit.status}
                                             </Badge>
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 )) : (
-                                    <tr>
-                                        <td className="px-5 py-12 text-center text-sm text-slate-500" colSpan={5}>
-                                            Belum ada kunjungan yang tercatat hari ini.
-                                        </td>
-                                    </tr>
+                                    <TableRow><TableCell colSpan={5}><Empty className="min-h-0 rounded-none border-0 bg-transparent py-6" description="Kunjungan pasien yang terdaftar hari ini akan muncul di sini." title="Belum ada kunjungan hari ini" /></TableCell></TableRow>
                                 )}
-                            </tbody>
-                        </table>
+                            </TableBody>
+                        </Table>
                     </div>
                 </Card>
 
@@ -281,14 +277,14 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, recen
                         { label: 'Lihat antrian', href: '/pelayanan/antrian', icon: ClipboardList },
                         { label: 'Stok obat', href: '/master/obat', icon: Pill },
                     ].map(({ href, icon: Icon, label }) => (
-                        <a className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/50 hover:text-blue-800" href={href} key={href}>
+                        <a className="group flex items-center justify-between rounded-xl border border-neutral-200 bg-surface p-4 text-sm font-medium text-neutral-700 shadow-sm transition hover:border-neutral-200 hover:bg-neutral-50/50 hover:text-neutral-800" href={href} key={href}>
                             <span className="flex items-center gap-3">
-                                <span className="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition group-hover:bg-blue-100 group-hover:text-blue-700">
+                                <span className="flex size-9 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600 transition group-hover:bg-neutral-100 group-hover:text-neutral-700">
                                     <Icon className="size-4" />
                                 </span>
                                 {label}
                             </span>
-                            <ArrowUpRight className="size-4 text-slate-400 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-blue-700" />
+                            <ArrowUpRight className="size-4 text-neutral-400 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-neutral-700" />
                         </a>
                     ))}
                 </section>

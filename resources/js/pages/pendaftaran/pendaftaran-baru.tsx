@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { NativeSelect } from '@/components/ui/native-select';
+import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface Option {
     id: number;
@@ -63,9 +64,9 @@ export default function NewPatientRegistration({ clinics, insuranceProviders, to
             <form className="mx-auto max-w-5xl space-y-6" onSubmit={submit}>
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>
-                        <p className="text-sm font-medium text-blue-700">Pendaftaran pasien</p>
-                        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Daftarkan pasien baru</h2>
-                        <p className="mt-1 text-sm text-slate-500">Lengkapi data identitas dan tujuan kunjungan pasien.</p>
+                        <p className="text-sm font-medium text-neutral-700">Pendaftaran pasien</p>
+                        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Daftarkan pasien baru</h2>
+                        <p className="mt-1 text-sm text-neutral-500">Lengkapi data identitas dan tujuan kunjungan pasien.</p>
                     </div>
                     <Button asChild variant="secondary"><Link href="/pendaftaran"><ArrowLeft className="size-4" />Kembali ke dashboard</Link></Button>
                 </div>
@@ -73,7 +74,7 @@ export default function NewPatientRegistration({ clinics, insuranceProviders, to
                 <Card>
                     <CardHeader>
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><UserRoundPlus className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span>
                             <div><CardTitle>Data identitas pasien</CardTitle><CardDescription className="mt-1">Informasi ini digunakan untuk rekam medis dan komunikasi layanan.</CardDescription></div>
                         </div>
                     </CardHeader>
@@ -89,23 +90,23 @@ export default function NewPatientRegistration({ clinics, insuranceProviders, to
                                 <Input id="tempat_lahir" onChange={(event) => updateField('tempat_lahir', event.target.value)} placeholder="Kota atau kabupaten" value={form.data.tempat_lahir} />
                             </Field>
                             <Field error={form.errors.tanggal_lahir} htmlFor="tanggal_lahir" label="Tanggal lahir" required>
-                                <Input aria-describedby={form.errors.tanggal_lahir ? 'tanggal_lahir-error' : undefined} id="tanggal_lahir" max={today} onChange={(event) => updateField('tanggal_lahir', event.target.value)} required type="date" value={form.data.tanggal_lahir} />
-                                <p aria-live="polite" className="text-xs text-slate-500">{age === null ? 'Umur akan dihitung otomatis.' : `Umur pasien: ${age} tahun`}</p>
+                                <DatePicker aria-describedby={form.errors.tanggal_lahir ? 'tanggal_lahir-error' : undefined} id="tanggal_lahir" max={today} onChange={(event) => updateField('tanggal_lahir', event.target.value)} required  value={form.data.tanggal_lahir} />
+                                <p aria-live="polite" className="text-xs text-neutral-500">{age === null ? 'Umur akan dihitung otomatis.' : `Umur pasien: ${age} tahun`}</p>
                             </Field>
                             <Field error={form.errors.jenis_kelamin} htmlFor="jenis_kelamin" label="Jenis kelamin" required>
-                                <NativeSelect aria-describedby={form.errors.jenis_kelamin ? 'jenis_kelamin-error' : undefined} id="jenis_kelamin" onChange={(event) => updateField('jenis_kelamin', event.target.value)} required value={form.data.jenis_kelamin}>
+                                <Select aria-describedby={form.errors.jenis_kelamin ? 'jenis_kelamin-error' : undefined} id="jenis_kelamin" onChange={(event) => updateField('jenis_kelamin', event.target.value)} required value={form.data.jenis_kelamin}>
                                     <option value="">Pilih jenis kelamin</option><option value="L">Laki-laki</option><option value="P">Perempuan</option>
-                                </NativeSelect>
+                                </Select>
                             </Field>
                             <Field error={form.errors.golongan_darah} htmlFor="golongan_darah" label="Golongan darah">
-                                <NativeSelect id="golongan_darah" onChange={(event) => updateField('golongan_darah', event.target.value)} value={form.data.golongan_darah}>
+                                <Select id="golongan_darah" onChange={(event) => updateField('golongan_darah', event.target.value)} value={form.data.golongan_darah}>
                                     <option value="">Belum diketahui</option><option value="A">A</option><option value="B">B</option><option value="AB">AB</option><option value="O">O</option>
-                                </NativeSelect>
+                                </Select>
                             </Field>
                             <Field error={form.errors.agama} htmlFor="agama" label="Agama">
-                                <NativeSelect id="agama" onChange={(event) => updateField('agama', event.target.value)} value={form.data.agama}>
+                                <Select id="agama" onChange={(event) => updateField('agama', event.target.value)} value={form.data.agama}>
                                     <option value="">Pilih agama</option><option>Islam</option><option>Kristen</option><option>Katolik</option><option>Hindu</option><option>Buddha</option>
-                                </NativeSelect>
+                                </Select>
                             </Field>
                             <Field error={form.errors.nama_ibu} htmlFor="nama_ibu" label="Nama ibu kandung">
                                 <Input id="nama_ibu" onChange={(event) => updateField('nama_ibu', event.target.value)} value={form.data.nama_ibu} />
@@ -132,7 +133,7 @@ export default function NewPatientRegistration({ clinics, insuranceProviders, to
                 <Card>
                     <CardHeader>
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><ClipboardPlus className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><ClipboardPlus className="size-5" /></span>
                             <div><CardTitle>Data kunjungan pertama</CardTitle><CardDescription className="mt-1">Pasien baru otomatis dibuatkan nomor rekam medis dan kunjungan awal.</CardDescription></div>
                         </div>
                     </CardHeader>

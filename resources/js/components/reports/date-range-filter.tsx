@@ -4,6 +4,8 @@ import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface Props {
     from: string;
@@ -24,8 +26,8 @@ export function DateRangeFilter({ from: initialFrom, to: initialTo, route, expor
 
     return (
         <Card><CardContent className="flex flex-wrap items-end gap-4 p-5 sm:p-6"><form className="flex flex-1 flex-wrap items-end gap-4" onSubmit={filterReport}>
-            <label className="space-y-1.5 text-sm font-medium text-slate-700"><span>Dari tanggal</span><Input onChange={(event) => setFrom(event.target.value)} required type="date" value={from} /></label>
-            <label className="space-y-1.5 text-sm font-medium text-slate-700"><span>Sampai tanggal</span><Input min={from} onChange={(event) => setTo(event.target.value)} required type="date" value={to} /></label>
+            <Label className="space-y-1.5 text-sm font-medium text-neutral-700"><span>Dari tanggal</span><DatePicker onChange={(event) => setFrom(event.target.value)} required  value={from} /></Label>
+            <Label className="space-y-1.5 text-sm font-medium text-neutral-700"><span>Sampai tanggal</span><DatePicker min={from} onChange={(event) => setTo(event.target.value)} required  value={to} /></Label>
             <Button type="submit"><Search className="size-4" />Filter data</Button>
         </form>{exportUrl && <Button asChild variant="secondary"><a href={exportUrl}><Download className="size-4" />Export Excel</a></Button>}</CardContent></Card>
     );

@@ -13,7 +13,10 @@ import {
     LayoutDashboard,
     LogOut,
     Menu,
+    PanelLeftClose,
+    PanelLeftOpen,
     Pill,
+    Search,
     Settings,
     ShieldCheck,
     ShoppingBag,
@@ -21,11 +24,16 @@ import {
     UserRound,
     UserRoundPlus,
     UsersRound,
-    X,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Breadcrumb, type BreadcrumbItem } from '@/components/ui/breadcrumb';
+import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import type { PageProps } from '@inertiajs/core';
 
 interface AppUser {
@@ -209,13 +217,134 @@ function getPageTitle(component: string): string {
     return titles[component] ?? 'Klinik Pratama';
 }
 
+const breadcrumbLabels: Record<string, string> = {
+    dokter: 'Dokter',
+    laporan: 'Laporan',
+    master: 'Data master',
+    pendaftaran: 'Pendaftaran',
+    pelayanan: 'Pelayanan',
+    stok: 'Stok & pengadaan',
+    setting: 'Pengaturan',
+    users: 'Pengguna',
+};
+
+function getBreadcrumbItems(pathname: string, title: string, validHrefs: Set<string>): BreadcrumbItem[] {
+    const segments = pathname.split('/').filter(Boolean);
+
+    if (segments.length === 0) {
+        return [{ label: title }];
+    }
+
+    return segments.map((segment, index) => {
+        const current = index === segments.length - 1;
+
+        return {
+            label: current ? title : breadcrumbLabels[segment] ?? segment.replaceAll('-', ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
+            href: current ? undefined : `/${segments.slice(0, index + 1).join('/')}`,
+        };
+    }).map((item) => item.href && !validHrefs.has(item.href) ? { label: item.label } : item);
+}
+
+function SidebarContents({
+    groups,
+    pathname,
+    user,
+    onNavigate,
+    headerClassName,
+    isCollapsed = false,
+}: {
+    groups: NavigationGroup[];
+    pathname: string;
+    user: AppUser | null;
+    onNavigate: () => void;
+    headerClassName?: string;
+    isCollapsed?: boolean;
+}) {
+    return (
+        <>
+            <SidebarHeader className={`${isCollapsed ? 'justify-center px-2' : ''} ${headerClassName ?? ''}`}>
+                <Link aria-label="Klinik Pratama — beranda" className={`flex min-w-0 items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`} href="/" onClick={onNavigate}>
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-neutral-50 shadow-sm shadow-inverse/20">
+                        <BriefcaseMedical aria-hidden="true" className="size-5" />
+                    </span>
+                    {!isCollapsed && <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold tracking-tight text-neutral-950">Klinik Pratama</span>
+                        <span className="block truncate text-xs text-neutral-500">Rekam Medis Elektronik</span>
+                    </span>}
+                </Link>
+            </SidebarHeader>
+
+            <SidebarContent aria-label="Navigasi utama" className={isCollapsed ? 'space-y-4 px-2 py-4' : undefined}>
+                {groups.map((group) => (
+                    <SidebarGroup key={group.label}>
+                        <SidebarGroupLabel className={isCollapsed ? 'sr-only' : undefined}>{group.label}</SidebarGroupLabel>
+                        <SidebarMenu>
+                            {group.items.map(({ href, icon: Icon, label }) => {
+                                const active = href === '/'
+                                    ? pathname === '/'
+                                    : pathname === href || pathname.startsWith(`${href}/`);
+
+                                return (
+                                    <SidebarMenuItem key={`${href}-${label}`}>
+                                        <SidebarMenuButton asChild className={isCollapsed ? 'justify-center px-2' : undefined} isActive={active}>
+                                            <Link aria-label={label} href={href} onClick={onNavigate} title={isCollapsed ? label : undefined}>
+                                                <Icon aria-hidden="true" className="size-[18px] shrink-0" />
+                                                <span className={isCollapsed ? 'sr-only' : undefined}>{label}</span>
+                                            </Link>
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                );
+                            })}
+                        </SidebarMenu>
+                    </SidebarGroup>
+                ))}
+            </SidebarContent>
+
+            <SidebarFooter>
+                <div className={`flex min-w-0 items-center gap-3 rounded-xl bg-neutral-50 p-3 ${isCollapsed ? 'flex-col px-1.5' : ''}`}>
+                    <Avatar aria-label={user?.name ?? 'Pengguna'} className="size-9 bg-neutral-100 text-neutral-800">
+                        <AvatarFallback>{user?.name.slice(0, 1).toLocaleUpperCase() ?? 'U'}</AvatarFallback>
+                    </Avatar>
+                    {!isCollapsed && <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-neutral-900">{user?.name ?? 'Pengguna'}</p>
+                        <p className="truncate text-xs capitalize text-neutral-500">{user?.role ?? ''}</p>
+                    </div>}
+                </div>
+            </SidebarFooter>
+        </>
+    );
+}
+
 export default function AppLayout({ children }: { children: ReactNode }) {
     const { auth, flash } = usePage<SharedPageProps>().props;
     const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchOpen, setSearchOpen] = useState(false);
     const user = auth.user;
     const groups = navigationByRole[user?.role ?? ''] ?? navigationByRole.admin;
     const pathname = window.location.pathname;
     const pageTitle = getPageTitle(usePage().component);
+    const validHrefs = new Set(Object.values(navigationByRole).flatMap((roleGroups) => roleGroups.flatMap((group) => group.items.map((item) => item.href))));
+    const breadcrumbs = getBreadcrumbItems(pathname, pageTitle, validHrefs);
+    const searchResults = groups.flatMap((group) => group.items
+        .filter((item) => `${item.label} ${group.label}`.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()))
+        .map((item) => ({ ...item, group: group.label })))
+        .slice(0, 6);
+
+    useEffect(() => {
+        const handleSearchShortcut = (event: KeyboardEvent) => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'k') {
+                event.preventDefault();
+                setSearchOpen(true);
+                window.requestAnimationFrame(() => document.getElementById('global-navigation-search')?.focus());
+            }
+        };
+
+        window.addEventListener('keydown', handleSearchShortcut);
+
+        return () => window.removeEventListener('keydown', handleSearchShortcut);
+    }, []);
 
     useEffect(() => {
         if (flash.success) {
@@ -228,105 +357,22 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     }, [flash.error, flash.success]);
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-900">
-            {mobileNavigationOpen && (
-                <button
-                    aria-label="Tutup navigasi"
-                    className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px] lg:hidden"
-                    onClick={() => setMobileNavigationOpen(false)}
-                    type="button"
-                />
-            )}
+        <div className="min-h-screen bg-canvas text-neutral-900">
+            <Sidebar className={`fixed inset-y-4 left-4 z-40 hidden h-[calc(100vh-2rem)] overflow-hidden rounded-2xl border border-neutral-200 shadow-lg shadow-inverse/[0.06] print:hidden transition-[width] duration-200 lg:flex ${sidebarCollapsed ? 'w-[4.5rem]' : 'w-[17rem]'}`}>
+                <SidebarContents groups={groups} isCollapsed={sidebarCollapsed} onNavigate={() => setMobileNavigationOpen(false)} pathname={pathname} user={user} />
+            </Sidebar>
 
-            <aside
-                className={`fixed inset-y-0 left-0 z-50 flex w-[17rem] flex-col border-r border-slate-200 bg-white transition-transform duration-200 print:hidden lg:translate-x-0 ${mobileNavigationOpen ? 'translate-x-0' : '-translate-x-full'}`}
-            >
-                <div className="flex h-[4.5rem] items-center justify-between border-b border-slate-100 px-5">
-                    <Link className="flex min-w-0 items-center gap-3" href="/">
-                        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-600/20">
-                            <BriefcaseMedical className="size-5" aria-hidden="true" />
-                        </span>
-                        <span className="min-w-0">
-                            <span className="block truncate text-sm font-bold tracking-tight text-slate-950">Klinik Pratama</span>
-                            <span className="block text-xs text-slate-500">Rekam Medis Elektronik</span>
-                        </span>
-                    </Link>
-                    <Button
-                        aria-label="Tutup menu"
-                        className="lg:hidden"
-                        onClick={() => setMobileNavigationOpen(false)}
-                        size="icon"
-                        variant="ghost"
-                    >
-                        <X className="size-4" />
-                    </Button>
-                </div>
+            <Drawer onOpenChange={setMobileNavigationOpen} open={mobileNavigationOpen}>
+                <DrawerContent className="p-0 lg:hidden" side="left">
+                    <DrawerTitle className="sr-only">Navigasi utama</DrawerTitle>
+                    <Sidebar className="h-full w-full">
+                        <SidebarContents groups={groups} headerClassName="pr-14" onNavigate={() => setMobileNavigationOpen(false)} pathname={pathname} user={user} />
+                    </Sidebar>
+                </DrawerContent>
+            </Drawer>
 
-                <nav aria-label="Navigasi utama" className="flex-1 space-y-7 overflow-y-auto px-3 py-5">
-                    {groups.map((group) => (
-                        <section key={group.label}>
-                            <h2 className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                                {group.label}
-                            </h2>
-                            <ul className="space-y-1">
-                                {group.items.map(({ href, icon: Icon, label }) => {
-                                    const active = href === '/'
-                                        ? pathname === '/'
-                                        : pathname === href || pathname.startsWith(`${href}/`);
-                                    const className = `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${active ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`;
-
-                                    return (
-                                        <li key={`${href}-${label}`}>
-                                            {href === '/' ? (
-                                                <Link
-                                                    className={className}
-                                                    href={href}
-                                                    onClick={() => setMobileNavigationOpen(false)}
-                                                >
-                                                    <Icon className="size-[18px] shrink-0" aria-hidden="true" />
-                                                    <span>{label}</span>
-                                                </Link>
-                                            ) : (
-                                                <a
-                                                    className={className}
-                                                    href={href}
-                                                    onClick={() => setMobileNavigationOpen(false)}
-                                                >
-                                                    <Icon className="size-[18px] shrink-0" aria-hidden="true" />
-                                                    <span>{label}</span>
-                                                </a>
-                                            )}
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </section>
-                    ))}
-                </nav>
-
-                <div className="border-t border-slate-100 p-3">
-                    <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
-                            {user?.name.slice(0, 1).toLocaleUpperCase() ?? 'U'}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-slate-900">{user?.name ?? 'Pengguna'}</p>
-                            <p className="truncate text-xs capitalize text-slate-500">{user?.role ?? ''}</p>
-                        </div>
-                        <Button
-                            aria-label="Keluar dari aplikasi"
-                            onClick={() => router.post('/logout')}
-                            size="icon"
-                            variant="ghost"
-                        >
-                            <LogOut className="size-4" />
-                        </Button>
-                    </div>
-                </div>
-            </aside>
-
-            <div className="min-h-screen lg:pl-[17rem]">
-                <header className="sticky top-0 z-30 flex h-[4.5rem] items-center gap-4 border-b border-slate-200 bg-white/90 px-4 backdrop-blur print:hidden sm:px-6 lg:px-8">
+            <div className={`min-h-screen transition-[padding] duration-200 ${sidebarCollapsed ? 'lg:pl-[6.5rem]' : 'lg:pl-[19rem]'}`}>
+                <header className="sticky top-0 z-30 flex h-16 items-center gap-2 bg-canvas px-3 print:hidden sm:gap-3 sm:px-6 lg:top-4 lg:mt-4 lg:h-[4.5rem] lg:px-8">
                     <Button
                         aria-label="Buka navigasi"
                         className="lg:hidden"
@@ -336,14 +382,99 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     >
                         <Menu className="size-5" />
                     </Button>
+                    <Button
+                        aria-expanded={!sidebarCollapsed}
+                        aria-label={sidebarCollapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+                        className="hidden lg:inline-flex"
+                        onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                        size="icon"
+                        title={sidebarCollapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+                        variant="ghost"
+                    >
+                        {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" className="size-4" /> : <PanelLeftClose aria-hidden="true" className="size-4" />}
+                    </Button>
+                    <span aria-hidden="true" className="h-6 w-px shrink-0 bg-neutral-200" />
                     <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-slate-500">Sistem Informasi Klinik</p>
-                        <h1 className="truncate text-lg font-semibold tracking-tight text-slate-950">{pageTitle}</h1>
+                        <h1 className="sr-only">{pageTitle}</h1>
+                        <Breadcrumb items={breadcrumbs} />
                     </div>
-                    <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 md:flex">
-                        <CalendarDays className="size-4" aria-hidden="true" />
-                        <span>{new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date())}</span>
+                    <div className="relative flex min-w-0 items-center">
+                        <Search aria-hidden="true" className="pointer-events-none absolute left-3 size-4 text-neutral-400" />
+                        <input
+                            aria-label="Cari menu"
+                            aria-controls="global-search-results"
+                            aria-expanded={searchOpen && searchQuery.trim().length > 0}
+                            autoComplete="off"
+                            className="h-10 w-32 rounded-lg border border-neutral-200 bg-surface pl-9 pr-3 text-sm text-neutral-900 shadow-sm outline-none transition placeholder:text-neutral-400 focus-visible:border-neutral-400 focus-visible:ring-4 focus-visible:ring-neutral-500/10 sm:w-56 sm:pr-12 lg:w-64"
+                            id="global-navigation-search"
+                            onBlur={() => setSearchOpen(false)}
+                            onChange={(event) => {
+                                setSearchQuery(event.target.value);
+                                setSearchOpen(true);
+                            }}
+                            onFocus={() => setSearchOpen(true)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Escape') {
+                                    setSearchOpen(false);
+                                    event.currentTarget.blur();
+                                }
+
+                                if (event.key === 'Enter' && searchResults[0]) {
+                                    router.visit(searchResults[0].href);
+                                    setSearchOpen(false);
+                                    setSearchQuery('');
+                                }
+                            }}
+                            placeholder="Cari menu…"
+                            role="combobox"
+                            value={searchQuery}
+                        />
+                        <kbd aria-hidden="true" className="pointer-events-none absolute right-2 hidden rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 lg:block">Ctrl K</kbd>
+                        {searchOpen && searchQuery.trim().length > 0 && (
+                            <ul className="absolute right-0 top-full z-50 mt-2 max-h-80 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-neutral-200 bg-surface p-1.5 shadow-xl shadow-inverse/10" id="global-search-results" role="listbox">
+                                {searchResults.length > 0 ? searchResults.map((result) => (
+                                    <li key={result.href} role="option" aria-selected="false">
+                                        <Link
+                                            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 hover:text-neutral-950 focus-visible:bg-neutral-100 focus-visible:outline-none"
+                                            href={result.href}
+                                            onMouseDown={(event) => event.preventDefault()}
+                                            onClick={() => {
+                                                setSearchOpen(false);
+                                                setSearchQuery('');
+                                            }}
+                                        >
+                                            <result.icon aria-hidden="true" className="size-4 shrink-0 text-neutral-500" />
+                                            <span className="min-w-0 flex-1 truncate">{result.label}</span>
+                                            <span className="shrink-0 text-xs text-neutral-400">{result.group}</span>
+                                        </Link>
+                                    </li>
+                                )) : <li className="px-3 py-4 text-center text-sm text-neutral-500">Menu tidak ditemukan.</li>}
+                            </ul>
+                        )}
                     </div>
+                    <ThemeToggle className="shrink-0" />
+                    <DropdownMenu.Root>
+                        <DropdownMenu.Trigger asChild>
+                            <Button aria-label={`Menu akun ${user?.name ?? 'Pengguna'}`} className="size-10 rounded-full p-0" size="icon" variant="ghost">
+                                <Avatar className="size-9 border border-neutral-200 bg-neutral-100 text-neutral-800">
+                                    <AvatarFallback>{user?.name.slice(0, 1).toLocaleUpperCase() ?? 'U'}</AvatarFallback>
+                                </Avatar>
+                            </Button>
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Portal>
+                            <DropdownMenu.Content align="end" className="z-50 min-w-56 rounded-xl border border-neutral-200 bg-surface p-1.5 shadow-xl shadow-inverse/10" sideOffset={8}>
+                                <div className="px-3 py-2">
+                                    <p className="truncate text-sm font-semibold text-neutral-900">{user?.name ?? 'Pengguna'}</p>
+                                    <p className="truncate text-xs text-neutral-500">{user?.email ?? ''}</p>
+                                </div>
+                                <DropdownMenu.Separator className="my-1 h-px bg-neutral-200" />
+                                <DropdownMenu.Item className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus:bg-neutral-100" onSelect={() => router.post('/logout')}>
+                                    <LogOut aria-hidden="true" className="size-4" />
+                                    Keluar dari aplikasi
+                                </DropdownMenu.Item>
+                            </DropdownMenu.Content>
+                        </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
                 </header>
 
                 <main className="mx-auto w-full max-w-[1600px] p-4 print:max-w-none print:p-0 sm:p-6 lg:p-8">

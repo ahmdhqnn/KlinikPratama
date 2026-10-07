@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { NativeSelect } from '@/components/ui/native-select';
+import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
 interface Option {
@@ -83,30 +83,30 @@ export function VisitFields({ clinics, insuranceProviders, day, values, errors, 
         <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
                 <Field error={errors.poliklinik_id} htmlFor="poliklinik_id" label="Poliklinik tujuan" required>
-                    <NativeSelect aria-describedby={errors.poliklinik_id ? 'poliklinik_id-error' : undefined} id="poliklinik_id" onChange={(event) => {
+                    <Select aria-describedby={errors.poliklinik_id ? 'poliklinik_id-error' : undefined} id="poliklinik_id" onChange={(event) => {
                         onChange('poliklinik_id', event.target.value);
                         onChange('dokter_id', '');
                     }} required value={values.poliklinik_id}>
                         <option value="">Pilih poliklinik</option>
                         {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
-                    </NativeSelect>
+                    </Select>
                 </Field>
                 <Field error={doctorLoadError ? 'Jadwal dokter gagal dimuat. Silakan pilih ulang poliklinik.' : errors.dokter_id} htmlFor="dokter_id" label="Dokter">
-                    <NativeSelect aria-describedby={(errors.dokter_id || doctorLoadError) ? 'dokter_id-error' : undefined} disabled={!values.poliklinik_id || loadingDoctors || doctorLoadError} id="dokter_id" onChange={(event) => onChange('dokter_id', event.target.value)} value={values.dokter_id}>
+                    <Select aria-describedby={(errors.dokter_id || doctorLoadError) ? 'dokter_id-error' : undefined} disabled={!values.poliklinik_id || loadingDoctors || doctorLoadError} id="dokter_id" onChange={(event) => onChange('dokter_id', event.target.value)} value={values.dokter_id}>
                         <option value="">{loadingDoctors ? 'Memuat dokter…' : doctors.length ? 'Pilih dokter (opsional)' : 'Tidak ada dokter terjadwal'}</option>
                         {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.nama}</option>)}
-                    </NativeSelect>
+                    </Select>
                 </Field>
                 <Field error={errors.asuransi_id} htmlFor="asuransi_id" label="Asuransi atau penjamin">
-                    <NativeSelect aria-describedby={errors.asuransi_id ? 'asuransi_id-error' : undefined} id="asuransi_id" onChange={(event) => onChange('asuransi_id', event.target.value)} value={values.asuransi_id}>
+                    <Select aria-describedby={errors.asuransi_id ? 'asuransi_id-error' : undefined} id="asuransi_id" onChange={(event) => onChange('asuransi_id', event.target.value)} value={values.asuransi_id}>
                         <option value="">Umum</option>
                         {insuranceProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
-                    </NativeSelect>
+                    </Select>
                 </Field>
                 <Field error={errors.jenis_bayar} htmlFor="jenis_bayar" label="Cara bayar" required>
-                    <NativeSelect aria-describedby={errors.jenis_bayar ? 'jenis_bayar-error' : undefined} id="jenis_bayar" onChange={(event) => onChange('jenis_bayar', event.target.value)} required value={values.jenis_bayar}>
+                    <Select aria-describedby={errors.jenis_bayar ? 'jenis_bayar-error' : undefined} id="jenis_bayar" onChange={(event) => onChange('jenis_bayar', event.target.value)} required value={values.jenis_bayar}>
                         <option value="umum">Umum</option><option value="bpjs">BPJS</option><option value="asuransi">Asuransi</option>
-                    </NativeSelect>
+                    </Select>
                 </Field>
                 {showInsuranceNumber && values.jenis_bayar === 'asuransi' && (
                     <Field error={errors.no_asuransi} htmlFor="no_asuransi" label="Nomor peserta asuransi">

@@ -5,7 +5,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLElement>) {
     return (
         <section
             className={cn(
-                'rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-950/[0.025]',
+                'rounded-2xl border border-neutral-200 bg-surface shadow-sm shadow-inverse/[0.025]',
                 className,
             )}
             {...props}
@@ -26,7 +26,7 @@ export function CardTitle({
 }: HTMLAttributes<HTMLHeadingElement>) {
     return (
         <h2
-            className={cn('text-base font-semibold tracking-tight text-slate-950', className)}
+            className={cn('text-base font-semibold tracking-tight text-neutral-950', className)}
             {...props}
         />
     );
@@ -36,7 +36,7 @@ export function CardDescription({
     className,
     ...props
 }: HTMLAttributes<HTMLParagraphElement>) {
-    return <p className={cn('text-sm text-slate-500', className)} {...props} />;
+    return <p className={cn('text-sm text-neutral-500', className)} {...props} />;
 }
 
 export function CardContent({

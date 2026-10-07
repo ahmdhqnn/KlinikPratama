@@ -29,14 +29,14 @@ export default function DoctorStock({ medicines }: Props) {
             <Head title="Stok Obat" />
             <div className="space-y-6">
                 <div>
-                    <p className="text-sm font-medium text-blue-700">Informasi farmasi</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Ketersediaan obat</h2>
-                    <p className="mt-1 text-sm text-slate-500">Stok aktif untuk membantu pertimbangan terapi dan peresepan.</p>
+                    <p className="text-sm font-medium text-neutral-700">Informasi farmasi</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ketersediaan obat</h2>
+                    <p className="mt-1 text-sm text-neutral-500">Stok aktif untuk membantu pertimbangan terapi dan peresepan.</p>
                 </div>
                 <Card className="overflow-hidden">
-                    <CardHeader className="border-b border-slate-100">
+                    <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><PackageSearch className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><PackageSearch className="size-5" /></span>
                             <div><CardTitle>Stok obat aktif</CardTitle><CardDescription className="mt-1">Stok pada atau di bawah batas minimum ditandai.</CardDescription></div>
                         </div>
                     </CardHeader>
@@ -47,13 +47,13 @@ export default function DoctorStock({ medicines }: Props) {
                                 <TableBody>
                                     {medicines.data.length > 0 ? medicines.data.map((medicine) => (
                                         <TableRow key={medicine.id}>
-                                            <TableCell className="font-mono text-xs text-slate-500">{medicine.code}</TableCell>
-                                            <TableCell className="font-medium text-slate-900">{medicine.name}</TableCell>
-                                            <TableCell className="text-slate-600">{medicine.unit}</TableCell>
+                                            <TableCell className="font-mono text-xs text-neutral-500">{medicine.code}</TableCell>
+                                            <TableCell className="font-medium text-neutral-900">{medicine.name}</TableCell>
+                                            <TableCell className="text-neutral-600">{medicine.unit}</TableCell>
                                             <TableCell className="text-right"><Badge variant={medicine.isLow ? 'cancelled' : 'complete'}>{formatStock(medicine.stock)}</Badge></TableCell>
-                                            <TableCell className="text-right tabular-nums text-slate-600">{formatStock(medicine.minimumStock)}</TableCell>
+                                            <TableCell className="text-right tabular-nums text-neutral-600">{formatStock(medicine.minimumStock)}</TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-slate-500" colSpan={5}>Belum ada data obat aktif.</TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={5}>Belum ada data obat aktif.</TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

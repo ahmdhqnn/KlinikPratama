@@ -14,8 +14,8 @@ export interface PaginationData {
 
 export function Pagination({ pagination }: { pagination: PaginationData }) {
     return (
-        <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <p aria-live="polite" className="text-sm text-slate-500">
+        <div className="flex flex-col gap-3 border-t border-neutral-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p aria-live="polite" className="text-sm text-neutral-500">
                 {pagination.total > 0
                     ? `Menampilkan ${pagination.from}–${pagination.to} dari ${new Intl.NumberFormat('id-ID').format(pagination.total)} data`
                     : 'Tidak ada data untuk ditampilkan'}
@@ -26,7 +26,7 @@ export function Pagination({ pagination }: { pagination: PaginationData }) {
                         ? <Link href={pagination.previousUrl} preserveScroll><ArrowLeft className="size-4" />Sebelumnya</Link>
                         : <span><ArrowLeft className="size-4" />Sebelumnya</span>}
                 </Button>
-                <span className="whitespace-nowrap text-xs text-slate-500">Halaman {pagination.currentPage} dari {pagination.lastPage}</span>
+                <span className="whitespace-nowrap text-xs text-neutral-500">Halaman {pagination.currentPage} dari {pagination.lastPage}</span>
                 <Button asChild disabled={!pagination.nextUrl} size="sm" variant="secondary">
                     {pagination.nextUrl
                         ? <Link href={pagination.nextUrl} preserveScroll>Berikutnya<ArrowRight className="size-4" /></Link>

@@ -10,17 +10,146 @@
 
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-    --color-accent: var(--color-blue-600);
-    --color-accent-content: var(--color-blue-700);
-    --color-accent-foreground: var(--color-white);
+    --color-accent: var(--clinic-neutral-900);
+    --color-accent-content: var(--clinic-neutral-800);
+    --color-accent-foreground: var(--clinic-neutral-50);
+    --color-inverse: hsl(0 0% 3.9%);
+    --color-on-inverse: hsl(0 0% 98%);
 }
 
-@layer theme {
-    .dark {
-        --color-accent: var(--color-blue-400);
-        --color-accent-content: var(--color-blue-400);
-        --color-accent-foreground: var(--color-zinc-900);
-    }
+@theme inline {
+    --color-neutral-50: var(--clinic-neutral-50);
+    --color-neutral-100: var(--clinic-neutral-100);
+    --color-neutral-200: var(--clinic-neutral-200);
+    --color-neutral-300: var(--clinic-neutral-300);
+    --color-neutral-400: var(--clinic-neutral-400);
+    --color-neutral-500: var(--clinic-neutral-500);
+    --color-neutral-600: var(--clinic-neutral-600);
+    --color-neutral-700: var(--clinic-neutral-700);
+    --color-neutral-800: var(--clinic-neutral-800);
+    --color-neutral-900: var(--clinic-neutral-900);
+    --color-neutral-950: var(--clinic-neutral-950);
+    --color-surface: var(--clinic-surface);
+    --color-canvas: var(--clinic-canvas);
+}
+
+:root {
+    color-scheme: light;
+    --clinic-canvas: hsl(0 0% 96.1%);
+    --clinic-surface: hsl(0 0% 98%);
+    --clinic-neutral-50: hsl(0 0% 98%);
+    --clinic-neutral-100: hsl(0 0% 96.1%);
+    --clinic-neutral-200: hsl(0 0% 89.8%);
+    --clinic-neutral-300: hsl(0 0% 83.1%);
+    --clinic-neutral-400: hsl(0 0% 63.9%);
+    --clinic-neutral-500: hsl(0 0% 45.1%);
+    --clinic-neutral-600: hsl(0 0% 32.2%);
+    --clinic-neutral-700: hsl(0 0% 25.1%);
+    --clinic-neutral-800: hsl(0 0% 14.9%);
+    --clinic-neutral-900: hsl(0 0% 9%);
+    --clinic-neutral-950: hsl(0 0% 3.9%);
+}
+
+.dark {
+    color-scheme: dark;
+    --clinic-canvas: hsl(0 0% 3.9%);
+    --clinic-surface: hsl(0 0% 9%);
+    --clinic-neutral-50: hsl(0 0% 14.9%);
+    --clinic-neutral-100: hsl(0 0% 14.9%);
+    --clinic-neutral-200: hsl(0 0% 25.1%);
+    --clinic-neutral-300: hsl(0 0% 32.2%);
+    --clinic-neutral-400: hsl(0 0% 63.9%);
+    --clinic-neutral-500: hsl(0 0% 63.9%);
+    --clinic-neutral-600: hsl(0 0% 83.1%);
+    --clinic-neutral-700: hsl(0 0% 89.8%);
+    --clinic-neutral-800: hsl(0 0% 96.1%);
+    --clinic-neutral-900: hsl(0 0% 98%);
+    --clinic-neutral-950: hsl(0 0% 98%);
+    --color-accent: var(--clinic-neutral-900);
+    --color-accent-content: var(--clinic-neutral-700);
+    --color-accent-foreground: var(--clinic-neutral-50);
+    --color-amber-50: color-mix(in srgb, var(--color-amber-500) 16%, var(--clinic-surface));
+    --color-amber-100: color-mix(in srgb, var(--color-amber-500) 24%, var(--clinic-surface));
+    --color-amber-200: color-mix(in srgb, var(--color-amber-500) 42%, var(--clinic-surface));
+    --color-amber-700: color-mix(in srgb, var(--color-amber-500) 65%, hsl(0 0% 98%));
+    --color-amber-800: color-mix(in srgb, var(--color-amber-500) 65%, hsl(0 0% 98%));
+    --color-amber-900: color-mix(in srgb, var(--color-amber-500) 65%, hsl(0 0% 98%));
+    --color-amber-950: color-mix(in srgb, var(--color-amber-500) 65%, hsl(0 0% 98%));
+    --color-blue-50: color-mix(in srgb, var(--color-blue-500) 16%, var(--clinic-surface));
+    --color-blue-100: color-mix(in srgb, var(--color-blue-500) 24%, var(--clinic-surface));
+    --color-blue-200: color-mix(in srgb, var(--color-blue-500) 42%, var(--clinic-surface));
+    --color-blue-700: color-mix(in srgb, var(--color-blue-500) 65%, hsl(0 0% 98%));
+    --color-blue-800: color-mix(in srgb, var(--color-blue-500) 65%, hsl(0 0% 98%));
+    --color-blue-900: color-mix(in srgb, var(--color-blue-500) 65%, hsl(0 0% 98%));
+    --color-blue-950: color-mix(in srgb, var(--color-blue-500) 65%, hsl(0 0% 98%));
+    --color-violet-50: color-mix(in srgb, var(--color-violet-500) 16%, var(--clinic-surface));
+    --color-violet-100: color-mix(in srgb, var(--color-violet-500) 24%, var(--clinic-surface));
+    --color-violet-200: color-mix(in srgb, var(--color-violet-500) 42%, var(--clinic-surface));
+    --color-violet-700: color-mix(in srgb, var(--color-violet-500) 65%, hsl(0 0% 98%));
+    --color-violet-800: color-mix(in srgb, var(--color-violet-500) 65%, hsl(0 0% 98%));
+    --color-violet-900: color-mix(in srgb, var(--color-violet-500) 65%, hsl(0 0% 98%));
+    --color-violet-950: color-mix(in srgb, var(--color-violet-500) 65%, hsl(0 0% 98%));
+    --color-orange-50: color-mix(in srgb, var(--color-orange-500) 16%, var(--clinic-surface));
+    --color-orange-100: color-mix(in srgb, var(--color-orange-500) 24%, var(--clinic-surface));
+    --color-orange-200: color-mix(in srgb, var(--color-orange-500) 42%, var(--clinic-surface));
+    --color-orange-700: color-mix(in srgb, var(--color-orange-500) 65%, hsl(0 0% 98%));
+    --color-orange-800: color-mix(in srgb, var(--color-orange-500) 65%, hsl(0 0% 98%));
+    --color-orange-900: color-mix(in srgb, var(--color-orange-500) 65%, hsl(0 0% 98%));
+    --color-orange-950: color-mix(in srgb, var(--color-orange-500) 65%, hsl(0 0% 98%));
+    --color-pink-50: color-mix(in srgb, var(--color-pink-500) 16%, var(--clinic-surface));
+    --color-pink-100: color-mix(in srgb, var(--color-pink-500) 24%, var(--clinic-surface));
+    --color-pink-200: color-mix(in srgb, var(--color-pink-500) 42%, var(--clinic-surface));
+    --color-pink-700: color-mix(in srgb, var(--color-pink-500) 65%, hsl(0 0% 98%));
+    --color-pink-800: color-mix(in srgb, var(--color-pink-500) 65%, hsl(0 0% 98%));
+    --color-pink-900: color-mix(in srgb, var(--color-pink-500) 65%, hsl(0 0% 98%));
+    --color-pink-950: color-mix(in srgb, var(--color-pink-500) 65%, hsl(0 0% 98%));
+    --color-emerald-50: color-mix(in srgb, var(--color-emerald-500) 16%, var(--clinic-surface));
+    --color-emerald-100: color-mix(in srgb, var(--color-emerald-500) 24%, var(--clinic-surface));
+    --color-emerald-200: color-mix(in srgb, var(--color-emerald-500) 42%, var(--clinic-surface));
+    --color-emerald-700: color-mix(in srgb, var(--color-emerald-500) 65%, hsl(0 0% 98%));
+    --color-emerald-800: color-mix(in srgb, var(--color-emerald-500) 65%, hsl(0 0% 98%));
+    --color-emerald-900: color-mix(in srgb, var(--color-emerald-500) 65%, hsl(0 0% 98%));
+    --color-emerald-950: color-mix(in srgb, var(--color-emerald-500) 65%, hsl(0 0% 98%));
+    --color-red-50: color-mix(in srgb, var(--color-red-500) 16%, var(--clinic-surface));
+    --color-red-100: color-mix(in srgb, var(--color-red-500) 24%, var(--clinic-surface));
+    --color-red-200: color-mix(in srgb, var(--color-red-500) 42%, var(--clinic-surface));
+    --color-red-300: color-mix(in srgb, var(--color-red-500) 52%, var(--clinic-surface));
+    --color-red-700: color-mix(in srgb, var(--color-red-500) 65%, hsl(0 0% 98%));
+    --color-red-800: color-mix(in srgb, var(--color-red-500) 65%, hsl(0 0% 98%));
+    --color-red-900: color-mix(in srgb, var(--color-red-500) 65%, hsl(0 0% 98%));
+    --color-red-950: color-mix(in srgb, var(--color-red-500) 65%, hsl(0 0% 98%));
+    --color-green-50: color-mix(in srgb, var(--color-green-500) 16%, var(--clinic-surface));
+    --color-green-100: color-mix(in srgb, var(--color-green-500) 24%, var(--clinic-surface));
+    --color-green-200: color-mix(in srgb, var(--color-green-500) 42%, var(--clinic-surface));
+    --color-green-700: color-mix(in srgb, var(--color-green-500) 65%, hsl(0 0% 98%));
+    --color-green-800: color-mix(in srgb, var(--color-green-500) 65%, hsl(0 0% 98%));
+    --color-green-900: color-mix(in srgb, var(--color-green-500) 65%, hsl(0 0% 98%));
+    --color-green-950: color-mix(in srgb, var(--color-green-500) 65%, hsl(0 0% 98%));
+    --color-yellow-50: color-mix(in srgb, var(--color-yellow-500) 16%, var(--clinic-surface));
+    --color-yellow-100: color-mix(in srgb, var(--color-yellow-500) 24%, var(--clinic-surface));
+    --color-yellow-200: color-mix(in srgb, var(--color-yellow-500) 42%, var(--clinic-surface));
+    --color-yellow-700: color-mix(in srgb, var(--color-yellow-500) 65%, hsl(0 0% 98%));
+    --color-yellow-800: color-mix(in srgb, var(--color-yellow-500) 65%, hsl(0 0% 98%));
+    --color-yellow-900: color-mix(in srgb, var(--color-yellow-500) 65%, hsl(0 0% 98%));
+    --color-yellow-950: color-mix(in srgb, var(--color-yellow-500) 65%, hsl(0 0% 98%));
+    --color-purple-50: color-mix(in srgb, var(--color-purple-500) 16%, var(--clinic-surface));
+    --color-purple-100: color-mix(in srgb, var(--color-purple-500) 24%, var(--clinic-surface));
+    --color-purple-200: color-mix(in srgb, var(--color-purple-500) 42%, var(--clinic-surface));
+    --color-purple-700: color-mix(in srgb, var(--color-purple-500) 65%, hsl(0 0% 98%));
+    --color-purple-800: color-mix(in srgb, var(--color-purple-500) 65%, hsl(0 0% 98%));
+    --color-purple-900: color-mix(in srgb, var(--color-purple-500) 65%, hsl(0 0% 98%));
+    --color-purple-950: color-mix(in srgb, var(--color-purple-500) 65%, hsl(0 0% 98%));
+    --color-indigo-50: color-mix(in srgb, var(--color-indigo-500) 16%, var(--clinic-surface));
+    --color-indigo-100: color-mix(in srgb, var(--color-indigo-500) 24%, var(--clinic-surface));
+    --color-indigo-200: color-mix(in srgb, var(--color-indigo-500) 42%, var(--clinic-surface));
+    --color-indigo-700: color-mix(in srgb, var(--color-indigo-500) 65%, hsl(0 0% 98%));
+    --color-indigo-800: color-mix(in srgb, var(--color-indigo-500) 65%, hsl(0 0% 98%));
+    --color-indigo-900: color-mix(in srgb, var(--color-indigo-500) 65%, hsl(0 0% 98%));
+    --color-indigo-950: color-mix(in srgb, var(--color-indigo-500) 65%, hsl(0 0% 98%));
+}
+
+.dark .text-red-600 {
+    color: var(--color-red-700);
 }
 
 [x-cloak] {
@@ -33,27 +162,27 @@
     height: 6px;
 }
 ::-webkit-scrollbar-track {
-    background: #f1f5f9;
+    background: var(--clinic-canvas);
 }
 ::-webkit-scrollbar-thumb {
-    background: #94a3b8;
+    background: var(--clinic-neutral-400);
     border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: #64748b;
+    background: var(--clinic-neutral-500);
 }
 
 /* Sidebar active states */
 .nav-active {
-    @apply bg-blue-700 text-white;
+    @apply bg-neutral-900 text-neutral-50;
 }
 
 /* Table styles */
 .table-auto th {
-    @apply bg-gray-50 text-gray-600 text-xs font-semibold uppercase tracking-wider px-4 py-3;
+    @apply bg-neutral-100 text-neutral-600 text-xs font-semibold uppercase tracking-wider px-4 py-3;
 }
 .table-auto td {
-    @apply px-4 py-3 text-sm text-gray-700 border-b border-gray-100;
+    @apply px-4 py-3 text-sm text-neutral-700 border-b border-neutral-100;
 }
 
 /* Badge styles */
@@ -64,14 +193,14 @@
 .badge-blue   { @apply bg-blue-100 text-blue-800; }
 .badge-yellow { @apply bg-yellow-100 text-yellow-800; }
 .badge-red    { @apply bg-red-100 text-red-800; }
-.badge-gray   { @apply bg-gray-100 text-gray-800; }
+.badge-gray   { @apply bg-neutral-100 text-neutral-800; }
 .badge-purple { @apply bg-purple-100 text-purple-800; }
 .badge-indigo { @apply bg-indigo-100 text-indigo-800; }
 .badge-success { @apply bg-emerald-100 text-emerald-800; }
 
 /* Form input focus */
 .form-input:focus {
-    @apply outline-none ring-2 ring-blue-500 border-blue-500;
+    @apply outline-none ring-2 ring-neutral-500 border-neutral-500;
 }
 
 /* Alert flash messages */
@@ -85,9 +214,25 @@
 
 /* Print styles */
 @media print {
+    :root.dark {
+        color-scheme: light;
+        --clinic-canvas: hsl(0 0% 96.1%);
+        --clinic-surface: hsl(0 0% 98%);
+        --clinic-neutral-50: hsl(0 0% 98%);
+        --clinic-neutral-100: hsl(0 0% 96.1%);
+        --clinic-neutral-200: hsl(0 0% 89.8%);
+        --clinic-neutral-300: hsl(0 0% 83.1%);
+        --clinic-neutral-400: hsl(0 0% 63.9%);
+        --clinic-neutral-500: hsl(0 0% 45.1%);
+        --clinic-neutral-600: hsl(0 0% 32.2%);
+        --clinic-neutral-700: hsl(0 0% 25.1%);
+        --clinic-neutral-800: hsl(0 0% 14.9%);
+        --clinic-neutral-900: hsl(0 0% 9%);
+        --clinic-neutral-950: hsl(0 0% 3.9%);
+    }
     .no-print { display: none !important; }
     .print-only { display: block !important; }
-    body { background: white !important; font-size: 12px; }
+    body { background: hsl(0 0% 98%) !important; color: hsl(0 0% 3.9%) !important; font-size: 12px; }
     @page { size: auto; margin: 10mm; }
     .receipt-card {
         width: 72mm;
@@ -99,7 +244,7 @@
     .receipt-content { padding: 0 !important; }
     .medical-record-print,
     .queue-ticket { break-inside: avoid; box-shadow: none !important; }
-    .medical-record-print { border-color: #cbd5e1 !important; }
+    .medical-record-print { border-color: hsl(0 0% 83.1%) !important; }
     .queue-ticket { width: 80mm; max-width: 100% !important; margin: 0 auto !important; }
 }
 .print-only { display: none; }
