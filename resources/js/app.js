@@ -1,8 +1,3 @@
-import Alpine from 'alpinejs';
-
-window.Alpine = Alpine;
-Alpine.start();
-
 // CSRF token for fetch requests
 window.csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 

@@ -8,28 +8,84 @@ use App\Models\AsuransiHarga;
 use App\Models\Obat;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class AsuransiController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
-        $asuransi = Asuransi::query()
-            ->when($request->search, fn ($q, $s) => $q->where('nama', 'like', "%$s%")->orWhere('kode', 'like', "%$s%"))
-            ->when($request->jenis, fn ($q, $j) => $q->where('jenis', $j))
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'jenis' => ['nullable', 'in:umum,bpjs,perusahaan'],
+        ]);
+        $insurances = Asuransi::query()
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(function ($subquery) use ($search): void {
+                $subquery->where('nama', 'like', "%{$search}%")
+                    ->orWhere('kode', 'like', "%{$search}%");
+            }))
+            ->when($filters['jenis'] ?? null, fn ($query, string $type) => $query->where('jenis', $type))
             ->orderBy('nama')
             ->paginate(15)
             ->withQueryString();
 
-        return view('master.asuransi.index', compact('asuransi'));
+        return Inertia::render('master/asuransi/index', [
+            'insurances' => [
+                'data' => $insurances->getCollection()->map(fn (Asuransi $insurance): array => [
+                    'id' => $insurance->id,
+                    'code' => $insurance->kode,
+                    'name' => $insurance->nama,
+                    'type' => $insurance->jenis,
+                    'address' => $insurance->alamat,
+                    'phone' => $insurance->telepon,
+                    'notes' => $insurance->catatan,
+                    'active' => $insurance->is_active,
+                ])->values(),
+                'currentPage' => $insurances->currentPage(),
+                'lastPage' => $insurances->lastPage(),
+                'perPage' => $insurances->perPage(),
+                'total' => $insurances->total(),
+                'from' => $insurances->firstItem(),
+                'to' => $insurances->lastItem(),
+                'previousUrl' => $insurances->previousPageUrl(),
+                'nextUrl' => $insurances->nextPageUrl(),
+            ],
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'type' => $filters['jenis'] ?? '',
+            ],
+            'types' => [
+                ['value' => 'umum', 'label' => 'Umum (Mandiri)'],
+                ['value' => 'bpjs', 'label' => 'BPJS Kesehatan'],
+                ['value' => 'perusahaan', 'label' => 'Perusahaan / Korporasi'],
+            ],
+        ]);
     }
 
-    public function show(Asuransi $asuransi): View
+    public function show(Asuransi $asuransi): Response
     {
         $asuransi->load('asuransiHarga.obat');
-        $obatList = Obat::where('is_active', true)->orderBy('nama')->get();
+        $medicines = Obat::where('is_active', true)->orderBy('nama')->get();
 
-        return view('master.asuransi.show', compact('asuransi', 'obatList'));
+        return Inertia::render('master/asuransi/show', [
+            'insurance' => [
+                'id' => $asuransi->id,
+                'code' => $asuransi->kode,
+                'name' => $asuransi->nama,
+                'prices' => $asuransi->asuransiHarga->map(fn (AsuransiHarga $price): array => [
+                    'id' => $price->id,
+                    'medicineId' => $price->obat_id,
+                    'medicine' => $price->obat?->nama ?? 'Obat dihapus',
+                    'regularPrice' => (float) ($price->obat?->harga_jual ?? 0),
+                    'specialPrice' => (float) $price->harga_khusus,
+                ])->values(),
+            ],
+            'medicines' => $medicines->map(fn (Obat $medicine): array => [
+                'id' => $medicine->id,
+                'name' => $medicine->nama,
+                'regularPrice' => (float) $medicine->harga_jual,
+            ])->values(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -77,14 +133,14 @@ class AsuransiController extends Controller
 
     public function storeHarga(Request $request, Asuransi $asuransi): RedirectResponse
     {
-        $request->validate([
+        $data = $request->validate([
             'obat_id' => ['required', 'exists:obat,id'],
             'harga_khusus' => ['required', 'numeric', 'min:0'],
         ]);
 
         $asuransi->asuransiHarga()->updateOrCreate(
-            ['obat_id' => $request->obat_id],
-            ['harga_khusus' => $request->harga_khusus]
+            ['obat_id' => $data['obat_id']],
+            ['harga_khusus' => $data['harga_khusus']]
         );
 
         return back()->with('success', 'Harga khusus berhasil disimpan.');

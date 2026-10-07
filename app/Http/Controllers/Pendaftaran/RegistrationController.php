@@ -14,14 +14,14 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class RegistrationController extends Controller
 {
-    public function dashboard(): View
+    public function dashboard(): Response
     {
         $today = today();
         $stats = [
@@ -31,10 +31,17 @@ class RegistrationController extends Controller
             'sedang_pemeriksaan' => Kunjungan::whereDate('tanggal', $today)->whereIn('status', ['screening', 'pemeriksaan'])->count(),
         ];
 
-        return view('pendaftaran.dashboard', compact('stats'));
+        return Inertia::render('pendaftaran/dashboard', [
+            'stats' => [
+                'visitsToday' => $stats['total_kunjungan_hari_ini'],
+                'newPatientsToday' => $stats['pasien_baru_hari_ini'],
+                'waitingScreening' => $stats['menunggu_screening'],
+                'inProgress' => $stats['sedang_pemeriksaan'],
+            ],
+        ]);
     }
 
-    public function laporanKunjungan(Request $request): View
+    public function laporanKunjungan(Request $request): Response
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
@@ -59,12 +66,49 @@ class RegistrationController extends Controller
 
         $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
 
-        return view('pendaftaran.laporan-kunjungan', compact('kunjungan', 'poliklinikList'));
+        return Inertia::render('pendaftaran/laporan-kunjungan', [
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'tanggal' => $filters['tanggal'] ?? '',
+                'status' => $filters['status'] ?? '',
+                'poliklinikId' => isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : '',
+            ],
+            'clinics' => $poliklinikList->map(fn (Poliklinik $clinic): array => [
+                'id' => $clinic->id,
+                'name' => $clinic->nama,
+            ])->values(),
+            'visits' => [
+                'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit): array => [
+                    'id' => $visit->id,
+                    'number' => $visit->no_kunjungan,
+                    'patient' => $visit->pasien?->nama ?? '—',
+                    'medicalRecordNumber' => $visit->pasien?->no_rm ?? '—',
+                    'clinic' => $visit->poliklinik?->nama ?? '—',
+                    'doctor' => $visit->dokter?->nama ?? '—',
+                    'date' => $visit->tanggal?->format('d/m/Y') ?? '—',
+                    'status' => $visit->status,
+                    'ticketUrl' => $visit->status !== 'batal' ? route('pendaftaran.cetak-antrian', $visit) : null,
+                    'editUrl' => ! in_array($visit->status, ['selesai', 'batal'], true)
+                        ? route('pendaftaran.edit-kunjungan', $visit)
+                        : null,
+                    'cancelUrl' => ! in_array($visit->status, ['selesai', 'batal'], true)
+                        ? route('pendaftaran.batal-kunjungan', $visit)
+                        : null,
+                ])->values(),
+                'currentPage' => $kunjungan->currentPage(),
+                'lastPage' => $kunjungan->lastPage(),
+                'from' => $kunjungan->firstItem(),
+                'to' => $kunjungan->lastItem(),
+                'total' => $kunjungan->total(),
+                'previousUrl' => $kunjungan->previousPageUrl(),
+                'nextUrl' => $kunjungan->nextPageUrl(),
+            ],
+        ]);
     }
 
-    public function pendaftaranBaru(): View
+    public function pendaftaranBaru(): Response
     {
-        return view('pendaftaran.pendaftaran-baru', $this->registrationFormData());
+        return Inertia::render('pendaftaran/pendaftaran-baru', $this->registrationFormData());
     }
 
     public function storePasienBaru(Request $request): RedirectResponse
@@ -137,9 +181,9 @@ class RegistrationController extends Controller
             ->with('success', "Pasien {$pasien->nama} (No. RM: {$pasien->no_rm}) berhasil didaftarkan.");
     }
 
-    public function pendaftaranLama(): View
+    public function pendaftaranLama(): Response
     {
-        return view('pendaftaran.pendaftaran-lama', $this->registrationFormData());
+        return Inertia::render('pendaftaran/pendaftaran-lama', $this->registrationFormData());
     }
 
     public function searchPasien(Request $request): JsonResponse
@@ -207,7 +251,7 @@ class RegistrationController extends Controller
         return route('pendaftaran.laporan-kunjungan');
     }
 
-    public function databasePasien(Request $request): View
+    public function databasePasien(Request $request): Response
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
@@ -228,10 +272,35 @@ class RegistrationController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        return view('pendaftaran.database-pasien', compact('pasien'));
+        return Inertia::render('pendaftaran/database-pasien', [
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'jenisKelamin' => $filters['jenis_kelamin'] ?? '',
+            ],
+            'patients' => [
+                'data' => $pasien->getCollection()->map(fn (Pasien $patient): array => [
+                    'id' => $patient->id,
+                    'medicalRecordNumber' => $patient->no_rm,
+                    'name' => $patient->nama,
+                    'gender' => $patient->jenis_kelamin,
+                    'birthDate' => $patient->tanggal_lahir?->format('d/m/Y') ?? '—',
+                    'age' => $patient->umur,
+                    'phone' => $patient->telepon,
+                    'insurance' => $patient->asuransi?->nama ?? 'Umum',
+                    'registeredAt' => $patient->created_at?->format('d/m/Y') ?? '—',
+                ])->values(),
+                'currentPage' => $pasien->currentPage(),
+                'lastPage' => $pasien->lastPage(),
+                'from' => $pasien->firstItem(),
+                'to' => $pasien->lastItem(),
+                'total' => $pasien->total(),
+                'previousUrl' => $pasien->previousPageUrl(),
+                'nextUrl' => $pasien->nextPageUrl(),
+            ],
+        ]);
     }
 
-    public function kunjunganPerPoli(Request $request): View
+    public function kunjunganPerPoli(Request $request): Response
     {
         $filters = $request->validate([
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
@@ -248,10 +317,35 @@ class RegistrationController extends Controller
             ->oldest('created_at')
             ->get();
 
-        return view('pendaftaran.kunjungan-per-poli', compact('poliklinikList', 'kunjungan', 'selectedPoli'));
+        return Inertia::render('pendaftaran/kunjungan-per-poli', [
+            'filters' => [
+                'poliklinikId' => $selectedPoli ? (int) $selectedPoli : '',
+                'tanggal' => $filters['tanggal'] ?? today()->toDateString(),
+                'status' => $filters['status'] ?? '',
+            ],
+            'clinics' => $poliklinikList->map(fn (Poliklinik $clinic): array => [
+                'id' => $clinic->id,
+                'name' => $clinic->nama,
+            ])->values(),
+            'stats' => [
+                'total' => $kunjungan->count(),
+                'waiting' => $kunjungan->where('status', 'menunggu')->count(),
+                'screening' => $kunjungan->where('status', 'screening')->count(),
+                'examination' => $kunjungan->where('status', 'pemeriksaan')->count(),
+            ],
+            'visits' => $kunjungan->map(fn (Kunjungan $visit): array => [
+                'id' => $visit->id,
+                'number' => $visit->no_kunjungan,
+                'patient' => $visit->pasien?->nama ?? '—',
+                'medicalRecordNumber' => $visit->pasien?->no_rm ?? '—',
+                'doctor' => $visit->dokter?->nama ?? 'Belum ditentukan',
+                'status' => $visit->status,
+                'ticketUrl' => $visit->status !== 'batal' ? route('pendaftaran.cetak-antrian', $visit) : null,
+            ])->values(),
+        ]);
     }
 
-    public function laporanTopDiagnosa(Request $request): View
+    public function laporanTopDiagnosa(Request $request): Response
     {
         $filters = $request->validate([
             'tanggal_mulai' => ['nullable', 'date'],
@@ -271,10 +365,28 @@ class RegistrationController extends Controller
             ->limit(20)
             ->get();
 
-        return view('pendaftaran.laporan-top-diagnosa', compact('topDiagnosa', 'tanggalMulai', 'tanggalSelesai'));
+        $totalKasus = (int) $topDiagnosa->sum('total');
+
+        return Inertia::render('pendaftaran/laporan-top-diagnosa', [
+            'filters' => [
+                'tanggalMulai' => $tanggalMulai->toDateString(),
+                'tanggalSelesai' => $tanggalSelesai->toDateString(),
+            ],
+            'summary' => [
+                'diagnosisCount' => $topDiagnosa->count(),
+                'caseCount' => $totalKasus,
+            ],
+            'diagnoses' => $topDiagnosa->map(fn (object $diagnosis, int $index): array => [
+                'rank' => $index + 1,
+                'code' => $diagnosis->kode,
+                'name' => $diagnosis->nama,
+                'count' => (int) $diagnosis->total,
+                'percentage' => $totalKasus > 0 ? round(((int) $diagnosis->total / $totalKasus) * 100, 1) : 0,
+            ])->values(),
+        ]);
     }
 
-    public function jadwalPraktik(Request $request): View
+    public function jadwalPraktik(Request $request): Response
     {
         $filters = $request->validate([
             'dokter_id' => ['nullable', 'integer', 'exists:nakes,id'],
@@ -293,7 +405,32 @@ class RegistrationController extends Controller
             ->orderBy('jam_mulai')
             ->get();
 
-        return view('pendaftaran.jadwal-praktik', compact('jadwal', 'poliklinikList', 'dokterList', 'hariList'));
+        return Inertia::render('pendaftaran/jadwal-praktik', [
+            'filters' => [
+                'dokterId' => isset($filters['dokter_id']) ? (int) $filters['dokter_id'] : '',
+                'poliklinikId' => isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : '',
+                'hari' => $filters['hari'] ?? '',
+            ],
+            'doctors' => $dokterList->map(fn (Nakes $doctor): array => [
+                'id' => $doctor->id,
+                'name' => $doctor->nama,
+            ])->values(),
+            'clinics' => $poliklinikList->map(fn (Poliklinik $clinic): array => [
+                'id' => $clinic->id,
+                'name' => $clinic->nama,
+            ])->values(),
+            'days' => $hariList,
+            'schedules' => $jadwal->map(fn (JadwalDokter $schedule): array => [
+                'id' => $schedule->id,
+                'doctor' => $schedule->dokter?->nama ?? '—',
+                'clinic' => $schedule->poliklinik?->nama ?? '—',
+                'day' => $schedule->hari,
+                'start' => substr($schedule->jam_mulai, 0, 5),
+                'end' => substr($schedule->jam_selesai, 0, 5),
+                'active' => $schedule->is_active,
+                'deleteUrl' => route('pendaftaran.destroy-jadwal-praktik', $schedule),
+            ])->values(),
+        ]);
     }
 
     public function storeJadwalPraktik(Request $request): RedirectResponse
@@ -358,7 +495,7 @@ class RegistrationController extends Controller
         return response()->json($dokter);
     }
 
-    public function cetakAntrian(Kunjungan $kunjungan): View
+    public function cetakAntrian(Kunjungan $kunjungan): Response
     {
         $kunjungan->load(['pasien', 'poliklinik', 'dokter']);
         $antrian = Kunjungan::where('poliklinik_id', $kunjungan->poliklinik_id)
@@ -372,17 +509,51 @@ class RegistrationController extends Controller
             })
             ->count();
 
-        return view('pendaftaran.cetak-antrian', compact('kunjungan', 'antrian'));
+        return Inertia::render('pendaftaran/cetak-antrian', [
+            'ticket' => [
+                'queueNumber' => $antrian,
+                'visitNumber' => $kunjungan->no_kunjungan,
+                'date' => now()->locale('id')->isoFormat('dddd, D MMMM Y HH:mm'),
+                'patient' => $kunjungan->pasien?->nama ?? '—',
+                'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? '—',
+                'clinic' => $kunjungan->poliklinik?->nama ?? '—',
+                'doctor' => $kunjungan->dokter?->nama ?? 'Belum ditentukan',
+            ],
+            'backUrl' => route('pendaftaran.laporan-kunjungan'),
+        ]);
     }
 
-    public function editKunjungan(Kunjungan $kunjungan): View
+    public function editKunjungan(Kunjungan $kunjungan): Response
     {
         $kunjungan->load(['pasien', 'poliklinik', 'dokter']);
         $data = $this->registrationFormData();
         $data['kunjungan'] = $kunjungan;
         $data['hariIni'] = strtolower($kunjungan->tanggal->locale('id')->dayName);
 
-        return view('pendaftaran.edit-kunjungan', $data);
+        return Inertia::render('pendaftaran/edit-kunjungan', [
+            'visit' => [
+                'id' => $kunjungan->id,
+                'patient' => [
+                    'name' => $kunjungan->pasien?->nama ?? '—',
+                    'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? '—',
+                    'gender' => $kunjungan->pasien?->jenis_kelamin,
+                    'age' => $kunjungan->pasien?->umur,
+                ],
+                'clinicId' => (string) $kunjungan->poliklinik_id,
+                'doctorId' => (string) ($kunjungan->dokter_id ?? ''),
+                'doctor' => $kunjungan->dokter ? ['id' => $kunjungan->dokter->id, 'name' => $kunjungan->dokter->nama] : null,
+                'insuranceId' => (string) ($kunjungan->asuransi_id ?? ''),
+                'paymentType' => $kunjungan->jenis_bayar,
+                'patientType' => $kunjungan->jenis_pasien,
+                'notes' => $kunjungan->catatan ?? '',
+            ],
+            'clinics' => $data['clinics'],
+            'insuranceProviders' => $data['insuranceProviders'],
+            'day' => $data['day'],
+            'doctorsUrl' => route('pendaftaran.dokter.by-poli'),
+            'updateUrl' => route('pendaftaran.update-kunjungan', $kunjungan),
+            'cancelUrl' => route('pendaftaran.laporan-kunjungan'),
+        ]);
     }
 
     public function updateKunjungan(Request $request, Kunjungan $kunjungan): RedirectResponse
@@ -415,13 +586,18 @@ class RegistrationController extends Controller
         return back()->with('success', 'Kunjungan berhasil dibatalkan.');
     }
 
-    /** @return array{poliklinikList: Collection, asuransiList: Collection, hariIni: string} */
+    /** @return array{clinics: array<int, array{id: int, name: string}>, insuranceProviders: array<int, array{id: int, name: string}>, today: string, day: string} */
     private function registrationFormData(): array
     {
         return [
-            'poliklinikList' => Poliklinik::where('is_active', true)->orderBy('nama')->get(),
-            'asuransiList' => Asuransi::where('is_active', true)->orderBy('nama')->get(),
-            'hariIni' => strtolower(now()->locale('id')->dayName),
+            'clinics' => Poliklinik::where('is_active', true)->orderBy('nama')->get(['id', 'nama'])
+                ->map(fn (Poliklinik $clinic): array => ['id' => $clinic->id, 'name' => $clinic->nama])
+                ->all(),
+            'insuranceProviders' => Asuransi::where('is_active', true)->orderBy('nama')->get(['id', 'nama'])
+                ->map(fn (Asuransi $insurance): array => ['id' => $insurance->id, 'name' => $insurance->nama])
+                ->all(),
+            'today' => today()->toDateString(),
+            'day' => strtolower(today()->locale('id')->dayName),
         ];
     }
 

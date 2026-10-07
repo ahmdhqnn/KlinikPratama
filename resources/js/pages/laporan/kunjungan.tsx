@@ -1,0 +1,61 @@
+import { Head, router } from '@inertiajs/react';
+import { Activity, Download, UsersRound } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { StatusBadge } from '@/components/dashboard/status-badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { NativeSelect } from '@/components/ui/native-select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+interface Visit {
+    id: number;
+    number: string;
+    date: string | null;
+    medicalRecordNumber: string;
+    patient: string;
+    clinic: string;
+    doctor: string | null;
+    payer: string;
+    status: string;
+}
+
+interface Props {
+    filters: { from: string; to: string; clinicId: string | number; status: string };
+    clinics: { id: number; name: string }[];
+    stats: { total: number; bpjs: number; general: number };
+    visits: PaginationData & { data: Visit[] };
+    exportUrl: string;
+}
+
+export default function VisitReport({ filters, clinics, stats, visits, exportUrl }: Props) {
+    const [from, setFrom] = useState(filters.from);
+    const [to, setTo] = useState(filters.to);
+    const [clinicId, setClinicId] = useState(String(filters.clinicId));
+    const [status, setStatus] = useState(filters.status);
+
+    function filterReport(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        router.get('/laporan/kunjungan', { dari: from, sampai: to, poliklinik_id: clinicId, status }, { preserveState: true, preserveScroll: true, replace: true });
+    }
+
+    return (
+        <>
+            <Head title="Laporan Kunjungan" />
+            <div className="space-y-6">
+                <div><p className="text-sm font-medium text-blue-700">Analisis pelayanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Laporan kunjungan pasien</h2><p className="mt-1 text-sm text-slate-500">Pantau volume kunjungan berdasarkan periode, poliklinik, dan status pelayanan.</p></div>
+                <Card><CardContent className="p-5 sm:p-6"><form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto_auto] xl:items-end" onSubmit={filterReport}>
+                    <label className="space-y-1.5 text-sm font-medium text-slate-700"><span>Dari tanggal</span><Input onChange={(event) => setFrom(event.target.value)} required type="date" value={from} /></label>
+                    <label className="space-y-1.5 text-sm font-medium text-slate-700"><span>Sampai tanggal</span><Input min={from} onChange={(event) => setTo(event.target.value)} required type="date" value={to} /></label>
+                    <label className="space-y-1.5 text-sm font-medium text-slate-700"><span>Poliklinik</span><NativeSelect onChange={(event) => setClinicId(event.target.value)} value={clinicId}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</NativeSelect></label>
+                    <label className="space-y-1.5 text-sm font-medium text-slate-700"><span>Status kunjungan</span><NativeSelect onChange={(event) => setStatus(event.target.value)} value={status}><option value="">Semua status</option>{['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'kasir', 'selesai', 'batal'].map((value) => <option key={value} value={value}>{value.charAt(0).toUpperCase() + value.slice(1)}</option>)}</NativeSelect></label>
+                    <Button type="submit">Terapkan filter</Button><Button asChild variant="secondary"><a href={exportUrl}><Download className="size-4" />Export Excel</a></Button>
+                </form></CardContent></Card>
+                <div className="grid gap-4 md:grid-cols-3"><StatCard description="Dalam rentang tanggal terpilih" icon={<Activity className="size-5" />} iconClassName="bg-blue-50 text-blue-700" label="Total kunjungan" value={stats.total} /><StatCard description="Pembayaran melalui BPJS" icon={<UsersRound className="size-5" />} iconClassName="bg-emerald-50 text-emerald-700" label="Kunjungan BPJS" value={stats.bpjs} /><StatCard description="Pembayaran umum" icon={<UsersRound className="size-5" />} iconClassName="bg-indigo-50 text-indigo-700" label="Kunjungan umum" value={stats.general} /></div>
+                <Card className="overflow-hidden"><div className="overflow-x-auto"><Table className="min-w-[1050px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>No. RM</TableHead><TableHead>Nama pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Penjamin</TableHead><TableHead>Status</TableHead></tr></TableHeader><TableBody>{visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}><TableCell className="font-mono text-xs font-semibold">{visit.number}</TableCell><TableCell>{visit.date ?? '—'}</TableCell><TableCell className="font-mono">{visit.medicalRecordNumber}</TableCell><TableCell className="font-medium text-slate-900">{visit.patient}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor ?? '—'}</TableCell><TableCell className="uppercase">{visit.payer}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell></TableRow>) : <TableRow><TableCell className="py-10 text-center text-slate-500" colSpan={8}>Tidak ada data kunjungan pada filter ini.</TableCell></TableRow>}</TableBody></Table></div><Pagination pagination={visits} /></Card>
+            </div>
+        </>
+    );
+}

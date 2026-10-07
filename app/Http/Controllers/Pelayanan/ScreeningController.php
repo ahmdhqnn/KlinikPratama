@@ -5,33 +5,100 @@ namespace App\Http\Controllers\Pelayanan;
 use App\Http\Controllers\Controller;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
+use App\Models\Poliklinik;
 use App\Models\Screening;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class ScreeningController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'tanggal' => ['nullable', 'date_format:Y-m-d'],
+            'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
+        ]);
+
         $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'screening'])
-            ->when($request->search, fn ($q, $s) => $q->whereHas('pasien', fn ($pq) => $pq->where(fn ($sub) => $sub->where('nama', 'like', "%$s%")->orWhere('no_rm', 'like', "%$s%"))))
-            ->when($request->poliklinik_id, fn ($q, $p) => $q->where('poliklinik_id', $p))
-            ->whereDate('tanggal', $request->tanggal ?? today())
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->whereHas('pasien', fn ($patientQuery) => $patientQuery
+                ->where(fn ($nestedQuery) => $nestedQuery
+                    ->where('nama', 'like', "%{$search}%")
+                    ->orWhere('no_rm', 'like', "%{$search}%"))))
+            ->when($filters['poliklinik_id'] ?? null, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId))
+            ->whereDate('tanggal', $filters['tanggal'] ?? today())
             ->whereIn('status', ['menunggu', 'screening'])
             ->orderBy('created_at')
             ->get();
 
-        return view('pelayanan.screening.index', compact('kunjungan'));
+        $clinics = Poliklinik::where('is_active', true)->orderBy('nama')->get(['id', 'nama']);
+
+        return Inertia::render('pelayanan/screening/index', [
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'tanggal' => $filters['tanggal'] ?? today()->toDateString(),
+                'poliklinikId' => isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : '',
+            ],
+            'clinics' => $clinics->map(fn (Poliklinik $clinic): array => [
+                'id' => $clinic->id,
+                'name' => $clinic->nama,
+            ])->values(),
+            'visits' => $kunjungan->map(fn (Kunjungan $visit): array => [
+                'id' => $visit->id,
+                'number' => $visit->no_kunjungan,
+                'patient' => $visit->pasien?->nama ?? '—',
+                'medicalRecordNumber' => $visit->pasien?->no_rm ?? '—',
+                'clinic' => $visit->poliklinik?->nama ?? '—',
+                'hasScreening' => $visit->screening !== null,
+                'screeningUrl' => route('pelayanan.screening.show', $visit),
+            ])->values(),
+        ]);
     }
 
-    public function show(Kunjungan $kunjungan): View
+    public function show(Kunjungan $kunjungan): Response
     {
         $kunjungan->load(['pasien.asuransi', 'poliklinik', 'dokter', 'screening']);
         $petugasList = Nakes::whereIn('jabatan', ['perawat', 'bidan'])->where('is_active', true)->orderBy('nama')->get();
 
-        return view('pelayanan.screening.show', compact('kunjungan', 'petugasList'));
+        $screeningFields = [
+            'petugas_id', 'keluhan', 'td_sistole', 'td_diastole', 'nadi', 'suhu', 'berat_badan', 'tinggi_badan',
+            'lingkar_perut', 'spo2', 'respirasi', 'riwayat_penyakit', 'riwayat_alergi', 'risiko_jatuh',
+            'risiko_nyeri', 'skrining_gizi', 'alergi_jenis', 'alergi_reaksi', 'penyakit_nama',
+            'penyakit_keterangan', 'nyeri_dada', 'kondisi_psikiatri', 'nadi_teraba', 'kejang',
+            'pola_pernapasan', 'kesadaran', 'risiko_jatuh_visual',
+        ];
+
+        return Inertia::render('pelayanan/screening/show', [
+            'visit' => [
+                'id' => $kunjungan->id,
+                'number' => $kunjungan->no_kunjungan,
+                'status' => $kunjungan->status,
+                'patient' => [
+                    'name' => $kunjungan->pasien?->nama ?? 'Pasien',
+                    'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? '—',
+                    'gender' => $kunjungan->pasien?->jenis_kelamin,
+                    'age' => $kunjungan->pasien?->umur,
+                    'bloodType' => $kunjungan->pasien?->golongan_darah,
+                    'allergyHistory' => $kunjungan->pasien?->riwayat_alergi,
+                ],
+                'clinic' => $kunjungan->poliklinik?->nama ?? '—',
+                'doctor' => $kunjungan->dokter?->nama ?? 'Belum ditentukan',
+                'screening' => array_combine(
+                    $screeningFields,
+                    array_map(fn (string $field): mixed => $kunjungan->screening?->getAttribute($field), $screeningFields),
+                ),
+                'triage' => $kunjungan->screening?->kesimpulan_triase,
+                'priority' => $kunjungan->screening?->prioritas_layanan,
+            ],
+            'staff' => $petugasList->map(fn (Nakes $staff): array => [
+                'id' => $staff->id,
+                'name' => $staff->nama,
+                'position' => ucfirst($staff->jabatan),
+            ])->values(),
+        ]);
     }
 
     public function store(Request $request, Kunjungan $kunjungan): RedirectResponse

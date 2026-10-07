@@ -11,6 +11,7 @@ use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class RegistrationRoleTest extends TestCase
@@ -30,11 +31,56 @@ class RegistrationRoleTest extends TestCase
         $dashboard = $this->actingAs($user)->get('/');
         $dashboard->assertRedirect(route('pendaftaran.dashboard'));
 
-        $response = $this->get(route('pendaftaran.dashboard'));
-        $response->assertSee('Laporan Kunjungan');
-        $response->assertDontSee('Master Data');
+        $this->get(route('pendaftaran.dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/dashboard')
+            ->where('auth.user.role', 'pendaftaran')
+            ->has('stats.visitsToday')
+            ->has('stats.newPatientsToday')
+        );
 
         $this->get(route('users.index'))->assertRedirect(route('pendaftaran.dashboard'));
+    }
+
+    public function test_registration_user_can_open_visit_editor_and_print_queue_ticket_as_inertia_pages(): void
+    {
+        $user = User::create([
+            'name' => 'Petugas Pendaftaran',
+            'email' => 'pendaftaran-tiket@klinik.test',
+            'password' => bcrypt('password'),
+            'role' => 'pendaftaran',
+            'is_active' => true,
+        ]);
+        $patient = Pasien::create(['no_rm' => 'RM-009901', 'nama' => 'Pasien Uji', 'jenis_kelamin' => 'P']);
+        $clinic = Poliklinik::create([
+            'kode' => 'POLI-09',
+            'nama' => 'Poli Umum',
+            'jenis' => 'umum',
+            'is_active' => true,
+        ]);
+        $visit = Kunjungan::create([
+            'no_kunjungan' => 'KNJ-009901',
+            'pasien_id' => $patient->id,
+            'poliklinik_id' => $clinic->id,
+            'tanggal' => today(),
+            'status' => 'menunggu',
+            'jenis_pasien' => 'lama',
+            'jenis_bayar' => 'umum',
+        ]);
+
+        $this->actingAs($user)->get(route('pendaftaran.edit-kunjungan', $visit))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pendaftaran/edit-kunjungan')
+                ->where('visit.patient.name', 'Pasien Uji')
+                ->where('visit.clinicId', (string) $clinic->id)
+                ->has('doctorsUrl')
+            );
+
+        $this->get(route('pendaftaran.cetak-antrian', $visit))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pendaftaran/cetak-antrian')
+                ->where('ticket.queueNumber', 1)
+                ->where('ticket.patient', 'Pasien Uji')
+            );
     }
 
     public function test_other_staff_role_cannot_open_registration_routes(): void
@@ -72,9 +118,58 @@ class RegistrationRoleTest extends TestCase
             'role' => 'perawat',
             'is_active' => true,
         ]);
+        $clinic = Poliklinik::create([
+            'kode' => 'UMUM',
+            'nama' => 'Poli Umum',
+            'jenis' => 'umum',
+            'is_active' => true,
+        ]);
+        $patient = Pasien::create(['no_rm' => 'RM-000010', 'nama' => 'Pasien Skrining']);
+        $visit = Kunjungan::create([
+            'no_kunjungan' => 'KNJ-0010',
+            'pasien_id' => $patient->id,
+            'poliklinik_id' => $clinic->id,
+            'tanggal' => today(),
+            'status' => 'menunggu',
+            'jenis_pasien' => 'lama',
+            'jenis_bayar' => 'umum',
+        ]);
 
-        $this->actingAs($user)->get(route('perawat.dashboard'))->assertOk();
-        $this->actingAs($user)->get(route('pelayanan.screening.index'))->assertOk();
+        $this->actingAs($user)->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->component('perawat/dashboard')
+            ->where('auth.user.role', 'perawat')
+            ->has('stats.menunggu_ttv')
+            ->has('visits')
+        );
+        $this->actingAs($user)->get(route('pelayanan.screening.index'))->assertInertia(fn (Assert $page) => $page
+            ->component('pelayanan/screening/index')
+            ->where('auth.user.role', 'perawat')
+            ->has('visits', 1)
+        );
+        $this->actingAs($user)->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->component('pelayanan/screening/show')
+            ->where('visit.patient.name', 'Pasien Skrining')
+            ->has('visit.screening')
+            ->has('staff')
+        );
+        $this->actingAs($user)->post(route('pelayanan.kunjungan.screening.store', $visit), [
+            'nyeri_dada' => 'tidak',
+            'kondisi_psikiatri' => 'normal',
+            'nadi_teraba' => 'teraba',
+            'kejang' => 'tidak',
+            'pola_pernapasan' => 'normal',
+            'kesadaran' => 'sadar',
+            'risiko_jatuh_visual' => 'rendah',
+        ])->assertRedirect(route('pelayanan.kunjungan.show', $visit));
+        $this->assertDatabaseHas('screening', [
+            'kunjungan_id' => $visit->id,
+            'kesimpulan_triase' => 'hijau',
+            'prioritas_layanan' => 'normal',
+        ]);
+        $this->assertDatabaseHas('kunjungan', [
+            'id' => $visit->id,
+            'status' => 'pemeriksaan',
+        ]);
         $this->actingAs($user)->get(route('pendaftaran.pendaftaran-baru'))->assertForbidden();
         $this->actingAs($user)->get(route('users.index'))->assertForbidden();
     }
@@ -170,6 +265,28 @@ class RegistrationRoleTest extends TestCase
             'jenis_bayar' => 'umum',
             'status' => 'menunggu',
         ]);
+        $this->actingAs($user)->get(route('pendaftaran.laporan-kunjungan', ['tanggal' => today()->toDateString()]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pendaftaran/laporan-kunjungan')
+                ->has('visits.data', 1)
+                ->where('visits.data.0.patient', 'Siti Pasien')
+                ->where('visits.data.0.status', 'menunggu')
+            );
+        $this->actingAs($user)->get(route('pendaftaran.database-pasien', ['search' => 'RM-000001']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pendaftaran/database-pasien')
+                ->has('patients.data', 1)
+                ->where('patients.data.0.name', 'Siti Pasien')
+            );
+        $this->actingAs($user)->get(route('pendaftaran.kunjungan-per-poli', [
+            'poliklinik_id' => $poliklinik->id,
+            'tanggal' => today()->toDateString(),
+        ]))->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/kunjungan-per-poli')
+            ->where('stats.total', 1)
+            ->where('stats.waiting', 1)
+            ->where('visits.0.patient', 'Siti Pasien')
+        );
     }
 
     public function test_registration_reports_render_with_empty_data(): void
@@ -182,12 +299,42 @@ class RegistrationRoleTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->actingAs($user)->get(route('pendaftaran.laporan-top-diagnosa'))->assertSee('Laporan Top Diagnosa');
-        $this->get(route('pendaftaran.laporan-kunjungan'))->assertSee('Laporan Kunjungan Pasien');
-        $this->get(route('pendaftaran.pendaftaran-lama'))->assertSee('Pendaftaran Pasien Lama');
-        $this->get(route('pendaftaran.database-pasien'))->assertSee('Database Pasien');
-        $this->get(route('pendaftaran.kunjungan-per-poli'))->assertSee('Kunjungan Per-Poli');
-        $this->get(route('pendaftaran.jadwal-praktik'))->assertSee('Tambah Jadwal Praktik');
+        $this->actingAs($user)->get(route('pendaftaran.laporan-top-diagnosa'))->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/laporan-top-diagnosa')
+            ->where('summary.diagnosisCount', 0)
+            ->where('summary.caseCount', 0)
+            ->has('diagnoses', 0)
+        );
+        $this->get(route('pendaftaran.laporan-kunjungan'))->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/laporan-kunjungan')
+            ->has('clinics')
+            ->has('visits.data', 0)
+        );
+        $this->get(route('pendaftaran.pendaftaran-lama'))->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/pendaftaran-lama')
+            ->has('clinics')
+            ->has('insuranceProviders')
+        );
+        $this->get(route('pendaftaran.pendaftaran-baru'))->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/pendaftaran-baru')
+            ->has('clinics')
+            ->has('insuranceProviders')
+            ->where('today', today()->toDateString())
+        );
+        $this->get(route('pendaftaran.database-pasien'))->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/database-pasien')
+            ->has('patients.data', 0)
+        );
+        $this->get(route('pendaftaran.kunjungan-per-poli'))->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/kunjungan-per-poli')
+            ->has('stats.total')
+            ->has('visits', 0)
+        );
+        $this->get(route('pendaftaran.jadwal-praktik'))->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/jadwal-praktik')
+            ->has('days', 7)
+            ->has('schedules', 0)
+        );
     }
 
     public function test_existing_patient_registration_uses_the_active_doctor_schedule(): void
@@ -278,8 +425,12 @@ class RegistrationRoleTest extends TestCase
                 'tanggal_mulai' => today()->toDateString(),
                 'tanggal_selesai' => today()->toDateString(),
             ]))
-            ->assertSee('R50.9')
-            ->assertSee('Demam tidak spesifik')
-            ->assertSee('Jumlah Kasus');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pendaftaran/laporan-top-diagnosa')
+                ->where('summary.diagnosisCount', 1)
+                ->where('summary.caseCount', 1)
+                ->where('diagnoses.0.code', 'R50.9')
+                ->where('diagnoses.0.percentage', 100)
+            );
     }
 }

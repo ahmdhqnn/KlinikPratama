@@ -8,104 +8,208 @@ use App\Models\PenjualanLangsung;
 use App\Models\StokMutasi;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class PenjualanLangsungController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
-        $penjualan = PenjualanLangsung::with(['items.obat', 'kasir'])
-            ->when($request->search, fn ($q, $s) => $q->where('no_transaksi', 'like', "%$s%")->orWhere('nama_pembeli', 'like', "%$s%"))
-            ->when($request->tanggal, fn ($q, $t) => $q->whereDate('tanggal', $t))
-            ->orderBy('created_at', 'desc')
-            ->paginate(15)
-            ->withQueryString();
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'tanggal' => ['nullable', 'date'],
+        ]);
 
-        return view('stok.penjualan-langsung.index', compact('penjualan'));
+        $sales = PenjualanLangsung::query()
+            ->with(['kasir:id,nama', 'items.obat:id,nama'])
+            ->when($filters['search'] ?? null, function ($query, string $search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query->where('no_transaksi', 'like', "%{$search}%")
+                        ->orWhere('nama_pembeli', 'like', "%{$search}%");
+                });
+            })
+            ->when($filters['tanggal'] ?? null, fn ($query, string $date) => $query->whereDate('tanggal', $date))
+            ->latest()
+            ->paginate(15)
+            ->withQueryString()
+            ->through(fn (PenjualanLangsung $sale): array => [
+                'id' => $sale->id,
+                'number' => $sale->no_transaksi,
+                'date' => $sale->tanggal?->format('Y-m-d'),
+                'buyer' => $sale->nama_pembeli ?: 'Umum',
+                'cashier' => $sale->kasir?->nama ?? '—',
+                'itemCount' => $sale->items->count(),
+                'total' => (float) $sale->total,
+                'paymentMethod' => $sale->metode_bayar,
+                'receiptUrl' => route('stok.penjualan-langsung.nota', $sale),
+            ]);
+
+        return Inertia::render('stok/penjualan-langsung/index', [
+            'sales' => $sales,
+            'filters' => ['search' => $filters['search'] ?? '', 'tanggal' => $filters['tanggal'] ?? ''],
+        ]);
     }
 
-    public function create(): View
+    public function create(): Response
     {
-        $obatList = Obat::where('is_active', true)->where('stok', '>', 0)->orderBy('nama')->get();
-
-        return view('stok.penjualan-langsung.create', compact('obatList'));
+        return Inertia::render('stok/penjualan-langsung/create', [
+            'medicines' => Obat::query()
+                ->where('is_active', true)
+                ->where('stok', '>', 0)
+                ->orderBy('nama')
+                ->get(['id', 'nama', 'satuan_kecil', 'stok', 'harga_jual'])
+                ->map(fn (Obat $medicine): array => [
+                    'id' => $medicine->id,
+                    'name' => $medicine->nama,
+                    'unit' => $medicine->satuan_kecil,
+                    'stock' => (float) $medicine->stok,
+                    'price' => (float) $medicine->harga_jual,
+                ]),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        $data = $request->validate([
             'nama_pembeli' => ['nullable', 'string', 'max:200'],
             'metode_bayar' => ['required', 'in:tunai,transfer,qris'],
-            'bayar' => ['required', 'numeric', 'min:0'],
-            'items' => ['required', 'array', 'min:1'],
-            'items.*.obat_id' => ['required', 'exists:obat,id'],
-            'items.*.jumlah' => ['required', 'numeric', 'min:1'],
-            'items.*.harga' => ['required', 'numeric', 'min:0'],
+            'bayar' => ['required', 'numeric', 'min:0', 'decimal:0,2'],
+            'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.obat_id' => ['required', 'integer', 'exists:obat,id'],
+            'items.*.jumlah' => ['required', 'integer', 'min:1'],
         ]);
 
-        $subtotal = 0;
-        foreach ($request->items as $item) {
-            $subtotal += $item['jumlah'] * $item['harga'];
-        }
+        $sale = DB::transaction(function () use ($data): PenjualanLangsung {
+            $quantitiesByMedicine = collect($data['items'])
+                ->groupBy('obat_id')
+                ->map(fn ($items): float => round($items->sum(fn (array $item): float => (float) $item['jumlah']), 2));
+            $medicines = Obat::query()
+                ->whereIn('id', $quantitiesByMedicine->keys())
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
 
-        $kembalian = max(0, $request->bayar - $subtotal);
-        $noTransaksi = 'PJL-'.now()->format('Ymd').'-'.str_pad(PenjualanLangsung::max('id') + 1, 4, '0', STR_PAD_LEFT);
+            if ($medicines->count() !== $quantitiesByMedicine->count()) {
+                throw ValidationException::withMessages(['items' => 'Salah satu obat sudah tidak tersedia.']);
+            }
 
-        $penjualan = PenjualanLangsung::create([
-            'no_transaksi' => $noTransaksi,
-            'tanggal' => today(),
-            'kasir_id' => auth()->user()->nakes?->id,
-            'nama_pembeli' => $request->nama_pembeli ?? 'Umum',
-            'total' => $subtotal,
-            'bayar' => $request->bayar,
-            'kembalian' => $kembalian,
-            'metode_bayar' => $request->metode_bayar,
-        ]);
+            foreach ($quantitiesByMedicine as $medicineId => $quantity) {
+                $medicine = $medicines->get($medicineId);
 
-        foreach ($request->items as $itemData) {
-            $penjualan->items()->create([
-                'obat_id' => $itemData['obat_id'],
-                'jumlah' => $itemData['jumlah'],
-                'harga' => $itemData['harga'],
-                'total' => $itemData['jumlah'] * $itemData['harga'],
+                if (! $medicine->is_active) {
+                    throw ValidationException::withMessages(['items' => "Obat {$medicine->nama} sudah tidak aktif."]);
+                }
+
+                if ($quantity > (float) $medicine->stok) {
+                    throw ValidationException::withMessages(['items' => "Stok {$medicine->nama} tidak mencukupi. Sisa stok: {$medicine->stok}."]);
+                }
+            }
+
+            $lineItems = collect($data['items'])->map(function (array $item) use ($medicines): array {
+                $medicine = $medicines->get($item['obat_id']);
+                $quantity = (float) $item['jumlah'];
+                $price = (float) $medicine->harga_jual;
+
+                return [
+                    'medicine' => $medicine,
+                    'quantity' => $quantity,
+                    'price' => $price,
+                    'total' => round($quantity * $price, 2),
+                ];
+            });
+            $total = round($lineItems->sum('total'), 2);
+            $paid = (float) $data['bayar'];
+
+            if ($paid < $total) {
+                throw ValidationException::withMessages(['bayar' => 'Nominal bayar tidak boleh kurang dari total tagihan.']);
+            }
+
+            $sale = PenjualanLangsung::create([
+                'no_transaksi' => 'PJL-'.now()->format('Ymd-His').'-'.Str::upper(Str::random(4)),
+                'tanggal' => today(),
+                'kasir_id' => auth()->user()->nakes?->id,
+                'nama_pembeli' => ($data['nama_pembeli'] ?? null) ?: 'Umum',
+                'total' => $total,
+                'bayar' => $paid,
+                'kembalian' => round($paid - $total, 2),
+                'metode_bayar' => $data['metode_bayar'],
             ]);
 
-            // Deduct stock
-            $obat = Obat::find($itemData['obat_id']);
-            if ($obat) {
-                $stokSebelum = $obat->stok;
-                $stokSesudah = max(0, $stokSebelum - $itemData['jumlah']);
-                $obat->update(['stok' => $stokSesudah]);
-
-                StokMutasi::create([
-                    'obat_id' => $obat->id,
-                    'jenis' => 'keluar',
-                    'referensi_type' => 'PenjualanLangsung',
-                    'referensi_id' => $penjualan->id,
-                    'jumlah' => $itemData['jumlah'],
-                    'harga' => $itemData['harga'],
-                    'stok_sebelum' => $stokSebelum,
-                    'stok_sesudah' => $stokSesudah,
-                    'keterangan' => "Penjualan langsung {$penjualan->no_transaksi}",
+            foreach ($lineItems as $lineItem) {
+                $medicine = $lineItem['medicine'];
+                $sale->items()->create([
+                    'obat_id' => $medicine->id,
+                    'jumlah' => $lineItem['quantity'],
+                    'harga' => $lineItem['price'],
+                    'total' => $lineItem['total'],
                 ]);
             }
-        }
 
-        return redirect()->route('stok.penjualan-langsung.nota', $penjualan)
+            foreach ($quantitiesByMedicine as $medicineId => $quantity) {
+                $medicine = $medicines->get($medicineId);
+                $stockBefore = (float) $medicine->stok;
+                $stockAfter = round($stockBefore - $quantity, 2);
+                $medicine->update(['stok' => $stockAfter]);
+
+                StokMutasi::create([
+                    'obat_id' => $medicine->id,
+                    'jenis' => 'keluar',
+                    'referensi_type' => 'PenjualanLangsung',
+                    'referensi_id' => $sale->id,
+                    'jumlah' => $quantity,
+                    'harga' => $medicine->harga_jual,
+                    'stok_sebelum' => $stockBefore,
+                    'stok_sesudah' => $stockAfter,
+                    'keterangan' => "Penjualan langsung {$sale->no_transaksi}",
+                ]);
+            }
+
+            return $sale;
+        });
+
+        return redirect()->route('stok.penjualan-langsung.nota', $sale)
             ->with('success', 'Penjualan berhasil disimpan.');
     }
 
-    public function show(PenjualanLangsung $penjualanLangsung): View
+    public function show(PenjualanLangsung $penjualanLangsung): Response
     {
-        $penjualanLangsung->load(['items.obat', 'kasir']);
-
-        return view('stok.penjualan-langsung.show', compact('penjualanLangsung'));
+        return $this->receipt($penjualanLangsung);
     }
 
-    public function nota(PenjualanLangsung $penjualanLangsung): View
+    public function nota(PenjualanLangsung $penjualanLangsung): Response
     {
-        $penjualanLangsung->load(['items.obat', 'kasir']);
+        return $this->receipt($penjualanLangsung);
+    }
 
-        return view('stok.penjualan-langsung.nota', compact('penjualanLangsung'));
+    private function receipt(PenjualanLangsung $sale): Response
+    {
+        $sale->load(['items.obat:id,nama,satuan_kecil', 'kasir:id,nama']);
+
+        return Inertia::render('stok/penjualan-langsung/nota', [
+            'receipt' => [
+                'id' => $sale->id,
+                'number' => $sale->no_transaksi,
+                'createdAt' => $sale->created_at?->format('d/m/Y H:i'),
+                'buyer' => $sale->nama_pembeli ?: 'Umum',
+                'cashier' => $sale->kasir?->nama ?? '—',
+                'total' => (float) $sale->total,
+                'paid' => (float) $sale->bayar,
+                'change' => (float) $sale->kembalian,
+                'paymentMethod' => $sale->metode_bayar,
+                'items' => $sale->items->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'name' => $item->obat?->nama ?? 'Obat dihapus',
+                    'unit' => $item->obat?->satuan_kecil,
+                    'quantity' => (float) $item->jumlah,
+                    'price' => (float) $item->harga,
+                    'total' => (float) $item->total,
+                ])->all(),
+            ],
+            'indexUrl' => route('stok.penjualan-langsung.index'),
+        ]);
     }
 }

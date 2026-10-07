@@ -6,15 +6,29 @@ use App\Models\KlinikSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class SettingController extends Controller
 {
-    public function index(): View
+    public function index(): Response
     {
         $setting = KlinikSetting::first() ?? new KlinikSetting;
 
-        return view('setting.index', compact('setting'));
+        return Inertia::render('setting/index', [
+            'setting' => [
+                'namaKlinik' => $setting->nama_klinik ?? '',
+                'alamat' => $setting->alamat ?? '',
+                'telepon' => $setting->telepon ?? '',
+                'email' => $setting->email ?? '',
+                'kepalaKlinik' => $setting->kepala_klinik ?? '',
+                'nipKepala' => $setting->nip_kepala ?? '',
+                'tagline' => $setting->tagline ?? '',
+                'website' => $setting->website ?? '',
+                'pelaksanaTtv' => $setting->pelaksana_ttv ?? 'perawat',
+                'logoUrl' => $setting->logo ? Storage::disk('public')->url($setting->logo) : null,
+            ],
+        ]);
     }
 
     public function update(Request $request): RedirectResponse

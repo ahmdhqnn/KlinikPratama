@@ -9,32 +9,91 @@ use App\Models\Tindakan;
 use App\Models\TindakanBhp;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class TindakanController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'kategori' => ['nullable', 'in:medis,lab'],
+        ]);
         $tindakan = Tindakan::with('poliklinik')
-            ->when($request->search, fn ($q, $s) => $q->where('nama', 'like', "%$s%")->orWhere('kode', 'like', "%$s%"))
-            ->when($request->kategori, fn ($q, $k) => $q->where('kategori', $k))
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(function ($query) use ($search): void {
+                $query->where('nama', 'like', "%{$search}%")
+                    ->orWhere('kode', 'like', "%{$search}%");
+            }))
+            ->when($filters['kategori'] ?? null, fn ($query, string $category) => $query->where('kategori', $category))
             ->orderBy('kode')
             ->paginate(15)
             ->withQueryString();
 
         $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
-        $obatList = Obat::where('is_active', true)->orderBy('nama')->get();
 
-        return view('master.tindakan.index', compact('tindakan', 'poliklinikList', 'obatList'));
+        return Inertia::render('master/tindakan/index', [
+            'treatments' => [
+                'data' => $tindakan->getCollection()->map(fn (Tindakan $treatment): array => [
+                    'id' => $treatment->id,
+                    'code' => $treatment->kode,
+                    'icd9Code' => $treatment->kode_icd9,
+                    'name' => $treatment->nama,
+                    'category' => $treatment->kategori,
+                    'clinicId' => $treatment->poliklinik_id,
+                    'clinic' => $treatment->poliklinik?->nama,
+                    'tariff' => (float) $treatment->tarif,
+                    'doctorTariff' => (float) $treatment->tarif_dokter,
+                    'assistantTariff' => (float) $treatment->tarif_asisten,
+                    'clinicTariff' => (float) $treatment->tarif_klinik,
+                    'active' => $treatment->is_active,
+                ])->values(),
+                'currentPage' => $tindakan->currentPage(),
+                'lastPage' => $tindakan->lastPage(),
+                'perPage' => $tindakan->perPage(),
+                'total' => $tindakan->total(),
+                'from' => $tindakan->firstItem(),
+                'to' => $tindakan->lastItem(),
+                'previousUrl' => $tindakan->previousPageUrl(),
+                'nextUrl' => $tindakan->nextPageUrl(),
+            ],
+            'filters' => ['search' => $filters['search'] ?? '', 'category' => $filters['kategori'] ?? ''],
+            'clinics' => $poliklinikList->map(fn (Poliklinik $clinic): array => [
+                'id' => $clinic->id,
+                'name' => $clinic->nama,
+            ])->values(),
+            'categories' => [
+                ['value' => 'medis', 'label' => 'Medis'],
+                ['value' => 'lab', 'label' => 'Laboratorium'],
+            ],
+        ]);
     }
 
-    public function show(Tindakan $tindakan): View
+    public function show(Tindakan $tindakan): Response
     {
         $tindakan->load(['poliklinik', 'bhp.obat']);
         $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
         $obatList = Obat::where('is_active', true)->orderBy('nama')->get();
 
-        return view('master.tindakan.show', compact('tindakan', 'poliklinikList', 'obatList'));
+        return Inertia::render('master/tindakan/show', [
+            'treatment' => [
+                'id' => $tindakan->id,
+                'code' => $tindakan->kode,
+                'name' => $tindakan->nama,
+                'bhp' => $tindakan->bhp->map(fn (TindakanBhp $item): array => [
+                    'id' => $item->id,
+                    'medicine' => $item->obat?->nama ?? 'Item dihapus',
+                    'unit' => $item->obat?->satuan_kecil ?? '—',
+                    'quantity' => (float) $item->jumlah,
+                ])->values(),
+            ],
+            'medicines' => $obatList->map(fn (Obat $medicine): array => [
+                'id' => $medicine->id,
+                'name' => $medicine->nama,
+                'stock' => (float) $medicine->stok,
+                'unit' => $medicine->satuan_kecil,
+            ])->values(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

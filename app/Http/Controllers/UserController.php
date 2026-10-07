@@ -9,15 +9,24 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class UserController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'role' => ['nullable', 'in:admin,dokter,perawat,farmasi,kasir,pendaftaran'],
+        ]);
+
         $users = User::with('nakes')
-            ->when($request->search, fn ($q, $s) => $q->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%"))
-            ->when($request->role, fn ($q, $r) => $q->where('role', $r))
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(function ($query) use ($search): void {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            }))
+            ->when($filters['role'] ?? null, fn ($query, string $role) => $query->where('role', $role))
             ->orderBy('name')
             ->paginate(15)
             ->withQueryString();
@@ -28,7 +37,47 @@ class UserController extends Controller
             ->orderBy('nama')
             ->get(['id', 'nama', 'kode', 'user_id']);
 
-        return view('users.index', compact('users', 'dokterList'));
+        return Inertia::render('users/index', [
+            'users' => [
+                'data' => $users->getCollection()->map(fn (User $user): array => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'roleLabel' => $user->role_label,
+                    'active' => $user->is_active,
+                    'nakes' => $user->nakes ? [
+                        'id' => $user->nakes->id,
+                        'name' => $user->nakes->nama,
+                        'code' => $user->nakes->kode,
+                    ] : null,
+                    'isCurrentUser' => $user->is(auth()->user()),
+                ])->values(),
+                'currentPage' => $users->currentPage(),
+                'lastPage' => $users->lastPage(),
+                'perPage' => $users->perPage(),
+                'total' => $users->total(),
+                'from' => $users->firstItem(),
+                'to' => $users->lastItem(),
+                'previousUrl' => $users->previousPageUrl(),
+                'nextUrl' => $users->nextPageUrl(),
+            ],
+            'filters' => ['search' => $filters['search'] ?? '', 'role' => $filters['role'] ?? ''],
+            'roles' => [
+                ['value' => 'admin', 'label' => 'Administrator'],
+                ['value' => 'dokter', 'label' => 'Dokter'],
+                ['value' => 'perawat', 'label' => 'Perawat'],
+                ['value' => 'farmasi', 'label' => 'Farmasi'],
+                ['value' => 'kasir', 'label' => 'Kasir'],
+                ['value' => 'pendaftaran', 'label' => 'Pendaftaran'],
+            ],
+            'doctors' => $dokterList->map(fn (Nakes $doctor): array => [
+                'id' => $doctor->id,
+                'name' => $doctor->nama,
+                'code' => $doctor->kode,
+                'linked' => $doctor->user_id !== null,
+            ])->values(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

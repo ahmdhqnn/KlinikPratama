@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Models\Diagnosa;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Obat;
 use App\Models\Pasien;
+use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class DoctorExaminationFlowTest extends TestCase
@@ -75,23 +78,83 @@ class DoctorExaminationFlowTest extends TestCase
             'harga_jual' => 1000,
             'is_active' => true,
         ]);
+        $examination = Pemeriksaan::create(['kunjungan_id' => $visit->id]);
+        Diagnosa::create([
+            'pemeriksaan_id' => $examination->id,
+            'kode_icd10' => 'R50.9',
+            'nama_diagnosa' => 'Demam tidak spesifik',
+            'jenis' => 'utama',
+        ]);
 
-        $this->actingAs($user)->get(route('dokter.dashboard'))->assertOk();
+        $this->actingAs($user)->get(route('dokter.dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->component('dokter/dashboard')
+            ->where('auth.user.role', 'dokter')
+            ->where('stats.visitsToday', 1)
+            ->has('schedule')
+            ->has('recentVisits', 1)
+        );
         $this->actingAs($user)->get(route('dokter.janji-kunjungan', [
             'dari' => today()->toDateString(),
             'sampai' => today()->addDay()->toDateString(),
-        ]))->assertOk();
+        ]))->assertInertia(fn (Assert $page) => $page
+            ->component('dokter/appointments')
+            ->where('filters.dari', today()->toDateString())
+            ->where('filters.sampai', today()->addDay()->toDateString())
+            ->has('visits.data', 1)
+            ->where('visits.data.0.number', $visit->no_kunjungan)
+        );
         $this->actingAs($user)->get(route('dokter.janji-kunjungan', [
             'dari' => 'invalid-date',
         ]))->assertSessionHasErrors('dari');
-        $this->actingAs($user)->get(route('pelayanan.pemeriksaan.index'))
-            ->assertOk()
-            ->assertSee($visit->no_kunjungan)
-            ->assertDontSee($otherVisit->no_kunjungan);
+        $this->actingAs($user)->get(route('dokter.pasien'))->assertInertia(fn (Assert $page) => $page
+            ->component('dokter/patients')
+            ->has('patients.data', 1)
+            ->where('patients.data.0.medicalRecordNumber', $patient->no_rm)
+        );
+        $this->actingAs($user)->get(route('dokter.stok-obat'))->assertInertia(fn (Assert $page) => $page
+            ->component('dokter/stock')
+            ->has('medicines.data', 1)
+            ->where('medicines.data.0.code', $obat->kode)
+        );
+        $this->actingAs($user)->get(route('dokter.laporan-top-diagnosa', [
+            'dari' => today()->toDateString(),
+            'sampai' => today()->toDateString(),
+        ]))->assertInertia(fn (Assert $page) => $page
+            ->component('dokter/top-diagnoses')
+            ->where('filters.dari', today()->toDateString())
+            ->has('diagnoses.data', 1)
+            ->where('diagnoses.data.0.code', 'R50.9')
+            ->where('diagnoses.data.0.count', 1)
+        );
+        $this->actingAs($user)->get(route('pelayanan.pemeriksaan.index'))->assertInertia(fn (Assert $page) => $page
+            ->component('pelayanan/pemeriksaan/index')
+            ->has('visits.data', 1)
+            ->where('visits.data.0.number', $visit->no_kunjungan)
+            ->where('visits.data.0.diagnosisCount', 1)
+        );
+        $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->component('pelayanan/pemeriksaan/show')
+            ->where('visit.patient.name', 'Pasien Satu')
+            ->where('visit.diagnoses.0.code', 'R50.9')
+            ->where('medicines.0.name', 'Paracetamol')
+        );
         $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $otherVisit))
             ->assertForbidden();
         $this->actingAs($user)->get(route('pelayanan.pasien.rekam-medis', $otherPatient))
             ->assertForbidden();
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'anamnesis' => 'Demam sejak kemarin',
+            'pemeriksaan_fisik' => 'Kondisi umum baik',
+        ])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('pemeriksaan', ['kunjungan_id' => $visit->id, 'anamnesis' => 'Demam sejak kemarin']);
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), [
+            'kode_icd10' => 'R05',
+            'nama_diagnosa' => 'Batuk',
+            'jenis' => 'tambahan',
+        ])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('diagnosa', ['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'R05']);
 
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.resep.store', $visit), [
             'obat_id' => $obat->id,

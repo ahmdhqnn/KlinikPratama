@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Kunjungan;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class PerawatDashboardController extends Controller
 {
-    public function __invoke(): View
+    public function __invoke(): Response
     {
         $today = today();
 
@@ -26,6 +27,18 @@ class PerawatDashboardController extends Controller
             ->limit(10)
             ->get();
 
-        return view('perawat.dashboard', compact('stats', 'kunjungan'));
+        return Inertia::render('perawat/dashboard', [
+            'stats' => $stats,
+            'visits' => $kunjungan->map(fn (Kunjungan $visit): array => [
+                'id' => $visit->id,
+                'number' => $visit->no_kunjungan,
+                'patient' => $visit->pasien->nama,
+                'medicalRecordNumber' => $visit->pasien->no_rm,
+                'clinic' => $visit->poliklinik->nama,
+                'status' => $visit->status,
+                'triage' => $visit->screening?->kesimpulan_triase,
+                'priority' => $visit->screening?->prioritas_layanan,
+            ])->values(),
+        ]);
     }
 }

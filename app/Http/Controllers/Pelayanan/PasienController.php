@@ -10,19 +10,21 @@ use App\Models\Asuransi;
 use App\Models\Pasien;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PasienController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
         $pasien = Pasien::with('asuransi')
-            ->when($request->search, fn ($q, $s) => $q->where('nama', 'like', "%$s%")
+            ->when($request->search, fn ($q, $s) => $q->where(fn ($query) => $query
+                ->where('nama', 'like', "%$s%")
                 ->orWhere('no_rm', 'like', "%$s%")
                 ->orWhere('nik', 'like', "%$s%")
-                ->orWhere('telepon', 'like', "%$s%"))
+                ->orWhere('telepon', 'like', "%$s%")))
             ->when($request->asuransi_id, fn ($q, $a) => $q->where('asuransi_id', $a))
             ->orderBy('nama')
             ->paginate(20)
@@ -30,14 +32,51 @@ class PasienController extends Controller
 
         $asuransiList = Asuransi::where('is_active', true)->orderBy('nama')->get();
 
-        return view('pelayanan.pasien.index', compact('pasien', 'asuransiList'));
+        return Inertia::render('pelayanan/pasien/index', [
+            'patients' => [
+                'data' => $pasien->getCollection()->map(fn (Pasien $patient) => [
+                    'id' => $patient->id,
+                    'medicalRecordNumber' => $patient->no_rm,
+                    'name' => $patient->nama,
+                    'nik' => $patient->nik,
+                    'gender' => $patient->jenis_kelamin,
+                    'age' => $patient->umur,
+                    'phone' => $patient->telepon,
+                    'address' => $patient->alamat,
+                    'insurance' => $patient->asuransi?->nama ?? 'Umum',
+                    'insuranceType' => $patient->asuransi?->jenis,
+                ])->values(),
+                'currentPage' => $pasien->currentPage(),
+                'lastPage' => $pasien->lastPage(),
+                'from' => $pasien->firstItem(),
+                'to' => $pasien->lastItem(),
+                'total' => $pasien->total(),
+                'previousUrl' => $pasien->previousPageUrl(),
+                'nextUrl' => $pasien->nextPageUrl(),
+            ],
+            'filters' => [
+                'search' => $request->string('search')->toString(),
+                'insuranceId' => $request->string('asuransi_id')->toString(),
+            ],
+            'insuranceProviders' => $asuransiList->map(fn (Asuransi $insurance) => [
+                'id' => $insurance->id,
+                'name' => $insurance->nama,
+                'type' => $insurance->jenis,
+            ]),
+        ]);
     }
 
-    public function create(): View
+    public function create(): Response
     {
         $asuransiList = Asuransi::where('is_active', true)->orderBy('nama')->get();
 
-        return view('pelayanan.pasien.create', compact('asuransiList'));
+        return Inertia::render('pelayanan/pasien/form', [
+            'insuranceProviders' => $asuransiList->map(fn (Asuransi $insurance) => [
+                'id' => $insurance->id,
+                'name' => $insurance->nama,
+                'type' => $insurance->jenis,
+            ]),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -71,19 +110,66 @@ class PasienController extends Controller
             ->with('success', "Pasien berhasil didaftarkan dengan No. RM: {$pasien->no_rm}");
     }
 
-    public function show(Pasien $pasien): View
+    public function show(Pasien $pasien): Response
     {
         $this->authorizeDoctorPatient($pasien);
         $pasien->load(['asuransi', 'kunjungan' => fn ($q) => $q->with(['poliklinik', 'dokter', 'tagihan'])->latest()->limit(20)]);
 
-        return view('pelayanan.pasien.show', compact('pasien'));
+        return Inertia::render('pelayanan/pasien/show', [
+            'patient' => [
+                'id' => $pasien->id,
+                'medicalRecordNumber' => $pasien->no_rm,
+                'name' => $pasien->nama,
+                'nik' => $pasien->nik,
+                'birthDate' => $pasien->tanggal_lahir?->isoFormat('D MMMM Y'),
+                'gender' => $pasien->jenis_kelamin,
+                'age' => $pasien->umur,
+                'bloodType' => $pasien->golongan_darah,
+                'phone' => $pasien->telepon,
+                'address' => $pasien->alamat,
+                'insurance' => $pasien->asuransi?->nama ?? 'Umum (Bayar Sendiri)',
+                'insuranceType' => $pasien->asuransi?->jenis,
+                'insuranceNumber' => $pasien->no_asuransi,
+                'allergies' => $pasien->riwayat_alergi,
+                'visits' => $pasien->kunjungan->map(fn ($visit) => [
+                    'id' => $visit->id,
+                    'number' => $visit->no_kunjungan,
+                    'date' => $visit->tanggal?->isoFormat('D MMM Y'),
+                    'clinic' => $visit->poliklinik?->nama ?? '—',
+                    'doctor' => $visit->dokter?->nama ?? '—',
+                    'status' => $visit->status,
+                    'billId' => $visit->tagihan?->id,
+                ]),
+            ],
+        ]);
     }
 
-    public function edit(Pasien $pasien): View
+    public function edit(Pasien $pasien): Response
     {
         $asuransiList = Asuransi::where('is_active', true)->orderBy('nama')->get();
 
-        return view('pelayanan.pasien.edit', compact('pasien', 'asuransiList'));
+        return Inertia::render('pelayanan/pasien/form', [
+            'patient' => [
+                'id' => $pasien->id,
+                'name' => $pasien->nama,
+                'nik' => $pasien->nik,
+                'birthDate' => $pasien->tanggal_lahir?->toDateString(),
+                'gender' => $pasien->jenis_kelamin,
+                'bloodType' => $pasien->golongan_darah,
+                'religion' => $pasien->agama,
+                'phone' => $pasien->telepon,
+                'occupation' => $pasien->pekerjaan,
+                'address' => $pasien->alamat,
+                'insuranceId' => $pasien->asuransi_id,
+                'insuranceNumber' => $pasien->no_asuransi,
+                'allergies' => $pasien->riwayat_alergi,
+            ],
+            'insuranceProviders' => $asuransiList->map(fn (Asuransi $insurance) => [
+                'id' => $insurance->id,
+                'name' => $insurance->nama,
+                'type' => $insurance->jenis,
+            ]),
+        ]);
     }
 
     public function update(Request $request, Pasien $pasien): RedirectResponse
@@ -118,15 +204,74 @@ class PasienController extends Controller
         return redirect()->route('pelayanan.pasien.index')->with('success', 'Data pasien berhasil dihapus.');
     }
 
-    public function rekamMedis(Pasien $pasien): View
+    public function rekamMedis(Pasien $pasien): Response
     {
         $this->authorizeDoctorPatient($pasien);
-        $pasien->load(['kunjungan' => fn ($q) => $q->with([
-            'poliklinik', 'dokter', 'screening', 'pemeriksaan.diagnosa', 'resep.resepObat.obat',
-            'tindakanKunjungan.tindakan', 'tagihan', 'suratMedis', 'labHasil.laboratorium',
+        $pasien->load(['kunjungan' => fn ($query) => $query->with([
+            'poliklinik:id,nama',
+            'dokter:id,nama',
+            'screening',
+            'pemeriksaan.diagnosa',
+            'resep.resepObat',
+            'tindakanKunjungan.tindakan:id,nama',
         ])->latest()]);
 
-        return view('pelayanan.pasien.rekam-medis', compact('pasien'));
+        return Inertia::render('pelayanan/pasien/rekam-medis', [
+            'patient' => [
+                'id' => $pasien->id,
+                'name' => $pasien->nama,
+                'medicalRecordNumber' => $pasien->no_rm,
+                'nik' => $pasien->nik,
+                'gender' => $pasien->jenis_kelamin,
+                'age' => $pasien->umur,
+                'bloodType' => $pasien->golongan_darah,
+                'allergies' => $pasien->riwayat_alergi,
+            ],
+            'backUrl' => route('pelayanan.pasien.show', $pasien),
+            'visits' => $pasien->kunjungan->map(fn ($visit): array => [
+                'id' => $visit->id,
+                'number' => $visit->no_kunjungan,
+                'clinic' => $visit->poliklinik?->nama ?? '—',
+                'doctor' => $visit->dokter?->nama ?? '—',
+                'date' => $visit->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
+                'status' => $visit->status,
+                'screening' => $visit->screening ? [
+                    'systolic' => $visit->screening->td_sistole,
+                    'diastolic' => $visit->screening->td_diastole,
+                    'pulse' => $visit->screening->nadi,
+                    'temperature' => $visit->screening->suhu,
+                    'oxygenSaturation' => $visit->screening->spo2,
+                    'weight' => $visit->screening->berat_badan,
+                    'height' => $visit->screening->tinggi_badan,
+                    'respiration' => $visit->screening->respirasi,
+                    'complaint' => $visit->screening->keluhan,
+                ] : null,
+                'examination' => $visit->pemeriksaan ? [
+                    'anamnesis' => $visit->pemeriksaan->anamnesis,
+                    'physicalExamination' => $visit->pemeriksaan->pemeriksaan_fisik,
+                    'education' => $visit->pemeriksaan->edukasi,
+                    'notes' => $visit->pemeriksaan->catatan,
+                    'nextControl' => $visit->pemeriksaan->kontrol_berikutnya?->format('d/m/Y'),
+                    'diagnoses' => $visit->pemeriksaan->diagnosa->map(fn ($diagnosis): array => [
+                        'code' => $diagnosis->kode_icd10,
+                        'name' => $diagnosis->nama_diagnosa,
+                        'type' => $diagnosis->jenis,
+                    ])->all(),
+                ] : null,
+                'prescriptions' => $visit->resep?->resepObat->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'name' => $item->nama_obat,
+                    'quantity' => $item->jumlah,
+                    'unit' => $item->satuan,
+                    'instructions' => $item->aturan_pakai,
+                ])->all() ?? [],
+                'treatments' => $visit->tindakanKunjungan->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'name' => $item->tindakan?->nama ?? 'Tindakan dihapus',
+                    'quantity' => $item->jumlah,
+                ])->all(),
+            ])->all(),
+        ]);
     }
 
     private function authorizeDoctorPatient(Pasien $pasien): void

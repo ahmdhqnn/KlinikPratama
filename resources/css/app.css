@@ -1,4 +1,31 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import '../../vendor/livewire/flux/dist/flux.css';
+
+@source '../views';
+@source '../js';
+@source '../../vendor/livewire/flux/stubs/**/*.blade.php';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --color-accent: var(--color-blue-600);
+    --color-accent-content: var(--color-blue-700);
+    --color-accent-foreground: var(--color-white);
+}
+
+@layer theme {
+    .dark {
+        --color-accent: var(--color-blue-400);
+        --color-accent-content: var(--color-blue-400);
+        --color-accent-foreground: var(--color-zinc-900);
+    }
+}
+
+[x-cloak] {
+    display: none !important;
+}
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
@@ -60,6 +87,19 @@
 @media print {
     .no-print { display: none !important; }
     .print-only { display: block !important; }
-    body { font-size: 12px; }
+    body { background: white !important; font-size: 12px; }
+    @page { size: auto; margin: 10mm; }
+    .receipt-card {
+        width: 72mm;
+        max-width: none !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        margin: 0 auto !important;
+    }
+    .receipt-content { padding: 0 !important; }
+    .medical-record-print,
+    .queue-ticket { break-inside: avoid; box-shadow: none !important; }
+    .medical-record-print { border-color: #cbd5e1 !important; }
+    .queue-ticket { width: 80mm; max-width: 100% !important; margin: 0 auto !important; }
 }
 .print-only { display: none; }

@@ -12,13 +12,14 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class FarmasiController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
-        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'farmasi', 'resep.resepObat.obat'])
+        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'dokter', 'farmasi', 'resep.resepObat.obat'])
             ->when($request->search, fn ($q, $s) => $q->whereHas('pasien', fn ($pq) => $pq->where('nama', 'like', "%$s%")->orWhere('no_rm', 'like', "%$s%")))
             ->when($request->tanggal, fn ($q, $t) => $q->whereDate('tanggal', $t))
             ->whereDate('tanggal', $request->tanggal ?? today())
@@ -27,40 +28,124 @@ class FarmasiController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        return view('pelayanan.farmasi.index', compact('kunjungan'));
+        return Inertia::render('pelayanan/farmasi/index', [
+            'visits' => [
+                'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit) => [
+                    'id' => $visit->id,
+                    'prescriptionNumber' => $visit->resep?->no_resep,
+                    'patient' => $visit->pasien?->nama ?? '—',
+                    'medicalRecordNumber' => $visit->pasien?->no_rm ?? '—',
+                    'clinic' => $visit->poliklinik?->nama ?? '—',
+                    'doctor' => $visit->dokter?->nama,
+                    'itemCount' => $visit->resep?->resepObat->count() ?? 0,
+                    'pharmacyStatus' => $visit->farmasi?->status ?? 'menunggu',
+                ])->values(),
+                'currentPage' => $kunjungan->currentPage(),
+                'lastPage' => $kunjungan->lastPage(),
+                'from' => $kunjungan->firstItem(),
+                'to' => $kunjungan->lastItem(),
+                'total' => $kunjungan->total(),
+                'previousUrl' => $kunjungan->previousPageUrl(),
+                'nextUrl' => $kunjungan->nextPageUrl(),
+            ],
+            'date' => $request->input('tanggal', today()->toDateString()),
+            'search' => $request->string('search')->toString(),
+        ]);
     }
 
-    public function show(Kunjungan $kunjungan): View
+    public function show(Kunjungan $kunjungan): Response
     {
         $kunjungan->load([
             'pasien', 'poliklinik', 'dokter',
             'resep.resepObat.obat',
-            'farmasi.items.obat',
+            'farmasi.items.obat', 'farmasi.items.resepObat',
         ]);
 
         $obatList = Obat::where('is_active', true)->where('jenis', 'obat')->orderBy('nama')->get(['id', 'nama', 'stok', 'satuan_kecil', 'harga_jual']);
 
-        return view('pelayanan.farmasi.show', compact('kunjungan', 'obatList'));
+        return Inertia::render('pelayanan/farmasi/show', [
+            'visit' => [
+                'id' => $kunjungan->id,
+                'number' => $kunjungan->no_kunjungan,
+                'status' => $kunjungan->status,
+                'prescriptionNumber' => $kunjungan->resep?->no_resep,
+                'patient' => [
+                    'id' => $kunjungan->pasien->id,
+                    'name' => $kunjungan->pasien->nama,
+                    'medicalRecordNumber' => $kunjungan->pasien->no_rm,
+                    'allergies' => $kunjungan->pasien->riwayat_alergi,
+                ],
+                'doctor' => $kunjungan->dokter?->nama,
+                'pharmacy' => $kunjungan->farmasi ? [
+                    'status' => $kunjungan->farmasi->status,
+                    'notes' => $kunjungan->farmasi->catatan,
+                    'items' => $kunjungan->farmasi->items->map(fn ($item) => [
+                        'prescriptionItemId' => $item->resep_obat_id,
+                        'medicineId' => $item->obat_id,
+                        'dispensedQuantity' => (float) $item->jumlah_diberikan,
+                        'instructions' => $item->aturan_pakai,
+                        'notes' => $item->catatan,
+                    ])->values(),
+                ] : null,
+                'prescriptionItems' => $kunjungan->resep?->resepObat->map(function (ResepObat $item) use ($kunjungan): array {
+                    $pharmacyItem = $kunjungan->farmasi?->items->firstWhere('resep_obat_id', $item->id);
+
+                    return [
+                        'id' => $item->id,
+                        'medicineId' => $item->obat_id,
+                        'name' => $item->nama_obat,
+                        'type' => $item->jenis,
+                        'requestedQuantity' => (float) $item->jumlah,
+                        'dispensedQuantity' => $pharmacyItem?->jumlah_diberikan !== null
+                            ? (float) $pharmacyItem->jumlah_diberikan
+                            : ($item->is_resep_luar ? 0 : (float) $item->jumlah),
+                        'unit' => $item->satuan,
+                        'instructions' => $pharmacyItem?->aturan_pakai ?? $item->aturan_pakai,
+                        'external' => $item->is_resep_luar,
+                        'reserved' => $item->stok_dikurangi,
+                        'stock' => (float) ($item->obat?->stok ?? 0),
+                        'stockUnit' => $item->obat?->satuan_kecil,
+                    ];
+                })->values() ?? collect(),
+            ],
+            'today' => today()->format('d/m/Y'),
+            'appName' => config('app.name'),
+        ]);
     }
 
     public function store(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        $request->validate([
-            'items' => ['required', 'array'],
+        $data = $request->validate([
+            'items' => ['present', 'array'],
             'items.*.resep_obat_id' => ['nullable', 'integer'],
-            'items.*.obat_id' => ['required', 'exists:obat,id'],
+            'items.*.obat_id' => ['nullable', 'integer', 'exists:obat,id'],
             'items.*.jumlah_diberikan' => ['required', 'numeric', 'min:0'],
             'items.*.aturan_pakai' => ['nullable', 'string'],
             'items.*.catatan' => ['nullable', 'string'],
             'catatan' => ['nullable', 'string'],
         ]);
 
-        foreach ($request->items as $item) {
+        $prescriptionItems = $kunjungan->resep?->resepObat ?? collect();
+
+        foreach ($data['items'] as $index => $item) {
+            $resepObat = ! empty($item['resep_obat_id'])
+                ? $prescriptionItems->firstWhere('id', (int) $item['resep_obat_id'])
+                : null;
+
+            if (! empty($item['resep_obat_id']) && ! $resepObat) {
+                throw ValidationException::withMessages([
+                    "items.$index.resep_obat_id" => 'Item resep tidak termasuk dalam kunjungan ini.',
+                ]);
+            }
+
+            if ($resepObat?->is_resep_luar && (float) $item['jumlah_diberikan'] > 0) {
+                throw ValidationException::withMessages([
+                    "items.$index.jumlah_diberikan" => 'Resep luar harus ditebus di apotek luar klinik.',
+                ]);
+            }
+
             if ($item['jumlah_diberikan'] > 0) {
-                $obat = Obat::find($item['obat_id']);
-                $resepObat = ! empty($item['resep_obat_id'])
-                    ? $kunjungan->resep?->resepObat()->find($item['resep_obat_id'])
-                    : null;
+                $obat = ! empty($item['obat_id']) ? Obat::find($item['obat_id']) : null;
                 $isReserved = $resepObat?->stok_dikurangi === true;
 
                 if (! $obat || (! $isReserved && $obat->stok < $item['jumlah_diberikan'])) {
@@ -71,29 +156,31 @@ class FarmasiController extends Controller
             }
         }
 
-        $farmasi = Farmasi::firstOrCreate(
-            ['kunjungan_id' => $kunjungan->id],
-            ['resep_id' => $kunjungan->resep?->id, 'status' => 'diproses']
-        );
+        DB::transaction(function () use ($data, $kunjungan): void {
+            $farmasi = Farmasi::firstOrCreate(
+                ['kunjungan_id' => $kunjungan->id],
+                ['resep_id' => $kunjungan->resep?->id, 'status' => 'diproses']
+            );
 
-        $farmasi->items()->delete();
+            $farmasi->items()->delete();
 
-        foreach ($request->items as $item) {
-            if ($item['jumlah_diberikan'] > 0) {
-                $farmasi->items()->create([
-                    'resep_obat_id' => $item['resep_obat_id'] ?? null,
-                    'obat_id' => $item['obat_id'],
-                    'jumlah_diberikan' => $item['jumlah_diberikan'],
-                    'aturan_pakai' => $item['aturan_pakai'] ?? null,
-                    'catatan' => $item['catatan'] ?? null,
-                ]);
+            foreach ($data['items'] as $item) {
+                if ((float) $item['jumlah_diberikan'] > 0 && ! empty($item['obat_id'])) {
+                    $farmasi->items()->create([
+                        'resep_obat_id' => $item['resep_obat_id'] ?? null,
+                        'obat_id' => $item['obat_id'],
+                        'jumlah_diberikan' => $item['jumlah_diberikan'],
+                        'aturan_pakai' => $item['aturan_pakai'] ?? null,
+                        'catatan' => $item['catatan'] ?? null,
+                    ]);
+                }
             }
-        }
 
-        $farmasi->update([
-            'status' => 'diproses',
-            'catatan' => $request->catatan,
-        ]);
+            $farmasi->update([
+                'status' => 'diproses',
+                'catatan' => $data['catatan'] ?? null,
+            ]);
+        });
 
         return back()->with('success', 'Data farmasi berhasil disimpan.');
     }

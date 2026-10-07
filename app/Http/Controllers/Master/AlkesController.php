@@ -6,19 +6,47 @@ use App\Http\Controllers\Controller;
 use App\Models\Alkes;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class AlkesController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
         $alkes = Alkes::query()
-            ->when($request->search, fn ($q, $s) => $q->where('nama', 'like', "%$s%")->orWhere('kode', 'like', "%$s%"))
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(function ($query) use ($search): void {
+                $query->where('nama', 'like', "%{$search}%")
+                    ->orWhere('kode', 'like', "%{$search}%");
+            }))
             ->orderBy('nama')
             ->paginate(20)
             ->withQueryString();
 
-        return view('master.alkes.index', compact('alkes'));
+        return Inertia::render('master/alkes/index', [
+            'items' => [
+                'data' => $alkes->getCollection()->map(fn (Alkes $item): array => [
+                    'id' => $item->id,
+                    'code' => $item->kode,
+                    'name' => $item->nama,
+                    'unit' => $item->satuan,
+                    'stock' => $item->stok,
+                    'minimumStock' => $item->stok_minimum,
+                    'purchasePrice' => (float) $item->harga_beli,
+                    'sellingPrice' => (float) $item->harga_jual,
+                    'active' => $item->is_active,
+                ])->values(),
+                'currentPage' => $alkes->currentPage(),
+                'lastPage' => $alkes->lastPage(),
+                'perPage' => $alkes->perPage(),
+                'total' => $alkes->total(),
+                'from' => $alkes->firstItem(),
+                'to' => $alkes->lastItem(),
+                'previousUrl' => $alkes->previousPageUrl(),
+                'nextUrl' => $alkes->nextPageUrl(),
+            ],
+            'filters' => $filters,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

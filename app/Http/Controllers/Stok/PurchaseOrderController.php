@@ -6,146 +6,252 @@ use App\Http\Controllers\Controller;
 use App\Models\DepoObat;
 use App\Models\Obat;
 use App\Models\PurchaseOrder;
-use App\Models\PurchaseOrderItem;
 use App\Models\StokMutasi;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class PurchaseOrderController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
-        $orders = PurchaseOrder::with(['depo', 'items.obat'])
-            ->when($request->search, fn ($q, $s) => $q->where('no_po', 'like', "%$s%")->orWhere('supplier', 'like', "%$s%"))
-            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
-            ->orderBy('created_at', 'desc')
-            ->paginate(15)
-            ->withQueryString();
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:draft,dikirim,sebagian,diterima'],
+        ]);
 
-        return view('stok.purchase-order.index', compact('orders'));
+        $orders = PurchaseOrder::query()
+            ->with(['depo:id,nama'])
+            ->when($filters['search'] ?? null, function ($query, string $search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query->where('no_po', 'like', "%{$search}%")
+                        ->orWhere('supplier', 'like', "%{$search}%");
+                });
+            })
+            ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
+            ->latest()
+            ->paginate(15)
+            ->withQueryString()
+            ->through(fn (PurchaseOrder $order): array => [
+                'id' => $order->id,
+                'number' => $order->no_po,
+                'supplier' => $order->supplier,
+                'date' => $order->tanggal?->format('Y-m-d'),
+                'status' => $order->status,
+                'total' => (float) $order->total,
+                'depot' => $order->depo?->nama,
+                'showUrl' => route('stok.purchase-order.show', $order),
+                'receiveUrl' => route('stok.purchase-order.terima.form', $order),
+            ]);
+
+        return Inertia::render('stok/purchase-order/index', [
+            'orders' => $orders,
+            'filters' => ['search' => $filters['search'] ?? '', 'status' => $filters['status'] ?? ''],
+        ]);
     }
 
-    public function create(): View
+    public function create(): Response
     {
-        $depoList = DepoObat::where('is_active', true)->orderBy('nama')->get();
-        $obatList = Obat::where('is_active', true)->orderBy('nama')->get();
-
-        return view('stok.purchase-order.create', compact('depoList', 'obatList'));
+        return Inertia::render('stok/purchase-order/create', [
+            'depots' => DepoObat::query()->where('is_active', true)->orderBy('nama')->get(['id', 'nama']),
+            'medicines' => Obat::query()->where('is_active', true)->orderBy('nama')->get(['id', 'nama', 'satuan_kecil', 'harga_beli'])->map(fn (Obat $medicine): array => [
+                'id' => $medicine->id,
+                'nama' => $medicine->nama,
+                'satuan_kecil' => $medicine->satuan_kecil,
+                'harga_beli' => (float) $medicine->harga_beli,
+            ]),
+            'today' => today()->toDateString(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
-            'depo_id' => ['required', 'exists:depo_obat,id'],
+        $data = $request->validate([
+            'depo_id' => ['required', 'integer', 'exists:depo_obat,id'],
             'supplier' => ['required', 'string', 'max:200'],
             'tanggal' => ['required', 'date'],
-            'tanggal_kirim' => ['nullable', 'date'],
-            'catatan' => ['nullable', 'string'],
-            'items' => ['required', 'array', 'min:1'],
-            'items.*.obat_id' => ['required', 'exists:obat,id'],
-            'items.*.jumlah' => ['required', 'numeric', 'min:1'],
-            'items.*.harga' => ['required', 'numeric', 'min:0'],
+            'tanggal_kirim' => ['nullable', 'date', 'after_or_equal:tanggal'],
+            'catatan' => ['nullable', 'string', 'max:2000'],
+            'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.obat_id' => ['required', 'integer', 'distinct', 'exists:obat,id'],
+            'items.*.jumlah' => ['required', 'integer', 'min:1'],
+            'items.*.harga' => ['required', 'numeric', 'min:0', 'decimal:0,2'],
         ]);
 
-        $noPo = 'PO-'.now()->format('Ymd').'-'.str_pad((PurchaseOrder::max('id') ?? 0) + 1, 4, '0', STR_PAD_LEFT);
+        $purchaseOrder = DB::transaction(function () use ($data): PurchaseOrder {
+            $activeDepot = DepoObat::query()->whereKey($data['depo_id'])->where('is_active', true)->exists();
 
-        $total = 0;
-        foreach ($request->items as $item) {
-            $total += $item['jumlah'] * $item['harga'];
-        }
+            if (! $activeDepot) {
+                throw ValidationException::withMessages(['depo_id' => 'Pilih depo yang masih aktif.']);
+            }
 
-        $po = PurchaseOrder::create([
-            'no_po' => $noPo,
-            'depo_id' => $request->depo_id,
-            'supplier' => $request->supplier,
-            'tanggal' => $request->tanggal,
-            'tanggal_kirim' => $request->tanggal_kirim,
-            'status' => 'draft',
-            'catatan' => $request->catatan,
-            'total' => $total,
-        ]);
+            $medicineIds = collect($data['items'])->pluck('obat_id')->all();
+            $activeMedicines = Obat::query()->whereIn('id', $medicineIds)->where('is_active', true)->count();
 
-        foreach ($request->items as $item) {
-            $po->items()->create([
-                'obat_id' => $item['obat_id'],
-                'jumlah' => $item['jumlah'],
-                'harga' => $item['harga'],
-                'total' => $item['jumlah'] * $item['harga'],
+            if ($activeMedicines !== count($medicineIds)) {
+                throw ValidationException::withMessages(['items' => 'Pilih obat yang masih aktif.']);
+            }
+
+            $total = collect($data['items'])->sum(fn (array $item): float => round((float) $item['jumlah'] * (float) $item['harga'], 2));
+            $purchaseOrder = PurchaseOrder::create([
+                'no_po' => 'PO-'.now()->format('Ymd-His').'-'.Str::upper(Str::random(4)),
+                'depo_id' => $data['depo_id'],
+                'supplier' => $data['supplier'],
+                'tanggal' => $data['tanggal'],
+                'tanggal_kirim' => $data['tanggal_kirim'] ?? null,
+                'status' => 'draft',
+                'catatan' => $data['catatan'] ?? null,
+                'total' => $total,
             ]);
-        }
 
-        return redirect()->route('stok.purchase-order.show', $po)
-            ->with('success', "PO {$po->no_po} berhasil dibuat.");
+            foreach ($data['items'] as $item) {
+                $purchaseOrder->items()->create([
+                    'obat_id' => $item['obat_id'],
+                    'jumlah' => $item['jumlah'],
+                    'harga' => $item['harga'],
+                    'total' => round((float) $item['jumlah'] * (float) $item['harga'], 2),
+                ]);
+            }
+
+            return $purchaseOrder;
+        });
+
+        return redirect()->route('stok.purchase-order.show', $purchaseOrder)
+            ->with('success', "PO {$purchaseOrder->no_po} berhasil dibuat.");
     }
 
-    public function show(PurchaseOrder $purchaseOrder): View
+    public function show(PurchaseOrder $purchaseOrder): Response
     {
-        $purchaseOrder->load(['depo', 'items.obat']);
+        $purchaseOrder->load(['depo:id,nama', 'items.obat:id,nama,satuan_kecil']);
 
-        return view('stok.purchase-order.show', compact('purchaseOrder'));
+        return Inertia::render('stok/purchase-order/show', [
+            'order' => [
+                'id' => $purchaseOrder->id,
+                'number' => $purchaseOrder->no_po,
+                'supplier' => $purchaseOrder->supplier,
+                'date' => $purchaseOrder->tanggal?->format('Y-m-d'),
+                'deliveryDate' => $purchaseOrder->tanggal_kirim?->format('Y-m-d'),
+                'status' => $purchaseOrder->status,
+                'depot' => $purchaseOrder->depo?->nama,
+                'note' => $purchaseOrder->catatan,
+                'total' => (float) $purchaseOrder->total,
+                'items' => $purchaseOrder->items->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'medicine' => $item->obat?->nama ?? 'Obat dihapus',
+                    'unit' => $item->obat?->satuan_kecil,
+                    'quantity' => (float) $item->jumlah,
+                    'received' => (float) $item->jumlah_terima,
+                    'price' => (float) $item->harga,
+                    'total' => (float) $item->total,
+                ])->all(),
+                'dispatchUrl' => route('stok.purchase-order.kirim', $purchaseOrder),
+                'receiveUrl' => route('stok.purchase-order.terima.form', $purchaseOrder),
+            ],
+        ]);
     }
 
     public function kirim(PurchaseOrder $purchaseOrder): RedirectResponse
     {
+        if ($purchaseOrder->status !== 'draft') {
+            throw ValidationException::withMessages(['status' => 'Hanya PO berstatus draft yang dapat dikirim.']);
+        }
+
         $purchaseOrder->update(['status' => 'dikirim']);
 
         return back()->with('success', 'Status PO diubah menjadi Dikirim.');
     }
 
-    public function terimaBarang(PurchaseOrder $purchaseOrder): View
+    public function terimaBarang(PurchaseOrder $purchaseOrder): Response
     {
-        $purchaseOrder->load(['depo', 'items.obat']);
+        abort_unless(in_array($purchaseOrder->status, ['dikirim', 'sebagian'], true), 404);
+        $purchaseOrder->load(['depo:id,nama', 'items.obat:id,nama,satuan_kecil']);
 
-        return view('stok.purchase-order.terima', compact('purchaseOrder'));
+        return Inertia::render('stok/purchase-order/terima', [
+            'order' => [
+                'id' => $purchaseOrder->id,
+                'number' => $purchaseOrder->no_po,
+                'supplier' => $purchaseOrder->supplier,
+                'depot' => $purchaseOrder->depo?->nama,
+                'items' => $purchaseOrder->items->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'medicine' => $item->obat?->nama ?? 'Obat dihapus',
+                    'unit' => $item->obat?->satuan_kecil,
+                    'quantity' => (float) $item->jumlah,
+                    'received' => (float) $item->jumlah_terima,
+                ])->all(),
+            ],
+            'submitUrl' => route('stok.purchase-order.terima', $purchaseOrder),
+            'showUrl' => route('stok.purchase-order.show', $purchaseOrder),
+        ]);
     }
 
     public function prosesTerima(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        $request->validate([
-            'items' => ['required', 'array'],
-            'items.*.id' => ['required', 'exists:purchase_order_item,id'],
-            'items.*.jumlah_terima' => ['required', 'numeric', 'min:0'],
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.id' => ['required', 'integer', 'distinct', 'exists:purchase_order_item,id'],
+            'items.*.jumlah_terima' => ['required', 'integer', 'min:0'],
         ]);
 
-        $semuaSelesai = true;
+        DB::transaction(function () use ($data, $purchaseOrder): void {
+            $lockedOrder = PurchaseOrder::query()->lockForUpdate()->findOrFail($purchaseOrder->id);
 
-        foreach ($request->items as $itemData) {
-            $item = PurchaseOrderItem::findOrFail($itemData['id']);
-            $jumlahTerima = $itemData['jumlah_terima'];
+            if (! in_array($lockedOrder->status, ['dikirim', 'sebagian'], true)) {
+                throw ValidationException::withMessages(['status' => 'PO ini tidak dapat menerima barang pada status saat ini.']);
+            }
 
-            if ($jumlahTerima > 0) {
-                $item->update(['jumlah_terima' => $item->jumlah_terima + $jumlahTerima]);
+            $items = $lockedOrder->items()->whereIn('id', collect($data['items'])->pluck('id'))->orderBy('id')->lockForUpdate()->get();
 
-                // Update obat stock
-                $obat = $item->obat;
-                $stokSebelum = $obat->stok;
-                $stokSesudah = $stokSebelum + $jumlahTerima;
-                $obat->update(['stok' => $stokSesudah]);
+            if ($items->count() !== count($data['items'])) {
+                throw ValidationException::withMessages(['items' => 'Daftar barang tidak sesuai dengan PO ini.']);
+            }
 
-                // Log mutation
+            $receivedAny = false;
+            foreach ($items as $item) {
+                $lineIndex = collect($data['items'])->search(fn (array $line): bool => (int) $line['id'] === $item->id);
+                $quantityToReceive = (float) $data['items'][$lineIndex]['jumlah_terima'];
+                $remaining = round((float) $item->jumlah - (float) $item->jumlah_terima, 2);
+
+                if ($quantityToReceive > $remaining) {
+                    throw ValidationException::withMessages(["items.{$lineIndex}.jumlah_terima" => "Jumlah penerimaan melebihi sisa {$remaining}."]);
+                }
+
+                if ($quantityToReceive <= 0) {
+                    continue;
+                }
+
+                $receivedAny = true;
+                $item->update(['jumlah_terima' => round((float) $item->jumlah_terima + $quantityToReceive, 2)]);
+                $medicine = Obat::query()->lockForUpdate()->findOrFail($item->obat_id);
+                $stockBefore = (float) $medicine->stok;
+                $stockAfter = round($stockBefore + $quantityToReceive, 2);
+                $medicine->update(['stok' => $stockAfter]);
+
                 StokMutasi::create([
-                    'obat_id' => $obat->id,
-                    'depo_id' => $purchaseOrder->depo_id,
+                    'obat_id' => $medicine->id,
+                    'depo_id' => $lockedOrder->depo_id,
                     'jenis' => 'masuk',
                     'referensi_type' => 'PurchaseOrder',
-                    'referensi_id' => $purchaseOrder->id,
-                    'jumlah' => $jumlahTerima,
+                    'referensi_id' => $lockedOrder->id,
+                    'jumlah' => $quantityToReceive,
                     'harga' => $item->harga,
-                    'stok_sebelum' => $stokSebelum,
-                    'stok_sesudah' => $stokSesudah,
-                    'keterangan' => "Penerimaan PO {$purchaseOrder->no_po}",
+                    'stok_sebelum' => $stockBefore,
+                    'stok_sesudah' => $stockAfter,
+                    'keterangan' => "Penerimaan PO {$lockedOrder->no_po}",
                 ]);
             }
 
-            if ($item->jumlah_terima < $item->jumlah) {
-                $semuaSelesai = false;
+            if (! $receivedAny) {
+                throw ValidationException::withMessages(['items' => 'Masukkan jumlah barang yang diterima.']);
             }
-        }
 
-        $purchaseOrder->update([
-            'status' => $semuaSelesai ? 'diterima' : 'sebagian',
-        ]);
+            $allItemsReceived = $lockedOrder->items()->whereColumn('jumlah_terima', '<', 'jumlah')->doesntExist();
+            $lockedOrder->update(['status' => $allItemsReceived ? 'diterima' : 'sebagian']);
+        });
 
         return redirect()->route('stok.purchase-order.show', $purchaseOrder)
             ->with('success', 'Penerimaan barang berhasil diproses dan stok telah diperbarui.');

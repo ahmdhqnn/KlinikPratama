@@ -6,19 +6,40 @@ use App\Http\Controllers\Controller;
 use App\Models\BiayaAdmin;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class BiayaAdminController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
         $biayaAdmin = BiayaAdmin::query()
-            ->when($request->search, fn ($q, $s) => $q->where('nama', 'like', "%$s%"))
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where('nama', 'like', "%{$search}%"))
             ->orderBy('nama')
             ->paginate(15)
             ->withQueryString();
 
-        return view('master.biaya-admin.index', compact('biayaAdmin'));
+        return Inertia::render('master/biaya-admin/index', [
+            'fees' => [
+                'data' => $biayaAdmin->getCollection()->map(fn (BiayaAdmin $fee): array => [
+                    'id' => $fee->id,
+                    'name' => $fee->nama,
+                    'tariff' => (float) $fee->tarif,
+                    'description' => $fee->keterangan,
+                    'active' => $fee->is_active,
+                ])->values(),
+                'currentPage' => $biayaAdmin->currentPage(),
+                'lastPage' => $biayaAdmin->lastPage(),
+                'perPage' => $biayaAdmin->perPage(),
+                'total' => $biayaAdmin->total(),
+                'from' => $biayaAdmin->firstItem(),
+                'to' => $biayaAdmin->lastItem(),
+                'previousUrl' => $biayaAdmin->previousPageUrl(),
+                'nextUrl' => $biayaAdmin->nextPageUrl(),
+            ],
+            'filters' => $filters,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

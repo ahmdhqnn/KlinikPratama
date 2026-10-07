@@ -6,19 +6,43 @@ use App\Http\Controllers\Controller;
 use App\Models\DepoObat;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class DepoObatController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
         $depoObat = DepoObat::query()
-            ->when($request->search, fn ($q, $s) => $q->where('nama', 'like', "%$s%")->orWhere('kode', 'like', "%$s%"))
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(function ($query) use ($search): void {
+                $query->where('nama', 'like', "%{$search}%")
+                    ->orWhere('kode', 'like', "%{$search}%");
+            }))
             ->orderBy('kode')
             ->paginate(15)
             ->withQueryString();
 
-        return view('master.depo-obat.index', compact('depoObat'));
+        return Inertia::render('master/depo-obat/index', [
+            'depots' => [
+                'data' => $depoObat->getCollection()->map(fn (DepoObat $depot): array => [
+                    'id' => $depot->id,
+                    'code' => $depot->kode,
+                    'name' => $depot->nama,
+                    'description' => $depot->deskripsi,
+                    'active' => $depot->is_active,
+                ])->values(),
+                'currentPage' => $depoObat->currentPage(),
+                'lastPage' => $depoObat->lastPage(),
+                'perPage' => $depoObat->perPage(),
+                'total' => $depoObat->total(),
+                'from' => $depoObat->firstItem(),
+                'to' => $depoObat->lastItem(),
+                'previousUrl' => $depoObat->previousPageUrl(),
+                'nextUrl' => $depoObat->nextPageUrl(),
+            ],
+            'filters' => $filters,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

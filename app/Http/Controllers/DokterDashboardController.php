@@ -9,11 +9,12 @@ use App\Models\Obat;
 use App\Models\Pasien;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class DokterDashboardController extends Controller
 {
-    public function index(): View
+    public function index(): Response
     {
         $dokterId = $this->dokterId();
         $today = today();
@@ -38,13 +39,30 @@ class DokterDashboardController extends Controller
             ->limit(10)
             ->get();
 
-        return view('dokter.dashboard', compact(
-            'kunjunganHariIni', 'menungguPemeriksaan', 'selesaiHariIni',
-            'jadwalHariIni', 'kunjunganTerkini'
-        ));
+        return Inertia::render('dokter/dashboard', [
+            'stats' => [
+                'visitsToday' => $kunjunganHariIni,
+                'waitingExaminations' => $menungguPemeriksaan,
+                'completedToday' => $selesaiHariIni,
+            ],
+            'schedule' => $jadwalHariIni->map(fn (JadwalDokter $schedule): array => [
+                'id' => $schedule->id,
+                'clinic' => $schedule->poliklinik->nama,
+                'start' => substr($schedule->jam_mulai, 0, 5),
+                'end' => substr($schedule->jam_selesai, 0, 5),
+            ])->values(),
+            'recentVisits' => $kunjunganTerkini->map(fn (Kunjungan $visit): array => [
+                'id' => $visit->id,
+                'number' => $visit->no_kunjungan,
+                'patient' => $visit->pasien->nama,
+                'medicalRecordNumber' => $visit->pasien->no_rm,
+                'clinic' => $visit->poliklinik->nama,
+                'status' => $visit->status,
+            ])->values(),
+        ]);
     }
 
-    public function appointments(Request $request): View
+    public function appointments(Request $request): Response
     {
         $filters = $request->validate([
             'dari' => ['nullable', 'date_format:Y-m-d'],
@@ -61,10 +79,34 @@ class DokterDashboardController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        return view('dokter.appointments', compact('kunjungan'));
+        return Inertia::render('dokter/appointments', [
+            'filters' => [
+                'dari' => $dari,
+                'sampai' => $filters['sampai'] ?? '',
+            ],
+            'visits' => [
+                'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit): array => [
+                    'id' => $visit->id,
+                    'date' => $visit->tanggal->format('d/m/Y'),
+                    'number' => $visit->no_kunjungan,
+                    'patient' => $visit->pasien->nama,
+                    'medicalRecordNumber' => $visit->pasien->no_rm,
+                    'clinic' => $visit->poliklinik->nama,
+                    'status' => $visit->status,
+                    'examinationUrl' => route('pelayanan.pemeriksaan.show', $visit),
+                ])->values(),
+                'currentPage' => $kunjungan->currentPage(),
+                'lastPage' => $kunjungan->lastPage(),
+                'from' => $kunjungan->firstItem(),
+                'to' => $kunjungan->lastItem(),
+                'total' => $kunjungan->total(),
+                'previousUrl' => $kunjungan->previousPageUrl(),
+                'nextUrl' => $kunjungan->nextPageUrl(),
+            ],
+        ]);
     }
 
-    public function patients(Request $request): View
+    public function patients(Request $request): Response
     {
         $pasien = Pasien::query()
             ->whereHas('kunjungan', fn (Builder $query) => $query->where('dokter_id', $this->dokterId()))
@@ -79,33 +121,92 @@ class DokterDashboardController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        return view('dokter.patients', compact('pasien'));
+        return Inertia::render('dokter/patients', [
+            'search' => $request->string('search')->toString(),
+            'patients' => [
+                'data' => $pasien->getCollection()->map(fn (Pasien $patient): array => [
+                    'id' => $patient->id,
+                    'medicalRecordNumber' => $patient->no_rm,
+                    'name' => $patient->nama,
+                    'gender' => $patient->jenis_kelamin,
+                    'visitCount' => $patient->jumlah_kunjungan,
+                    'recordUrl' => route('pelayanan.pasien.rekam-medis', $patient),
+                ])->values(),
+                'currentPage' => $pasien->currentPage(),
+                'lastPage' => $pasien->lastPage(),
+                'from' => $pasien->firstItem(),
+                'to' => $pasien->lastItem(),
+                'total' => $pasien->total(),
+                'previousUrl' => $pasien->previousPageUrl(),
+                'nextUrl' => $pasien->nextPageUrl(),
+            ],
+        ]);
     }
 
-    public function stock(): View
+    public function stock(): Response
     {
         $obat = Obat::query()->where('is_active', true)->where('jenis', 'obat')
             ->orderBy('nama')->paginate(30);
 
-        return view('dokter.stock', compact('obat'));
+        return Inertia::render('dokter/stock', [
+            'medicines' => [
+                'data' => $obat->getCollection()->map(fn (Obat $medicine): array => [
+                    'id' => $medicine->id,
+                    'code' => $medicine->kode,
+                    'name' => $medicine->nama,
+                    'unit' => $medicine->satuan_kecil,
+                    'stock' => (float) $medicine->stok,
+                    'minimumStock' => (float) $medicine->stok_minimum,
+                    'isLow' => $medicine->stok <= $medicine->stok_minimum,
+                ])->values(),
+                'currentPage' => $obat->currentPage(),
+                'lastPage' => $obat->lastPage(),
+                'from' => $obat->firstItem(),
+                'to' => $obat->lastItem(),
+                'total' => $obat->total(),
+                'previousUrl' => $obat->previousPageUrl(),
+                'nextUrl' => $obat->nextPageUrl(),
+            ],
+        ]);
     }
 
-    public function topDiagnoses(Request $request): View
+    public function topDiagnoses(Request $request): Response
     {
-        $dari = $request->date('dari', now()->startOfMonth());
-        $sampai = $request->date('sampai', today());
+        $filters = $request->validate([
+            'dari' => ['nullable', 'date_format:Y-m-d'],
+            'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
+        ]);
+        $dari = $filters['dari'] ?? now()->startOfMonth()->toDateString();
+        $sampai = $filters['sampai'] ?? today()->toDateString();
         $diagnosa = Diagnosa::query()
             ->select('kode_icd10', 'nama_diagnosa')
             ->selectRaw('COUNT(*) as jumlah')
             ->whereHas('pemeriksaan.kunjungan', fn (Builder $query) => $query
                 ->where('dokter_id', $this->dokterId())
-                ->whereBetween('tanggal', [$dari, $sampai]))
+                ->whereDate('tanggal', '>=', $dari)
+                ->whereDate('tanggal', '<=', $sampai))
             ->groupBy('kode_icd10', 'nama_diagnosa')
             ->orderByDesc('jumlah')
             ->paginate(20)
             ->withQueryString();
 
-        return view('dokter.top-diagnoses', compact('diagnosa', 'dari', 'sampai'));
+        return Inertia::render('dokter/top-diagnoses', [
+            'filters' => ['dari' => $dari, 'sampai' => $sampai],
+            'diagnoses' => [
+                'data' => $diagnosa->getCollection()->map(fn (Diagnosa $diagnosis): array => [
+                    'code' => $diagnosis->kode_icd10,
+                    'name' => $diagnosis->nama_diagnosa,
+                    'count' => (int) $diagnosis->jumlah,
+                ])->values(),
+                'currentPage' => $diagnosa->currentPage(),
+                'lastPage' => $diagnosa->lastPage(),
+                'from' => $diagnosa->firstItem(),
+                'to' => $diagnosa->lastItem(),
+                'total' => $diagnosa->total(),
+                'previousUrl' => $diagnosa->previousPageUrl(),
+                'nextUrl' => $diagnosa->nextPageUrl(),
+            ],
+        ]);
     }
 
     private function doctorVisits(): Builder

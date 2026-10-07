@@ -21,13 +21,14 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class PemeriksaanController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
-        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan'])
+        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan.diagnosa'])
             ->when($request->search, fn ($q, $s) => $q->whereHas('pasien', fn ($pq) => $pq->where('nama', 'like', "%$s%")->orWhere('no_rm', 'like', "%$s%")))
             ->when($request->tanggal, fn ($q, $t) => $q->whereDate('tanggal', $t))
             ->whereDate('tanggal', $request->tanggal ?? today())
@@ -37,10 +38,32 @@ class PemeriksaanController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        return view('pelayanan.pemeriksaan.index', compact('kunjungan'));
+        return Inertia::render('pelayanan/pemeriksaan/index', [
+            'visits' => [
+                'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit) => [
+                    'id' => $visit->id,
+                    'number' => $visit->no_kunjungan,
+                    'patient' => $visit->pasien?->nama ?? '—',
+                    'medicalRecordNumber' => $visit->pasien?->no_rm ?? '—',
+                    'gender' => $visit->pasien?->jenis_kelamin,
+                    'clinic' => $visit->poliklinik?->nama ?? '—',
+                    'doctor' => $visit->dokter?->nama,
+                    'status' => $visit->status,
+                    'diagnosisCount' => $visit->pemeriksaan?->diagnosa->count() ?? 0,
+                ])->values(),
+                'currentPage' => $kunjungan->currentPage(),
+                'lastPage' => $kunjungan->lastPage(),
+                'from' => $kunjungan->firstItem(),
+                'to' => $kunjungan->lastItem(),
+                'total' => $kunjungan->total(),
+                'previousUrl' => $kunjungan->previousPageUrl(),
+                'nextUrl' => $kunjungan->nextPageUrl(),
+            ],
+            'date' => $request->input('tanggal', today()->toDateString()),
+        ]);
     }
 
-    public function show(Kunjungan $kunjungan): View
+    public function show(Kunjungan $kunjungan): Response
     {
         $this->authorizeVisit($kunjungan);
         $kunjungan->load([
@@ -58,9 +81,98 @@ class PemeriksaanController extends Controller
         $obatList = Obat::where('is_active', true)->where('jenis', 'obat')->orderBy('nama')->get();
         $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
 
-        return view('pelayanan.pemeriksaan.show', compact(
-            'kunjungan', 'dokterList', 'tindakanList', 'obatList', 'poliklinikList'
-        ));
+        return Inertia::render('pelayanan/pemeriksaan/show', [
+            'visit' => [
+                'id' => $kunjungan->id,
+                'number' => $kunjungan->no_kunjungan,
+                'status' => $kunjungan->status,
+                'paymentType' => $kunjungan->jenis_bayar,
+                'doctorId' => $kunjungan->dokter_id,
+                'clinicId' => $kunjungan->poliklinik_id,
+                'clinic' => $kunjungan->poliklinik?->nama ?? '—',
+                'patient' => [
+                    'id' => $kunjungan->pasien->id,
+                    'name' => $kunjungan->pasien->nama,
+                    'medicalRecordNumber' => $kunjungan->pasien->no_rm,
+                    'gender' => $kunjungan->pasien->jenis_kelamin,
+                    'age' => $kunjungan->pasien->umur,
+                    'bloodType' => $kunjungan->pasien->golongan_darah,
+                    'allergies' => $kunjungan->pasien->riwayat_alergi,
+                ],
+                'screening' => $kunjungan->screening ? [
+                    'systolic' => $kunjungan->screening->td_sistole,
+                    'diastolic' => $kunjungan->screening->td_diastole,
+                    'pulse' => $kunjungan->screening->nadi,
+                    'temperature' => $kunjungan->screening->suhu,
+                    'oxygenSaturation' => $kunjungan->screening->spo2,
+                    'complaint' => $kunjungan->screening->keluhan,
+                ] : null,
+                'examination' => $kunjungan->pemeriksaan ? [
+                    'doctorId' => $kunjungan->pemeriksaan->dokter_id,
+                    'anamnesis' => $kunjungan->pemeriksaan->anamnesis,
+                    'physicalExam' => $kunjungan->pemeriksaan->pemeriksaan_fisik,
+                    'followUpDate' => $kunjungan->pemeriksaan->kontrol_berikutnya?->toDateString(),
+                    'notes' => $kunjungan->pemeriksaan->catatan,
+                    'education' => $kunjungan->pemeriksaan->edukasi,
+                    'status' => $kunjungan->pemeriksaan->status,
+                ] : null,
+                'diagnoses' => $kunjungan->pemeriksaan?->diagnosa->map(fn (Diagnosa $diagnosis) => [
+                    'id' => $diagnosis->id,
+                    'code' => $diagnosis->kode_icd10,
+                    'name' => $diagnosis->nama_diagnosa,
+                    'type' => $diagnosis->jenis,
+                ])->values() ?? collect(),
+                'treatments' => $kunjungan->tindakanKunjungan->map(fn (TindakanKunjungan $item) => [
+                    'id' => $item->id,
+                    'name' => $item->tindakan?->nama ?? 'Tindakan dihapus',
+                    'quantity' => $item->jumlah,
+                    'tariff' => (float) $item->tarif,
+                ])->values(),
+                'prescription' => [
+                    'status' => $kunjungan->resep?->status,
+                    'items' => $kunjungan->resep?->resepObat->map(fn (ResepObat $item) => [
+                        'id' => $item->id,
+                        'name' => $item->nama_obat,
+                        'type' => $item->jenis,
+                        'quantity' => $item->jumlah,
+                        'unit' => $item->satuan,
+                        'instructions' => $item->aturan_pakai,
+                        'external' => $item->is_resep_luar,
+                    ])->values() ?? collect(),
+                ],
+                'letters' => $kunjungan->suratMedis->map(fn ($letter) => [
+                    'id' => $letter->id,
+                    'type' => $letter->jenis,
+                    'number' => $letter->nomor_surat,
+                    'content' => $letter->konten,
+                    'date' => $letter->tanggal?->format('d/m/Y'),
+                ])->values(),
+                'referrals' => $kunjungan->rujukanInternal->map(fn ($referral) => [
+                    'id' => $referral->id,
+                    'fromClinic' => $referral->dariPoli?->nama,
+                    'toClinic' => $referral->kePoli?->nama,
+                    'notes' => $referral->catatan,
+                    'status' => $referral->status,
+                ])->values(),
+            ],
+            'doctors' => $dokterList->map(fn (Nakes $doctor) => ['id' => $doctor->id, 'name' => $doctor->nama]),
+            'treatments' => $tindakanList->map(fn (Tindakan $treatment) => [
+                'id' => $treatment->id,
+                'name' => $treatment->nama,
+                'tariff' => (float) $treatment->tarif,
+            ]),
+            'medicines' => $obatList->map(fn (Obat $medicine) => [
+                'id' => $medicine->id,
+                'name' => $medicine->nama,
+                'stock' => (float) $medicine->stok,
+                'unit' => $medicine->satuan_kecil,
+            ]),
+            'clinics' => $poliklinikList->where('id', '!=', $kunjungan->poliklinik_id)->map(fn (Poliklinik $clinic) => [
+                'id' => $clinic->id,
+                'name' => $clinic->nama,
+            ])->values(),
+            'today' => today()->toDateString(),
+        ]);
     }
 
     public function store(Request $request, Kunjungan $kunjungan): RedirectResponse

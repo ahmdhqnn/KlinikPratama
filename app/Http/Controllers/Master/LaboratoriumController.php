@@ -10,30 +10,89 @@ use App\Models\Obat;
 use App\Models\Poliklinik;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class LaboratoriumController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
-        $laboratorium = Laboratorium::with('poliklinik')
-            ->when($request->search, fn ($q, $s) => $q->where('nama', 'like', "%$s%")->orWhere('kode', 'like', "%$s%"))
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $laboratories = Laboratorium::with('poliklinik')
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(function ($subquery) use ($search): void {
+                $subquery->where('nama', 'like', "%{$search}%")
+                    ->orWhere('kode', 'like', "%{$search}%");
+            }))
             ->orderBy('kode')
             ->paginate(15)
             ->withQueryString();
 
-        $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
-        $obatList = Obat::where('is_active', true)->orderBy('nama')->get();
+        $clinics = Poliklinik::where('is_active', true)->orderBy('nama')->get();
 
-        return view('master.laboratorium.index', compact('laboratorium', 'poliklinikList', 'obatList'));
+        return Inertia::render('master/laboratorium/index', [
+            'laboratories' => [
+                'data' => $laboratories->getCollection()->map(fn (Laboratorium $laboratory): array => [
+                    'id' => $laboratory->id,
+                    'code' => $laboratory->kode,
+                    'name' => $laboratory->nama,
+                    'clinicId' => $laboratory->poliklinik_id,
+                    'clinic' => $laboratory->poliklinik?->nama,
+                    'tariff' => (float) $laboratory->tarif,
+                    'description' => $laboratory->deskripsi,
+                    'active' => $laboratory->is_active,
+                ])->values(),
+                'currentPage' => $laboratories->currentPage(),
+                'lastPage' => $laboratories->lastPage(),
+                'perPage' => $laboratories->perPage(),
+                'total' => $laboratories->total(),
+                'from' => $laboratories->firstItem(),
+                'to' => $laboratories->lastItem(),
+                'previousUrl' => $laboratories->previousPageUrl(),
+                'nextUrl' => $laboratories->nextPageUrl(),
+            ],
+            'filters' => ['search' => $filters['search'] ?? ''],
+            'clinics' => $clinics->map(fn (Poliklinik $clinic): array => [
+                'id' => $clinic->id,
+                'name' => $clinic->nama,
+            ])->values(),
+        ]);
     }
 
-    public function show(Laboratorium $laboratorium): View
+    public function show(Laboratorium $laboratorium): Response
     {
         $laboratorium->load(['poliklinik', 'indikator', 'bhp.obat']);
-        $obatList = Obat::where('is_active', true)->orderBy('nama')->get();
+        $medicines = Obat::where('is_active', true)->orderBy('nama')->get();
 
-        return view('master.laboratorium.show', compact('laboratorium', 'obatList'));
+        return Inertia::render('master/laboratorium/show', [
+            'laboratory' => [
+                'id' => $laboratorium->id,
+                'code' => $laboratorium->kode,
+                'name' => $laboratorium->nama,
+                'clinic' => $laboratorium->poliklinik?->nama ?? 'Umum',
+                'tariff' => (float) $laboratorium->tarif,
+                'indicators' => $laboratorium->indikator->map(fn (LabIndikator $indicator): array => [
+                    'id' => $indicator->id,
+                    'name' => $indicator->nama,
+                    'unit' => $indicator->satuan,
+                    'referenceMin' => $indicator->nilai_rujukan_min,
+                    'referenceMax' => $indicator->nilai_rujukan_max,
+                    'format' => $indicator->format_input,
+                    'choices' => $indicator->pilihan ?? [],
+                ])->values(),
+                'supplies' => $laboratorium->bhp->map(fn (LabBhp $supply): array => [
+                    'id' => $supply->id,
+                    'medicine' => $supply->obat?->nama ?? 'Item dihapus',
+                    'unit' => $supply->obat?->satuan_kecil ?? '—',
+                    'quantity' => (float) $supply->jumlah,
+                ])->values(),
+            ],
+            'medicines' => $medicines->map(fn (Obat $medicine): array => [
+                'id' => $medicine->id,
+                'name' => $medicine->nama,
+                'stock' => (float) $medicine->stok,
+                'unit' => $medicine->satuan_kecil,
+            ])->values(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -79,7 +138,7 @@ class LaboratoriumController extends Controller
 
     public function storeIndikator(Request $request, Laboratorium $laboratorium): RedirectResponse
     {
-        $request->validate([
+        $data = $request->validate([
             'nama' => ['required', 'string', 'max:100'],
             'satuan' => ['nullable', 'string', 'max:50'],
             'nilai_rujukan_min' => ['nullable', 'string'],
@@ -88,21 +147,11 @@ class LaboratoriumController extends Controller
             'pilihan' => ['nullable', 'string'],
         ]);
 
-        $pilihan = null;
-        if ($request->format_input === 'select' && $request->pilihan) {
-            $items = array_filter(array_map('trim', explode(',', $request->pilihan)));
-            $pilihan = json_encode(array_values($items));
-        }
-
-        $laboratorium->indikator()->create([
-            'nama' => $request->nama,
-            'satuan' => $request->satuan,
-            'nilai_rujukan_min' => $request->nilai_rujukan_min,
-            'nilai_rujukan_max' => $request->nilai_rujukan_max,
-            'format_input' => $request->format_input,
-            'pilihan' => $pilihan,
-            'urutan' => $laboratorium->indikator()->count() + 1,
-        ]);
+        $data['pilihan'] = $data['format_input'] === 'select' && filled($data['pilihan'] ?? null)
+            ? array_values(array_filter(array_map('trim', explode(',', $data['pilihan']))))
+            : null;
+        $data['urutan'] = $laboratorium->indikator()->count() + 1;
+        $laboratorium->indikator()->create($data);
 
         return back()->with('success', 'Indikator berhasil ditambahkan.');
     }
@@ -116,15 +165,12 @@ class LaboratoriumController extends Controller
 
     public function storeBhp(Request $request, Laboratorium $laboratorium): RedirectResponse
     {
-        $request->validate([
+        $data = $request->validate([
             'obat_id' => ['required', 'exists:obat,id'],
             'jumlah' => ['required', 'numeric', 'min:0.01'],
         ]);
 
-        $laboratorium->bhp()->create([
-            'obat_id' => $request->obat_id,
-            'jumlah' => $request->jumlah,
-        ]);
+        $laboratorium->bhp()->create($data);
 
         return back()->with('success', 'BHP lab berhasil ditambahkan.');
     }

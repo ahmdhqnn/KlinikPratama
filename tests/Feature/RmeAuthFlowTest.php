@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class RmeAuthFlowTest extends TestCase
@@ -19,10 +20,9 @@ class RmeAuthFlowTest extends TestCase
 
     public function test_login_screen_can_be_rendered(): void
     {
-        $response = $this->get('/login');
-
-        $response->assertStatus(200);
-        $response->assertSee('Masuk ke Sistem');
+        $this->get('/login')->assertInertia(fn (Assert $page) => $page
+            ->component('auth/login')
+        );
     }
 
     public function test_admin_can_login_with_valid_credentials(): void
@@ -54,10 +54,15 @@ class RmeAuthFlowTest extends TestCase
             'is_active' => true,
         ]);
 
-        $response = $this->actingAs($user)->get('/');
-
-        $response->assertStatus(200);
-        $response->assertSee('Kunjungan Terkini Hari Ini');
+        $this->actingAs($user)->get('/')->assertInertia(fn (Assert $page) => $page
+            ->component('dashboard/index')
+            ->where('stats.totalPatients', 0)
+            ->where('stats.visitsToday', 0)
+            ->where('stats.visitsThisMonth', 0)
+            ->where('stats.revenueThisMonth', 0)
+            ->has('visitStatuses')
+            ->has('recentVisits', 0)
+        );
     }
 
     public function test_login_is_rate_limited_after_repeated_failed_attempts(): void

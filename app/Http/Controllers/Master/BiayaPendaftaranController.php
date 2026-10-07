@@ -8,11 +8,12 @@ use App\Models\Nakes;
 use App\Models\Poliklinik;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class BiayaPendaftaranController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
         $biayaPendaftaran = BiayaPendaftaran::with(['poliklinik', 'dokter'])
             ->orderBy('id', 'desc')
@@ -22,7 +23,39 @@ class BiayaPendaftaranController extends Controller
         $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
         $dokterList = Nakes::where('jabatan', 'dokter')->where('is_active', true)->orderBy('nama')->get();
 
-        return view('master.biaya-pendaftaran.index', compact('biayaPendaftaran', 'poliklinikList', 'dokterList'));
+        return Inertia::render('master/biaya-pendaftaran/index', [
+            'fees' => [
+                'data' => $biayaPendaftaran->getCollection()->map(fn (BiayaPendaftaran $fee): array => [
+                    'id' => $fee->id,
+                    'clinicId' => $fee->poliklinik_id,
+                    'clinic' => $fee->poliklinik?->nama,
+                    'doctorId' => $fee->dokter_id,
+                    'doctor' => $fee->dokter?->nama,
+                    'patientType' => $fee->jenis_pasien,
+                    'tariff' => (float) $fee->tarif,
+                ])->values(),
+                'currentPage' => $biayaPendaftaran->currentPage(),
+                'lastPage' => $biayaPendaftaran->lastPage(),
+                'perPage' => $biayaPendaftaran->perPage(),
+                'total' => $biayaPendaftaran->total(),
+                'from' => $biayaPendaftaran->firstItem(),
+                'to' => $biayaPendaftaran->lastItem(),
+                'previousUrl' => $biayaPendaftaran->previousPageUrl(),
+                'nextUrl' => $biayaPendaftaran->nextPageUrl(),
+            ],
+            'clinics' => $poliklinikList->map(fn (Poliklinik $clinic): array => [
+                'id' => $clinic->id,
+                'name' => $clinic->nama,
+            ])->values(),
+            'doctors' => $dokterList->map(fn (Nakes $doctor): array => [
+                'id' => $doctor->id,
+                'name' => $doctor->nama,
+            ])->values(),
+            'patientTypes' => [
+                ['value' => 'baru', 'label' => 'Pasien baru'],
+                ['value' => 'lama', 'label' => 'Pasien lama'],
+            ],
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

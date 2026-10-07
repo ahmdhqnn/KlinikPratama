@@ -5,11 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Kunjungan;
 use App\Models\Pasien;
 use App\Models\Tagihan;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(): View
+    public function index(): Response
     {
         $today = today();
         $thisMonth = now()->startOfMonth();
@@ -41,16 +42,28 @@ class DashboardController extends Controller
             ->whereDate('tanggal', $today)
             ->latest()
             ->limit(10)
-            ->get();
+            ->get()
+            ->map(fn (Kunjungan $kunjungan): array => [
+                'id' => $kunjungan->id,
+                'number' => $kunjungan->no_kunjungan,
+                'patient' => $kunjungan->pasien->nama,
+                'medicalRecordNumber' => $kunjungan->pasien->no_rm,
+                'clinic' => $kunjungan->poliklinik->nama,
+                'doctor' => $kunjungan->dokter?->nama,
+                'status' => $kunjungan->status,
+            ])
+            ->values();
 
-        return view('dashboard.index', compact(
-            'totalPasien',
-            'kunjunganHariIni',
-            'kunjunganBulanIni',
-            'pendapatanBulanIni',
-            'statusKunjungan',
-            'kunjunganPerHari',
-            'kunjunganTerkini',
-        ));
+        return Inertia::render('dashboard/index', [
+            'stats' => [
+                'totalPatients' => $totalPasien,
+                'visitsToday' => $kunjunganHariIni,
+                'visitsThisMonth' => $kunjunganBulanIni,
+                'revenueThisMonth' => $pendapatanBulanIni,
+            ],
+            'visitStatuses' => $statusKunjungan->toArray(),
+            'visitsByDay' => $kunjunganPerHari->all(),
+            'recentVisits' => $kunjunganTerkini->all(),
+        ]);
     }
 }

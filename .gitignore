@@ -22,8 +22,6 @@ Thumbs.db
 # PHP & Build files
 /vendor/
 /node_modules/
-composer.lock
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 _ide_helper.php

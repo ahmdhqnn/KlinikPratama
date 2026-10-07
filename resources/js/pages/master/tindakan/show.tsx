@@ -1,0 +1,20 @@
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { NativeSelect } from '@/components/ui/native-select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+interface Props { treatment: { id: number; code: string; name: string; bhp: { id: number; medicine: string; unit: string; quantity: number }[] }; medicines: { id: number; name: string; stock: number; unit: string | null }[] }
+export default function TreatmentSupplies({ treatment, medicines }: Props) {
+    const form = useForm({ obat_id: '', jumlah: '1' });
+    function add(event: FormEvent<HTMLFormElement>) { event.preventDefault(); form.post(`/master/tindakan/${treatment.id}/bhp`, { preserveScroll: true, onSuccess: () => form.reset('jumlah') }); }
+    function remove(item: Props['treatment']['bhp'][number]) { if (window.confirm(`Hapus ${item.medicine} dari BHP tindakan ini?`)) router.delete(`/master/tindakan/bhp/${item.id}`, { preserveScroll: true }); }
+    return <><Head title={`BHP ${treatment.name}`} /><div className="space-y-6"><div><Button asChild className="mb-3" size="sm" variant="ghost"><Link href="/master/tindakan"><ArrowLeft className="size-4" />Kembali ke tindakan</Link></Button><p className="text-sm font-medium text-violet-700">Bahan habis pakai</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">{treatment.name} <span className="font-mono text-base text-slate-500">({treatment.code})</span></h2><p className="mt-1 text-sm text-slate-500">Item berikut akan dipotong otomatis dari stok saat tindakan dilakukan.</p></div>
+        <Card><CardHeader><CardTitle>Tambah BHP</CardTitle><CardDescription>Pilih item stok dan jumlah pemakaian per tindakan.</CardDescription></CardHeader><CardContent><form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end" onSubmit={add}><Field error={form.errors.obat_id} htmlFor="bhp-medicine" label="Obat / alkes" required><NativeSelect id="bhp-medicine" onChange={(event) => form.setData('obat_id', event.target.value)} required value={form.data.obat_id}><option value="">Pilih item</option>{medicines.map((medicine) => <option key={medicine.id} value={medicine.id}>{medicine.name} · stok {medicine.stock} {medicine.unit ?? ''}</option>)}</NativeSelect></Field><Field error={form.errors.jumlah} htmlFor="bhp-quantity" label="Jumlah" required><Input id="bhp-quantity" min="0.01" onChange={(event) => form.setData('jumlah', event.target.value)} required step="0.01" type="number" value={form.data.jumlah} /></Field><Button disabled={form.processing} type="submit"><Plus className="size-4" />Tambah BHP</Button></form></CardContent></Card>
+        <Card className="overflow-hidden"><CardHeader className="border-b border-slate-100"><CardTitle>BHP terpasang</CardTitle><CardDescription>{treatment.bhp.length} item terhubung ke tindakan ini.</CardDescription></CardHeader><CardContent className="p-0"><div className="overflow-x-auto"><Table><TableHeader><tr><TableHead>Obat / alkes</TableHead><TableHead className="text-right">Jumlah digunakan</TableHead><TableHead>Satuan</TableHead><TableHead className="text-right">Aksi</TableHead></tr></TableHeader><TableBody>{treatment.bhp.length ? treatment.bhp.map((item) => <TableRow key={item.id}><TableCell className="font-medium text-slate-900">{item.medicine}</TableCell><TableCell className="text-right font-mono">{item.quantity}</TableCell><TableCell>{item.unit}</TableCell><TableCell className="text-right"><Button onClick={() => remove(item)} size="sm" variant="destructive"><Trash2 className="size-4" />Hapus</Button></TableCell></TableRow>) : <TableRow><TableCell className="py-10 text-center text-slate-500" colSpan={4}>Belum ada BHP yang terpasang.</TableCell></TableRow>}</TableBody></Table></div></CardContent></Card>
+    </div></>;
+}
