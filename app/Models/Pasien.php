@@ -35,8 +35,8 @@ class Pasien extends Model
         return $this->hasMany(Kunjungan::class);
     }
 
-    public function getUmurAttribute(): int
+    public function getUmurAttribute(): ?int
     {
-        return $this->tanggal_lahir ? $this->tanggal_lahir->age : 0;
+        return $this->tanggal_lahir?->age;
     }
 }

@@ -38,22 +38,6 @@ class DashboardController extends Controller
                 'jumlah' => $item->jumlah,
             ]);
 
-        $kunjunganTerkini = Kunjungan::with(['pasien', 'poliklinik', 'dokter'])
-            ->whereDate('tanggal', $today)
-            ->latest()
-            ->limit(10)
-            ->get()
-            ->map(fn (Kunjungan $kunjungan): array => [
-                'id' => $kunjungan->id,
-                'number' => $kunjungan->no_kunjungan,
-                'patient' => $kunjungan->pasien->nama,
-                'medicalRecordNumber' => $kunjungan->pasien->no_rm,
-                'clinic' => $kunjungan->poliklinik->nama,
-                'doctor' => $kunjungan->dokter?->nama,
-                'status' => $kunjungan->status,
-            ])
-            ->values();
-
         return Inertia::render('dashboard/index', [
             'stats' => [
                 'totalPatients' => $totalPasien,
@@ -63,7 +47,6 @@ class DashboardController extends Controller
             ],
             'visitStatuses' => $statusKunjungan->toArray(),
             'visitsByDay' => $kunjunganPerHari->all(),
-            'recentVisits' => $kunjunganTerkini->all(),
         ]);
     }
 }

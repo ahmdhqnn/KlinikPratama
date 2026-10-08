@@ -71,5 +71,22 @@ class KunjunganInertiaTest extends TestCase
         ])->assertRedirect(route('pelayanan.kunjungan.show', $visit));
 
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'jenis_bayar' => 'bpjs']);
+
+        $visit->update(['status' => 'selesai']);
+
+        $this->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('permissions.editVisit', false)
+        );
+
+        $this->put(route('pelayanan.kunjungan.update', $visit), [
+            'poliklinik_id' => $clinic->id,
+            'tanggal' => today()->toDateString(),
+            'jenis_pasien' => 'lama',
+            'jenis_bayar' => 'umum',
+        ])->assertUnprocessable();
+        $this->post(route('pelayanan.kunjungan.batal', $visit))->assertUnprocessable();
+        $this->delete(route('pelayanan.kunjungan.destroy', $visit))->assertUnprocessable();
+
+        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'selesai', 'jenis_bayar' => 'bpjs']);
     }
 }

@@ -38,7 +38,11 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user()?->only('id', 'name', 'email', 'role'),
+                'user' => $request->user() ? [
+                    ...$request->user()->only('id', 'name', 'email', 'role'),
+                    'roleLabel' => $request->user()->role_label,
+                    'photoUrl' => $request->user()->photo_path ? route('profile.photo', ['v' => basename($request->user()->photo_path)]) : null,
+                ] : null,
             ],
             'flash' => [
                 'success' => fn (): ?string => $request->session()->get('success'),

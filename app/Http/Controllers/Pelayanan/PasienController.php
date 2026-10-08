@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Pelayanan;
 
+use App\ClinicalAuditRecorder;
+use App\ClinicalNoteRecorder;
 use App\Exports\PasienExport;
 use App\Exports\PasienTemplateExport;
 use App\Http\Controllers\Controller;
@@ -10,6 +12,7 @@ use App\Models\Asuransi;
 use App\Models\Pasien;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -17,9 +20,10 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PasienController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, ClinicalAuditRecorder $auditRecorder): Response
     {
         $pasien = Pasien::with('asuransi')
+            ->when($request->user()->role === 'dokter', fn ($query) => $query->whereHas('kunjungan', fn ($visits) => $visits->where('dokter_id', $request->user()->nakes?->id ?? 0)))
             ->when($request->search, fn ($q, $s) => $q->where(fn ($query) => $query
                 ->where('nama', 'like', "%$s%")
                 ->orWhere('no_rm', 'like', "%$s%")
@@ -32,7 +36,13 @@ class PasienController extends Controller
 
         $asuransiList = Asuransi::where('is_active', true)->orderBy('nama')->get();
 
+        $auditRecorder->record($request, 'patient_directory.view');
+
         return Inertia::render('pelayanan/pasien/index', [
+            'permissions' => [
+                'viewRme' => in_array($request->user()->role, ['dokter', 'perawat'], true),
+                'managePatients' => $request->user()->role === 'admin',
+            ],
             'patients' => [
                 'data' => $pasien->getCollection()->map(fn (Pasien $patient) => [
                     'id' => $patient->id,
@@ -96,7 +106,6 @@ class PasienController extends Controller
             'telepon_wali' => ['nullable', 'string', 'max:20'],
             'asuransi_id' => ['nullable', 'exists:asuransi,id'],
             'no_asuransi' => ['nullable', 'string', 'max:50'],
-            'riwayat_alergi' => ['nullable', 'string'],
         ]);
 
         // Generate No. RM
@@ -110,12 +119,20 @@ class PasienController extends Controller
             ->with('success', "Pasien berhasil didaftarkan dengan No. RM: {$pasien->no_rm}");
     }
 
-    public function show(Pasien $pasien): Response
+    public function show(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder): Response
     {
         $this->authorizeDoctorPatient($pasien);
-        $pasien->load(['asuransi', 'kunjungan' => fn ($q) => $q->with(['poliklinik', 'dokter', 'tagihan'])->latest()->limit(20)]);
+        $auditRecorder->record($request, 'patient_profile.view', $pasien->id);
+        $pasien->load(['asuransi', 'kunjungan' => fn ($q) => $q
+            ->when(auth()->user()->role === 'dokter', fn ($visits) => $visits->where('dokter_id', auth()->user()->nakes?->id ?? 0))
+            ->with(['poliklinik', 'dokter', 'tagihan'])->latest()->limit(20)]);
 
         return Inertia::render('pelayanan/pasien/show', [
+            'permissions' => [
+                'viewRme' => in_array(auth()->user()->role, ['dokter', 'perawat'], true),
+                'editPatient' => auth()->user()->role === 'admin',
+                'openVisit' => in_array(auth()->user()->role, ['admin', 'pendaftaran'], true),
+            ],
             'patient' => [
                 'id' => $pasien->id,
                 'medicalRecordNumber' => $pasien->no_rm,
@@ -130,9 +147,12 @@ class PasienController extends Controller
                 'insurance' => $pasien->asuransi?->nama ?? 'Umum (Bayar Sendiri)',
                 'insuranceType' => $pasien->asuransi?->jenis,
                 'insuranceNumber' => $pasien->no_asuransi,
-                'allergies' => $pasien->riwayat_alergi,
+                'allergies' => in_array(auth()->user()->role, ['dokter', 'perawat'], true) ? $pasien->riwayat_alergi : null,
                 'visits' => $pasien->kunjungan->map(fn ($visit) => [
                     'id' => $visit->id,
+                    'url' => auth()->user()->role === 'dokter'
+                        ? route('pelayanan.pemeriksaan.show', $visit)
+                        : route('pelayanan.kunjungan.show', $visit),
                     'number' => $visit->no_kunjungan,
                     'date' => $visit->tanggal?->isoFormat('D MMM Y'),
                     'clinic' => $visit->poliklinik?->nama ?? '—',
@@ -162,7 +182,6 @@ class PasienController extends Controller
                 'address' => $pasien->alamat,
                 'insuranceId' => $pasien->asuransi_id,
                 'insuranceNumber' => $pasien->no_asuransi,
-                'allergies' => $pasien->riwayat_alergi,
             ],
             'insuranceProviders' => $asuransiList->map(fn (Asuransi $insurance) => [
                 'id' => $insurance->id,
@@ -189,7 +208,6 @@ class PasienController extends Controller
             'telepon_wali' => ['nullable', 'string', 'max:20'],
             'asuransi_id' => ['nullable', 'exists:asuransi,id'],
             'no_asuransi' => ['nullable', 'string', 'max:50'],
-            'riwayat_alergi' => ['nullable', 'string'],
         ]);
 
         $pasien->update($data);
@@ -204,17 +222,23 @@ class PasienController extends Controller
         return redirect()->route('pelayanan.pasien.index')->with('success', 'Data pasien berhasil dihapus.');
     }
 
-    public function rekamMedis(Pasien $pasien): Response
+    public function rekamMedis(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, ClinicalNoteRecorder $noteRecorder): Response
     {
         $this->authorizeDoctorPatient($pasien);
-        $pasien->load(['kunjungan' => fn ($query) => $query->with([
-            'poliklinik:id,nama',
-            'dokter:id,nama',
-            'screening',
-            'pemeriksaan.diagnosa',
-            'resep.resepObat',
-            'tindakanKunjungan.tindakan:id,nama',
-        ])->latest()]);
+        $auditRecorder->record($request, 'medical_record.view', $pasien->id);
+        $pasien->load(['kunjungan' => fn ($query) => $query
+            ->when(auth()->user()->role === 'dokter', fn ($visits) => $visits->where('dokter_id', auth()->user()->nakes?->id ?? 0))
+            ->with([
+                'poliklinik:id,nama,jenis',
+                'dokter:id,nama',
+                'screening',
+                'pemeriksaan.diagnosa',
+                'pemeriksaan.signedBy',
+                'pemeriksaan.clinicalNoteVersions.actor',
+                'odontogramFindings',
+                'resep.resepObat',
+                'tindakanKunjungan.tindakan:id,nama',
+            ])->latest()]);
 
         return Inertia::render('pelayanan/pasien/rekam-medis', [
             'patient' => [
@@ -228,49 +252,91 @@ class PasienController extends Controller
                 'allergies' => $pasien->riwayat_alergi,
             ],
             'backUrl' => route('pelayanan.pasien.show', $pasien),
-            'visits' => $pasien->kunjungan->map(fn ($visit): array => [
-                'id' => $visit->id,
-                'number' => $visit->no_kunjungan,
-                'clinic' => $visit->poliklinik?->nama ?? '—',
-                'doctor' => $visit->dokter?->nama ?? '—',
-                'date' => $visit->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
-                'status' => $visit->status,
-                'screening' => $visit->screening ? [
-                    'systolic' => $visit->screening->td_sistole,
-                    'diastolic' => $visit->screening->td_diastole,
-                    'pulse' => $visit->screening->nadi,
-                    'temperature' => $visit->screening->suhu,
-                    'oxygenSaturation' => $visit->screening->spo2,
-                    'weight' => $visit->screening->berat_badan,
-                    'height' => $visit->screening->tinggi_badan,
-                    'respiration' => $visit->screening->respirasi,
-                    'complaint' => $visit->screening->keluhan,
-                ] : null,
-                'examination' => $visit->pemeriksaan ? [
-                    'anamnesis' => $visit->pemeriksaan->anamnesis,
-                    'physicalExamination' => $visit->pemeriksaan->pemeriksaan_fisik,
-                    'education' => $visit->pemeriksaan->edukasi,
-                    'notes' => $visit->pemeriksaan->catatan,
-                    'nextControl' => $visit->pemeriksaan->kontrol_berikutnya?->format('d/m/Y'),
-                    'diagnoses' => $visit->pemeriksaan->diagnosa->map(fn ($diagnosis): array => [
-                        'code' => $diagnosis->kode_icd10,
-                        'name' => $diagnosis->nama_diagnosa,
-                        'type' => $diagnosis->jenis,
+            'visits' => $pasien->kunjungan->map(function ($visit) use ($noteRecorder): array {
+                $versions = $visit->pemeriksaan?->clinicalNoteVersions->sortBy('version') ?? collect();
+                $integrityValid = $visit->pemeriksaan?->signed_at ? $noteRecorder->verify($visit->pemeriksaan) : null;
+                $effectiveNote = $integrityValid ? $versions->last()->payload : null;
+                $odontogram = is_array($effectiveNote)
+                    ? ($effectiveNote['odontogram'] ?? [])
+                    : ($integrityValid === false ? [] : $visit->odontogramFindings->map(fn ($finding): array => [
+                        'tooth_fdi' => $finding->tooth_fdi,
+                        'surface' => $finding->surface,
+                        'finding_code' => $finding->finding_code,
+                        'notes' => $finding->notes,
+                    ])->all());
+
+                return [
+                    'id' => $visit->id,
+                    'number' => $visit->no_kunjungan,
+                    'clinic' => $visit->poliklinik?->nama ?? '—',
+                    'clinicType' => $visit->poliklinik?->jenis,
+                    'doctor' => $visit->dokter?->nama ?? '—',
+                    'date' => $visit->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
+                    'status' => $visit->status,
+                    'screening' => $visit->screening ? [
+                        'systolic' => $visit->screening->td_sistole,
+                        'diastolic' => $visit->screening->td_diastole,
+                        'pulse' => $visit->screening->nadi,
+                        'temperature' => $visit->screening->suhu,
+                        'oxygenSaturation' => $visit->screening->spo2,
+                        'weight' => $visit->screening->berat_badan,
+                        'height' => $visit->screening->tinggi_badan,
+                        'respiration' => $visit->screening->respirasi,
+                        'complaint' => $visit->screening->keluhan,
+                    ] : null,
+                    'examination' => $visit->pemeriksaan ? [
+                        'anamnesis' => is_array($effectiveNote) ? ($effectiveNote['anamnesis'] ?? null) : $visit->pemeriksaan->anamnesis,
+                        'physicalExamination' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $visit->pemeriksaan->pemeriksaan_fisik,
+                        'education' => is_array($effectiveNote) ? ($effectiveNote['edukasi'] ?? null) : $visit->pemeriksaan->edukasi,
+                        'notes' => is_array($effectiveNote) ? ($effectiveNote['catatan'] ?? null) : $visit->pemeriksaan->catatan,
+                        'nextControl' => is_array($effectiveNote)
+                            ? (isset($effectiveNote['kontrol_berikutnya']) ? Carbon::parse($effectiveNote['kontrol_berikutnya'])->format('d/m/Y') : null)
+                            : $visit->pemeriksaan->kontrol_berikutnya?->format('d/m/Y'),
+                        'signedAt' => $visit->pemeriksaan->signed_at?->locale('id')->isoFormat('D MMMM Y HH:mm'),
+                        'signedBy' => $visit->pemeriksaan->signedBy?->name,
+                        'integrityValid' => $integrityValid,
+                        'versions' => $versions->map(fn ($version): array => [
+                            'version' => $version->version,
+                            'kind' => $version->kind,
+                            'reason' => $version->reason,
+                            'actor' => $version->actor?->name,
+                            'recordedAt' => $version->recorded_at?->locale('id')->isoFormat('D MMMM Y HH:mm'),
+                            'anamnesis' => $version->payload['anamnesis'] ?? null,
+                            'physicalExamination' => $version->payload['pemeriksaan_fisik'] ?? null,
+                            'odontogram' => collect($version->payload['odontogram'] ?? [])->map(fn (array $finding): array => [
+                                'toothFdi' => $finding['tooth_fdi'],
+                                'surface' => $finding['surface'],
+                                'findingCode' => $finding['finding_code'],
+                                'notes' => $finding['notes'] ?? null,
+                            ])->values()->all(),
+                        ])->values()->all(),
+                        'diagnoses' => collect(is_array($effectiveNote) ? ($effectiveNote['diagnoses'] ?? []) : ($integrityValid === false ? [] : $visit->pemeriksaan->diagnosa))->map(fn ($diagnosis): array => [
+                            'code' => is_array($diagnosis) ? $diagnosis['code'] : $diagnosis->kode_icd10,
+                            'name' => is_array($diagnosis) ? $diagnosis['name'] : $diagnosis->nama_diagnosa,
+                            'type' => is_array($diagnosis) ? $diagnosis['type'] : $diagnosis->jenis,
+                        ])->all(),
+                    ] : null,
+                    'prescriptions' => collect(is_array($effectiveNote) ? ($effectiveNote['prescriptions'] ?? []) : ($integrityValid === false ? [] : ($visit->resep?->resepObat ?? collect())))->values()->map(fn ($item, int $index): array => [
+                        'id' => is_array($item) ? $index + 1 : $item->id,
+                        'name' => is_array($item) ? $item['name'] : $item->nama_obat,
+                        'quantity' => is_array($item) ? $item['quantity'] : $item->jumlah,
+                        'unit' => is_array($item) ? $item['unit'] : $item->satuan,
+                        'instructions' => is_array($item) ? $item['instructions'] : $item->aturan_pakai,
                     ])->all(),
-                ] : null,
-                'prescriptions' => $visit->resep?->resepObat->map(fn ($item): array => [
-                    'id' => $item->id,
-                    'name' => $item->nama_obat,
-                    'quantity' => $item->jumlah,
-                    'unit' => $item->satuan,
-                    'instructions' => $item->aturan_pakai,
-                ])->all() ?? [],
-                'treatments' => $visit->tindakanKunjungan->map(fn ($item): array => [
-                    'id' => $item->id,
-                    'name' => $item->tindakan?->nama ?? 'Tindakan dihapus',
-                    'quantity' => $item->jumlah,
-                ])->all(),
-            ])->all(),
+                    'treatments' => collect(is_array($effectiveNote) ? ($effectiveNote['treatments'] ?? []) : ($integrityValid === false ? [] : $visit->tindakanKunjungan))->values()->map(fn ($item, int $index): array => [
+                        'id' => is_array($item) ? $index + 1 : $item->id,
+                        'name' => is_array($item) ? $item['name'] : ($item->tindakan?->nama ?? 'Tindakan dihapus'),
+                        'quantity' => is_array($item) ? $item['quantity'] : $item->jumlah,
+                        'toothFdi' => is_array($item) ? ($item['tooth_fdi'] ?? null) : $item->tooth_fdi,
+                    ])->all(),
+                    'odontogram' => collect($odontogram)->map(fn (array $finding): array => [
+                        'toothFdi' => $finding['tooth_fdi'],
+                        'surface' => $finding['surface'],
+                        'findingCode' => $finding['finding_code'],
+                        'notes' => $finding['notes'] ?? null,
+                    ])->values()->all(),
+                ];
+            })->all(),
         ]);
     }
 
@@ -306,8 +372,10 @@ class PasienController extends Controller
             ->with('success', 'Rekam medis berhasil digabungkan.');
     }
 
-    public function export(): BinaryFileResponse
+    public function export(Request $request, ClinicalAuditRecorder $auditRecorder): BinaryFileResponse
     {
+        $auditRecorder->record($request, 'patient_directory.export');
+
         return Excel::download(new PasienExport, 'data-pasien-'.date('Y-m-d').'.xlsx');
     }
 

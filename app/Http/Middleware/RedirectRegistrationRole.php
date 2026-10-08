@@ -10,8 +10,12 @@ class RedirectRegistrationRole
 {
     public function handle(Request $request, Closure $next): Response
     {
+        if ($request->user()?->role === 'pendaftaran' && $request->routeIs('pelayanan.pasien.rekam-medis')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         if ($request->user()?->role === 'pendaftaran'
-            && ! $request->is('pendaftaran', 'pendaftaran/*', 'pelayanan/screening', 'pelayanan/screening/*')) {
+            && ! $request->is('pendaftaran', 'pendaftaran/*')) {
             return redirect()->route('pendaftaran.dashboard');
         }
 
@@ -73,6 +77,7 @@ class RedirectRegistrationRole
         return $request->routeIs(
             'dokter.*',
             'pelayanan.pemeriksaan.*',
+            'pelayanan.pasien.index',
             'pelayanan.pasien.show',
             'pelayanan.pasien.rekam-medis',
             'logout',

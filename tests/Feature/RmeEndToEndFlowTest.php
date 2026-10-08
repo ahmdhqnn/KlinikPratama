@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\DepoObat;
 use App\Models\Kunjungan;
+use App\Models\Nakes;
 use App\Models\Obat;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
@@ -25,6 +26,18 @@ class RmeEndToEndFlowTest extends TestCase
             'email' => 'admin@klinik.com',
             'password' => bcrypt('password'),
             'role' => 'admin',
+            'is_active' => true,
+        ]);
+        $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        $doctorUser = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $pharmacist = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
+        $cashier = User::factory()->create(['role' => 'kasir', 'is_active' => true]);
+        $doctor = Nakes::create([
+            'kode' => 'DOK-E2E',
+            'nama' => 'Dokter Umum',
+            'kategori' => 'medis',
+            'jabatan' => 'dokter',
+            'user_id' => $doctorUser->id,
             'is_active' => true,
         ]);
 
@@ -71,6 +84,7 @@ class RmeEndToEndFlowTest extends TestCase
         $resKunjungan = $this->actingAs($admin)->post('/pelayanan/kunjungan', [
             'pasien_id' => $pasien->id,
             'poliklinik_id' => $poli->id,
+            'dokter_id' => $doctor->id,
             'tanggal' => today()->toDateString(),
             'jenis_pasien' => 'baru',
             'jenis_bayar' => 'umum',
@@ -81,7 +95,7 @@ class RmeEndToEndFlowTest extends TestCase
         $this->assertEquals('menunggu', $kunjungan->status);
 
         // 4. Screening Tanda Vital
-        $resScreening = $this->actingAs($admin)->post("/pelayanan/kunjungan/{$kunjungan->id}/screening", [
+        $resScreening = $this->actingAs($nurse)->post("/pelayanan/kunjungan/{$kunjungan->id}/screening", [
             'td_sistole' => 120,
             'td_diastole' => 80,
             'nadi' => 78,
@@ -101,23 +115,23 @@ class RmeEndToEndFlowTest extends TestCase
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $kunjungan->id, 'td_sistole' => 120]);
 
         // 5. Dokter Konsultasi: Diagnosa, Tindakan, Resep
-        $this->actingAs($admin)->post("/pelayanan/pemeriksaan/{$kunjungan->id}", [
+        $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}", [
             'anamnesis' => 'Pasien mengeluh demam 2 hari',
             'pemeriksaan_fisik' => 'Faring hiperemis (-), Cor/Pulmo DBN',
         ]);
 
-        $this->actingAs($admin)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/diagnosa", [
+        $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/diagnosa", [
             'kode_icd10' => 'R50.9',
             'nama_diagnosa' => 'Demam, tidak spesifik',
             'jenis' => 'utama',
         ]);
 
-        $this->actingAs($admin)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/tindakan", [
+        $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/tindakan", [
             'tindakan_id' => $tindakan->id,
             'jumlah' => 1,
         ]);
 
-        $this->actingAs($admin)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/resep", [
+        $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/resep", [
             'obat_id' => $obat->id,
             'jumlah' => 10,
             'aturan_pakai' => '3 x 1 tablet sehari sesudah makan',
@@ -125,12 +139,24 @@ class RmeEndToEndFlowTest extends TestCase
         ]);
 
         // Selesai pemeriksaan dokter -> diteruskan ke farmasi
-        $this->actingAs($admin)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/selesai");
+        $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/selesai");
         $kunjungan->refresh();
         $this->assertEquals('farmasi', $kunjungan->status);
 
+        $this->actingAs($nurse)->post("/pelayanan/kunjungan/{$kunjungan->id}/screening", [
+            'nyeri_dada' => 'tidak',
+            'kondisi_psikiatri' => 'normal',
+            'nadi_teraba' => 'teraba',
+            'kejang' => 'tidak',
+            'pola_pernapasan' => 'normal',
+            'kesadaran' => 'sadar',
+            'risiko_jatuh_visual' => 'rendah',
+        ])->assertUnprocessable();
+        $this->get(route('pelayanan.screening.show', $kunjungan))->assertUnprocessable();
+        $this->assertDatabaseHas('kunjungan', ['id' => $kunjungan->id, 'status' => 'farmasi']);
+
         // 6. Farmasi Dispensing & Potong Stok
-        $resFarmasiStore = $this->actingAs($admin)->post("/pelayanan/farmasi/{$kunjungan->id}", [
+        $resFarmasiStore = $this->actingAs($pharmacist)->post("/pelayanan/farmasi/{$kunjungan->id}", [
             'items' => [
                 [
                     'obat_id' => $obat->id,
@@ -141,7 +167,7 @@ class RmeEndToEndFlowTest extends TestCase
         ]);
         $resFarmasiStore->assertSessionHasNoErrors();
 
-        $resFarmasiSelesai = $this->actingAs($admin)->post("/pelayanan/farmasi/{$kunjungan->id}/selesai");
+        $resFarmasiSelesai = $this->actingAs($pharmacist)->post("/pelayanan/farmasi/{$kunjungan->id}/selesai");
         $resFarmasiSelesai->assertRedirect(route('pelayanan.farmasi.index'));
         $kunjungan->refresh();
         $this->assertEquals('kasir', $kunjungan->status);
@@ -151,7 +177,7 @@ class RmeEndToEndFlowTest extends TestCase
         $this->assertEquals(90, $obat->stok);
 
         // 7. Kasir & Pembayaran Tagihan
-        $resKasir = $this->actingAs($admin)->post("/pelayanan/kasir/{$kunjungan->id}", [
+        $resKasir = $this->actingAs($cashier)->post("/pelayanan/kasir/{$kunjungan->id}", [
             'metode_bayar' => 'tunai',
             'bayar' => 100000,
             'diskon' => 0,

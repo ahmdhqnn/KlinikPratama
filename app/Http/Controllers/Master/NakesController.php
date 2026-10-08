@@ -104,7 +104,7 @@ class NakesController extends Controller
                     'email' => $data['email'],
                     'password' => Hash::make($data['password']),
                     'role' => $this->getRoleFromJabatan($data['jabatan']),
-                    'is_active' => true,
+                    'is_active' => $request->boolean('is_active'),
                 ]);
                 $userId = $user->id;
             }
@@ -141,14 +141,29 @@ class NakesController extends Controller
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
-        $nake->update($data);
+        $nake->loadMissing('user');
+
+        if ($nake->user && $this->getRoleFromJabatan($data['jabatan']) !== $nake->user->role) {
+            return back()->withErrors(['jabatan' => 'Jabatan tidak sesuai dengan peran akun tertaut. Ubah peran akun di Manajemen Pengguna terlebih dahulu.']);
+        }
+
+        DB::transaction(function () use ($nake, $data): void {
+            $nake->update($data);
+
+            if (! $nake->is_active) {
+                $nake->user?->update(['is_active' => false]);
+            }
+        });
 
         return back()->with('success', 'Data nakes berhasil diperbarui.');
     }
 
     public function destroy(Nakes $nake): RedirectResponse
     {
-        $nake->delete();
+        DB::transaction(function () use ($nake): void {
+            $nake->user?->update(['is_active' => false]);
+            $nake->delete();
+        });
 
         return back()->with('success', 'Data nakes berhasil dihapus.');
     }

@@ -19,7 +19,7 @@ interface Patient {
     name: string;
     nik: string | null;
     gender: string | null;
-    age: number;
+    age: number | null;
     phone: string | null;
     address: string | null;
     insurance: string;
@@ -33,12 +33,13 @@ interface InsuranceProvider {
 }
 
 interface Props {
+    permissions: { viewRme: boolean; managePatients: boolean };
     filters: { search: string; insuranceId: string };
     patients: PaginationData & { data: Patient[] };
     insuranceProviders: InsuranceProvider[];
 }
 
-export default function PatientsIndex({ filters: initialFilters, patients, insuranceProviders }: Props) {
+export default function PatientsIndex({ filters: initialFilters, patients, insuranceProviders, permissions }: Props) {
     const [filters, setFilters] = useState(initialFilters);
     const [importOpen, setImportOpen] = useState(false);
     const [mergeOpen, setMergeOpen] = useState(false);
@@ -65,13 +66,15 @@ export default function PatientsIndex({ filters: initialFilters, patients, insur
             <Head title="Database Pasien" />
             <div className="space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                    <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Database pasien</h2><p className="mt-1 text-sm text-neutral-500">Kelola identitas, penjamin, dan rekam medis pasien klinik.</p></div>
+                    <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Database pasien</h2><p className="mt-1 text-sm text-neutral-500">Kelola identitas dan penjamin pasien klinik.</p></div>
                     <div className="flex flex-wrap gap-2">
-                        <Button asChild size="sm" variant="secondary"><a href="/pelayanan/pasien-template"><Download className="size-4" />Template</a></Button>
-                        <Button onClick={() => setImportOpen(true)} size="sm" variant="secondary"><FileSpreadsheet className="size-4" />Import</Button>
-                        <Button asChild size="sm" variant="secondary"><a href="/pelayanan/pasien-export"><Download className="size-4" />Export</a></Button>
-                        <Button onClick={() => setMergeOpen(true)} size="sm" variant="secondary">Gabung RM</Button>
-                        <Button asChild size="sm"><Link href="/pelayanan/pasien/create"><Plus className="size-4" />Pasien baru</Link></Button>
+                        {permissions.managePatients && <>
+                            <Button asChild size="sm" variant="secondary"><a href="/pelayanan/pasien-template"><Download className="size-4" />Template</a></Button>
+                            <Button onClick={() => setImportOpen(true)} size="sm" variant="secondary"><FileSpreadsheet className="size-4" />Import</Button>
+                            <Button asChild size="sm" variant="secondary"><a href="/pelayanan/pasien-export"><Download className="size-4" />Export</a></Button>
+                            <Button onClick={() => setMergeOpen(true)} size="sm" variant="secondary">Gabung RM</Button>
+                            <Button asChild size="sm"><Link href="/pelayanan/pasien/create"><Plus className="size-4" />Pasien baru</Link></Button>
+                        </>}
                     </div>
                 </div>
                 <Card>
@@ -90,11 +93,11 @@ export default function PatientsIndex({ filters: initialFilters, patients, insur
                             <TableBody>{patients.data.length ? patients.data.map((patient) => <TableRow key={patient.id}>
                                 <TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={`/pelayanan/pasien/${patient.id}`}>{patient.medicalRecordNumber}</Link></TableCell>
                                 <TableCell><div className="font-medium text-neutral-900">{patient.name}</div>{patient.nik && <div className="font-mono text-xs text-neutral-400">NIK: {patient.nik}</div>}</TableCell>
-                                <TableCell className="whitespace-nowrap text-neutral-600">{patient.gender ?? '—'} / {patient.age} th</TableCell>
+                                <TableCell className="whitespace-nowrap text-neutral-600">{patient.gender ?? '—'} / {patient.age === null ? '—' : `${patient.age} th`}</TableCell>
                                 <TableCell className="text-neutral-600">{patient.phone ?? '—'}</TableCell>
                                 <TableCell className="max-w-56 truncate text-neutral-500">{patient.address ?? '—'}</TableCell>
                                 <TableCell><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700">{patient.insurance}</span></TableCell>
-                                <TableCell><div className="flex justify-end gap-2"><Button asChild size="sm" variant="secondary"><Link href={`/pelayanan/pasien/${patient.id}`}>Detail</Link></Button><Button asChild size="sm" variant="ghost"><Link href={`/pelayanan/pasien/${patient.id}/rekam-medis`}><HeartPulse className="size-4" />RME</Link></Button></div></TableCell>
+                                <TableCell><div className="flex justify-end gap-2"><Button asChild size="sm" variant="secondary"><Link href={`/pelayanan/pasien/${patient.id}`}>Detail</Link></Button>{permissions.viewRme && <Button asChild size="sm" variant="ghost"><Link href={`/pelayanan/pasien/${patient.id}/rekam-medis`}><HeartPulse className="size-4" />RME</Link></Button>}</div></TableCell>
                             </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty description="Ubah kata kunci atau penjamin, lalu coba lagi." size="compact" title="Tidak ada pasien yang cocok" /></TableCell></TableRow>}</TableBody>
                         </Table></div>
                         <Pagination pagination={patients} />

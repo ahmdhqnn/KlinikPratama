@@ -34,7 +34,6 @@ class DokterDashboardController extends Controller
 
         $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik'])
             ->whereDate('tanggal', $today)
-            ->whereIn('status', ['pemeriksaan', 'farmasi', 'kasir'])
             ->orderBy('created_at')
             ->limit(10)
             ->get();

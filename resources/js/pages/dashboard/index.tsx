@@ -10,11 +10,9 @@ import {
     UsersRound,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface DashboardProps {
     stats: {
@@ -25,15 +23,6 @@ interface DashboardProps {
     };
     visitStatuses: Record<string, number>;
     visitsByDay: Array<{ tanggal: string; jumlah: number }>;
-    recentVisits: Array<{
-        id: number;
-        number: string;
-        patient: string;
-        medicalRecordNumber: string;
-        clinic: string;
-        doctor: string | null;
-        status: string;
-    }>;
 }
 
 const statusLabels: Record<string, string> = {
@@ -44,16 +33,6 @@ const statusLabels: Record<string, string> = {
     kasir: 'Kasir',
     selesai: 'Selesai',
     batal: 'Dibatalkan',
-};
-
-const statusVariants: Record<string, 'waiting' | 'screening' | 'examination' | 'pharmacy' | 'cashier' | 'complete' | 'cancelled' | 'default'> = {
-    menunggu: 'waiting',
-    screening: 'screening',
-    pemeriksaan: 'examination',
-    farmasi: 'pharmacy',
-    kasir: 'cashier',
-    selesai: 'complete',
-    batal: 'cancelled',
 };
 
 function formatNumber(value: number): string {
@@ -104,7 +83,7 @@ function StatCard({
     );
 }
 
-export default function DashboardPage({ stats, visitStatuses, visitsByDay, recentVisits }: DashboardProps) {
+export default function DashboardPage({ stats, visitStatuses, visitsByDay }: DashboardProps) {
     const peakVisits = Math.max(1, ...visitsByDay.map((day) => day.jumlah));
 
     return (
@@ -222,51 +201,6 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, recen
                         </CardContent>
                     </Card>
                 </section>
-
-                <Card className="overflow-hidden">
-                    <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-neutral-100">
-                        <div className="space-y-1.5">
-                            <CardTitle>Kunjungan terkini</CardTitle>
-                            <CardDescription>Daftar kunjungan pasien hari ini.</CardDescription>
-                        </div>
-                        <Button asChild size="sm" variant="ghost">
-                            <a href="/pelayanan/kunjungan">
-                                Semua kunjungan <ArrowUpRight className="size-4" />
-                            </a>
-                        </Button>
-                    </CardHeader>
-                    <div className="overflow-x-auto">
-                        <Table className="min-w-[760px]">
-                            <TableHeader><tr>
-                                <TableHead>No. kunjungan</TableHead>
-                                <TableHead>Pasien</TableHead>
-                                <TableHead>Poliklinik</TableHead>
-                                <TableHead>Dokter</TableHead>
-                                <TableHead>Status</TableHead>
-                            </tr></TableHeader>
-                            <TableBody>
-                                {recentVisits.length > 0 ? recentVisits.map((visit) => (
-                                    <TableRow key={visit.id}>
-                                        <TableCell className="whitespace-nowrap font-mono text-xs text-neutral-600">{visit.number}</TableCell>
-                                        <TableCell>
-                                            <p className="font-medium text-neutral-900">{visit.patient}</p>
-                                            <p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p>
-                                        </TableCell>
-                                        <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
-                                        <TableCell className="text-neutral-600">{visit.doctor ?? 'Belum ditentukan'}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={statusVariants[visit.status] ?? 'default'}>
-                                                {statusLabels[visit.status] ?? visit.status}
-                                            </Badge>
-                                        </TableCell>
-                                    </TableRow>
-                                )) : (
-                                    <TableRow><TableCell colSpan={5}><Empty description="Kunjungan pasien yang terdaftar hari ini akan muncul di sini." size="compact" title="Belum ada kunjungan hari ini" /></TableCell></TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </Card>
 
                 <section aria-label="Aksi cepat" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {[

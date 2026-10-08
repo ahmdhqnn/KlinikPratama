@@ -60,6 +60,8 @@ class ScreeningController extends Controller
 
     public function show(Kunjungan $kunjungan): Response
     {
+        abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Skrining tidak dapat diubah setelah pelayanan dimulai.');
+
         $kunjungan->load(['pasien.asuransi', 'poliklinik', 'dokter', 'screening']);
         $petugasList = Nakes::whereIn('jabatan', ['perawat', 'bidan'])->where('is_active', true)->orderBy('nama')->get();
 
@@ -103,7 +105,7 @@ class ScreeningController extends Controller
 
     public function store(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        abort_if(in_array($kunjungan->status, ['selesai', 'batal'], true), 422, 'Kunjungan sudah tidak dapat diperiksa.');
+        abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Skrining tidak dapat diubah setelah pelayanan dimulai.');
 
         $data = $request->validate([
             'petugas_id' => ['nullable', 'exists:nakes,id'],
@@ -142,13 +144,16 @@ class ScreeningController extends Controller
         [$data['kesimpulan_triase'], $data['prioritas_layanan']] = $this->determineTriage($data);
 
         DB::transaction(function () use ($data, $kunjungan): void {
+            $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            abort_unless(in_array($lockedVisit->status, ['menunggu', 'screening'], true), 422, 'Skrining tidak dapat diubah setelah pelayanan dimulai.');
+
             Screening::updateOrCreate(['kunjungan_id' => $kunjungan->id], $data);
 
-            if (! empty($data['riwayat_alergi']) && $kunjungan->pasien) {
-                $kunjungan->pasien->update(['riwayat_alergi' => $data['riwayat_alergi']]);
+            if (! empty($data['riwayat_alergi']) && $lockedVisit->pasien) {
+                $lockedVisit->pasien->update(['riwayat_alergi' => $data['riwayat_alergi']]);
             }
 
-            $kunjungan->update(['status' => 'pemeriksaan']);
+            $lockedVisit->update(['status' => 'pemeriksaan']);
         });
 
         return redirect()->route('pelayanan.kunjungan.show', $kunjungan)

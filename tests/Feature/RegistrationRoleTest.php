@@ -81,6 +81,14 @@ class RegistrationRoleTest extends TestCase
                 ->where('ticket.queueNumber', 1)
                 ->where('ticket.patient', 'Pasien Uji')
             );
+
+        $visit->update(['status' => 'pemeriksaan']);
+        $this->get(route('pendaftaran.edit-kunjungan', $visit))->assertUnprocessable();
+        $this->post(route('pendaftaran.batal-kunjungan', $visit))->assertUnprocessable();
+        $this->get(route('pendaftaran.laporan-kunjungan'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.editUrl', null)
+            ->where('visits.data.0.cancelUrl', null)
+        );
     }
 
     public function test_other_staff_role_cannot_open_registration_routes(): void
@@ -335,6 +343,37 @@ class RegistrationRoleTest extends TestCase
             ->has('days', 7)
             ->has('schedules', 0)
         );
+    }
+
+    public function test_nurse_monitoring_pages_do_not_offer_registration_only_actions(): void
+    {
+        $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        $clinic = Poliklinik::create([
+            'kode' => 'MON-UMUM',
+            'nama' => 'Poli Umum',
+            'jenis' => 'umum',
+            'is_active' => true,
+        ]);
+        $patient = Pasien::create(['no_rm' => 'RM-MON-001', 'nama' => 'Pasien Pantau']);
+        Kunjungan::create([
+            'no_kunjungan' => 'KNJ-MON-001',
+            'pasien_id' => $patient->id,
+            'poliklinik_id' => $clinic->id,
+            'tanggal' => today(),
+            'status' => 'menunggu',
+            'jenis_pasien' => 'lama',
+            'jenis_bayar' => 'umum',
+        ]);
+
+        $this->actingAs($nurse)->get(route('pendaftaran.kunjungan-per-poli', ['poliklinik_id' => $clinic->id]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visits.0.ticketUrl', null)
+            );
+        $this->get(route('pendaftaran.jadwal-praktik'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('canManage', false)
+            );
+        $this->post(route('pendaftaran.store-jadwal-praktik'))->assertForbidden();
     }
 
     public function test_existing_patient_registration_uses_the_active_doctor_schedule(): void

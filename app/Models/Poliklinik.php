@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -16,6 +17,11 @@ class Poliklinik extends Model
     protected $fillable = ['kode', 'nama', 'jenis', 'depo_obat_id', 'is_active'];
 
     protected $casts = ['is_active' => 'boolean'];
+
+    public function scopeRegistrable(Builder $query): Builder
+    {
+        return $query->where('is_active', true)->whereIn('jenis', ['umum', 'gigi']);
+    }
 
     public function depoObat(): BelongsTo
     {
