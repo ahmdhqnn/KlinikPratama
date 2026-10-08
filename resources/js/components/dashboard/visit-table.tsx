@@ -45,7 +45,7 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                         </tr>
                     )) : (
                         <tr>
-                            <TableCell colSpan={4}><Empty className="min-h-0 rounded-none border-0 bg-transparent py-6" description="Kunjungan yang sesuai akan tampil di daftar ini." title="Belum ada kunjungan" /></TableCell>
+                            <TableCell colSpan={4}><Empty description="Kunjungan yang sesuai akan tampil di daftar ini." size="compact" title="Belum ada kunjungan" /></TableCell>
                         </tr>
                     )}
                 </TableBody>

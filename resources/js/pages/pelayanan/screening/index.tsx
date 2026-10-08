@@ -4,10 +4,11 @@ import { useState, type FormEvent } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Label } from '@/components/ui/label';
 import { DatePicker } from '@/components/ui/date-picker';
 
 interface Clinic {
@@ -54,21 +55,18 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, visit
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_1fr_1fr_auto] xl:items-end" onSubmit={applyFilters}>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Cari pasien</span>
-                                <Input onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama atau nomor RM" value={filters.search} />
-                            </Label>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Tanggal</span>
-                                <DatePicker onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} required  value={filters.tanggal} />
-                            </Label>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Poliklinik</span>
-                                <Select onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
+                        <form className="grid gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(0,1fr)_1fr_1fr_auto]" onSubmit={applyFilters}>
+                            <Field htmlFor="screening-search" label="Cari pasien">
+                                <Input id="screening-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama atau nomor RM" value={filters.search} />
+                            </Field>
+                            <Field htmlFor="screening-date" label="Tanggal" required>
+                                <DatePicker id="screening-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} required value={filters.tanggal} />
+                            </Field>
+                            <Field htmlFor="screening-clinic" label="Poliklinik">
+                                <Select id="screening-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
                                     <option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                                 </Select>
-                            </Label>
+                            </Field>
                             <Button type="submit"><Search className="size-4" />Cari antrean</Button>
                         </form>
                     </CardContent>
@@ -93,7 +91,7 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, visit
                                             <TableCell><Badge variant={visit.hasScreening ? 'complete' : 'waiting'}>{visit.hasScreening ? 'Sudah skrining' : 'Belum skrining'}</Badge></TableCell>
                                             <TableCell className="text-right"><Button asChild size="sm"><a href={visit.screeningUrl}><ClipboardCheck className="size-4" />{visit.hasScreening ? 'Lihat / ubah' : 'Mulai skrining'}</a></Button></TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={5}>Tidak ada pasien menunggu skrining pada filter ini.</TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada pasien menunggu skrining pada filter ini." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

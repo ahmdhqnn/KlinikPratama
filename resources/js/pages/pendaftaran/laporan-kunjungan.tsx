@@ -5,10 +5,11 @@ import { Pagination, type PaginationData } from '@/components/dashboard/paginati
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Label } from '@/components/ui/label';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { DatePicker } from '@/components/ui/date-picker';
 
@@ -75,28 +76,24 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                     <CardContent className="p-5 sm:p-6">
                         <form className="space-y-4" onSubmit={applyFilters}>
                             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                                <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                    <span>Cari pasien</span>
-                                    <Input onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama atau nomor RM" value={filters.search} />
-                                </Label>
-                                <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                    <span>Tanggal</span>
-                                    <DatePicker onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })}  value={filters.tanggal} />
-                                </Label>
-                                <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                    <span>Poliklinik</span>
-                                    <Select onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
+                                <Field htmlFor="registration-visits-search" label="Cari pasien">
+                                    <Input id="registration-visits-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama atau nomor RM" value={filters.search} />
+                                </Field>
+                                <Field htmlFor="registration-visits-date" label="Tanggal">
+                                    <DatePicker id="registration-visits-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} value={filters.tanggal} />
+                                </Field>
+                                <Field htmlFor="registration-visits-clinic" label="Poliklinik">
+                                    <Select id="registration-visits-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
                                         <option value="">Semua poliklinik</option>
                                         {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                                     </Select>
-                                </Label>
-                                <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                    <span>Status</span>
-                                    <Select onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}>
+                                </Field>
+                                <Field htmlFor="registration-visits-status" label="Status">
+                                    <Select id="registration-visits-status" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}>
                                         <option value="">Semua status</option>
                                         {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                     </Select>
-                                </Label>
+                                </Field>
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
@@ -136,7 +133,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                                 </div>
                                             </TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={7}>Tidak ada kunjungan yang sesuai filter.</TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada kunjungan yang sesuai filter." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

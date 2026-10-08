@@ -4,9 +4,10 @@ import { useState, type FormEvent } from 'react';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Label } from '@/components/ui/label';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
@@ -108,9 +109,9 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
                                 <TableCell><Input aria-label={`Aturan pakai ${item.name}`} disabled={alreadyComplete || item.external} onChange={(event) => form.setData('items', form.data.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, aturan_pakai: event.target.value } : entry))} placeholder="3 x 1 setelah makan" value={current?.aturan_pakai ?? ''} /></TableCell>
                                 <TableCell>{!item.external && <Button onClick={() => setEtiketItem({ name: item.name, instructions: current?.aturan_pakai ?? '' })} size="sm" type="button" variant="secondary"><Printer className="size-4" />Etiket</Button>}</TableCell>
                             </TableRow>;
-                        }) : <TableRow><TableCell className="py-12 text-center text-neutral-500" colSpan={6}>Tidak ada item resep untuk disiapkan.</TableCell></TableRow>}
+                        }) : <TableRow><TableCell colSpan={6}><Empty size="compact" title="Tidak ada item resep untuk disiapkan." /></TableCell></TableRow>}
                     </TableBody></Table></div></CardContent>
-                    <div className="space-y-4 border-t border-neutral-100 p-5 sm:p-6"><div><Label className="mb-1.5 block text-sm font-medium text-neutral-700" htmlFor="catatan-farmasi">Catatan tambahan farmasi</Label><Input disabled={alreadyComplete} id="catatan-farmasi" onChange={(event) => form.setData('catatan', event.target.value)} placeholder="Informasi dispensing atau penyimpanan" value={form.data.catatan} />{form.errors.catatan && <p className="mt-1 text-xs text-red-700">{form.errors.catatan}</p>}</div>{form.errors.items && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{form.errors.items}</p>}
+                    <div className="space-y-4 border-t border-neutral-100 p-5 sm:p-6"><Field error={form.errors.catatan} htmlFor="catatan-farmasi" label="Catatan tambahan farmasi"><Input disabled={alreadyComplete} id="catatan-farmasi" onChange={(event) => form.setData('catatan', event.target.value)} placeholder="Informasi dispensing atau penyimpanan" value={form.data.catatan} /></Field>{form.errors.items && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{form.errors.items}</p>}
                         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><p className="text-xs text-neutral-500">Resep luar dicatat pada resep dan tidak dimasukkan dalam stok dispensing klinik.</p><div className="flex flex-wrap justify-end gap-2"><Button asChild variant="secondary"><Link href="/pelayanan/farmasi">Batalkan</Link></Button><Button disabled={form.processing || alreadyComplete} type="submit" variant="secondary"><Save className="size-4" />Simpan draf</Button><Button disabled={form.processing || alreadyComplete || !visit.pharmacy} onClick={finishDispensing} type="button"><Check className="size-4" />Selesaikan & lanjut ke kasir</Button></div></div>
                     </div></form>
                 </Card>

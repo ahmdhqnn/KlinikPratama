@@ -3,6 +3,7 @@ import { ArrowLeft, ClipboardList, Plus, Trash2 } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -38,7 +39,7 @@ export default function PackageShow({ package: servicePackage, treatments, labor
                 <Button disabled={form.processing} type="submit"><Plus className="size-4" />Tambah layanan</Button>
             </form></CardContent></Card>
             <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><ClipboardList className="size-5" /></span><div><CardTitle>Layanan dalam paket</CardTitle><CardDescription className="mt-1">{servicePackage.items.length} layanan · tarif satuan {formatCurrency(servicePackage.standardTariffTotal)}</CardDescription></div></div></CardHeader><CardContent className="p-0"><div className="overflow-x-auto"><Table><TableHeader><tr><TableHead>Jenis layanan</TableHead><TableHead>Nama layanan</TableHead><TableHead className="text-right">Tarif standar</TableHead><TableHead className="text-right">Aksi</TableHead></tr></TableHeader><TableBody>
-                {servicePackage.items.length ? servicePackage.items.map((item) => <TableRow key={item.id}><TableCell>{item.type === 'tindakan' ? 'Tindakan medis' : 'Laboratorium'}</TableCell><TableCell className="font-medium text-neutral-900">{item.name}</TableCell><TableCell className="text-right font-mono">{formatCurrency(item.tariff)}</TableCell><TableCell className="text-right"><Button aria-label={`Hapus ${item.name}`} onClick={() => remove(item)} size="icon" variant="destructive"><Trash2 className="size-4" /></Button></TableCell></TableRow>) : <TableRow><TableCell className="py-10 text-center text-neutral-500" colSpan={4}>Belum ada layanan dalam paket ini.</TableCell></TableRow>}
+                {servicePackage.items.length ? servicePackage.items.map((item) => <TableRow key={item.id}><TableCell>{item.type === 'tindakan' ? 'Tindakan medis' : 'Laboratorium'}</TableCell><TableCell className="font-medium text-neutral-900">{item.name}</TableCell><TableCell className="text-right font-mono">{formatCurrency(item.tariff)}</TableCell><TableCell className="text-right"><Button aria-label={`Hapus ${item.name}`} onClick={() => remove(item)} size="icon" variant="destructive"><Trash2 className="size-4" /></Button></TableCell></TableRow>) : <TableRow><TableCell colSpan={4}><Empty size="compact" title="Belum ada layanan dalam paket ini." /></TableCell></TableRow>}
             </TableBody></Table></div>{servicePackage.items.length > 0 && <div className="flex flex-wrap justify-between gap-2 border-t border-neutral-100 bg-neutral-50 px-5 py-4 text-sm"><span className="text-neutral-600">Penghematan dari tarif satuan</span><strong className="text-neutral-800">{formatCurrency(savings)}</strong></div>}</CardContent></Card>
         </div>
     </>;

@@ -4,13 +4,13 @@ import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Label } from '@/components/ui/label';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { Attachment } from '@/components/ui/attachment';
-import { Empty } from '@/components/ui/empty';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Patient {
@@ -77,8 +77,8 @@ export default function PatientsIndex({ filters: initialFilters, patients, insur
                 <Card>
                     <CardContent className="p-5 sm:p-6">
                         <form className="grid gap-4 md:grid-cols-[minmax(0,1fr)_16rem_auto] md:items-end" onSubmit={applyFilters}>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700"><span>Cari pasien</span><Input onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama, No. RM, NIK, atau telepon" value={filters.search} /></Label>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700"><span>Penjamin</span><Select onChange={(event) => setFilters({ ...filters, insuranceId: event.target.value })} value={filters.insuranceId}><option value="">Semua penjamin</option>{insuranceProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</Select></Label>
+                            <Field htmlFor="patient-search" label="Cari pasien"><Input id="patient-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama, No. RM, NIK, atau telepon" value={filters.search} /></Field>
+                            <Field htmlFor="patient-insurance-filter" label="Penjamin"><Select id="patient-insurance-filter" onChange={(event) => setFilters({ ...filters, insuranceId: event.target.value })} value={filters.insuranceId}><option value="">Semua penjamin</option>{insuranceProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</Select></Field>
                             <Button type="submit"><Search className="size-4" />Cari pasien</Button>
                         </form>
                     </CardContent>
@@ -95,14 +95,14 @@ export default function PatientsIndex({ filters: initialFilters, patients, insur
                                 <TableCell className="max-w-56 truncate text-neutral-500">{patient.address ?? '—'}</TableCell>
                                 <TableCell><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700">{patient.insurance}</span></TableCell>
                                 <TableCell><div className="flex justify-end gap-2"><Button asChild size="sm" variant="secondary"><Link href={`/pelayanan/pasien/${patient.id}`}>Detail</Link></Button><Button asChild size="sm" variant="ghost"><Link href={`/pelayanan/pasien/${patient.id}/rekam-medis`}><HeartPulse className="size-4" />RME</Link></Button></div></TableCell>
-                            </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell className="p-0" colSpan={7}><Empty className="min-h-0 rounded-none border-0 bg-transparent py-10" description="Ubah kata kunci atau penjamin, lalu coba lagi." title="Tidak ada pasien yang cocok" /></TableCell></TableRow>}</TableBody>
+                            </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty description="Ubah kata kunci atau penjamin, lalu coba lagi." size="compact" title="Tidak ada pasien yang cocok" /></TableCell></TableRow>}</TableBody>
                         </Table></div>
                         <Pagination pagination={patients} />
                     </CardContent>
                 </Card>
             </div>
             <Dialog onOpenChange={setImportOpen} open={importOpen}><DialogContent><DialogHeader><DialogTitle>Import data pasien</DialogTitle><DialogDescription>Unggah berkas Excel berdasarkan format template.</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={submitImport}><Attachment accept=".xlsx,.xls,.csv" error={importForm.errors.file} fileName={importForm.data.file?.name} id="patient-import" label="File Excel / CSV" onFileChange={(file) => importForm.setData('file', file)} required /><div className="flex justify-end gap-2"><Button onClick={() => setImportOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={!importForm.data.file || importForm.processing} type="submit">Import data</Button></div></form></DialogContent></Dialog>
-            <Dialog onOpenChange={setMergeOpen} open={mergeOpen}><DialogContent><DialogHeader><DialogTitle>Gabungkan rekam medis</DialogTitle><DialogDescription>Riwayat kunjungan pasien duplikat akan dipindahkan ke pasien utama.</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={submitMerge}><Label className="block space-y-1.5"><span>ID pasien utama</span><Input min={1} onChange={(event) => mergeForm.setData('pasien_utama_id', event.target.value)} required type="number" value={mergeForm.data.pasien_utama_id} /></Label><p className="text-xs text-red-600">{mergeForm.errors.pasien_utama_id}</p><Label className="block space-y-1.5"><span>ID pasien duplikat</span><Input min={1} onChange={(event) => mergeForm.setData('pasien_hapus_id', event.target.value)} required type="number" value={mergeForm.data.pasien_hapus_id} /></Label><p className="text-xs text-red-600">{mergeForm.errors.pasien_hapus_id}</p><div className="flex justify-end gap-2"><Button onClick={() => setMergeOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={mergeForm.processing} type="submit">Gabungkan</Button></div></form></DialogContent></Dialog>
+            <Dialog onOpenChange={setMergeOpen} open={mergeOpen}><DialogContent><DialogHeader><DialogTitle>Gabungkan rekam medis</DialogTitle><DialogDescription>Riwayat kunjungan pasien duplikat akan dipindahkan ke pasien utama.</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={submitMerge}><Field error={mergeForm.errors.pasien_utama_id} htmlFor="merge-primary-patient" label="ID pasien utama" required><Input id="merge-primary-patient" min={1} onChange={(event) => mergeForm.setData('pasien_utama_id', event.target.value)} required type="number" value={mergeForm.data.pasien_utama_id} /></Field><Field error={mergeForm.errors.pasien_hapus_id} htmlFor="merge-duplicate-patient" label="ID pasien duplikat" required><Input id="merge-duplicate-patient" min={1} onChange={(event) => mergeForm.setData('pasien_hapus_id', event.target.value)} required type="number" value={mergeForm.data.pasien_hapus_id} /></Field><div className="flex justify-end gap-2"><Button onClick={() => setMergeOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={mergeForm.processing} type="submit">Gabungkan</Button></div></form></DialogContent></Dialog>
         </>
     );
 }

@@ -5,10 +5,11 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Label } from '@/components/ui/label';
 import { DatePicker } from '@/components/ui/date-picker';
 
 interface Clinic {
@@ -57,25 +58,22 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto] xl:items-end" onSubmit={applyFilters}>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Poliklinik</span>
-                                <Select onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} required value={filters.poliklinikId}>
+                        <form className="grid gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={applyFilters}>
+                            <Field htmlFor="visits-by-clinic" label="Poliklinik" required>
+                                <Select id="visits-by-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} required value={filters.poliklinikId}>
                                     <option value="">Pilih poliklinik</option>
                                     {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                                 </Select>
-                            </Label>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Tanggal kunjungan</span>
-                                <DatePicker onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} required  value={filters.tanggal} />
-                            </Label>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Status</span>
-                                <Select onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}>
+                            </Field>
+                            <Field htmlFor="visits-by-clinic-date" label="Tanggal kunjungan" required>
+                                <DatePicker id="visits-by-clinic-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} required value={filters.tanggal} />
+                            </Field>
+                            <Field htmlFor="visits-by-clinic-status" label="Status">
+                                <Select id="visits-by-clinic-status" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}>
                                     <option value="">Semua status</option>
                                     {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                 </Select>
-                            </Label>
+                            </Field>
                             <Button disabled={clinics.length === 0} type="submit"><Search className="size-4" />Terapkan filter</Button>
                         </form>
                     </CardContent>
@@ -106,7 +104,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                             <TableCell><StatusBadge status={visit.status} /></TableCell>
                                             <TableCell className="text-right">{visit.ticketUrl ? <Button asChild size="sm" variant="secondary"><a href={visit.ticketUrl} rel="noreferrer" target="_blank"><Printer className="size-4" />Cetak antrean</a></Button> : <span className="text-xs text-neutral-400">—</span>}</TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={5}>{clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'}</TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty description={clinics.length ? 'Coba sesuaikan filter tanggal untuk melihat kunjungan.' : 'Aktifkan poliklinik agar daftar kunjungan dapat ditampilkan.'} size="compact" title={clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'} /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

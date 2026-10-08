@@ -3,6 +3,7 @@ import { ArrowRight, BriefcaseMedical, LockKeyhole, Mail, ShieldCheck } from 'lu
 import { FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -74,8 +75,7 @@ export default function LoginPage() {
                         <Card>
                             <CardContent className="p-6 sm:p-8">
                                 <form className="space-y-5" onSubmit={submit}>
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-medium text-neutral-700" htmlFor="email">Email</Label>
+                                    <Field error={form.errors.email} htmlFor="email" label="Email">
                                         <div className="relative">
                                             <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
                                             <Input
@@ -90,11 +90,9 @@ export default function LoginPage() {
                                                 value={form.data.email}
                                             />
                                         </div>
-                                        {form.errors.email && <p className="text-sm text-red-600">{form.errors.email}</p>}
-                                    </div>
+                                    </Field>
 
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-medium text-neutral-700" htmlFor="password">Password</Label>
+                                    <Field error={form.errors.password} htmlFor="password" label="Password">
                                         <div className="relative">
                                             <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
                                             <Input
@@ -109,8 +107,7 @@ export default function LoginPage() {
                                                 value={form.data.password}
                                             />
                                         </div>
-                                        {form.errors.password && <p className="text-sm text-red-600">{form.errors.password}</p>}
-                                    </div>
+                                    </Field>
 
                                     <Label className="flex cursor-pointer items-center gap-2.5 text-sm text-neutral-600">
                                         <Checkbox checked={form.data.remember} name="remember" onCheckedChange={(checked) => form.setData('remember', (checked === true))} />

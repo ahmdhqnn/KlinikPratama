@@ -2,9 +2,9 @@ import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatNumber } from '@/lib/format';
-import { Empty } from '@/components/ui/empty';
 
 interface Diagnosis { code: string | null; name: string; type: string }
 interface Screening { systolic: number | null; diastolic: number | null; pulse: number | null; temperature: number | null; oxygenSaturation: number | null; weight: number | null; height: number | null; respiration: number | null; complaint: string | null }

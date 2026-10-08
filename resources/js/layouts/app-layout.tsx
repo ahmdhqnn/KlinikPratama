@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Breadcrumb, type BreadcrumbItem } from '@/components/ui/breadcrumb';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
+import { Empty } from '@/components/ui/empty';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import type { PageProps } from '@inertiajs/core';
@@ -431,7 +432,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                         />
                         <kbd aria-hidden="true" className="pointer-events-none absolute right-2 hidden rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 lg:block">Ctrl K</kbd>
                         {searchOpen && searchQuery.trim().length > 0 && (
-                            <ul className="absolute right-0 top-full z-50 mt-2 max-h-80 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-neutral-200 bg-surface p-1.5 shadow-xl shadow-inverse/10" id="global-search-results" role="listbox">
+                            <ul aria-label={searchResults.length > 0 ? 'Hasil pencarian menu' : 'Status pencarian menu'} className="absolute right-0 top-full z-50 mt-2 max-h-80 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-neutral-200 bg-surface p-1.5 shadow-xl shadow-inverse/10" id="global-search-results" role={searchResults.length > 0 ? 'listbox' : 'list'}>
                                 {searchResults.length > 0 ? searchResults.map((result) => (
                                     <li key={result.href} role="option" aria-selected="false">
                                         <Link
@@ -448,7 +449,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                                             <span className="shrink-0 text-xs text-neutral-400">{result.group}</span>
                                         </Link>
                                     </li>
-                                )) : <li className="px-3 py-4 text-center text-sm text-neutral-500">Menu tidak ditemukan.</li>}
+                                )) : <li><Empty className="items-start gap-1 px-3 py-3 text-left" description="Coba kata kunci lain." eyebrow={null} icon={null} size="compact" title="Menu tidak ditemukan" /></li>}
                             </ul>
                         )}
                     </div>

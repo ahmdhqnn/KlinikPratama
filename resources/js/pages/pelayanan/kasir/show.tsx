@@ -2,6 +2,7 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, CreditCard, ReceiptText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -78,7 +79,7 @@ export default function CashierPayment({ visit, billing, components, subtotal, p
                             <CardContent className="p-0">
                                 <div className="overflow-x-auto"><Table className="min-w-[680px]"><TableHeader><tr><TableHead>Komponen layanan</TableHead><TableHead>Kategori</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Tarif</TableHead><TableHead className="text-right">Subtotal</TableHead></tr></TableHeader><TableBody>
                                     {components.map((item, index) => <TableRow key={`${item.type}-${item.referenceId ?? index}`}><TableCell className="font-medium text-neutral-900">{item.name}<input name={`items[${index}][nama]`} type="hidden" value={item.name} /><input name={`items[${index}][jenis]`} type="hidden" value={item.type} /><input name={`items[${index}][referensi_id]`} type="hidden" value={item.referenceId ?? ''} /><input name={`items[${index}][jumlah]`} type="hidden" value={item.quantity} /><input name={`items[${index}][tarif]`} type="hidden" value={item.tariff} /></TableCell><TableCell className="capitalize">{item.type}</TableCell><TableCell className="text-right">{item.quantity}</TableCell><TableCell className="text-right">{formatCurrency(item.tariff)}</TableCell><TableCell className="text-right font-semibold">{formatCurrency(item.tariff * item.quantity)}</TableCell></TableRow>)}
-                                    {components.length === 0 && <TableRow><TableCell className="py-10 text-center text-neutral-500" colSpan={5}>Belum ada komponen tagihan.</TableCell></TableRow>}
+                                    {components.length === 0 && <TableRow><TableCell colSpan={5}><Empty size="compact" title="Belum ada komponen tagihan." /></TableCell></TableRow>}
                                 </TableBody></Table></div>
                                 <div className="flex justify-between border-t border-neutral-100 bg-neutral-50 px-5 py-4 font-semibold"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
                             </CardContent>

@@ -4,6 +4,7 @@ import { Pagination } from '@/components/dashboard/pagination';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface Visit {
@@ -65,7 +66,7 @@ export default function PatientDetail({ patient }: { patient: Patient }) {
                     <Card className="overflow-hidden">
                         <CardHeader className="border-b border-neutral-100"><CardTitle>Riwayat kunjungan</CardTitle><CardDescription>Menampilkan hingga 20 kunjungan terakhir pasien.</CardDescription></CardHeader>
                         <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[720px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Poli</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead></tr></TableHeader><TableBody>
-                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={`/pelayanan/kunjungan/${visit.id}`}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? '—'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={5}>Belum ada riwayat kunjungan.</TableCell></TableRow>}
+                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={`/pelayanan/kunjungan/${visit.id}`}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? '—'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada riwayat kunjungan." /></TableCell></TableRow>}
                         </TableBody></Table></div></CardContent>
                     </Card>
                 </div>

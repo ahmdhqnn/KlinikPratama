@@ -3,6 +3,7 @@ import { CalendarClock, ClipboardCheck, Stethoscope } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { VisitTable, type DashboardVisit } from '@/components/dashboard/visit-table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
 
 interface Props {
     stats: { visitsToday: number; waitingExaminations: number; completedToday: number };
@@ -37,7 +38,7 @@ export default function DoctorDashboard({ stats, schedule, recentVisits }: Props
                                     <div><p className="font-medium text-neutral-900">{item.clinic}</p><p className="mt-1 text-xs text-neutral-500">Poliklinik</p></div>
                                     <p className="shrink-0 rounded-lg bg-neutral-50 px-2.5 py-1.5 text-xs font-semibold text-neutral-700">{item.start}–{item.end}</p>
                                 </div>
-                            )) : <p className="rounded-xl bg-neutral-50 px-4 py-8 text-center text-sm text-neutral-500">Tidak ada jadwal praktik aktif hari ini.</p>}
+                            )) : <Empty description="Jadwal dokter yang aktif akan muncul di sini." size="compact" title="Tidak ada jadwal praktik aktif hari ini." />}
                         </CardContent>
                     </Card>
                     <Card className="overflow-hidden">

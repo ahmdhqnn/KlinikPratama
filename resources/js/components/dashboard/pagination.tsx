@@ -13,12 +13,14 @@ export interface PaginationData {
 }
 
 export function Pagination({ pagination }: { pagination: PaginationData }) {
+    if (pagination.total === 0) {
+        return null;
+    }
+
     return (
         <div className="flex flex-col gap-3 border-t border-neutral-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p aria-live="polite" className="text-sm text-neutral-500">
-                {pagination.total > 0
-                    ? `Menampilkan ${pagination.from}–${pagination.to} dari ${new Intl.NumberFormat('id-ID').format(pagination.total)} data`
-                    : 'Tidak ada data untuk ditampilkan'}
+                {`Menampilkan ${pagination.from}–${pagination.to} dari ${new Intl.NumberFormat('id-ID').format(pagination.total)} data`}
             </p>
             <div className="flex items-center justify-between gap-3 sm:justify-end">
                 <Button asChild disabled={!pagination.previousUrl} size="sm" variant="secondary">

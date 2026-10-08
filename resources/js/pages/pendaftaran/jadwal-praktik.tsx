@@ -4,11 +4,11 @@ import { useState, type FormEvent } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Label } from '@/components/ui/label';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 
 interface Option {
@@ -112,22 +112,22 @@ export default function DoctorSchedule({ filters: initialFilters, doctors, clini
                 </Card>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto_auto] xl:items-end" onSubmit={applyFilters}>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700"><span>Dokter</span>
-                                <Select onChange={(event) => setFilters({ ...filters, dokterId: event.target.value ? Number(event.target.value) : '' })} value={filters.dokterId}>
+                        <form className="grid gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[1fr_1fr_1fr_auto_auto]" onSubmit={applyFilters}>
+                            <Field htmlFor="schedule-doctor-filter" label="Dokter">
+                                <Select id="schedule-doctor-filter" onChange={(event) => setFilters({ ...filters, dokterId: event.target.value ? Number(event.target.value) : '' })} value={filters.dokterId}>
                                     <option value="">Semua dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
                                 </Select>
-                            </Label>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700"><span>Poliklinik</span>
-                                <Select onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
+                            </Field>
+                            <Field htmlFor="schedule-clinic-filter" label="Poliklinik">
+                                <Select id="schedule-clinic-filter" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
                                     <option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                                 </Select>
-                            </Label>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700"><span>Hari</span>
-                                <Select onChange={(event) => setFilters({ ...filters, hari: event.target.value })} value={filters.hari}>
+                            </Field>
+                            <Field htmlFor="schedule-day-filter" label="Hari">
+                                <Select id="schedule-day-filter" onChange={(event) => setFilters({ ...filters, hari: event.target.value })} value={filters.hari}>
                                     <option value="">Semua hari</option>{days.map((day) => <option key={day} value={day}>{capitalize(day)}</option>)}
                                 </Select>
-                            </Label>
+                            </Field>
                             <Button type="submit"><CalendarDays className="size-4" />Filter jadwal</Button>
                             <Button asChild variant="secondary"><Link href="/pendaftaran/jadwal-praktik">Reset</Link></Button>
                         </form>
@@ -151,7 +151,7 @@ export default function DoctorSchedule({ filters: initialFilters, doctors, clini
                                             <TableCell><Badge variant={schedule.active ? 'complete' : 'cancelled'}>{schedule.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell>
                                             <TableCell className="text-right"><Button aria-label={`Hapus jadwal ${schedule.doctor} ${schedule.day}`} onClick={() => deleteSchedule(schedule)} size="icon" type="button" variant="ghost"><Trash2 className="size-4 text-red-600" /></Button></TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={6}>Tidak ada jadwal praktik sesuai filter.</TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty size="compact" title="Tidak ada jadwal praktik sesuai filter." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

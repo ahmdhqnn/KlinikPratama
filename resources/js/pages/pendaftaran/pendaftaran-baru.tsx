@@ -8,7 +8,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { DatePicker } from '@/components/ui/date-picker';
+import { DateOfBirthPicker } from '@/components/ui/date-picker';
 
 interface Option {
     id: number;
@@ -90,7 +90,7 @@ export default function NewPatientRegistration({ clinics, insuranceProviders, to
                                 <Input id="tempat_lahir" onChange={(event) => updateField('tempat_lahir', event.target.value)} placeholder="Kota atau kabupaten" value={form.data.tempat_lahir} />
                             </Field>
                             <Field error={form.errors.tanggal_lahir} htmlFor="tanggal_lahir" label="Tanggal lahir" required>
-                                <DatePicker aria-describedby={form.errors.tanggal_lahir ? 'tanggal_lahir-error' : undefined} id="tanggal_lahir" max={today} onChange={(event) => updateField('tanggal_lahir', event.target.value)} required  value={form.data.tanggal_lahir} />
+                                <DateOfBirthPicker aria-describedby={form.errors.tanggal_lahir ? 'tanggal_lahir-error' : undefined} id="tanggal_lahir" max={today} onChange={(event) => updateField('tanggal_lahir', event.target.value)} required value={form.data.tanggal_lahir} />
                                 <p aria-live="polite" className="text-xs text-neutral-500">{age === null ? 'Umur akan dihitung otomatis.' : `Umur pasien: ${age} tahun`}</p>
                             </Field>
                             <Field error={form.errors.jenis_kelamin} htmlFor="jenis_kelamin" label="Jenis kelamin" required>

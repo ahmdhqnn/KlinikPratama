@@ -4,11 +4,12 @@ import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { DatePicker } from '@/components/ui/date-picker';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 
 interface Visit {
     id: number;
@@ -45,15 +46,10 @@ export default function DoctorAppointments({ filters, visits }: Props) {
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end" onSubmit={applyFilters}>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Dari tanggal</span>
-                                <DatePicker onChange={(event) => setDates({ ...dates, dari: event.target.value })} required  value={dates.dari} />
-                            </Label>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Sampai tanggal</span>
-                                <DatePicker min={dates.dari} onChange={(event) => setDates({ ...dates, sampai: event.target.value })}  value={dates.sampai} />
-                            </Label>
+                        <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={applyFilters}>
+                            <Field htmlFor="doctor-appointments-period" label="Periode kunjungan" required>
+                                <DateRangePicker id="doctor-appointments-period" from={dates.dari} onChange={(range) => setDates({ dari: range.from, sampai: range.to })} required to={dates.sampai} />
+                            </Field>
                             <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
                         </form>
                     </CardContent>
@@ -78,7 +74,7 @@ export default function DoctorAppointments({ filters, visits }: Props) {
                                             <TableCell><StatusBadge status={visit.status} /></TableCell>
                                             <TableCell className="text-right"><Button asChild size="sm" variant="secondary"><a href={visit.examinationUrl}><ClipboardCheck className="size-4" />Pemeriksaan</a></Button></TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={5}>Belum ada kunjungan pada rentang tanggal ini.</TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada kunjungan pada rentang tanggal ini." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

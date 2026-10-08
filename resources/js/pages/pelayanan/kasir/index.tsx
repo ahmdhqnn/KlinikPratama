@@ -5,9 +5,10 @@ import { Pagination, type PaginationData } from '@/components/dashboard/paginati
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Label } from '@/components/ui/label';
 import { DatePicker } from '@/components/ui/date-picker';
 
 interface Visit {
@@ -48,14 +49,12 @@ export default function CashierQueue({ visits, filters }: Props) {
                 <Card>
                     <CardContent className="p-5 sm:p-6">
                         <form className="grid gap-4 md:grid-cols-[minmax(0,1fr)_14rem_auto] md:items-end" onSubmit={filterQueue}>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Cari pasien atau No. RM</span>
-                                <Input onChange={(event) => setSearch(event.target.value)} placeholder="Nama pasien atau No. RM" value={search} />
-                            </Label>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Tanggal kunjungan</span>
-                                <DatePicker onChange={(event) => setDate(event.target.value)}  value={date} />
-                            </Label>
+                            <Field htmlFor="cashier-search" label="Cari pasien atau No. RM">
+                                <Input id="cashier-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama pasien atau No. RM" value={search} />
+                            </Field>
+                            <Field htmlFor="cashier-visit-date" label="Tanggal kunjungan">
+                                <DatePicker id="cashier-visit-date" onChange={(event) => setDate(event.target.value)} value={date} />
+                            </Field>
                             <Button type="submit"><Search className="size-4" />Filter antrean</Button>
                         </form>
                     </CardContent>
@@ -86,7 +85,7 @@ export default function CashierQueue({ visits, filters }: Props) {
                                                     : <Button asChild size="sm"><Link href={`/pelayanan/kasir/${visit.id}`}>Proses pembayaran</Link></Button>}
                                             </TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={6}>Tidak ada kunjungan kasir pada filter ini.</TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty size="compact" title="Tidak ada kunjungan kasir pada filter ini." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

@@ -4,10 +4,11 @@ import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Label } from '@/components/ui/label';
 
 interface Patient {
     id: number;
@@ -46,16 +47,14 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                 <Card>
                     <CardContent className="p-5 sm:p-6">
                         <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_14rem_auto] sm:items-end" onSubmit={applyFilters}>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Cari pasien</span>
-                                <Input onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama, No. RM, NIK, atau telepon" value={filters.search} />
-                            </Label>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Jenis kelamin</span>
-                                <Select onChange={(event) => setFilters({ ...filters, jenisKelamin: event.target.value })} value={filters.jenisKelamin}>
+                            <Field htmlFor="patient-database-search" label="Cari pasien">
+                                <Input id="patient-database-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama, No. RM, NIK, atau telepon" value={filters.search} />
+                            </Field>
+                            <Field htmlFor="patient-database-gender" label="Jenis kelamin">
+                                <Select id="patient-database-gender" onChange={(event) => setFilters({ ...filters, jenisKelamin: event.target.value })} value={filters.jenisKelamin}>
                                     <option value="">Semua</option><option value="L">Laki-laki</option><option value="P">Perempuan</option>
                                 </Select>
-                            </Label>
+                            </Field>
                             <Button type="submit"><Search className="size-4" />Cari pasien</Button>
                         </form>
                     </CardContent>
@@ -82,7 +81,7 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                                             <TableCell className="text-neutral-600">{patient.insurance}</TableCell>
                                             <TableCell className="whitespace-nowrap text-neutral-500">{patient.registeredAt}</TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={7}>Tidak ada data pasien yang cocok.</TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada data pasien yang cocok." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

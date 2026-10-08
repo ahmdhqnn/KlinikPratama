@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Select, type SelectChangeEvent } from '@/components/ui/select';
 import type { DatePickerChangeEvent } from '@/components/ui/date-picker';
 import { Textarea } from '@/components/ui/textarea';
-import { DatePicker } from '@/components/ui/date-picker';
+import { DateOfBirthPicker } from '@/components/ui/date-picker';
 
 export interface PatientFormData {
     nama: string;
@@ -47,7 +47,7 @@ export function PatientFields({ data, errors, insuranceProviders, onChange }: Pr
                 <div className="grid gap-4 md:grid-cols-2">
                     <Field error={errors.nama} htmlFor="nama" label="Nama lengkap" required><Input {...field('nama', data.nama)} autoComplete="name" required /></Field>
                     <Field error={errors.nik} htmlFor="nik" label="NIK"><Input {...field('nik', data.nik)} inputMode="numeric" maxLength={16} /></Field>
-                    <Field error={errors.tanggal_lahir} htmlFor="tanggal_lahir" label="Tanggal lahir"><DatePicker {...field('tanggal_lahir', data.tanggal_lahir)}  /></Field>
+                    <Field error={errors.tanggal_lahir} htmlFor="tanggal_lahir" label="Tanggal lahir"><DateOfBirthPicker {...field('tanggal_lahir', data.tanggal_lahir)} /></Field>
                     <Field error={errors.jenis_kelamin} htmlFor="jenis_kelamin" label="Jenis kelamin"><Select {...field('jenis_kelamin', data.jenis_kelamin)}><option value="">Belum dipilih</option><option value="L">Laki-laki</option><option value="P">Perempuan</option></Select></Field>
                     <Field error={errors.golongan_darah} htmlFor="golongan_darah" label="Golongan darah"><Select {...field('golongan_darah', data.golongan_darah)}><option value="">Belum diketahui</option>{['A', 'B', 'AB', 'O'].map((bloodType) => <option key={bloodType}>{bloodType}</option>)}</Select></Field>
                     <Field error={errors.agama} htmlFor="agama" label="Agama"><Select {...field('agama', data.agama)}><option value="">Belum dipilih</option>{['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'].map((religion) => <option key={religion}>{religion}</option>)}</Select></Field>

@@ -3,6 +3,7 @@ import { PackageSearch } from 'lucide-react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface Medicine {
@@ -53,7 +54,7 @@ export default function DoctorStock({ medicines }: Props) {
                                             <TableCell className="text-right"><Badge variant={medicine.isLow ? 'cancelled' : 'complete'}>{formatStock(medicine.stock)}</Badge></TableCell>
                                             <TableCell className="text-right tabular-nums text-neutral-600">{formatStock(medicine.minimumStock)}</TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={5}>Belum ada data obat aktif.</TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada data obat aktif." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

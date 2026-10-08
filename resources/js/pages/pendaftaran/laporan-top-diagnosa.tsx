@@ -3,10 +3,11 @@ import { Activity, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Label } from '@/components/ui/label';
-import { DatePicker } from '@/components/ui/date-picker';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 
 interface Diagnosis {
     rank: number;
@@ -44,15 +45,10 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end" onSubmit={applyFilters}>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Tanggal mulai</span>
-                                <DatePicker onChange={(event) => setFilters({ ...filters, tanggalMulai: event.target.value })} required  value={filters.tanggalMulai} />
-                            </Label>
-                            <Label className="space-y-1.5 text-sm font-medium text-neutral-700">
-                                <span>Tanggal selesai</span>
-                                <DatePicker min={filters.tanggalMulai} onChange={(event) => setFilters({ ...filters, tanggalSelesai: event.target.value })} required  value={filters.tanggalSelesai} />
-                            </Label>
+                        <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={applyFilters}>
+                            <Field htmlFor="registration-diagnoses-period" label="Periode diagnosis" required>
+                                <DateRangePicker id="registration-diagnoses-period" from={filters.tanggalMulai} onChange={(range) => setFilters({ ...filters, tanggalMulai: range.from, tanggalSelesai: range.to })} required to={filters.tanggalSelesai} />
+                            </Field>
                             <Button type="submit"><Search className="size-4" />Tampilkan laporan</Button>
                         </form>
                     </CardContent>
@@ -96,7 +92,7 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
                                                 </div>
                                             </TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="py-12 text-center text-neutral-500" colSpan={5}>Belum ada diagnosis untuk periode ini.</TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada diagnosis untuk periode ini." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

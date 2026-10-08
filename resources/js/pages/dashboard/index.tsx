@@ -211,9 +211,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, recen
                                     ))}
                                 </div>
                             ) : (
-                                <div className="flex h-44 items-center justify-center rounded-xl bg-neutral-50 text-sm text-neutral-500">
-                                    Belum ada data kunjungan dalam periode ini.
-                                </div>
+                                <Empty className="h-44 rounded-xl bg-neutral-50 px-4 py-4" description="Data kunjungan harian akan tampil di sini." size="compact" title="Belum ada data kunjungan dalam periode ini." />
                             )}
                             <div className="mt-4 flex items-center justify-between text-xs text-neutral-500">
                                 <span>Data kunjungan harian</span>
@@ -263,7 +261,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, recen
                                         </TableCell>
                                     </TableRow>
                                 )) : (
-                                    <TableRow><TableCell colSpan={5}><Empty className="min-h-0 rounded-none border-0 bg-transparent py-6" description="Kunjungan pasien yang terdaftar hari ini akan muncul di sini." title="Belum ada kunjungan hari ini" /></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={5}><Empty description="Kunjungan pasien yang terdaftar hari ini akan muncul di sini." size="compact" title="Belum ada kunjungan hari ini" /></TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>
