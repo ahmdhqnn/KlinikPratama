@@ -20,6 +20,8 @@ class StokMutasi extends Model
         'stok_sebelum',
         'stok_sesudah',
         'keterangan',
+        'batch_id', 'actor_id', 'kunjungan_id', 'farmasi_item_id', 'mutasi_asal_id',
+        'cost_center', 'batch_stok_sebelum', 'batch_stok_sesudah',
     ];
 
     protected $casts = [
@@ -32,6 +34,16 @@ class StokMutasi extends Model
     public function obat(): BelongsTo
     {
         return $this->belongsTo(Obat::class);
+    }
+
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(ObatBatch::class);
+    }
+
+    public function actor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'actor_id');
     }
 
     public function depo(): BelongsTo

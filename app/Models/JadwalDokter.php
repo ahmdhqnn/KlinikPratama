@@ -13,12 +13,14 @@ class JadwalDokter extends Model
         'dokter_id',
         'poliklinik_id',
         'hari',
+        'berlaku_mulai',
+        'berlaku_sampai',
         'jam_mulai',
         'jam_selesai',
         'is_active',
     ];
 
-    protected $casts = ['is_active' => 'boolean'];
+    protected $casts = ['is_active' => 'boolean', 'berlaku_mulai' => 'date', 'berlaku_sampai' => 'date'];
 
     public function dokter(): BelongsTo
     {

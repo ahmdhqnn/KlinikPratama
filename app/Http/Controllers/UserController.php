@@ -18,7 +18,7 @@ class UserController extends Controller
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'role' => ['nullable', 'in:admin,dokter,perawat,farmasi,kasir,pendaftaran'],
+            'role' => ['nullable', 'in:admin,dokter,perawat,farmasi,pendaftaran,manajemen'],
         ]);
 
         $users = User::with('nakes')
@@ -68,7 +68,7 @@ class UserController extends Controller
                 ['value' => 'dokter', 'label' => 'Dokter'],
                 ['value' => 'perawat', 'label' => 'Perawat'],
                 ['value' => 'farmasi', 'label' => 'Farmasi'],
-                ['value' => 'kasir', 'label' => 'Kasir'],
+                ['value' => 'manajemen', 'label' => 'Manajemen'],
                 ['value' => 'pendaftaran', 'label' => 'Pendaftaran'],
             ],
             'doctors' => $dokterList->map(fn (Nakes $doctor): array => [
@@ -86,7 +86,7 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:200'],
             'email' => ['required', 'email', 'unique:users,email'],
             'password' => ['required', 'min:6'],
-            'role' => ['required', 'in:admin,dokter,perawat,farmasi,kasir,pendaftaran'],
+            'role' => ['required', 'in:admin,dokter,perawat,farmasi,pendaftaran,manajemen'],
             'is_active' => ['boolean'],
             'nakes_id' => [
                 Rule::requiredIf($request->input('role') === 'dokter'),
@@ -114,7 +114,7 @@ class UserController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:200'],
             'email' => ['required', 'email', "unique:users,email,{$user->id}"],
-            'role' => ['required', 'in:admin,dokter,perawat,farmasi,kasir,pendaftaran'],
+            'role' => ['required', 'in:admin,dokter,perawat,farmasi,pendaftaran,manajemen'],
             'is_active' => ['boolean'],
             'nakes_id' => [
                 Rule::requiredIf($request->input('role') === 'dokter'),
@@ -170,7 +170,7 @@ class UserController extends Controller
 
     private function syncNakesProfile(User $user, ?int $nakesId = null): void
     {
-        $nakesRoles = ['dokter', 'perawat', 'farmasi', 'kasir', 'pendaftaran'];
+        $nakesRoles = ['dokter', 'perawat', 'farmasi', 'pendaftaran'];
 
         if (! in_array($user->role, $nakesRoles, true)) {
             Nakes::withTrashed()->where('user_id', $user->id)->update(['user_id' => null]);

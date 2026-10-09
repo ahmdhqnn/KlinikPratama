@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Kunjungan;
+use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -14,13 +15,17 @@ class KunjunganExport implements FromQuery, WithHeadings, WithMapping, WithStyle
     public function __construct(
         private readonly ?string $dari = null,
         private readonly ?string $sampai = null,
+        private readonly ?int $clinicId = null,
+        private readonly ?string $status = null,
     ) {}
 
-    public function query()
+    public function query(): Builder
     {
-        return Kunjungan::with(['pasien', 'poliklinik', 'dokter', 'tagihan'])
-            ->when($this->dari, fn ($q) => $q->where('tanggal', '>=', $this->dari))
-            ->when($this->sampai, fn ($q) => $q->where('tanggal', '<=', $this->sampai))
+        return Kunjungan::with(['pasien', 'poliklinik', 'dokter'])
+            ->when($this->dari, fn ($q) => $q->whereDate('tanggal', '>=', $this->dari))
+            ->when($this->sampai, fn ($q) => $q->whereDate('tanggal', '<=', $this->sampai))
+            ->when($this->clinicId, fn ($q) => $q->where('poliklinik_id', $this->clinicId))
+            ->when($this->status, fn ($q) => $q->where('status', $this->status))
             ->orderBy('tanggal');
     }
 
@@ -28,23 +33,25 @@ class KunjunganExport implements FromQuery, WithHeadings, WithMapping, WithStyle
     {
         return [
             'No. Kunjungan', 'Tanggal', 'No. RM', 'Nama Pasien', 'Poliklinik',
-            'Dokter', 'Jenis Bayar', 'Status', 'Total Tagihan',
+            'Dokter', 'Kategori Peserta', 'Unit Kerja', 'Cost Center', 'Status', 'Verifikasi Hak Layanan',
         ];
     }
 
     public function map($kunjungan): array
     {
-        return [
+        return array_map(fn ($value) => is_string($value) && preg_match('/^[=+@-]/', $value) ? chr(39).$value : $value, [
             $kunjungan->no_kunjungan,
             $kunjungan->tanggal->format('d/m/Y'),
             $kunjungan->pasien->no_rm,
             $kunjungan->pasien->nama,
             $kunjungan->poliklinik->nama,
             $kunjungan->dokter?->nama ?? '-',
-            strtoupper($kunjungan->jenis_bayar),
+            $kunjungan->kategori_peserta ?? 'Historis',
+            $kunjungan->unit_kerja,
+            $kunjungan->cost_center,
             ucfirst($kunjungan->status),
-            $kunjungan->tagihan?->total ?? 0,
-        ];
+            $kunjungan->verified_at?->format('d/m/Y H:i'),
+        ]);
     }
 
     public function styles(Worksheet $sheet): array

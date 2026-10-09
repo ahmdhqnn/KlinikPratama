@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -21,7 +21,7 @@ export interface VisitFormValues {
 interface Props {
     clinics: Option[];
     insuranceProviders: Option[];
-    day: string;
+    today: string;
     values: VisitFormValues;
     errors: Partial<Record<keyof VisitFormValues, string>>;
     onChange: (field: keyof VisitFormValues, value: string) => void;
@@ -33,10 +33,13 @@ interface DoctorOption {
     nama: string;
 }
 
-export function VisitFields({ clinics, insuranceProviders, day, values, errors, onChange, showInsuranceNumber = false }: Props) {
+export function VisitFields({ clinics, insuranceProviders, today, values, errors, onChange, showInsuranceNumber = false }: Props) {
     const [doctors, setDoctors] = useState<DoctorOption[]>([]);
     const [loadingDoctors, setLoadingDoctors] = useState(false);
     const [doctorLoadError, setDoctorLoadError] = useState(false);
+    const onChangeRef = useRef(onChange);
+
+    useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
     useEffect(() => {
         if (!values.poliklinik_id) {
@@ -50,7 +53,7 @@ export function VisitFields({ clinics, insuranceProviders, day, values, errors, 
         setLoadingDoctors(true);
         setDoctorLoadError(false);
 
-        fetch(`/pendaftaran/dokter/by-poli?poliklinik_id=${encodeURIComponent(values.poliklinik_id)}&hari=${encodeURIComponent(day)}`, {
+        fetch(`/pendaftaran/dokter/by-poli?poliklinik_id=${encodeURIComponent(values.poliklinik_id)}&tanggal=${encodeURIComponent(today)}`, {
             headers: { Accept: 'application/json' },
             signal: abortController.signal,
         })
@@ -77,7 +80,7 @@ export function VisitFields({ clinics, insuranceProviders, day, values, errors, 
             });
 
         return () => abortController.abort();
-    }, [day, values.poliklinik_id]);
+    }, [today, values.poliklinik_id]);
 
     return (
         <div className="space-y-4">
@@ -97,22 +100,7 @@ export function VisitFields({ clinics, insuranceProviders, day, values, errors, 
                         {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.nama}</option>)}
                     </Select>
                 </Field>
-                <Field error={errors.asuransi_id} htmlFor="asuransi_id" label="Asuransi atau penjamin">
-                    <Select aria-describedby={errors.asuransi_id ? 'asuransi_id-error' : undefined} id="asuransi_id" onChange={(event) => onChange('asuransi_id', event.target.value)} value={values.asuransi_id}>
-                        <option value="">Umum</option>
-                        {insuranceProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
-                    </Select>
-                </Field>
-                <Field error={errors.jenis_bayar} htmlFor="jenis_bayar" label="Cara bayar" required>
-                    <Select aria-describedby={errors.jenis_bayar ? 'jenis_bayar-error' : undefined} id="jenis_bayar" onChange={(event) => onChange('jenis_bayar', event.target.value)} required value={values.jenis_bayar}>
-                        <option value="umum">Umum</option><option value="bpjs">BPJS</option><option value="asuransi">Asuransi</option>
-                    </Select>
-                </Field>
-                {showInsuranceNumber && values.jenis_bayar === 'asuransi' && (
-                    <Field error={errors.no_asuransi} htmlFor="no_asuransi" label="Nomor peserta asuransi">
-                        <Input aria-describedby={errors.no_asuransi ? 'no_asuransi-error' : undefined} id="no_asuransi" onChange={(event) => onChange('no_asuransi', event.target.value)} value={values.no_asuransi} />
-                    </Field>
-                )}
+                <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Fasilitas klinik internal</p><p className="mt-1 text-xs text-neutral-500">Hak layanan diverifikasi saat pendaftaran. Layanan, obat, dan BHP ditanggung anggaran instansi.</p></div>
             </div>
             <Field error={errors.catatan} htmlFor="catatan" label="Catatan kunjungan">
                 <Textarea aria-describedby={errors.catatan ? 'catatan-error' : undefined} id="catatan" onChange={(event) => onChange('catatan', event.target.value)} placeholder="Catatan tambahan (opsional)" value={values.catatan} />

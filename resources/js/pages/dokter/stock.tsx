@@ -32,7 +32,7 @@ export default function DoctorStock({ medicines }: Props) {
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Informasi farmasi</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ketersediaan obat</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Stok aktif untuk membantu pertimbangan terapi dan peresepan.</p>
+                    <p className="mt-1 text-sm text-neutral-500">Stok dari batch layak pakai untuk membantu pertimbangan terapi dan peresepan. Batch kedaluwarsa dan karantina dikecualikan.</p>
                 </div>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">

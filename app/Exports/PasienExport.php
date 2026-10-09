@@ -13,7 +13,7 @@ class PasienExport implements FromCollection, WithHeadings, WithMapping, WithSty
 {
     public function collection()
     {
-        return Pasien::with('asuransi')->orderBy('no_rm')->get();
+        return Pasien::with('kepesertaan')->orderBy('no_rm')->get();
     }
 
     public function headings(): array
@@ -21,13 +21,13 @@ class PasienExport implements FromCollection, WithHeadings, WithMapping, WithSty
         return [
             'No. RM', 'NIK', 'Nama', 'Tanggal Lahir', 'Jenis Kelamin',
             'Golongan Darah', 'Alamat', 'Telepon', 'Pekerjaan', 'Agama',
-            'Asuransi', 'No. Asuransi',
+            'Kategori Peserta', 'NIP', 'Unit Kerja', 'Cost Center',
         ];
     }
 
     public function map($pasien): array
     {
-        return [
+        return array_map(fn ($value) => is_string($value) && preg_match('/^[=+@-]/', $value) ? chr(39).$value : $value, [
             $pasien->no_rm,
             $pasien->nik,
             $pasien->nama,
@@ -38,9 +38,11 @@ class PasienExport implements FromCollection, WithHeadings, WithMapping, WithSty
             $pasien->telepon,
             $pasien->pekerjaan,
             $pasien->agama,
-            $pasien->asuransi?->nama,
-            $pasien->no_asuransi,
-        ];
+            $pasien->kepesertaan?->kategori,
+            $pasien->kepesertaan?->nip,
+            $pasien->kepesertaan?->unit_kerja,
+            $pasien->kepesertaan?->cost_center,
+        ]);
     }
 
     public function styles(Worksheet $sheet): array

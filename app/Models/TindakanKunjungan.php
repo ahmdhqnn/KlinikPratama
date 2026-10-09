@@ -11,7 +11,7 @@ class TindakanKunjungan extends Model
 
     protected $fillable = [
         'kunjungan_id', 'tindakan_id', 'dokter_id',
-        'jumlah', 'tarif', 'tarif_dokter', 'tooth_fdi',
+        'jumlah', 'tarif', 'tarif_dokter', 'tooth_fdi', 'bhp_consumed_at',
     ];
 
     protected $casts = [

@@ -45,11 +45,11 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={applyFilters}>
+                        <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start" onSubmit={applyFilters}>
                             <Field htmlFor="registration-diagnoses-period" label="Periode diagnosis" required>
                                 <DateRangePicker id="registration-diagnoses-period" from={filters.tanggalMulai} onChange={(range) => setFilters({ ...filters, tanggalMulai: range.from, tanggalSelesai: range.to })} required to={filters.tanggalSelesai} />
                             </Field>
-                            <Button type="submit"><Search className="size-4" />Tampilkan laporan</Button>
+                            <Button className="sm:mt-7" type="submit"><Search className="size-4" />Tampilkan laporan</Button>
                         </form>
                     </CardContent>
                 </Card>

@@ -2,13 +2,15 @@
 
 namespace Database\Seeders;
 
-use App\Models\Asuransi;
-use App\Models\BiayaAdmin;
+use App\HakLayananVerifier;
+use App\Imports\KepesertaanImport;
 use App\Models\DepoObat;
 use App\Models\Diagnosa;
 use App\Models\Farmasi;
 use App\Models\FarmasiItem;
 use App\Models\Icd10;
+use App\Models\JadwalDokter;
+use App\Models\Kepesertaan;
 use App\Models\KlinikSetting;
 use App\Models\Kunjungan;
 use App\Models\LabIndikator;
@@ -21,12 +23,13 @@ use App\Models\Poliklinik;
 use App\Models\Resep;
 use App\Models\ResepObat;
 use App\Models\Screening;
-use App\Models\StokMutasi;
-use App\Models\Tagihan;
 use App\Models\Tindakan;
 use App\Models\User;
+use App\PersediaanRecorder;
 use Illuminate\Database\Seeder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Maatwebsite\Excel\Facades\Excel;
 
 class DatabaseSeeder extends Seeder
 {
@@ -37,7 +40,7 @@ class DatabaseSeeder extends Seeder
         }
 
         // Admin user
-        User::create([
+        $admin = User::create([
             'name' => 'Administrator',
             'email' => 'admin@klinik.com',
             'password' => Hash::make('password'),
@@ -53,6 +56,11 @@ class DatabaseSeeder extends Seeder
             'role' => 'pendaftaran',
             'is_active' => true,
         ]);
+
+        Excel::import(new KepesertaanImport($admin, 'CONTOH - data sintetis untuk pengujian'), resource_path('templates/contoh-kepesertaan-internal.xlsx'));
+        foreach (['dokter', 'perawat', 'farmasi', 'manajemen'] as $role) {
+            User::factory()->create(['name' => ucfirst($role).' Contoh', 'email' => $role.'@klinik.com', 'password' => Hash::make('password'), 'role' => $role, 'is_active' => true]);
+        }
 
         // Klinik Setting
         KlinikSetting::create([
@@ -88,74 +96,79 @@ class DatabaseSeeder extends Seeder
             'kode' => 'FRM001', 'nama' => 'Budi Farmasi, S.Farm',
             'kategori' => 'non_medis', 'jabatan' => 'farmasi', 'is_active' => true,
         ]);
-        Nakes::create([
-            'kode' => 'KSR001', 'nama' => 'Dewi Kasir',
-            'kategori' => 'non_medis', 'jabatan' => 'kasir', 'is_active' => true,
-        ]);
-
-        // Asuransi
-        Asuransi::create(['kode' => 'BPJS', 'nama' => 'BPJS Kesehatan', 'jenis' => 'bpjs']);
-        Asuransi::create(['kode' => 'UMUM', 'nama' => 'Umum (Bayar Sendiri)', 'jenis' => 'umum']);
 
         // Obat
         Obat::create([
             'kode' => 'OBT001', 'nama' => 'Paracetamol 500mg',
             'satuan_besar' => 'Strip', 'satuan_kecil' => 'Tablet',
-            'konversi_satuan' => 10, 'harga_beli' => 2000, 'harga_jual' => 3000,
-            'stok' => 100, 'stok_minimum' => 20, 'jenis' => 'obat',
+            'konversi_satuan' => 10, 'harga_beli' => 2000, 'harga_jual' => 0,
+            'stok' => 0, 'stok_minimum' => 20, 'jenis' => 'obat',
         ]);
         Obat::create([
             'kode' => 'OBT002', 'nama' => 'Amoxicillin 500mg',
             'satuan_besar' => 'Strip', 'satuan_kecil' => 'Kapsul',
-            'konversi_satuan' => 10, 'harga_beli' => 3000, 'harga_jual' => 5000,
-            'stok' => 80, 'stok_minimum' => 20, 'jenis' => 'obat',
+            'konversi_satuan' => 10, 'harga_beli' => 3000, 'harga_jual' => 0,
+            'stok' => 0, 'stok_minimum' => 20, 'jenis' => 'obat',
         ]);
         Obat::create([
             'kode' => 'OBT003', 'nama' => 'Antasida Doen',
             'satuan_besar' => 'Box', 'satuan_kecil' => 'Tablet',
-            'konversi_satuan' => 100, 'harga_beli' => 15000, 'harga_jual' => 25000,
-            'stok' => 50, 'stok_minimum' => 10, 'jenis' => 'obat',
+            'konversi_satuan' => 100, 'harga_beli' => 15000, 'harga_jual' => 0,
+            'stok' => 0, 'stok_minimum' => 10, 'jenis' => 'obat',
         ]);
         Obat::create([
             'kode' => 'OBT004', 'nama' => 'Ibuprofen 400mg',
             'satuan_besar' => 'Strip', 'satuan_kecil' => 'Tablet',
-            'konversi_satuan' => 10, 'harga_beli' => 4000, 'harga_jual' => 6000,
-            'stok' => 60, 'stok_minimum' => 15, 'jenis' => 'obat',
+            'konversi_satuan' => 10, 'harga_beli' => 4000, 'harga_jual' => 0,
+            'stok' => 0, 'stok_minimum' => 15, 'jenis' => 'obat',
         ]);
         Obat::create([
             'kode' => 'BHP001', 'nama' => 'Sarung Tangan (Pasang)',
             'satuan_besar' => 'Box', 'satuan_kecil' => 'Pasang',
-            'konversi_satuan' => 50, 'harga_beli' => 3000, 'harga_jual' => 5000,
-            'stok' => 200, 'stok_minimum' => 50, 'jenis' => 'bhp',
+            'konversi_satuan' => 50, 'harga_beli' => 3000, 'harga_jual' => 0,
+            'stok' => 0, 'stok_minimum' => 50, 'jenis' => 'bhp',
         ]);
         Obat::create([
             'kode' => 'BHP002', 'nama' => 'Kapas Gulung',
             'satuan_besar' => 'Roll', 'satuan_kecil' => 'Gram',
-            'konversi_satuan' => 100, 'harga_beli' => 5000, 'harga_jual' => 8000,
-            'stok' => 50, 'stok_minimum' => 10, 'jenis' => 'bhp',
+            'konversi_satuan' => 100, 'harga_beli' => 5000, 'harga_jual' => 0,
+            'stok' => 0, 'stok_minimum' => 10, 'jenis' => 'bhp',
         ]);
+
+        foreach (['OBT001' => 100, 'OBT002' => 80, 'OBT003' => 50, 'OBT004' => 60, 'BHP001' => 200, 'BHP002' => 50] as $code => $stock) {
+            $medicine = Obat::where('kode', $code)->firstOrFail();
+            app(PersediaanRecorder::class)->receive($medicine->id, ['depo_id' => $apotek->id, 'nomor_batch' => 'CONTOH-'.$code, 'expired_at' => today()->addYear()->toDateString(), 'harga_beli' => $medicine->harga_beli, 'jumlah' => $stock, 'sumber' => 'pengadaan', 'referensi' => 'CONTOH - saldo awal sintetis'], $admin);
+        }
+        foreach (['dokter', 'perawat', 'farmasi'] as $role) {
+            Nakes::where('jabatan', $role)->update(['user_id' => User::where('role', $role)->value('id')]);
+        }
+        foreach (['senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu', 'minggu'] as $day) {
+            foreach ([$poliUmum, $poliGigi] as $clinic) {
+                JadwalDokter::create(['dokter_id' => $dokter->id, 'poliklinik_id' => $clinic->id, 'hari' => $day, 'berlaku_mulai' => '1970-01-01', 'jam_mulai' => '00:00', 'jam_selesai' => '23:59', 'is_active' => true]);
+            }
+        }
 
         // Tindakan
         $hecting = Tindakan::create([
             'kode' => 'TDK001', 'kode_icd9' => '86.59', 'nama' => 'Hecting / Jahit Luka',
             'kategori' => 'medis', 'poliklinik_id' => $poliUmum->id,
-            'tarif' => 150000, 'tarif_dokter' => 100000, 'tarif_asisten' => 25000, 'tarif_klinik' => 25000,
+            'tarif' => 0, 'tarif_dokter' => 0, 'tarif_asisten' => 0, 'tarif_klinik' => 0,
         ]);
         Tindakan::create([
             'kode' => 'TDK002', 'nama' => 'Injeksi IV',
             'kategori' => 'medis', 'poliklinik_id' => $poliUmum->id,
-            'tarif' => 50000, 'tarif_dokter' => 30000, 'tarif_asisten' => 10000, 'tarif_klinik' => 10000,
+            'tarif' => 0, 'tarif_dokter' => 0, 'tarif_asisten' => 0, 'tarif_klinik' => 0,
         ]);
         Tindakan::create([
             'kode' => 'TDK003', 'nama' => 'EKG / Rekam Jantung',
             'kategori' => 'medis', 'poliklinik_id' => $poliUmum->id,
-            'tarif' => 100000, 'tarif_dokter' => 70000, 'tarif_asisten' => 15000, 'tarif_klinik' => 15000,
+            'tarif' => 0, 'tarif_dokter' => 0, 'tarif_asisten' => 0, 'tarif_klinik' => 0,
         ]);
 
         // Laboratorium
         $labDarah = Laboratorium::create([
             'kode' => 'LAB001', 'nama' => 'Darah Lengkap',
-            'poliklinik_id' => $poliLab->id, 'tarif' => 80000,
+            'poliklinik_id' => $poliLab->id, 'tarif' => 0,
         ]);
         LabIndikator::create(['laboratorium_id' => $labDarah->id, 'nama' => 'Hemoglobin', 'satuan' => 'g/dL', 'nilai_rujukan_min' => '12', 'nilai_rujukan_max' => '17', 'format_input' => 'number', 'urutan' => 1]);
         LabIndikator::create(['laboratorium_id' => $labDarah->id, 'nama' => 'Leukosit', 'satuan' => 'ribu/µL', 'nilai_rujukan_min' => '4.5', 'nilai_rujukan_max' => '11', 'format_input' => 'number', 'urutan' => 2]);
@@ -163,19 +176,15 @@ class DatabaseSeeder extends Seeder
 
         $labGDA = Laboratorium::create([
             'kode' => 'LAB002', 'nama' => 'Gula Darah Acak',
-            'poliklinik_id' => $poliLab->id, 'tarif' => 25000,
+            'poliklinik_id' => $poliLab->id, 'tarif' => 0,
         ]);
         LabIndikator::create(['laboratorium_id' => $labGDA->id, 'nama' => 'Gula Darah', 'satuan' => 'mg/dL', 'nilai_rujukan_min' => '70', 'nilai_rujukan_max' => '200', 'format_input' => 'number', 'urutan' => 1]);
 
         $labGolDar = Laboratorium::create([
             'kode' => 'LAB003', 'nama' => 'Golongan Darah',
-            'poliklinik_id' => $poliLab->id, 'tarif' => 20000,
+            'poliklinik_id' => $poliLab->id, 'tarif' => 0,
         ]);
         LabIndikator::create(['laboratorium_id' => $labGolDar->id, 'nama' => 'Golongan Darah', 'satuan' => '', 'format_input' => 'select', 'pilihan' => json_encode(['A', 'B', 'O', 'AB']), 'urutan' => 1]);
-
-        // Biaya Admin
-        BiayaAdmin::create(['nama' => 'Biaya Administrasi', 'tarif' => 5000]);
-        BiayaAdmin::create(['nama' => 'Biaya Ambulans', 'tarif' => 200000]);
 
         // ICD-10
         $icd10Data = [
@@ -214,13 +223,13 @@ class DatabaseSeeder extends Seeder
         }
 
         // Sample Pasien
-        $bpjs = Asuransi::where('kode', 'BPJS')->first();
-        $umum = Asuransi::where('kode', 'UMUM')->first();
+        $members = Kepesertaan::orderBy('nik')->get();
 
         $pasien1 = Pasien::create([
             'no_rm' => 'RM-2026-0001',
-            'nama' => 'Budi Santoso',
-            'nik' => '3201234567890001',
+            'nama' => $members[0]->nama,
+            'kepesertaan_id' => $members[0]->id,
+            'nik' => $members[0]->nik,
             'tanggal_lahir' => '1990-05-15',
             'jenis_kelamin' => 'L',
             'golongan_darah' => 'O',
@@ -229,15 +238,14 @@ class DatabaseSeeder extends Seeder
             'pekerjaan' => 'Karyawan Swasta',
             'agama' => 'Islam',
             'status_perkawinan' => 'Menikah',
-            'asuransi_id' => $bpjs?->id,
-            'no_asuransi' => '0001234567891',
             'riwayat_alergi' => 'Alergi Penisilin',
         ]);
 
         $pasien2 = Pasien::create([
             'no_rm' => 'RM-2026-0002',
-            'nama' => 'Siti Rahmawati',
-            'nik' => '3201234567890002',
+            'nama' => $members[1]->nama,
+            'kepesertaan_id' => $members[1]->id,
+            'nik' => $members[1]->nik,
             'tanggal_lahir' => '1985-11-20',
             'jenis_kelamin' => 'P',
             'golongan_darah' => 'B',
@@ -246,14 +254,14 @@ class DatabaseSeeder extends Seeder
             'pekerjaan' => 'Guru',
             'agama' => 'Islam',
             'status_perkawinan' => 'Menikah',
-            'asuransi_id' => $umum?->id,
             'riwayat_alergi' => 'Tidak ada',
         ]);
 
         $pasien3 = Pasien::create([
             'no_rm' => 'RM-2026-0003',
-            'nama' => 'Andi Wijaya',
-            'nik' => '3201234567890003',
+            'nama' => $members[2]->nama,
+            'kepesertaan_id' => $members[2]->id,
+            'nik' => $members[2]->nik,
             'tanggal_lahir' => '2000-01-10',
             'jenis_kelamin' => 'L',
             'golongan_darah' => 'A',
@@ -262,8 +270,6 @@ class DatabaseSeeder extends Seeder
             'pekerjaan' => 'Mahasiswa',
             'agama' => 'Kristen',
             'status_perkawinan' => 'Belum Menikah',
-            'asuransi_id' => $bpjs?->id,
-            'no_asuransi' => '0009876543210',
         ]);
 
         // Sample Kunjungan Aktif & Selesai
@@ -272,13 +278,16 @@ class DatabaseSeeder extends Seeder
             'pasien_id' => $pasien1->id,
             'poliklinik_id' => $poliUmum->id,
             'dokter_id' => $dokter->id,
-            'asuransi_id' => $bpjs?->id,
             'tanggal' => today(),
             'status' => 'selesai',
             'jenis_pasien' => 'baru',
-            'jenis_bayar' => 'bpjs',
+            'jenis_bayar' => 'internal',
             'catatan' => 'Kunjungan kontrol flu & demam',
         ]);
+
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => $admin);
+        $kunjunganSelesai->update(app(HakLayananVerifier::class)->patient($pasien1, today()->toDateString(), $request));
 
         Screening::create([
             'kunjungan_id' => $kunjunganSelesai->id,
@@ -341,31 +350,10 @@ class DatabaseSeeder extends Seeder
                 'jumlah_diberikan' => 10,
                 'aturan_pakai' => $resepObat->aturan_pakai,
             ]);
-            $obatParacetamol->update(['stok' => 90]);
-            StokMutasi::create([
-                'obat_id' => $obatParacetamol->id,
-                'jenis' => 'keluar',
-                'referensi_type' => 'Farmasi',
-                'referensi_id' => $farmasi->id,
-                'jumlah' => 10,
-                'harga' => $obatParacetamol->harga_jual,
-                'stok_sebelum' => 100,
-                'stok_sesudah' => 90,
-                'keterangan' => "Dispensing kunjungan {$kunjunganSelesai->no_kunjungan}",
-            ]);
+            $item = $farmasi->items()->firstOrFail();
+            app(PersediaanRecorder::class)->issue($obatParacetamol->id, 10, $admin, $kunjunganSelesai, 'Farmasi', $farmasi->id, $item->id);
+            $farmasi->update(['dispensed_by' => $admin->id, 'dispensed_at' => now()]);
         }
-
-        $tagihan = Tagihan::create([
-            'no_tagihan' => 'TGH-'.now()->format('Ymd').'-0001',
-            'kunjungan_id' => $kunjunganSelesai->id,
-            'subtotal' => 85000,
-            'diskon' => 0,
-            'total' => 85000,
-            'bayar' => 85000,
-            'kembalian' => 0,
-            'metode_bayar' => 'bpjs',
-            'status' => 'lunas',
-        ]);
 
         // Kunjungan 2: Antrian Menunggu
         Kunjungan::create([
@@ -373,25 +361,27 @@ class DatabaseSeeder extends Seeder
             'pasien_id' => $pasien2->id,
             'poliklinik_id' => $poliUmum->id,
             'dokter_id' => $dokter->id,
-            'asuransi_id' => $umum?->id,
             'tanggal' => today(),
             'status' => 'menunggu',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
+            'jenis_bayar' => 'internal',
             'catatan' => 'Pemeriksaan tensi rutin',
         ]);
 
         // Kunjungan 3: Sedang Screening
         $kunjungan3 = Kunjungan::create([
+            'dokter_id' => $dokter->id,
             'no_kunjungan' => 'KNJ-'.now()->format('Ymd').'-0003',
             'pasien_id' => $pasien3->id,
             'poliklinik_id' => $poliGigi->id,
-            'asuransi_id' => $bpjs?->id,
             'tanggal' => today(),
             'status' => 'screening',
             'jenis_pasien' => 'baru',
-            'jenis_bayar' => 'bpjs',
+            'jenis_bayar' => 'internal',
             'catatan' => 'Sakit gigi geraham bawah',
         ]);
+        foreach (Kunjungan::with('pasien')->whereNull('verified_at')->get() as $visit) {
+            $visit->update(app(HakLayananVerifier::class)->patient($visit->pasien, $visit->tanggal->toDateString(), $request));
+        }
     }
 }

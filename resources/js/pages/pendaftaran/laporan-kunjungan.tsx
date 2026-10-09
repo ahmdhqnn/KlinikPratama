@@ -47,7 +47,7 @@ interface Props {
 
 const statusOptions = [
     ['menunggu', 'Menunggu'], ['screening', 'Skrining'], ['pemeriksaan', 'Pemeriksaan'],
-    ['farmasi', 'Farmasi'], ['kasir', 'Kasir'], ['selesai', 'Selesai'], ['batal', 'Dibatalkan'],
+    ['farmasi', 'Farmasi'], ['selesai', 'Selesai'], ['batal', 'Dibatalkan'],
 ];
 
 export default function RegistrationVisitReport({ filters: initialFilters, clinics, visits }: Props) {

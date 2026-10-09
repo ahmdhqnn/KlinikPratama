@@ -3,12 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\DepoObat;
+use App\Models\Kepesertaan;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Obat;
+use App\Models\ObatBatch;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
-use App\Models\Tagihan;
 use App\Models\Tindakan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,7 +19,7 @@ class RmeEndToEndFlowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_full_clinical_workflow_from_registration_to_payment(): void
+    public function test_internal_clinical_workflow_from_membership_to_dispensing_without_billing(): void
     {
         // 1. Setup Admin & Master Data
         $admin = User::create([
@@ -31,7 +32,7 @@ class RmeEndToEndFlowTest extends TestCase
         $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
         $doctorUser = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
         $pharmacist = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
-        $cashier = User::factory()->create(['role' => 'kasir', 'is_active' => true]);
+
         $doctor = Nakes::create([
             'kode' => 'DOK-E2E',
             'nama' => 'Dokter Umum',
@@ -56,6 +57,8 @@ class RmeEndToEndFlowTest extends TestCase
             'jenis' => 'obat',
             'is_active' => true,
         ]);
+        ObatBatch::factory()->create(['obat_id' => $obat->id, 'stok' => 100, 'depo_id' => $depo->id]);
+        $member = Kepesertaan::factory()->create(['nama' => 'Ahmad Pasien', 'nik' => '3201234567890001']);
         $tindakan = Tindakan::create([
             'kode' => 'TDK01',
             'nama' => 'Konsultasi & Pemeriksaan Dokter',
@@ -68,8 +71,13 @@ class RmeEndToEndFlowTest extends TestCase
             'is_active' => true,
         ]);
 
+        $supply = Obat::create(['kode' => 'BHP-E2E', 'nama' => 'Kasa', 'satuan_kecil' => 'lembar', 'jenis' => 'bhp', 'stok' => 5, 'is_active' => true]);
+        ObatBatch::factory()->create(['obat_id' => $supply->id, 'stok' => 5, 'harga_beli' => 50]);
+        $tindakan->bhp()->create(['obat_id' => $supply->id, 'jumlah' => 2]);
+
         // 2. Registrasi Pasien Baru
         $resPasien = $this->actingAs($admin)->post('/pelayanan/pasien', [
+            'kepesertaan_id' => $member->id,
             'nama' => 'Ahmad Pasien',
             'nik' => '3201234567890001',
             'tanggal_lahir' => '1995-08-17',
@@ -142,6 +150,10 @@ class RmeEndToEndFlowTest extends TestCase
         $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/selesai");
         $kunjungan->refresh();
         $this->assertEquals('farmasi', $kunjungan->status);
+        $this->assertEquals(100, $obat->fresh()->stok);
+        $this->assertEquals(3, $supply->fresh()->stok);
+        $this->post('/pelayanan/pemeriksaan/'.$kunjungan->id.'/selesai')->assertUnprocessable();
+        $this->assertEquals(3, $supply->fresh()->stok);
 
         $this->actingAs($nurse)->post("/pelayanan/kunjungan/{$kunjungan->id}/screening", [
             'nyeri_dada' => 'tidak',
@@ -170,31 +182,17 @@ class RmeEndToEndFlowTest extends TestCase
         $resFarmasiSelesai = $this->actingAs($pharmacist)->post("/pelayanan/farmasi/{$kunjungan->id}/selesai");
         $resFarmasiSelesai->assertRedirect(route('pelayanan.farmasi.index'));
         $kunjungan->refresh();
-        $this->assertEquals('kasir', $kunjungan->status);
+        $this->assertEquals('selesai', $kunjungan->status);
 
         // Verifikasi stok obat berkurang dari 100 menjadi 90
         $obat->refresh();
         $this->assertEquals(90, $obat->stok);
 
-        // 7. Kasir & Pembayaran Tagihan
-        $resKasir = $this->actingAs($cashier)->post("/pelayanan/kasir/{$kunjungan->id}", [
-            'metode_bayar' => 'tunai',
-            'bayar' => 100000,
-            'diskon' => 0,
-            'items' => [
-                ['nama' => 'Konsultasi Dokter', 'jenis' => 'tindakan', 'jumlah' => 1, 'tarif' => 50000],
-                ['nama' => 'Paracetamol 500mg (10 Tab)', 'jenis' => 'obat', 'jumlah' => 1, 'tarif' => 20000],
-            ],
-        ]);
-        $resKasir->assertRedirect();
-        $kunjungan->refresh();
-        $this->assertEquals('selesai', $kunjungan->status);
-
-        // Verifikasi tagihan lunas dan kembalian benar (100.000 - 70.000 = 30.000)
-        $tagihan = Tagihan::where('kunjungan_id', $kunjungan->id)->first();
-        $this->assertNotNull($tagihan);
-        $this->assertEquals('lunas', $tagihan->status);
-        $this->assertEquals(70000, $tagihan->total);
-        $this->assertEquals(30000, $tagihan->kembalian);
+        $this->assertDatabaseCount('tagihan', 0);
+        $this->assertSame('internal', $kunjungan->jenis_bayar);
+        $this->assertSame($member->cost_center, $kunjungan->cost_center);
+        $this->post('/pelayanan/farmasi/'.$kunjungan->id.'/selesai')->assertRedirect();
+        $this->assertEquals(90, $obat->fresh()->stok);
+        $this->assertDatabaseCount('stok_mutasi', 2);
     }
 }

@@ -1,3 +1,4 @@
+import { UtilizationDetails, type UtilizationReport } from '@/pages/laporan/utilisasi';
 import { Head } from '@inertiajs/react';
 import {
     ArrowUpRight,
@@ -19,8 +20,10 @@ interface DashboardProps {
         totalPatients: number;
         visitsToday: number;
         visitsThisMonth: number;
-        revenueThisMonth: number;
+        prescriptionsToday: number;
     };
+    canRegister: boolean;
+    utilization: UtilizationReport;
     visitStatuses: Record<string, number>;
     visitsByDay: Array<{ tanggal: string; jumlah: number }>;
 }
@@ -30,7 +33,6 @@ const statusLabels: Record<string, string> = {
     screening: 'Skrining',
     pemeriksaan: 'Pemeriksaan',
     farmasi: 'Farmasi',
-    kasir: 'Kasir',
     selesai: 'Selesai',
     batal: 'Dibatalkan',
 };
@@ -83,7 +85,7 @@ function StatCard({
     );
 }
 
-export default function DashboardPage({ stats, visitStatuses, visitsByDay }: DashboardProps) {
+export default function DashboardPage({ stats, visitStatuses, visitsByDay, utilization, canRegister }: DashboardProps) {
     const peakVisits = Math.max(1, ...visitsByDay.map((day) => day.jumlah));
 
     return (
@@ -96,12 +98,12 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay }: Das
                         <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Selamat datang di Klinik Pratama</h2>
                         <p className="mt-1 text-sm text-neutral-500">Pantau aktivitas pelayanan klinik hari ini.</p>
                     </div>
-                    <Button asChild>
+                    {canRegister && <Button asChild>
                         <a href="/pelayanan/kunjungan/create">
                             <ClipboardPlus className="size-4" />
                             Buat kunjungan
                         </a>
-                    </Button>
+                    </Button>}
                 </div>
 
                 <section aria-label="Ringkasan klinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -128,10 +130,10 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay }: Das
                     />
                     <StatCard
                         accent="bg-neutral-900 text-neutral-50"
-                        detail="Transaksi yang telah lunas"
-                        icon={<CircleDollarSign className="size-5" />}
-                        label="Pendapatan bulan ini"
-                        value={formatCurrency(stats.revenueThisMonth)}
+                        detail="Obat telah diserahkan hari ini"
+                        icon={<Pill className="size-5" />}
+                        label="Resep diserahkan"
+                        value={formatNumber(stats.prescriptionsToday)}
                     />
                 </section>
 
@@ -155,8 +157,8 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay }: Das
                             ))}
                             <div className="pt-2">
                                 <Button asChild className="w-full" variant="secondary">
-                                    <a href="/pelayanan/antrian">
-                                        Buka antrian
+                                    <a href={canRegister ? "/pelayanan/antrian" : "/laporan/utilisasi"}>
+                                        {canRegister ? 'Buka antrian' : 'Laporan utilisasi'}
                                         <ArrowUpRight className="size-4" />
                                     </a>
                                 </Button>
@@ -194,7 +196,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay }: Das
                             )}
                             <div className="mt-4 flex items-center justify-between text-xs text-neutral-500">
                                 <span>Data kunjungan harian</span>
-                                <a className="inline-flex items-center gap-1 font-medium text-neutral-700 hover:text-neutral-800" href="/laporan/kunjungan">
+                                <a className="inline-flex items-center gap-1 font-medium text-neutral-700 hover:text-neutral-800" href="/laporan/utilisasi">
                                     Lihat laporan <ArrowUpRight className="size-3.5" />
                                 </a>
                             </div>
@@ -202,7 +204,8 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay }: Das
                     </Card>
                 </section>
 
-                <section aria-label="Aksi cepat" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <UtilizationDetails report={utilization} />
+                {canRegister && <section aria-label="Aksi cepat" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {[
                         { label: 'Daftarkan pasien', href: '/pelayanan/pasien/create', icon: UsersRound },
                         { label: 'Buka kunjungan', href: '/pelayanan/kunjungan/create', icon: ClipboardPlus },
@@ -219,7 +222,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay }: Das
                             <ArrowUpRight className="size-4 text-neutral-400 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-neutral-700" />
                         </a>
                     ))}
-                </section>
+                </section>}
             </div>
         </>
     );

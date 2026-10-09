@@ -36,7 +36,7 @@ interface Props {
 
 const statusOptions = [
     ['menunggu', 'Menunggu'], ['screening', 'Skrining'], ['pemeriksaan', 'Pemeriksaan'],
-    ['farmasi', 'Farmasi'], ['kasir', 'Kasir'], ['selesai', 'Selesai'], ['batal', 'Dibatalkan'],
+    ['farmasi', 'Farmasi'], ['selesai', 'Selesai'], ['batal', 'Dibatalkan'],
 ];
 
 export default function ClinicVisits({ filters: initialFilters, clinics, stats, visits }: Props) {
@@ -58,7 +58,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={applyFilters}>
+                        <form className="grid gap-4 sm:grid-cols-2 sm:items-start xl:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={applyFilters}>
                             <Field htmlFor="visits-by-clinic" label="Poliklinik" required>
                                 <Select id="visits-by-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} required value={filters.poliklinikId}>
                                     <option value="">Pilih poliklinik</option>
@@ -74,7 +74,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                     {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                 </Select>
                             </Field>
-                            <Button disabled={clinics.length === 0} type="submit"><Search className="size-4" />Terapkan filter</Button>
+                            <Button className="sm:mt-7" disabled={clinics.length === 0} type="submit"><Search className="size-4" />Terapkan filter</Button>
                         </form>
                     </CardContent>
                 </Card>

@@ -46,7 +46,7 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_14rem_auto] sm:items-end" onSubmit={applyFilters}>
+                        <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_14rem_auto] sm:items-start" onSubmit={applyFilters}>
                             <Field htmlFor="patient-database-search" label="Cari pasien">
                                 <Input id="patient-database-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama, No. RM, NIK, atau telepon" value={filters.search} />
                             </Field>
@@ -55,7 +55,7 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                                     <option value="">Semua</option><option value="L">Laki-laki</option><option value="P">Perempuan</option>
                                 </Select>
                             </Field>
-                            <Button type="submit"><Search className="size-4" />Cari pasien</Button>
+                            <Button className="sm:mt-7" type="submit"><Search className="size-4" />Cari pasien</Button>
                         </form>
                     </CardContent>
                 </Card>

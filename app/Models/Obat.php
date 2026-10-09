@@ -29,6 +29,11 @@ class Obat extends Model
         return $this->hasMany(StokObat::class);
     }
 
+    public function batches(): HasMany
+    {
+        return $this->hasMany(ObatBatch::class);
+    }
+
     public function tindakanBhp(): HasMany
     {
         return $this->hasMany(TindakanBhp::class);

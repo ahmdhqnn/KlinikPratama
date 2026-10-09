@@ -9,6 +9,7 @@ use App\Models\Tindakan;
 use App\Models\TindakanBhp;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -73,7 +74,7 @@ class TindakanController extends Controller
     {
         $tindakan->load(['poliklinik', 'bhp.obat']);
         $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
-        $obatList = Obat::where('is_active', true)->orderBy('nama')->get();
+        $obatList = Obat::where('is_active', true)->where('jenis', 'bhp')->orderBy('nama')->get();
 
         return Inertia::render('master/tindakan/show', [
             'treatment' => [
@@ -104,14 +105,18 @@ class TindakanController extends Controller
             'nama' => ['required', 'string', 'max:200'],
             'kategori' => ['required', 'in:medis,lab'],
             'poliklinik_id' => ['nullable', 'exists:poliklinik,id'],
-            'tarif' => ['required', 'numeric', 'min:0'],
-            'tarif_dokter' => ['required', 'numeric', 'min:0'],
-            'tarif_asisten' => ['required', 'numeric', 'min:0'],
-            'tarif_klinik' => ['required', 'numeric', 'min:0'],
+            'tarif' => ['sometimes', 'numeric', 'min:0'],
+            'tarif_dokter' => ['sometimes', 'numeric', 'min:0'],
+            'tarif_asisten' => ['sometimes', 'numeric', 'min:0'],
+            'tarif_klinik' => ['sometimes', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['tarif'] = 0;
+        $data['tarif_dokter'] = 0;
+        $data['tarif_asisten'] = 0;
+        $data['tarif_klinik'] = 0;
         Tindakan::create($data);
 
         return back()->with('success', 'Tindakan berhasil ditambahkan.');
@@ -125,14 +130,18 @@ class TindakanController extends Controller
             'nama' => ['required', 'string', 'max:200'],
             'kategori' => ['required', 'in:medis,lab'],
             'poliklinik_id' => ['nullable', 'exists:poliklinik,id'],
-            'tarif' => ['required', 'numeric', 'min:0'],
-            'tarif_dokter' => ['required', 'numeric', 'min:0'],
-            'tarif_asisten' => ['required', 'numeric', 'min:0'],
-            'tarif_klinik' => ['required', 'numeric', 'min:0'],
+            'tarif' => ['sometimes', 'numeric', 'min:0'],
+            'tarif_dokter' => ['sometimes', 'numeric', 'min:0'],
+            'tarif_asisten' => ['sometimes', 'numeric', 'min:0'],
+            'tarif_klinik' => ['sometimes', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['tarif'] = 0;
+        $data['tarif_dokter'] = 0;
+        $data['tarif_asisten'] = 0;
+        $data['tarif_klinik'] = 0;
         $tindakan->update($data);
 
         return back()->with('success', 'Tindakan berhasil diperbarui.');
@@ -148,7 +157,7 @@ class TindakanController extends Controller
     public function storeBhp(Request $request, Tindakan $tindakan): RedirectResponse
     {
         $request->validate([
-            'obat_id' => ['required', 'exists:obat,id'],
+            'obat_id' => ['required', Rule::exists('obat', 'id')->where('jenis', 'bhp')->where('is_active', true)->whereNull('deleted_at')],
             'jumlah' => ['required', 'numeric', 'min:0.01'],
         ]);
 

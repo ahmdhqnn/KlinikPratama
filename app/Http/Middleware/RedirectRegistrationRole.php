@@ -43,14 +43,6 @@ class RedirectRegistrationRole
             abort(403, 'Unauthorized access.');
         }
 
-        if ($request->user()?->role === 'kasir' && ! $this->isAllowedForCashier($request)) {
-            if ($request->routeIs('dashboard')) {
-                return redirect()->route('pelayanan.kasir.index');
-            }
-
-            abort(403, 'Unauthorized access.');
-        }
-
         return $next($request);
     }
 
@@ -77,6 +69,7 @@ class RedirectRegistrationRole
         return $request->routeIs(
             'dokter.*',
             'pelayanan.pemeriksaan.*',
+            'pelayanan.icd10.search',
             'pelayanan.pasien.index',
             'pelayanan.pasien.show',
             'pelayanan.pasien.rekam-medis',
@@ -86,11 +79,6 @@ class RedirectRegistrationRole
 
     private function isAllowedForPharmacy(Request $request): bool
     {
-        return $request->routeIs('pelayanan.farmasi.*', 'logout');
-    }
-
-    private function isAllowedForCashier(Request $request): bool
-    {
-        return $request->routeIs('pelayanan.kasir.*', 'logout');
+        return $request->routeIs('pelayanan.farmasi.*', 'stok.persediaan.*', 'stok.batch.*', 'stok.mutasi.*', 'stok.purchase-order.*', 'logout');
     }
 }

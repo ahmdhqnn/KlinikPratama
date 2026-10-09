@@ -9,7 +9,7 @@ class Diagnosa extends Model
 {
     protected $table = 'diagnosa';
 
-    protected $fillable = ['pemeriksaan_id', 'kode_icd10', 'nama_diagnosa', 'jenis'];
+    protected $fillable = ['pemeriksaan_id', 'kode_icd10', 'code_system', 'code_release', 'nama_diagnosa', 'jenis'];
 
     public function pemeriksaan(): BelongsTo
     {

@@ -34,7 +34,7 @@ class TindakanInertiaTest extends TestCase
             'tarif_klinik' => 50000,
             'is_active' => true,
         ]);
-        $medicine = Obat::create([
+        $medicine = Obat::create(['jenis' => 'bhp',
             'kode' => 'BHP-001',
             'nama' => 'Benang jahit',
             'satuan_kecil' => 'pcs',
@@ -101,7 +101,7 @@ class TindakanInertiaTest extends TestCase
             'kategori' => 'medis',
             'is_active' => true,
         ]);
-        $medicine = Obat::create([
+        $medicine = Obat::create(['jenis' => 'bhp',
             'kode' => 'BHP-002',
             'nama' => 'Kasa steril',
             'is_active' => true,

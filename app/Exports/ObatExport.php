@@ -20,14 +20,14 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping, WithStyle
     {
         return [
             'Kode', 'Kode KFA', 'Nama', 'Satuan Besar', 'Satuan Kecil',
-            'Konversi', 'Harga Beli', 'Harga Jual', 'Stok', 'Stok Minimum',
+            'Konversi', 'Biaya per Satuan Stok', 'Stok Fisik', 'Stok Minimum',
             'Jenis', 'Indikasi', 'Kandungan',
         ];
     }
 
     public function map($obat): array
     {
-        return [
+        return array_map(fn ($value) => is_string($value) && preg_match('/^[=+@-]/', $value) ? chr(39).$value : $value, [
             $obat->kode,
             $obat->kode_kfa,
             $obat->nama,
@@ -35,13 +35,12 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping, WithStyle
             $obat->satuan_kecil,
             $obat->konversi_satuan,
             $obat->harga_beli,
-            $obat->harga_jual,
             $obat->stok,
             $obat->stok_minimum,
             $obat->jenis,
             $obat->indikasi,
             $obat->kandungan,
-        ];
+        ]);
     }
 
     public function styles(Worksheet $sheet): array

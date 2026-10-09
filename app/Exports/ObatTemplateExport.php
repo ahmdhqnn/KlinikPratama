@@ -12,7 +12,7 @@ class ObatTemplateExport implements FromArray, WithHeadings, WithStyles
     public function array(): array
     {
         return [
-            ['OBT001', '', 'Contoh Obat 500mg', 'Strip', 'Tablet', 10, 5000, 8000, 100, 20, 'obat', 'Untuk demam', 'Paracetamol'],
+            ['OBT001', '', 'Contoh Obat 500mg', 'Strip', 'Tablet', 10, 500, 20, 'obat', 'Untuk demam', 'Paracetamol'],
         ];
     }
 
@@ -20,7 +20,7 @@ class ObatTemplateExport implements FromArray, WithHeadings, WithStyles
     {
         return [
             'kode', 'kode_kfa', 'nama', 'satuan_besar', 'satuan_kecil',
-            'konversi_satuan', 'harga_beli', 'harga_jual', 'stok', 'stok_minimum',
+            'konversi_satuan', 'harga_beli', 'stok_minimum',
             'jenis', 'indikasi', 'kandungan',
         ];
     }

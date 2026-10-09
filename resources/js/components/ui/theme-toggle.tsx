@@ -3,12 +3,22 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 
 export function ThemeToggle({ className }: { className?: string }) {
-    const [isDarkMode, setIsDarkMode] = useState(() => typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
+    const [isDarkMode, setIsDarkMode] = useState(false);
+    const [isThemeReady, setIsThemeReady] = useState(false);
 
     useEffect(() => {
+        setIsDarkMode(document.documentElement.classList.contains('dark'));
+        setIsThemeReady(true);
+    }, []);
+
+    useEffect(() => {
+        if (!isThemeReady) {
+            return;
+        }
+
         document.documentElement.classList.toggle('dark', isDarkMode);
         window.localStorage.setItem('clinic-theme', isDarkMode ? 'dark' : 'light');
-    }, [isDarkMode]);
+    }, [isDarkMode, isThemeReady]);
 
     return (
         <Button

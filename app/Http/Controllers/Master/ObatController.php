@@ -5,12 +5,13 @@ namespace App\Http\Controllers\Master;
 use App\Exports\ObatExport;
 use App\Exports\ObatTemplateExport;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Stok\PersediaanController;
 use App\Imports\ObatImport;
 use App\Models\Obat;
 use App\Models\StokMutasi;
+use App\PersediaanRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -82,16 +83,17 @@ class ObatController extends Controller
             'satuan_kecil' => ['nullable', 'string', 'max:50'],
             'konversi_satuan' => ['required', 'numeric', 'min:1'],
             'harga_beli' => ['required', 'numeric', 'min:0'],
-            'harga_jual' => ['required', 'numeric', 'min:0'],
+            'harga_jual' => ['sometimes', 'numeric', 'min:0'],
             'indikasi' => ['nullable', 'string'],
             'kandungan' => ['nullable', 'string'],
-            'stok' => ['required', 'integer', 'min:0'],
+            'stok' => ['sometimes', 'integer', 'in:0'],
             'stok_minimum' => ['required', 'integer', 'min:0'],
             'jenis' => ['required', 'in:obat,bhp'],
             'is_active' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['harga_jual'] = 0;
         Obat::create($data);
 
         return back()->with('success', 'Obat berhasil ditambahkan.');
@@ -107,7 +109,7 @@ class ObatController extends Controller
             'satuan_kecil' => ['nullable', 'string', 'max:50'],
             'konversi_satuan' => ['required', 'numeric', 'min:1'],
             'harga_beli' => ['required', 'numeric', 'min:0'],
-            'harga_jual' => ['required', 'numeric', 'min:0'],
+            'harga_jual' => ['sometimes', 'numeric', 'min:0'],
             'indikasi' => ['nullable', 'string'],
             'kandungan' => ['nullable', 'string'],
             'stok_minimum' => ['required', 'integer', 'min:0'],
@@ -116,6 +118,7 @@ class ObatController extends Controller
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['harga_jual'] = 0;
         $obat->update($data);
 
         return back()->with('success', 'Obat berhasil diperbarui.');
@@ -168,30 +171,7 @@ class ObatController extends Controller
 
     public function tambahStok(Request $request, Obat $obat): RedirectResponse
     {
-        $data = $request->validate([
-            'jumlah' => ['required', 'integer', 'min:1'],
-            'keterangan' => ['nullable', 'string'],
-        ]);
-
-        DB::transaction(function () use ($data, $obat): void {
-            $lockedMedicine = Obat::query()->lockForUpdate()->findOrFail($obat->id);
-            $stockBefore = (float) $lockedMedicine->stok;
-            $stockAfter = $stockBefore + (float) $data['jumlah'];
-
-            $lockedMedicine->update(['stok' => $stockAfter]);
-
-            StokMutasi::create([
-                'obat_id' => $lockedMedicine->id,
-                'jenis' => 'masuk',
-                'jumlah' => $data['jumlah'],
-                'harga' => $lockedMedicine->harga_beli,
-                'stok_sebelum' => $stockBefore,
-                'stok_sesudah' => $stockAfter,
-                'keterangan' => $data['keterangan'] ?? 'Penambahan stok manual',
-            ]);
-        });
-
-        return back()->with('success', "Stok berhasil ditambah sebanyak {$data['jumlah']}.");
+        return app(PersediaanController::class)->receive($request, $obat, app(PersediaanRecorder::class));
     }
 
     public function export(): BinaryFileResponse

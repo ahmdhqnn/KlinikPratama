@@ -25,9 +25,9 @@ export function DateRangeFilter({ from: initialFrom, to: initialTo, route, expor
     }
 
     return (
-        <Card><CardContent className="flex flex-wrap items-end gap-4 p-5 sm:p-6"><form className="flex min-w-0 flex-1 flex-wrap items-end gap-4" onSubmit={filterReport}>
-            <div className="min-w-[min(100%,18rem)] flex-1"><Field htmlFor="report-period" label={periodLabel} required><DateRangePicker id="report-period" from={from} onChange={(range) => { setFrom(range.from); setTo(range.to); }} required to={to} /></Field></div>
-            <Button type="submit"><Search className="size-4" />Filter data</Button>
-        </form>{exportUrl && <Button asChild variant="secondary"><a href={exportUrl}><Download className="size-4" />Export Excel</a></Button>}</CardContent></Card>
+        <Card><CardContent className="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-6"><form className="grid min-w-0 gap-4 sm:grid-cols-[minmax(18rem,1fr)_auto] sm:items-start" onSubmit={filterReport}>
+            <Field htmlFor="report-period" label={periodLabel} required><DateRangePicker id="report-period" from={from} onChange={(range) => { setFrom(range.from); setTo(range.to); }} required to={to} /></Field>
+            <Button className="sm:mt-7" type="submit"><Search className="size-4" />Filter data</Button>
+        </form>{exportUrl && <Button asChild className="sm:mt-7" variant="secondary"><a href={exportUrl}><Download className="size-4" />Export Excel</a></Button>}</CardContent></Card>
     );
 }

@@ -10,6 +10,7 @@ use App\Models\Obat;
 use App\Models\Poliklinik;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -61,7 +62,7 @@ class LaboratoriumController extends Controller
     public function show(Laboratorium $laboratorium): Response
     {
         $laboratorium->load(['poliklinik', 'indikator', 'bhp.obat']);
-        $medicines = Obat::where('is_active', true)->orderBy('nama')->get();
+        $medicines = Obat::where('is_active', true)->where('jenis', 'bhp')->orderBy('nama')->get();
 
         return Inertia::render('master/laboratorium/show', [
             'laboratory' => [
@@ -101,12 +102,12 @@ class LaboratoriumController extends Controller
             'kode' => ['required', 'string', 'max:30', 'unique:laboratorium,kode'],
             'nama' => ['required', 'string', 'max:200'],
             'poliklinik_id' => ['nullable', 'exists:poliklinik,id'],
-            'tarif' => ['required', 'numeric', 'min:0'],
             'deskripsi' => ['nullable', 'string'],
             'is_active' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['tarif'] = 0;
         Laboratorium::create($data);
 
         return back()->with('success', 'Pemeriksaan lab berhasil ditambahkan.');
@@ -118,12 +119,12 @@ class LaboratoriumController extends Controller
             'kode' => ['required', 'string', 'max:30', "unique:laboratorium,kode,{$laboratorium->id}"],
             'nama' => ['required', 'string', 'max:200'],
             'poliklinik_id' => ['nullable', 'exists:poliklinik,id'],
-            'tarif' => ['required', 'numeric', 'min:0'],
             'deskripsi' => ['nullable', 'string'],
             'is_active' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['tarif'] = 0;
         $laboratorium->update($data);
 
         return back()->with('success', 'Pemeriksaan lab berhasil diperbarui.');
@@ -166,7 +167,7 @@ class LaboratoriumController extends Controller
     public function storeBhp(Request $request, Laboratorium $laboratorium): RedirectResponse
     {
         $data = $request->validate([
-            'obat_id' => ['required', 'exists:obat,id'],
+            'obat_id' => ['required', Rule::exists('obat', 'id')->where('jenis', 'bhp')->where('is_active', true)->whereNull('deleted_at')],
             'jumlah' => ['required', 'numeric', 'min:0.01'],
         ]);
 

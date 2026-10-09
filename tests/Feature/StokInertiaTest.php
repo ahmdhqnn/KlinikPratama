@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\DepoObat;
 use App\Models\Obat;
-use App\Models\PenjualanLangsung;
+use App\Models\ObatBatch;
 use App\Models\PurchaseOrder;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -38,20 +38,20 @@ class StokInertiaTest extends TestCase
 
         $this->from(route('stok.purchase-order.terima.form', $order))
             ->post(route('stok.purchase-order.terima', $order), [
-                'items' => [['id' => $orderItem->id, 'jumlah_terima' => 6]],
+                'items' => [['id' => $orderItem->id, 'nomor_batch' => 'TEST-PO', 'expired_at' => today()->addYear()->toDateString(), 'jumlah_terima' => 6]],
             ])
             ->assertSessionHasErrors('items.0.jumlah_terima');
         $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'stok' => 10]);
         $this->assertDatabaseCount('stok_mutasi', 0);
 
         $this->post(route('stok.purchase-order.terima', $order), [
-            'items' => [['id' => $orderItem->id, 'jumlah_terima' => 3]],
+            'items' => [['id' => $orderItem->id, 'nomor_batch' => 'TEST-PO-1', 'expired_at' => today()->addYear()->toDateString(), 'jumlah_terima' => 3]],
         ])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('purchase_order', ['id' => $order->id, 'status' => 'sebagian']);
         $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'stok' => 13]);
 
         $this->post(route('stok.purchase-order.terima', $order), [
-            'items' => [['id' => $orderItem->id, 'jumlah_terima' => 2]],
+            'items' => [['id' => $orderItem->id, 'nomor_batch' => 'TEST-PO-2', 'expired_at' => today()->addYear()->toDateString(), 'jumlah_terima' => 2]],
         ])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('purchase_order', ['id' => $order->id, 'status' => 'diterima']);
         $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'stok' => 15]);
@@ -76,7 +76,7 @@ class StokInertiaTest extends TestCase
 
         $this->actingAs($admin)->from(route('stok.purchase-order.terima.form', $order))
             ->post(route('stok.purchase-order.terima', $order), [
-                'items' => [['id' => $foreignItem->id, 'jumlah_terima' => 1]],
+                'items' => [['id' => $foreignItem->id, 'nomor_batch' => 'TEST-FOREIGN', 'expired_at' => today()->addYear()->toDateString(), 'jumlah_terima' => 1]],
             ])
             ->assertSessionHasErrors('items');
 
@@ -85,56 +85,15 @@ class StokInertiaTest extends TestCase
         $this->assertDatabaseCount('stok_mutasi', 0);
     }
 
-    public function test_direct_sale_uses_database_price_and_rejects_insufficient_stock_or_payment(): void
+    public function test_direct_sale_is_retired_without_changing_inventory(): void
     {
         $admin = $this->admin();
         $medicine = $this->medicine();
-
-        $this->actingAs($admin)->get(route('stok.penjualan-langsung.create'))
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('stok/penjualan-langsung/create')
-                ->where('medicines.0.price', 7000)
-            );
-
-        $this->from(route('stok.penjualan-langsung.create'))
-            ->post(route('stok.penjualan-langsung.store'), [
-                'nama_pembeli' => 'Pembeli Umum',
-                'metode_bayar' => 'qris',
-                'bayar' => 13999,
-                'items' => [['obat_id' => $medicine->id, 'jumlah' => 2, 'harga' => 1]],
-            ])
-            ->assertSessionHasErrors('bayar');
+        $this->actingAs($admin)->get(route('stok.penjualan-langsung.create'))->assertStatus(410);
+        $this->post(route('stok.penjualan-langsung.store'), ['bayar' => 100000, 'items' => [['obat_id' => $medicine->id, 'jumlah' => 2]]])->assertStatus(410);
         $this->assertDatabaseCount('penjualan_langsung', 0);
+        $this->assertDatabaseCount('stok_mutasi', 0);
         $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'stok' => 10]);
-
-        $this->from(route('stok.penjualan-langsung.create'))
-            ->post(route('stok.penjualan-langsung.store'), [
-                'metode_bayar' => 'tunai',
-                'bayar' => 70000,
-                'items' => [['obat_id' => $medicine->id, 'jumlah' => 11]],
-            ])
-            ->assertSessionHasErrors('items');
-        $this->assertDatabaseCount('penjualan_langsung', 0);
-        $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'stok' => 10]);
-
-        $this->post(route('stok.penjualan-langsung.store'), [
-            'metode_bayar' => 'qris',
-            'bayar' => 15000,
-            'items' => [['obat_id' => $medicine->id, 'jumlah' => 2, 'harga' => 1]],
-        ])->assertSessionHasNoErrors();
-
-        $this->assertDatabaseCount('penjualan_langsung', 1);
-        $sale = PenjualanLangsung::query()->firstOrFail();
-        $this->assertDatabaseHas('penjualan_langsung', ['id' => $sale->id, 'total' => 14000, 'kembalian' => 1000]);
-        $this->assertDatabaseHas('penjualan_langsung_item', ['penjualan_langsung_id' => $sale->id, 'harga' => 7000, 'total' => 14000]);
-        $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'stok' => 8]);
-        $this->assertDatabaseHas('stok_mutasi', ['referensi_id' => $sale->id, 'jenis' => 'keluar', 'jumlah' => 2, 'stok_sebelum' => 10, 'stok_sesudah' => 8]);
-        $this->get(route('stok.penjualan-langsung.nota', $sale))
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('stok/penjualan-langsung/nota')
-                ->where('receipt.total', 14000)
-                ->where('receipt.items.0.price', 7000)
-            );
     }
 
     private function admin(): User
@@ -150,7 +109,7 @@ class StokInertiaTest extends TestCase
 
     private function medicine(string $code = 'OBT-001', string $name = 'Paracetamol'): Obat
     {
-        return Obat::create([
+        $medicine = Obat::create([
             'kode' => $code,
             'nama' => $name,
             'satuan_kecil' => 'tablet',
@@ -159,6 +118,9 @@ class StokInertiaTest extends TestCase
             'stok' => 10,
             'is_active' => true,
         ]);
+        ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 10]);
+
+        return $medicine;
     }
 
     private function order(DepoObat $depot, Obat $medicine): PurchaseOrder

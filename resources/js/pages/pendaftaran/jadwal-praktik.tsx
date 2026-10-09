@@ -8,6 +8,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 
@@ -24,6 +25,8 @@ interface Schedule {
     start: string;
     end: string;
     active: boolean;
+    validFrom: string | null;
+    validUntil: string | null;
     deleteUrl: string;
 }
 
@@ -34,6 +37,7 @@ interface Props {
     clinics: Option[];
     days: string[];
     schedules: Schedule[];
+    today: string;
 }
 
 interface ScheduleForm {
@@ -42,11 +46,13 @@ interface ScheduleForm {
     hari: string;
     jam_mulai: string;
     jam_selesai: string;
+    berlaku_mulai: string;
+    berlaku_sampai: string;
 }
 
-export default function DoctorSchedule({ canManage, filters: initialFilters, doctors, clinics, days, schedules }: Props) {
+export default function DoctorSchedule({ canManage, filters: initialFilters, doctors, clinics, days, schedules, today }: Props) {
     const [filters, setFilters] = useState(initialFilters);
-    const form = useForm<ScheduleForm>({ dokter_id: '', poliklinik_id: '', hari: '', jam_mulai: '', jam_selesai: '' });
+    const form = useForm<ScheduleForm>({ dokter_id: '', poliklinik_id: '', hari: '', jam_mulai: '', jam_selesai: '', berlaku_mulai: today, berlaku_sampai: '' });
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -59,7 +65,7 @@ export default function DoctorSchedule({ canManage, filters: initialFilters, doc
 
     function createSchedule(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        form.post('/pendaftaran/jadwal-praktik', { preserveScroll: true, onSuccess: () => form.reset() });
+        form.post('/pendaftaran/jadwal-praktik', { preserveScroll: true, onSuccess: () => { form.reset(); form.setData('berlaku_mulai', today); } });
     }
 
     function deleteSchedule(schedule: Schedule) {
@@ -79,12 +85,12 @@ export default function DoctorSchedule({ canManage, filters: initialFilters, doc
                     <CardHeader>
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Plus className="size-5" /></span>
-                            <div><CardTitle>Tambah jadwal praktik</CardTitle><CardDescription className="mt-1">Kombinasi dokter, poliklinik, dan hari hanya dapat dibuat satu kali.</CardDescription></div>
+                            <div><CardTitle>Tambah jadwal praktik</CardTitle><CardDescription className="mt-1">Atur masa berlaku jadwal; periode untuk dokter dan poli yang sama tidak boleh bertumpuk.</CardDescription></div>
                         </div>
                     </CardHeader>
                     <CardContent>
                         <form className="space-y-4" onSubmit={createSchedule}>
-                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_2fr]">
                                 <Field error={form.errors.dokter_id} htmlFor="schedule-doctor" label="Dokter" required>
                                     <Select id="schedule-doctor" onChange={(event) => form.setData('dokter_id', event.target.value)} required value={form.data.dokter_id}>
                                         <option value="">Pilih dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
@@ -106,6 +112,7 @@ export default function DoctorSchedule({ canManage, filters: initialFilters, doc
                                 <Field error={form.errors.jam_selesai} htmlFor="schedule-end" label="Jam selesai" required>
                                     <Input id="schedule-end" min={form.data.jam_mulai} onChange={(event) => form.setData('jam_selesai', event.target.value)} required type="time" value={form.data.jam_selesai} />
                                 </Field>
+                                <Field error={form.errors.berlaku_mulai || form.errors.berlaku_sampai} htmlFor="schedule-validity" label="Masa berlaku" required><DateRangePicker id="schedule-validity" from={form.data.berlaku_mulai} to={form.data.berlaku_sampai} min={today} required onChange={(range) => { form.setData('berlaku_mulai', range.from); form.setData('berlaku_sampai', range.to); }} /></Field>
                             </div>
                             <Button disabled={form.processing || doctors.length === 0 || clinics.length === 0} type="submit"><Plus className="size-4" />{form.processing ? 'Menyimpan…' : 'Tambah jadwal'}</Button>
                         </form>
@@ -113,7 +120,7 @@ export default function DoctorSchedule({ canManage, filters: initialFilters, doc
                 </Card>}
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[1fr_1fr_1fr_auto_auto]" onSubmit={applyFilters}>
+                        <form className="grid gap-4 sm:grid-cols-2 sm:items-start xl:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={applyFilters}>
                             <Field htmlFor="schedule-doctor-filter" label="Dokter">
                                 <Select id="schedule-doctor-filter" onChange={(event) => setFilters({ ...filters, dokterId: event.target.value ? Number(event.target.value) : '' })} value={filters.dokterId}>
                                     <option value="">Semua dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
@@ -129,8 +136,7 @@ export default function DoctorSchedule({ canManage, filters: initialFilters, doc
                                     <option value="">Semua hari</option>{days.map((day) => <option key={day} value={day}>{capitalize(day)}</option>)}
                                 </Select>
                             </Field>
-                            <Button type="submit"><CalendarDays className="size-4" />Filter jadwal</Button>
-                            <Button asChild variant="secondary"><Link href="/pendaftaran/jadwal-praktik">Reset</Link></Button>
+                            <div className="flex gap-3 sm:mt-7"><Button type="submit"><CalendarDays className="size-4" />Filter jadwal</Button><Button asChild variant="secondary"><Link href="/pendaftaran/jadwal-praktik">Reset</Link></Button></div>
                         </form>
                     </CardContent>
                 </Card>
@@ -148,7 +154,7 @@ export default function DoctorSchedule({ canManage, filters: initialFilters, doc
                                             <TableCell className="font-medium text-neutral-900">{schedule.doctor}</TableCell>
                                             <TableCell className="text-neutral-600">{schedule.clinic}</TableCell>
                                             <TableCell><span className="rounded-full bg-neutral-50 px-2.5 py-1 text-xs font-semibold capitalize text-neutral-700">{schedule.day}</span></TableCell>
-                                            <TableCell><span className="inline-flex items-center gap-2 font-mono text-xs text-neutral-600"><Clock3 className="size-3.5" />{schedule.start} – {schedule.end}</span></TableCell>
+                                            <TableCell><span className="inline-flex items-center gap-2 font-mono text-xs text-neutral-600"><Clock3 className="size-3.5" />{schedule.start} – {schedule.end}</span><span className="mt-1 block text-xs text-neutral-500">{schedule.validFrom ?? '1970-01-01'} s.d. {schedule.validUntil ?? 'seterusnya'}</span></TableCell>
                                             <TableCell><Badge variant={schedule.active ? 'complete' : 'cancelled'}>{schedule.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell>
                                             <TableCell className="text-right">{canManage ? <Button aria-label={`Hapus jadwal ${schedule.doctor} ${schedule.day}`} onClick={() => deleteSchedule(schedule)} size="icon" type="button" variant="ghost"><Trash2 className="size-4 text-red-600" /></Button> : <span className="text-xs text-neutral-400">—</span>}</TableCell>
                                         </TableRow>

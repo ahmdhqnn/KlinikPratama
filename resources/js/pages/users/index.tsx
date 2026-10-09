@@ -37,7 +37,7 @@ const roleStyles: Record<string, string> = {
     dokter: 'bg-neutral-50 text-neutral-700',
     perawat: 'bg-neutral-50 text-neutral-700',
     farmasi: 'bg-neutral-50 text-neutral-700',
-    kasir: 'bg-neutral-50 text-neutral-700',
+    manajemen: 'bg-neutral-50 text-neutral-700',
     pendaftaran: 'bg-neutral-50 text-neutral-700',
 };
 

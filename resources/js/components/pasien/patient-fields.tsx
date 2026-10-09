@@ -1,19 +1,23 @@
+import { MembershipIdentityFields } from '@/components/pasien/membership-identity-fields';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Select, type SelectChangeEvent } from '@/components/ui/select';
-import type { DatePickerChangeEvent } from '@/components/ui/date-picker';
-import { Textarea } from '@/components/ui/textarea';
-import { DateOfBirthPicker } from '@/components/ui/date-picker';
 
 export interface PatientFormData {
+    kepesertaan_id: string;
     nama: string;
     nik: string;
+    nip: string;
+    unit_kerja: string;
+    tempat_lahir: string;
     tanggal_lahir: string;
     jenis_kelamin: string;
     golongan_darah: string;
     agama: string;
+    rt: string;
+    rw: string;
+    kelurahan: string;
+    kecamatan: string;
     telepon: string;
-    pekerjaan: string;
     alamat: string;
     asuransi_id: string;
     no_asuransi: string;
@@ -30,43 +34,37 @@ interface Props {
     errors: Partial<Record<keyof PatientFormData, string>>;
     insuranceProviders: InsuranceProvider[];
     onChange: (field: keyof PatientFormData, value: string) => void;
+    showPhone?: boolean;
 }
 
-export function PatientFields({ data, errors, insuranceProviders, onChange }: Props) {
-    const field = (name: keyof PatientFormData, value: string) => ({
-        id: name,
-        onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement> | SelectChangeEvent | DatePickerChangeEvent) => onChange(name, event.target.value),
-        value,
-    });
-
+export function PatientFields({ data, errors, onChange, showPhone = true }: Props) {
     return (
         <div className="space-y-7">
-            <section className="space-y-4">
-                <div><h3 className="text-sm font-semibold text-neutral-950">Data pribadi</h3><p className="mt-1 text-sm text-neutral-500">Informasi identitas pasien untuk rekam medis.</p></div>
-                <div className="grid gap-4 md:grid-cols-2">
-                    <Field error={errors.nama} htmlFor="nama" label="Nama lengkap" required><Input {...field('nama', data.nama)} autoComplete="name" required /></Field>
-                    <Field error={errors.nik} htmlFor="nik" label="NIK"><Input {...field('nik', data.nik)} inputMode="numeric" maxLength={16} /></Field>
-                    <Field error={errors.tanggal_lahir} htmlFor="tanggal_lahir" label="Tanggal lahir"><DateOfBirthPicker {...field('tanggal_lahir', data.tanggal_lahir)} /></Field>
-                    <Field error={errors.jenis_kelamin} htmlFor="jenis_kelamin" label="Jenis kelamin"><Select {...field('jenis_kelamin', data.jenis_kelamin)}><option value="">Belum dipilih</option><option value="L">Laki-laki</option><option value="P">Perempuan</option></Select></Field>
-                    <Field error={errors.golongan_darah} htmlFor="golongan_darah" label="Golongan darah"><Select {...field('golongan_darah', data.golongan_darah)}><option value="">Belum diketahui</option>{['A', 'B', 'AB', 'O'].map((bloodType) => <option key={bloodType}>{bloodType}</option>)}</Select></Field>
-                    <Field error={errors.agama} htmlFor="agama" label="Agama"><Select {...field('agama', data.agama)}><option value="">Belum dipilih</option>{['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'].map((religion) => <option key={religion}>{religion}</option>)}</Select></Field>
-                </div>
-            </section>
-            <section className="space-y-4">
+            <MembershipIdentityFields
+                value={data.kepesertaan_id}
+                error={errors.kepesertaan_id}
+                identity={{
+                    name: data.nama, nik: data.nik || null, nip: data.nip || null, unit: data.unit_kerja,
+                    tempatLahir: data.tempat_lahir || null, tanggalLahir: data.tanggal_lahir || null,
+                    jenisKelamin: data.jenis_kelamin || null, agama: data.agama || null, golonganDarah: data.golongan_darah || null,
+                    alamat: data.alamat || null, rt: data.rt || null, rw: data.rw || null,
+                    kelurahan: data.kelurahan || null, kecamatan: data.kecamatan || null,
+                }}
+                onSelect={(member) => {
+                    onChange('kepesertaan_id', String(member.id)); onChange('nama', member.name); onChange('nik', member.nik ?? '');
+                    onChange('nip', member.nip ?? ''); onChange('unit_kerja', member.unit); onChange('tempat_lahir', member.tempatLahir ?? '');
+                    onChange('tanggal_lahir', member.tanggalLahir ?? ''); onChange('jenis_kelamin', member.jenisKelamin ?? '');
+                    onChange('agama', member.agama ?? ''); onChange('golongan_darah', member.golonganDarah ?? '');
+                    onChange('alamat', member.alamat ?? ''); onChange('rt', member.rt ?? ''); onChange('rw', member.rw ?? '');
+                    onChange('kelurahan', member.kelurahan ?? ''); onChange('kecamatan', member.kecamatan ?? '');
+                }}
+            />
+            {showPhone && <section className="space-y-4">
                 <div><h3 className="text-sm font-semibold text-neutral-950">Kontak dan alamat</h3><p className="mt-1 text-sm text-neutral-500">Gunakan nomor telepon yang dapat dihubungi.</p></div>
                 <div className="grid gap-4 md:grid-cols-2">
-                    <Field error={errors.telepon} htmlFor="telepon" label="Nomor telepon"><Input {...field('telepon', data.telepon)} autoComplete="tel" type="tel" /></Field>
-                    <Field error={errors.pekerjaan} htmlFor="pekerjaan" label="Pekerjaan"><Input {...field('pekerjaan', data.pekerjaan)} /></Field>
-                    <div className="md:col-span-2"><Field error={errors.alamat} htmlFor="alamat" label="Alamat lengkap"><Textarea {...field('alamat', data.alamat)} rows={3} /></Field></div>
+                    <Field error={errors.telepon} htmlFor="telepon" label="Nomor telepon"><Input id="telepon" value={data.telepon} onChange={(event) => onChange('telepon', event.target.value)} autoComplete="tel" type="tel" /></Field>
                 </div>
-            </section>
-            <section className="space-y-4">
-                <div><h3 className="text-sm font-semibold text-neutral-950">Penjamin</h3><p className="mt-1 text-sm text-neutral-500">Isi informasi penjamin pasien bila tersedia.</p></div>
-                <div className="grid gap-4 md:grid-cols-2">
-                    <Field error={errors.asuransi_id} htmlFor="asuransi_id" label="Penjamin"><Select {...field('asuransi_id', data.asuransi_id)}><option value="">Umum (bayar sendiri)</option>{insuranceProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.name} ({provider.type.toUpperCase()})</option>)}</Select></Field>
-                    <Field error={errors.no_asuransi} htmlFor="no_asuransi" label="Nomor kartu penjamin"><Input {...field('no_asuransi', data.no_asuransi)} /></Field>
-                </div>
-            </section>
+            </section>}
         </div>
     );
 }

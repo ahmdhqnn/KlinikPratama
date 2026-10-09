@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Kepesertaan;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Pasien;
@@ -78,6 +79,8 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
         $inactive = Poliklinik::create(['kode' => 'PG-LAMA', 'nama' => 'Poli Gigi Lama', 'jenis' => 'gigi', 'is_active' => false]);
         $patient = Pasien::create(['no_rm' => 'RM-POLI-1', 'nama' => 'Pasien Uji']);
 
+        $member = Kepesertaan::factory()->create(['nama' => $patient->nama]);
+        $patient->update(['kepesertaan_id' => $member->id, 'nik' => $member->nik]);
         $this->actingAs($registration)->get(route('pendaftaran.pendaftaran-lama'))->assertInertia(fn (Assert $page) => $page
             ->has('clinics', 2)
             ->where('clinics.0.name', 'Poli Gigi')
