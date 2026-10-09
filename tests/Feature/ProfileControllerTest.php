@@ -19,7 +19,7 @@ class ProfileControllerTest extends TestCase
     {
         $this->get(route('profile.show'))->assertRedirect(route('login'));
 
-        foreach (['admin', 'dokter', 'perawat', 'farmasi', 'kasir', 'pendaftaran'] as $role) {
+        foreach (['admin', 'dokter', 'perawat', 'farmasi', 'manajemen', 'pendaftaran'] as $role) {
             $user = User::factory()->create(['role' => $role, 'is_active' => true]);
 
             $this->actingAs($user)->get(route('profile.show'))
@@ -108,7 +108,7 @@ class ProfileControllerTest extends TestCase
 
     public function test_user_can_change_own_password_with_current_password(): void
     {
-        $user = User::factory()->create(['role' => 'kasir', 'is_active' => true]);
+        $user = User::factory()->create(['role' => 'manajemen', 'is_active' => true]);
 
         $this->actingAs($user)->put(route('profile.password'), [
             'current_password' => 'password',
@@ -123,7 +123,7 @@ class ProfileControllerTest extends TestCase
     {
         Storage::fake('local');
         $user = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
-        $other = User::factory()->create(['role' => 'kasir', 'is_active' => true]);
+        $other = User::factory()->create(['role' => 'manajemen', 'is_active' => true]);
 
         $this->actingAs($user)->post(route('profile.photo.upload'), [
             'photo' => UploadedFile::fake()->image('portrait.png'),

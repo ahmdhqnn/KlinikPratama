@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Diagnosa;
 use App\Models\JadwalDokter;
+use App\Models\Kepesertaan;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Pasien;
@@ -243,19 +244,18 @@ class RegistrationRoleTest extends TestCase
             'is_active' => true,
         ]);
 
+        $member = Kepesertaan::factory()->create([
+            'nama' => 'Siti Pasien', 'nik' => '3201234567890001', 'tempat_lahir' => 'Bandung',
+            'tanggal_lahir' => '1995-08-17', 'jenis_kelamin' => 'P', 'golongan_darah' => 'O', 'agama' => 'Islam',
+            'alamat' => 'Jl. Melati', 'rt' => '001', 'rw' => '002', 'kelurahan' => 'Sukamaju', 'kecamatan' => 'Cibeunying',
+        ]);
         $response = $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
-            'nama' => 'Siti Pasien',
-            'nik' => '3201234567890001',
-            'tempat_lahir' => 'Bandung',
-            'tanggal_lahir' => '1995-08-17',
-            'jenis_kelamin' => 'P',
-            'golongan_darah' => 'O',
+            'kepesertaan_id' => $member->id,
+            'nama' => 'IDENTITAS PALSU',
+            'nik' => '9999999999999999',
+            'tanggal_lahir' => '2000-01-01',
+            'jenis_kelamin' => 'L',
             'nama_ibu' => 'Ibu Siti',
-            'alamat' => 'Jl. Melati',
-            'rt' => '001',
-            'rw' => '002',
-            'kelurahan' => 'Sukamaju',
-            'kecamatan' => 'Cibeunying',
             'telepon' => '081234567890',
             'poliklinik_id' => $poliklinik->id,
             'jenis_bayar' => 'umum',
@@ -265,12 +265,16 @@ class RegistrationRoleTest extends TestCase
         $response->assertRedirect(route('pendaftaran.laporan-kunjungan'));
         $this->assertSame('RM-000001', $pasien->no_rm);
         $this->assertSame('3201234567890001', $pasien->nik);
+        $this->assertSame('1995-08-17', $pasien->tanggal_lahir?->toDateString());
+        $this->assertSame('P', $pasien->jenis_kelamin);
+        $this->assertSame('Jl. Melati', $pasien->alamat);
+        $this->assertSame('001', $pasien->rt);
         $this->assertSame('081234567890', $pasien->telepon);
         $this->assertDatabaseHas('kunjungan', [
             'pasien_id' => $pasien->id,
             'poliklinik_id' => $poliklinik->id,
             'jenis_pasien' => 'baru',
-            'jenis_bayar' => 'umum',
+            'jenis_bayar' => 'internal',
             'status' => 'menunggu',
         ]);
         $this->actingAs($user)->get(route('pendaftaran.laporan-kunjungan', ['tanggal' => today()->toDateString()]))
@@ -397,6 +401,8 @@ class RegistrationRoleTest extends TestCase
             'jenis_kelamin' => 'L',
             'tanggal_lahir' => '1980-05-10',
         ]);
+        $member = Kepesertaan::factory()->create(['nama' => $pasien->nama]);
+        $pasien->update(['kepesertaan_id' => $member->id, 'nik' => $member->nik]);
         $dokter = Nakes::create([
             'kode' => 'DR-01',
             'nama' => 'Dokter Aktif',
@@ -426,6 +432,33 @@ class RegistrationRoleTest extends TestCase
             'dokter_id' => $dokter->id,
             'jenis_pasien' => 'lama',
         ]);
+    }
+
+    public function test_future_practice_schedules_keep_their_validity_period_and_reject_overlaps(): void
+    {
+        $registrationUser = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
+        $clinic = Poliklinik::create(['kode' => 'UMUM', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $doctor = Nakes::create(['kode' => 'DR-10', 'nama' => 'Dokter Jadwal', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
+        $scheduleData = [
+            'dokter_id' => $doctor->id,
+            'poliklinik_id' => $clinic->id,
+            'hari' => 'jumat',
+            'jam_mulai' => '08:00',
+            'jam_selesai' => '12:00',
+            'berlaku_mulai' => '2026-10-16',
+            'berlaku_sampai' => '2026-10-30',
+        ];
+
+        $this->actingAs($registrationUser)->post(route('pendaftaran.store-jadwal-praktik'), $scheduleData)
+            ->assertSessionHasNoErrors();
+
+        $schedule = JadwalDokter::where('dokter_id', $doctor->id)->firstOrFail();
+        $this->assertSame('2026-10-16', $schedule->berlaku_mulai?->toDateString());
+        $this->assertSame('2026-10-30', $schedule->berlaku_sampai?->toDateString());
+
+        $this->post(route('pendaftaran.store-jadwal-praktik'), [...$scheduleData, 'berlaku_mulai' => '2026-10-23', 'berlaku_sampai' => '2026-11-06'])
+            ->assertSessionHasErrors('hari');
+        $this->assertDatabaseCount('jadwal_dokter', 1);
     }
 
     public function test_top_diagnosis_report_uses_recorded_diagnosis_rows(): void

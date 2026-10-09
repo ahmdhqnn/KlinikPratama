@@ -68,14 +68,8 @@ class LaporanInertiaTest extends TestCase
             ->where('visits.data.0.patient', 'Pasien Laporan')
         );
 
-        $this->get(route('laporan.pendapatan', [
-            'dari' => today()->toDateString(),
-            'sampai' => today()->toDateString(),
-        ]))->assertInertia(fn (Assert $page) => $page
-            ->component('laporan/pendapatan')
-            ->where('stats.revenue', 25000)
-            ->where('invoices.data.0.number', $invoice->no_tagihan)
-        );
+        $this->get(route('laporan.pendapatan'))->assertStatus(410);
+        $this->get(route('laporan.utilisasi'))->assertInertia(fn (Assert $page) => $page->component('laporan/utilisasi')->where('report.stats.visits', 1)->where('report.stats.medicineCost', 0));
 
         $this->get(route('laporan.stok', ['jenis' => 'obat', 'stok_rendah' => 1]))
             ->assertInertia(fn (Assert $page) => $page

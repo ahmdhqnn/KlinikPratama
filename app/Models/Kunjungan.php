@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\ClinicDocumentNumber;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,10 +15,11 @@ class Kunjungan extends Model
     protected $fillable = [
         'no_kunjungan', 'pasien_id', 'poliklinik_id', 'dokter_id',
         'asuransi_id', 'tanggal', 'status', 'jenis_pasien',
-        'jenis_bayar', 'catatan',
+        'jenis_bayar', 'catatan', 'hak_layanan_snapshot', 'verified_by', 'verified_at',
+        'cost_center', 'unit_kerja', 'kategori_peserta',
     ];
 
-    protected $casts = ['tanggal' => 'date'];
+    protected $casts = ['tanggal' => 'date', 'hak_layanan_snapshot' => 'array', 'verified_at' => 'datetime'];
 
     public function pasien(): BelongsTo
     {
@@ -97,8 +99,7 @@ class Kunjungan extends Model
     public static function generateNomor(): string
     {
         $date = now()->format('Ymd');
-        $count = static::whereDate('created_at', today())->count();
 
-        return 'KNJ-'.$date.'-'.str_pad($count + 1, 4, '0', STR_PAD_LEFT);
+        return app(ClinicDocumentNumber::class)->next('kunjungan-'.$date, 'KNJ-'.$date.'-', 4, 'kunjungan', 'no_kunjungan');
     }
 }

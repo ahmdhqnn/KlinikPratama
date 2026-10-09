@@ -34,6 +34,7 @@ class LaboratoriumInertiaTest extends TestCase
         $medicine = Obat::create([
             'kode' => 'BHP-LAB-001',
             'nama' => 'Tabung EDTA',
+            'jenis' => 'bhp',
             'satuan_kecil' => 'pcs',
             'stok' => 100,
             'is_active' => true,
@@ -55,6 +56,10 @@ class LaboratoriumInertiaTest extends TestCase
             'deskripsi' => 'Pemeriksaan hematologi rutin',
             'is_active' => true,
         ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('laboratorium', ['id' => $laboratory->id, 'tarif' => 0]);
+        $this->post(route('master.laboratorium.store'), ['kode' => 'LAB-002', 'nama' => 'Pemeriksaan internal', 'is_active' => true])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('laboratorium', ['kode' => 'LAB-002', 'tarif' => 0]);
 
         $this->post(route('master.laboratorium.indikator.store', $laboratory), [
             'nama' => 'Hemoglobin',

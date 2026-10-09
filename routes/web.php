@@ -3,11 +3,13 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DokterDashboardController;
+use App\Http\Controllers\KepesertaanController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\Master\AlkesController;
 use App\Http\Controllers\Master\AsuransiController;
 use App\Http\Controllers\Master\BiayaAdminController;
 use App\Http\Controllers\Master\BiayaPendaftaranController;
+use App\Http\Controllers\Master\ClinicalTerminologyController;
 use App\Http\Controllers\Master\DepoObatController;
 use App\Http\Controllers\Master\LaboratoriumController;
 use App\Http\Controllers\Master\NakesController;
@@ -26,8 +28,10 @@ use App\Http\Controllers\PerawatDashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\Stok\PenjualanLangsungController;
+use App\Http\Controllers\Stok\PersediaanController;
 use App\Http\Controllers\Stok\PurchaseOrderController;
 use App\Http\Controllers\UserController;
+use App\Http\Middleware\DisablePatientBilling;
 use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsureRegistrationRole;
 use App\Http\Middleware\EnsureRole;
@@ -39,7 +43,7 @@ Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->
 Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
-Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,kasir,pendaftaran'])->prefix('profile')->name('profile.')->group(function (): void {
+Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pendaftaran,manajemen'])->prefix('profile')->name('profile.')->group(function (): void {
     Route::get('/', [ProfileController::class, 'show'])->name('show');
     Route::put('/', [ProfileController::class, 'update'])->name('update');
     Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password');
@@ -49,7 +53,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,kasi
 });
 
 // Authenticated routes
-Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,kasir,pendaftaran', RedirectRegistrationRole::class])->group(function () {
+Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pendaftaran,manajemen', DisablePatientBilling::class, RedirectRegistrationRole::class])->group(function () {
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/perawat/dashboard', PerawatDashboardController::class)
@@ -64,8 +68,33 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,kasi
         Route::get('laporan-top-diagnosa', [DokterDashboardController::class, 'topDiagnoses'])->name('laporan-top-diagnosa');
     });
 
+    Route::prefix('kepesertaan')->name('kepesertaan.')->withoutMiddleware(RedirectRegistrationRole::class)->middleware(EnsureRole::class.':admin,pendaftaran')->group(function (): void {
+        Route::get('/', [KepesertaanController::class, 'index'])->name('index');
+        Route::get('search', [KepesertaanController::class, 'search'])->name('search');
+        Route::get('template', [KepesertaanController::class, 'template'])->name('template');
+        Route::post('import', [KepesertaanController::class, 'import'])->name('import');
+        Route::post('/', [KepesertaanController::class, 'store'])->name('store');
+        Route::get('{kepesertaan}', [KepesertaanController::class, 'show'])->name('show');
+        Route::put('{kepesertaan}', [KepesertaanController::class, 'update'])->name('update');
+    });
+    Route::prefix('stok')->name('stok.')->middleware(EnsureRole::class.':admin,farmasi')->group(function (): void {
+        Route::get('persediaan', [PersediaanController::class, 'index'])->name('persediaan.index');
+        Route::get('persediaan/{obat}', [PersediaanController::class, 'show'])->name('persediaan.show');
+        Route::post('persediaan/{obat}/terima', [PersediaanController::class, 'receive'])->name('persediaan.receive');
+        Route::post('batch/{batch}/opname', [PersediaanController::class, 'adjust'])->name('batch.adjust');
+        Route::post('batch/{batch}/verifikasi', [PersediaanController::class, 'reconcile'])->name('batch.reconcile');
+        Route::post('batch/{batch}/mutasi', [PersediaanController::class, 'transfer'])->name('batch.transfer');
+        Route::post('mutasi/{mutasi}/retur', [PersediaanController::class, 'returnDispensing'])->name('mutasi.return');
+    });
+    Route::middleware(EnsureRole::class.':admin,manajemen')->group(function (): void {
+        Route::get('laporan/utilisasi', [LaporanController::class, 'utilisasi'])->name('laporan.utilisasi');
+        Route::get('laporan/utilisasi/export', [LaporanController::class, 'exportUtilisasi'])->name('laporan.utilisasi.export');
+    });
+
     // Master Data
     Route::prefix('master')->name('master.')->middleware(EnsureAdminRole::class)->group(function () {
+        Route::get('terminologi-klinis', [ClinicalTerminologyController::class, 'index'])->name('terminologi.index');
+        Route::post('terminologi-klinis/import', [ClinicalTerminologyController::class, 'import'])->name('terminologi.import');
         Route::resource('depo-obat', DepoObatController::class);
         Route::resource('poliklinik', PoliklinikController::class);
         Route::post('poliklinik/{poliklinik}/ruang', [PoliklinikController::class, 'storeRuang'])->name('poliklinik.ruang.store');
@@ -104,6 +133,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,kasi
     // Pelayanan
     Route::prefix('pelayanan')->name('pelayanan.')->group(function () {
         Route::middleware(EnsureAdminRole::class)->group(function (): void {
+            Route::post('pasien/{pasien}/verifikasi-hak-khusus', [PasienController::class, 'verifySpecialAccess'])->name('pasien.verify-special-access');
             Route::resource('pasien', PasienController::class)->except(['index', 'show']);
         });
         Route::middleware(EnsureRole::class.':admin,perawat,pendaftaran,dokter')->group(function (): void {
@@ -124,6 +154,10 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,kasi
             Route::get('antrian', [KunjunganController::class, 'antrian'])->name('antrian');
             Route::post('kunjungan/{kunjungan}/batal', [KunjunganController::class, 'batal'])->name('kunjungan.batal');
         });
+        Route::get('dokter/by-poli', [KunjunganController::class, 'doctorsByClinic'])
+            ->withoutMiddleware(RedirectRegistrationRole::class)
+            ->middleware(EnsureRole::class.':admin,pendaftaran')
+            ->name('dokter.by-poli');
 
         Route::middleware(EnsureRole::class.':perawat')->group(function (): void {
             Route::get('screening', [ScreeningController::class, 'index'])->name('screening.index');
@@ -169,7 +203,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,kasi
     });
 
     // Manajemen Stok
-    Route::prefix('stok')->name('stok.')->middleware(EnsureAdminRole::class)->group(function () {
+    Route::prefix('stok')->name('stok.')->middleware(EnsureRole::class.':admin,farmasi')->group(function () {
         Route::resource('purchase-order', PurchaseOrderController::class);
         Route::post('purchase-order/{purchaseOrder}/kirim', [PurchaseOrderController::class, 'kirim'])->name('purchase-order.kirim');
         Route::get('purchase-order/{purchaseOrder}/terima', [PurchaseOrderController::class, 'terimaBarang'])->name('purchase-order.terima.form');

@@ -23,12 +23,20 @@ interface Patient {
     medicalRecordNumber: string;
     name: string;
     nik: string | null;
+    memberNip: string | null;
+    unit: string | null;
+    birthPlace: string | null;
     birthDate: string | null;
     gender: string | null;
     age: number | null;
     bloodType: string | null;
+    religion: string | null;
     phone: string | null;
     address: string | null;
+    rt: string | null;
+    rw: string | null;
+    village: string | null;
+    district: string | null;
     insurance: string;
     insuranceType: string | null;
     insuranceNumber: string | null;
@@ -55,12 +63,18 @@ export default function PatientDetail({ patient, permissions }: { patient: Patie
                         <CardHeader><div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-neutral-50 text-neutral-700"><UserRound className="size-8" /></div><CardTitle className="text-center">Informasi pasien</CardTitle><CardDescription className="text-center">{patient.gender === 'L' ? 'Laki-laki' : patient.gender === 'P' ? 'Perempuan' : 'Jenis kelamin belum diisi'} · {patient.age === null ? 'umur belum diketahui' : `${patient.age} tahun`}</CardDescription></CardHeader>
                         <CardContent className="space-y-4">
                             <Info label="NIK" value={patient.nik} />
+                            <Info label="NIP" value={patient.memberNip} />
+                            <Info label="Unit kerja" value={patient.unit} />
+                            <Info label="Tempat lahir" value={patient.birthPlace} />
                             <Info label="Tanggal lahir" value={patient.birthDate} />
+                            <Info label="Agama" value={patient.religion} />
                             <Info label="Golongan darah" value={patient.bloodType} />
                             <Info label="Nomor telepon" value={patient.phone} />
                             <Info label="Alamat" value={patient.address} />
-                            <Info label="Penjamin" value={patient.insurance} />
-                            {patient.insuranceNumber && <Info label="Nomor kartu penjamin" value={patient.insuranceNumber} />}
+                            <Info label="RT / RW" value={patient.rt || patient.rw ? `${patient.rt || '—'} / ${patient.rw || '—'}` : null} />
+                            <Info label="Kelurahan/desa" value={patient.village} />
+                            <Info label="Kecamatan" value={patient.district} />
+                            <Info label="Kategori kepesertaan" value={patient.insurance} />
                             {patient.allergies && <div className="rounded-xl border border-red-200 bg-red-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-red-700">Riwayat alergi</p><p className="mt-1 text-sm font-medium text-red-900">{patient.allergies}</p></div>}
                         </CardContent>
                     </Card>

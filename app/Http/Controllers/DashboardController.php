@@ -2,51 +2,38 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Farmasi;
 use App\Models\Kunjungan;
 use App\Models\Pasien;
-use App\Models\Tagihan;
+use App\UtilisasiQuery;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(): Response
+    public function index(UtilisasiQuery $utilization): Response
     {
-        $today = today();
-        $thisMonth = now()->startOfMonth();
-
-        $totalPasien = Pasien::count();
-        $kunjunganHariIni = Kunjungan::whereDate('tanggal', $today)->count();
-        $kunjunganBulanIni = Kunjungan::where('tanggal', '>=', $thisMonth)->count();
-
-        $pendapatanBulanIni = Tagihan::where('status', 'lunas')
-            ->where('created_at', '>=', $thisMonth)
-            ->sum('total');
-
-        $statusKunjungan = Kunjungan::whereDate('tanggal', $today)
-            ->selectRaw('status, count(*) as jumlah')
-            ->groupBy('status')
-            ->pluck('jumlah', 'status');
-
-        $kunjunganPerHari = Kunjungan::where('tanggal', '>=', now()->subDays(7))
-            ->selectRaw('DATE(tanggal) as tgl, COUNT(*) as jumlah')
-            ->groupBy('tgl')
-            ->orderBy('tgl')
-            ->get()
-            ->map(fn ($item) => [
-                'tanggal' => $item->tgl,
-                'jumlah' => $item->jumlah,
-            ]);
+        $from = now()->startOfMonth()->toDateString();
+        $to = today()->toDateString();
+        $report = $utilization->report($from, $to);
+        $daily = $utilization->visits(today()->subDays(6)->toDateString(), $to)
+            ->selectRaw('DATE(tanggal) as date, COUNT(*) as count')->groupBy('date')->pluck('count', 'date');
+        $days = collect(range(6, 0))->map(fn (int $offset): array => [
+            'tanggal' => today()->subDays($offset)->toDateString(),
+            'jumlah' => (int) ($daily[today()->subDays($offset)->toDateString()] ?? 0),
+        ]);
 
         return Inertia::render('dashboard/index', [
             'stats' => [
-                'totalPatients' => $totalPasien,
-                'visitsToday' => $kunjunganHariIni,
-                'visitsThisMonth' => $kunjunganBulanIni,
-                'revenueThisMonth' => $pendapatanBulanIni,
+                'totalPatients' => Pasien::count(),
+                'visitsToday' => $utilization->visits($to, $to)->count(),
+                'visitsThisMonth' => $report['stats']['visits'],
+                'prescriptionsToday' => Farmasi::where('status', 'selesai')->whereHas('items', fn ($query) => $query->where('jumlah_diberikan', '>', 0))->whereDate('dispensed_at', $to)->count(),
             ],
-            'visitStatuses' => $statusKunjungan->toArray(),
-            'visitsByDay' => $kunjunganPerHari->all(),
+            'visitStatuses' => Kunjungan::whereDate('tanggal', $to)->selectRaw('status, COUNT(*) as count')->groupBy('status')->pluck('count', 'status'),
+            'visitsByDay' => $days,
+            'utilization' => $report,
+            'canRegister' => auth()->user()->role === 'admin',
         ]);
     }
 }

@@ -40,11 +40,11 @@ export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={applyFilters}>
+                        <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start" onSubmit={applyFilters}>
                             <Field htmlFor="doctor-diagnoses-period" label="Periode diagnosis" required>
                                 <DateRangePicker id="doctor-diagnoses-period" from={dates.dari} onChange={(range) => setDates({ dari: range.from, sampai: range.to })} required to={dates.sampai} />
                             </Field>
-                            <Button type="submit"><Search className="size-4" />Tampilkan</Button>
+                            <Button className="sm:mt-7" type="submit"><Search className="size-4" />Tampilkan</Button>
                         </form>
                     </CardContent>
                 </Card>

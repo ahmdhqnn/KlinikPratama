@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, Check, Search, UserRound, UserRoundPlus, X } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -25,17 +26,18 @@ interface PatientResult {
     jenis_kelamin: string | null;
     tanggal_lahir: string | null;
     telepon: string | null;
+    eligibilityReason: string | null;
 }
 
 interface Props {
     clinics: Option[];
     insuranceProviders: Option[];
-    day: string;
+    today: string;
 }
 
-export default function ExistingPatientRegistration({ clinics, insuranceProviders, day }: Props) {
+export default function ExistingPatientRegistration({ clinics, insuranceProviders, today }: Props) {
     const form = useForm<PatientForm>({
-        pasien_id: '', poliklinik_id: '', dokter_id: '', asuransi_id: '', no_asuransi: '', jenis_bayar: 'umum', catatan: '',
+        pasien_id: '', poliklinik_id: '', dokter_id: '', asuransi_id: '', no_asuransi: '', jenis_bayar: 'internal', catatan: '',
     });
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<PatientResult[]>([]);
@@ -110,6 +112,7 @@ export default function ExistingPatientRegistration({ clinics, insuranceProvider
         <>
             <Head title="Pendaftaran Pasien Lama" />
             <form className="mx-auto max-w-5xl space-y-6" onSubmit={submit}>
+                {selectedPatient && <Alert variant={selectedPatient.eligibilityReason ? 'destructive' : 'success'}><AlertDescription>{selectedPatient.eligibilityReason ?? 'Peserta terverifikasi dan berhak atas fasilitas klinik internal.'}</AlertDescription></Alert>}
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>
                         <p className="text-sm font-medium text-neutral-700">Pendaftaran pasien</p>
@@ -190,7 +193,7 @@ export default function ExistingPatientRegistration({ clinics, insuranceProvider
                         <CardContent>
                             <VisitFields
                                 clinics={clinics}
-                                day={day}
+                                today={today}
                                 errors={form.errors}
                                 insuranceProviders={insuranceProviders}
                                 onChange={(field, value) => form.setData(field, value)}

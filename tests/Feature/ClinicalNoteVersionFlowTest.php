@@ -53,7 +53,7 @@ class ClinicalNoteVersionFlowTest extends TestCase
             'anamnesis' => 'Demam dua hari',
         ]);
         $this->assertNotNull($examination->fresh()->signed_at);
-        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'kasir']);
+        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'selesai']);
 
         $final = ClinicalNoteVersion::sole();
         $this->assertSame('finalized', $final->kind);

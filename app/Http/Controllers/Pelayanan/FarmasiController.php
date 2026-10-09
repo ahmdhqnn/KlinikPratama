@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Pelayanan;
 
+use App\ClinicalAuditRecorder;
 use App\Http\Controllers\Controller;
 use App\Models\Farmasi;
 use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\ResepObat;
 use App\Models\StokMutasi;
+use App\PersediaanRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +25,7 @@ class FarmasiController extends Controller
             ->when($request->search, fn ($q, $s) => $q->whereHas('pasien', fn ($pq) => $pq->where('nama', 'like', "%$s%")->orWhere('no_rm', 'like', "%$s%")))
             ->when($request->tanggal, fn ($q, $t) => $q->whereDate('tanggal', $t))
             ->whereDate('tanggal', $request->tanggal ?? today())
-            ->whereIn('status', ['farmasi'])
+            ->where(fn ($query) => $query->where('status', 'farmasi')->orWhereHas('farmasi', fn ($query) => $query->where('status', 'selesai')))
             ->orderBy('created_at')
             ->paginate(20)
             ->withQueryString();
@@ -53,15 +55,16 @@ class FarmasiController extends Controller
         ]);
     }
 
-    public function show(Kunjungan $kunjungan): Response
+    public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $audit): Response
     {
         $kunjungan->load([
             'pasien', 'poliklinik', 'dokter',
-            'resep.resepObat.obat',
+            'resep.resepObat.obat.batches',
             'farmasi.items.obat', 'farmasi.items.resepObat',
         ]);
 
-        $obatList = Obat::where('is_active', true)->where('jenis', 'obat')->orderBy('nama')->get(['id', 'nama', 'stok', 'satuan_kecil', 'harga_jual']);
+        $audit->record($request, 'pharmacy.view', $kunjungan->pasien_id, $kunjungan->id);
+        $movements = StokMutasi::with(['batch', 'actor', 'obat'])->where('referensi_type', 'Farmasi')->where('referensi_id', $kunjungan->farmasi?->id ?? 0)->get();
 
         return Inertia::render('pelayanan/farmasi/show', [
             'visit' => [
@@ -87,6 +90,11 @@ class FarmasiController extends Controller
                         'notes' => $item->catatan,
                     ])->values(),
                 ] : null,
+                'allocations' => $movements->map(fn (StokMutasi $movement): array => [
+                    'medicine' => $movement->obat?->nama, 'batch' => $movement->batch?->nomor_batch,
+                    'expiry' => $movement->batch?->expired_at?->format('d/m/Y'), 'quantity' => (float) $movement->jumlah,
+                    'actor' => $movement->actor?->name, 'at' => $movement->created_at?->format('d/m/Y H:i'),
+                ]),
                 'prescriptionItems' => $kunjungan->resep?->resepObat->map(function (ResepObat $item) use ($kunjungan): array {
                     $pharmacyItem = $kunjungan->farmasi?->items->firstWhere('resep_obat_id', $item->id);
 
@@ -103,7 +111,7 @@ class FarmasiController extends Controller
                         'instructions' => $pharmacyItem?->aturan_pakai ?? $item->aturan_pakai,
                         'external' => $item->is_resep_luar,
                         'reserved' => $item->stok_dikurangi,
-                        'stock' => (float) ($item->obat?->stok ?? 0),
+                        'stock' => (float) ($item->obat?->batches->filter(fn ($batch): bool => $batch->status === 'tersedia' && $batch->expired_at?->gt(today()))->sum('stok') ?? 0),
                         'stockUnit' => $item->obat?->satuan_kecil,
                     ];
                 })->values() ?? collect(),
@@ -191,17 +199,17 @@ class FarmasiController extends Controller
 
             if ($item['jumlah_diberikan'] > 0) {
                 $obat = ! empty($item['obat_id']) ? Obat::find($item['obat_id']) : null;
-                $isReserved = $resepObat?->stok_dikurangi === true;
+                $usable = $obat ? (float) $obat->batches()->usable()->sum('stok') : 0;
 
-                if (! $obat || (! $isReserved && $obat->stok < $item['jumlah_diberikan'])) {
+                if (! $obat || ! $obat->is_active || $usable < $item['jumlah_diberikan']) {
                     $obatName = $obat?->nama ?? 'Obat tidak ditemukan';
 
-                    return back()->withErrors(['items' => "Stok obat {$obatName} tidak cukup. Stok tersedia: ".($obat?->stok ?? 0).', diminta: '.$item['jumlah_diberikan']])->withInput();
+                    return back()->withErrors(['items' => "Stok obat {$obatName} tidak cukup. Stok tersedia: ".$usable.', diminta: '.$item['jumlah_diberikan']])->withInput();
                 }
             }
         }
 
-        DB::transaction(function () use ($data, $kunjungan): void {
+        DB::transaction(function () use ($data, $kunjungan, $request): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             abort_unless($lockedVisit->status === 'farmasi', 422, 'Kunjungan tidak berada pada tahap farmasi.');
 
@@ -227,6 +235,7 @@ class FarmasiController extends Controller
                 }
             }
 
+            app(ClinicalAuditRecorder::class)->record($request, 'pharmacy.draft_saved', $kunjungan->pasien_id, $kunjungan->id);
             $farmasi->update([
                 'status' => 'diproses',
                 'catatan' => $data['catatan'] ?? null,
@@ -236,9 +245,9 @@ class FarmasiController extends Controller
         return back()->with('success', 'Data farmasi berhasil disimpan.');
     }
 
-    public function selesai(Kunjungan $kunjungan): RedirectResponse
+    public function selesai(Request $request, Kunjungan $kunjungan, PersediaanRecorder $inventory, ClinicalAuditRecorder $audit): RedirectResponse
     {
-        $result = DB::transaction(function () use ($kunjungan): string {
+        $result = DB::transaction(function () use ($kunjungan, $request, $inventory, $audit): string {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $farmasi = Farmasi::where('kunjungan_id', $kunjungan->id)->lockForUpdate()->first();
 
@@ -282,6 +291,13 @@ class FarmasiController extends Controller
                 }
             }
 
+            foreach ($lockedVisit->resep?->resepObat ?? collect() as $prescriptionItem) {
+                $dispensed = (float) $farmasi->items->where('resep_obat_id', $prescriptionItem->id)->sum('jumlah_diberikan');
+                if (! $prescriptionItem->is_resep_luar && $dispensed < (float) $prescriptionItem->jumlah && blank($farmasi->catatan)) {
+                    throw ValidationException::withMessages(['catatan' => 'Catat alasan dan tindak lanjut untuk resep yang belum diserahkan seluruhnya.']);
+                }
+            }
+
             $processedPrescriptionItemIds = [];
             foreach ($farmasi->items as $item) {
                 $prescriptionItem = $item->resepObat;
@@ -299,79 +315,17 @@ class FarmasiController extends Controller
                 $processedPrescriptionItemIds[] = $prescriptionItem->id;
             }
 
-            foreach ($farmasi->items as $item) {
-                if ($item->resepObat?->stok_dikurangi) {
-                    continue;
-                }
-
-                $obat = $item->obat ? Obat::whereKey($item->obat->id)->lockForUpdate()->first() : null;
-                if (! $obat || $obat->stok < $item->jumlah_diberikan) {
-                    throw ValidationException::withMessages([
-                        'items' => 'Stok obat '.$item->obat?->nama.' tidak mencukupi saat dispensing.',
-                    ]);
-                }
-
-                $stokSebelum = (float) $obat->stok;
-                $stokSesudah = $stokSebelum - (float) $item->jumlah_diberikan;
-                $obat->update(['stok' => $stokSesudah]);
-
-                StokMutasi::create([
-                    'obat_id' => $obat->id,
-                    'jenis' => 'keluar',
-                    'referensi_type' => 'Farmasi',
-                    'referensi_id' => $farmasi->id,
-                    'jumlah' => $item->jumlah_diberikan,
-                    'harga' => $obat->harga_jual,
-                    'stok_sebelum' => $stokSebelum,
-                    'stok_sesudah' => $stokSesudah,
-                    'keterangan' => "Dispensing kunjungan {$lockedVisit->no_kunjungan}",
-                ]);
+            if ($lockedVisit->resep?->resepObat->contains('stok_dikurangi', true)) {
+                throw ValidationException::withMessages(['items' => 'Reservasi lama harus direkonsiliasi sebelum penyerahan obat.']);
+            }
+            foreach ($farmasi->items->sortBy('obat_id') as $item) {
+                $inventory->issue((int) $item->obat_id, (float) $item->jumlah_diberikan, $request->user(), $lockedVisit, 'Farmasi', $farmasi->id, $item->id);
             }
 
-            foreach ($lockedVisit->resep?->resepObat ?? collect() as $prescriptionItem) {
-                if (! $prescriptionItem->stok_dikurangi) {
-                    continue;
-                }
-
-                if (floor((float) $prescriptionItem->jumlah) !== (float) $prescriptionItem->jumlah) {
-                    throw ValidationException::withMessages([
-                        'items' => 'Reservasi resep dengan jumlah pecahan harus direkonsiliasi sebelum dispensing.',
-                    ]);
-                }
-
-                $dispensed = (float) $farmasi->items->where('resep_obat_id', $prescriptionItem->id)->sum('jumlah_diberikan');
-                $unused = round((float) $prescriptionItem->jumlah - $dispensed, 2);
-                if ($unused < 0) {
-                    throw ValidationException::withMessages([
-                        'items' => 'Jumlah diberikan melebihi jumlah resep.',
-                    ]);
-                }
-
-                if ($unused === 0.0) {
-                    continue;
-                }
-
-                $obat = Obat::whereKey($prescriptionItem->obat_id)->lockForUpdate()->firstOrFail();
-                $stokSebelum = (float) $obat->stok;
-                $stokSesudah = $stokSebelum + $unused;
-                $obat->update(['stok' => $stokSesudah]);
-
-                StokMutasi::create([
-                    'obat_id' => $obat->id,
-                    'jenis' => 'masuk',
-                    'referensi_type' => 'Farmasi',
-                    'referensi_id' => $farmasi->id,
-                    'jumlah' => $unused,
-                    'harga' => $obat->harga_jual,
-                    'stok_sebelum' => $stokSebelum,
-                    'stok_sesudah' => $stokSesudah,
-                    'keterangan' => "Pengembalian sisa reservasi resep {$lockedVisit->no_kunjungan}",
-                ]);
-            }
-
-            $farmasi->update(['status' => 'selesai']);
+            $audit->record($request, 'pharmacy.dispensed', $lockedVisit->pasien_id, $lockedVisit->id);
+            $farmasi->update(['status' => 'selesai', 'dispensed_by' => $request->user()->id, 'dispensed_at' => now()]);
             $lockedVisit->resep?->update(['status' => 'selesai']);
-            $lockedVisit->update(['status' => 'kasir']);
+            $lockedVisit->update(['status' => 'selesai']);
 
             return 'complete';
         });
@@ -386,6 +340,6 @@ class FarmasiController extends Controller
         }
 
         return redirect()->route('pelayanan.farmasi.index')
-            ->with('success', 'Dispensing selesai. Pasien diteruskan ke kasir.');
+            ->with('success', 'Obat telah diserahkan. Kunjungan selesai tanpa pembayaran pasien.');
     }
 }

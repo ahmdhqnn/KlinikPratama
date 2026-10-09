@@ -58,11 +58,11 @@ class AlkesController extends Controller
             'stok' => ['required', 'integer', 'min:0'],
             'stok_minimum' => ['required', 'integer', 'min:0'],
             'harga_beli' => ['required', 'numeric', 'min:0'],
-            'harga_jual' => ['required', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['harga_jual'] = 0;
         Alkes::create($data);
 
         return back()->with('success', 'Alat kesehatan berhasil ditambahkan.');
@@ -77,11 +77,11 @@ class AlkesController extends Controller
             'stok' => ['required', 'integer', 'min:0'],
             'stok_minimum' => ['required', 'integer', 'min:0'],
             'harga_beli' => ['required', 'numeric', 'min:0'],
-            'harga_jual' => ['required', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['harga_jual'] = 0;
         $alke->update($data);
 
         return back()->with('success', 'Alat kesehatan berhasil diperbarui.');

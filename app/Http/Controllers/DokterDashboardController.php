@@ -144,7 +144,7 @@ class DokterDashboardController extends Controller
 
     public function stock(): Response
     {
-        $obat = Obat::query()->where('is_active', true)->where('jenis', 'obat')
+        $obat = Obat::withSum(['batches as usable_stock' => fn ($query) => $query->usable()], 'stok')->where('is_active', true)->where('jenis', 'obat')
             ->orderBy('nama')->paginate(30);
 
         return Inertia::render('dokter/stock', [
@@ -154,9 +154,9 @@ class DokterDashboardController extends Controller
                     'code' => $medicine->kode,
                     'name' => $medicine->nama,
                     'unit' => $medicine->satuan_kecil,
-                    'stock' => (float) $medicine->stok,
+                    'stock' => (float) $medicine->usable_stock,
                     'minimumStock' => (float) $medicine->stok_minimum,
-                    'isLow' => $medicine->stok <= $medicine->stok_minimum,
+                    'isLow' => (float) $medicine->usable_stock <= (float) $medicine->stok_minimum,
                 ])->values(),
                 'currentPage' => $obat->currentPage(),
                 'lastPage' => $obat->lastPage(),

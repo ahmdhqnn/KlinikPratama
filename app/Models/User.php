@@ -64,7 +64,7 @@ class User extends Authenticatable
             'dokter' => 'Dokter',
             'perawat' => 'Perawat',
             'farmasi' => 'Farmasi',
-            'kasir' => 'Kasir',
+            'manajemen' => 'Manajemen',
             'pendaftaran' => 'Pendaftaran',
             default => ucfirst($this->role),
         };

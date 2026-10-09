@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DepoObat;
 use App\Models\Obat;
 use App\Models\PurchaseOrder;
-use App\Models\StokMutasi;
+use App\PersediaanRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -49,7 +49,7 @@ class PurchaseOrderController extends Controller
             ]);
 
         return Inertia::render('stok/purchase-order/index', [
-            'orders' => $orders,
+            'orders' => $this->pageData($orders),
             'filters' => ['search' => $filters['search'] ?? '', 'status' => $filters['status'] ?? ''],
         ]);
     }
@@ -78,8 +78,8 @@ class PurchaseOrderController extends Controller
             'catatan' => ['nullable', 'string', 'max:2000'],
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.obat_id' => ['required', 'integer', 'distinct', 'exists:obat,id'],
-            'items.*.jumlah' => ['required', 'integer', 'min:1'],
-            'items.*.harga' => ['required', 'numeric', 'min:0', 'decimal:0,2'],
+            'items.*.jumlah' => ['required', 'integer', 'min:1', 'max:99999999'],
+            'items.*.harga' => ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
         ]);
 
         $purchaseOrder = DB::transaction(function () use ($data): PurchaseOrder {
@@ -194,10 +194,12 @@ class PurchaseOrderController extends Controller
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.id' => ['required', 'integer', 'distinct', 'exists:purchase_order_item,id'],
-            'items.*.jumlah_terima' => ['required', 'integer', 'min:0'],
+            'items.*.jumlah_terima' => ['required', 'integer', 'min:0', 'max:99999999'],
+            'items.*.nomor_batch' => ['nullable', 'string', 'max:100'],
+            'items.*.expired_at' => ['nullable', 'date_format:Y-m-d', 'after:today'],
         ]);
 
-        DB::transaction(function () use ($data, $purchaseOrder): void {
+        DB::transaction(function () use ($data, $purchaseOrder, $request): void {
             $lockedOrder = PurchaseOrder::query()->lockForUpdate()->findOrFail($purchaseOrder->id);
 
             if (! in_array($lockedOrder->status, ['dikirim', 'sebagian'], true)) {
@@ -226,23 +228,15 @@ class PurchaseOrderController extends Controller
 
                 $receivedAny = true;
                 $item->update(['jumlah_terima' => round((float) $item->jumlah_terima + $quantityToReceive, 2)]);
-                $medicine = Obat::query()->lockForUpdate()->findOrFail($item->obat_id);
-                $stockBefore = (float) $medicine->stok;
-                $stockAfter = round($stockBefore + $quantityToReceive, 2);
-                $medicine->update(['stok' => $stockAfter]);
-
-                StokMutasi::create([
-                    'obat_id' => $medicine->id,
-                    'depo_id' => $lockedOrder->depo_id,
-                    'jenis' => 'masuk',
-                    'referensi_type' => 'PurchaseOrder',
-                    'referensi_id' => $lockedOrder->id,
-                    'jumlah' => $quantityToReceive,
-                    'harga' => $item->harga,
-                    'stok_sebelum' => $stockBefore,
-                    'stok_sesudah' => $stockAfter,
-                    'keterangan' => "Penerimaan PO {$lockedOrder->no_po}",
-                ]);
+                $line = $data['items'][$lineIndex];
+                if (blank($line['nomor_batch'] ?? null) || blank($line['expired_at'] ?? null)) {
+                    throw ValidationException::withMessages(["items.{$lineIndex}.nomor_batch" => 'Nomor batch dan tanggal kedaluwarsa wajib pada barang yang diterima.']);
+                }
+                app(PersediaanRecorder::class)->receive($item->obat_id, [
+                    'depo_id' => $lockedOrder->depo_id, 'nomor_batch' => $line['nomor_batch'],
+                    'expired_at' => $line['expired_at'], 'jumlah' => $quantityToReceive,
+                    'harga_beli' => $item->harga, 'sumber' => 'pengadaan', 'referensi' => "PO {$lockedOrder->no_po} / {$lockedOrder->supplier}",
+                ], $request->user(), 'PurchaseOrder', $lockedOrder->id);
             }
 
             if (! $receivedAny) {

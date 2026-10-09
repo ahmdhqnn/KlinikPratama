@@ -96,11 +96,12 @@ class PaketTindakanController extends Controller
             'kode' => ['required', 'string', 'max:30', 'unique:paket_tindakan,kode'],
             'nama' => ['required', 'string', 'max:200'],
             'deskripsi' => ['nullable', 'string'],
-            'tarif' => ['required', 'numeric', 'min:0'],
+            'tarif' => ['sometimes', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['tarif'] = 0;
         PaketTindakan::create($data);
 
         return back()->with('success', 'Paket tindakan berhasil ditambahkan.');
@@ -112,11 +113,12 @@ class PaketTindakanController extends Controller
             'kode' => ['required', 'string', 'max:30', "unique:paket_tindakan,kode,{$paketTindakan->id}"],
             'nama' => ['required', 'string', 'max:200'],
             'deskripsi' => ['nullable', 'string'],
-            'tarif' => ['required', 'numeric', 'min:0'],
+            'tarif' => ['sometimes', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['tarif'] = 0;
         $paketTindakan->update($data);
 
         return back()->with('success', 'Paket tindakan berhasil diperbarui.');

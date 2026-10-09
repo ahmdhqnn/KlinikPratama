@@ -46,11 +46,11 @@ export default function DoctorAppointments({ filters, visits }: Props) {
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={applyFilters}>
+                        <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start" onSubmit={applyFilters}>
                             <Field htmlFor="doctor-appointments-period" label="Periode kunjungan" required>
                                 <DateRangePicker id="doctor-appointments-period" from={dates.dari} onChange={(range) => setDates({ dari: range.from, sampai: range.to })} required to={dates.sampai} />
                             </Field>
-                            <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
+                            <Button className="sm:mt-7" type="submit"><Search className="size-4" />Terapkan filter</Button>
                         </form>
                     </CardContent>
                 </Card>

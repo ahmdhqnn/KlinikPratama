@@ -14,7 +14,7 @@ class Pasien extends Model
     protected $table = 'pasien';
 
     protected $fillable = [
-        'no_rm', 'nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin',
+        'no_rm', 'nama', 'nik', 'kepesertaan_id', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin',
         'golongan_darah', 'alamat', 'rt', 'rw', 'kelurahan', 'kecamatan',
         'telepon', 'pekerjaan', 'agama', 'status_perkawinan', 'nama_wali',
         'nama_ibu', 'telepon_wali',
@@ -28,6 +28,11 @@ class Pasien extends Model
     public function asuransi(): BelongsTo
     {
         return $this->belongsTo(Asuransi::class);
+    }
+
+    public function kepesertaan(): BelongsTo
+    {
+        return $this->belongsTo(Kepesertaan::class);
     }
 
     public function kunjungan(): HasMany

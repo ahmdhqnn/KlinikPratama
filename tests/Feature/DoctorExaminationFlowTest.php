@@ -18,7 +18,7 @@ class DoctorExaminationFlowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_doctor_only_sees_assigned_visits_and_reserves_stock_once(): void
+    public function test_doctor_only_sees_assigned_visits_and_does_not_deduct_stock_when_prescribing(): void
     {
         $user = User::create([
             'name' => 'Dokter Umum',
@@ -178,8 +178,8 @@ class DoctorExaminationFlowTest extends TestCase
             'jenis' => 'jadi',
         ])->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('obat', ['id' => $obat->id, 'stok' => 7]);
-        $this->assertDatabaseHas('resep_obat', ['obat_id' => $obat->id, 'stok_dikurangi' => true]);
+        $this->assertDatabaseHas('obat', ['id' => $obat->id, 'stok' => 10]);
+        $this->assertDatabaseHas('resep_obat', ['obat_id' => $obat->id, 'stok_dikurangi' => false]);
 
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit))->assertRedirect();
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'farmasi']);
@@ -190,7 +190,7 @@ class DoctorExaminationFlowTest extends TestCase
             'jenis' => 'jadi',
         ])->assertUnprocessable();
 
-        $this->assertDatabaseHas('obat', ['id' => $obat->id, 'stok' => 7]);
+        $this->assertDatabaseHas('obat', ['id' => $obat->id, 'stok' => 10]);
         $this->assertDatabaseCount('resep_obat', 1);
     }
 }

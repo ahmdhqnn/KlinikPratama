@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\DepoObat;
 use App\Models\Obat;
+use App\Models\ObatBatch;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -35,6 +37,8 @@ class ObatInertiaTest extends TestCase
             'jenis' => 'obat',
             'is_active' => true,
         ]);
+        ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 10]);
+        $depot = DepoObat::create(['kode' => 'DEP-TEST', 'nama' => 'Apotek', 'is_active' => true]);
         Obat::create([
             'kode' => 'BHP-LOW',
             'kode_kfa' => 'KFA-LOW',
@@ -71,7 +75,7 @@ class ObatInertiaTest extends TestCase
 
         $this->post(route('master.obat.tambah-stok', $medicine), [
             'jumlah' => 3,
-            'keterangan' => 'Koreksi stok opname',
+            'depo_id' => $depot->id, 'nomor_batch' => 'TEST-01', 'expired_at' => today()->addYear()->toDateString(), 'harga_beli' => 5000, 'sumber' => 'pengadaan', 'referensi' => 'Penerimaan tambahan',
         ])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'nama' => 'Paracetamol 500 mg tablet', 'stok' => 13]);
         $this->assertDatabaseHas('stok_mutasi', [
@@ -80,7 +84,7 @@ class ObatInertiaTest extends TestCase
             'jumlah' => 3,
             'stok_sebelum' => 10,
             'stok_sesudah' => 13,
-            'keterangan' => 'Koreksi stok opname',
+            'keterangan' => 'Penerimaan tambahan',
         ]);
 
         $this->get(route('master.obat.stok', $medicine))
@@ -95,7 +99,7 @@ class ObatInertiaTest extends TestCase
             ->post(route('master.obat.tambah-stok', $medicine), ['jumlah' => 0])
             ->assertSessionHasErrors('jumlah');
         $this->from(route('master.obat.stok', $medicine))
-            ->post(route('master.obat.tambah-stok', $medicine), ['jumlah' => 1.5])
+            ->post(route('master.obat.tambah-stok', $medicine), ['jumlah' => 1.555])
             ->assertSessionHasErrors('jumlah');
         $this->assertDatabaseCount('stok_mutasi', 1);
 
@@ -105,11 +109,11 @@ class ObatInertiaTest extends TestCase
             'konversi_satuan' => 1,
             'harga_beli' => 8000,
             'harga_jual' => 10000,
-            'stok' => 20,
+            'stok' => 0,
             'stok_minimum' => 4,
             'jenis' => 'obat',
             'is_active' => true,
         ])->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('obat', ['kode' => 'OBT-002', 'nama' => 'Ibuprofen', 'stok' => 20]);
+        $this->assertDatabaseHas('obat', ['kode' => 'OBT-002', 'nama' => 'Ibuprofen', 'stok' => 0]);
     }
 }

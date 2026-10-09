@@ -71,7 +71,8 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Pasien', href: '/pelayanan/pasien', icon: UsersRound },
                 { label: 'Kunjungan', href: '/pelayanan/kunjungan', icon: ClipboardList },
                 { label: 'Antrian', href: '/pelayanan/antrian', icon: Activity },
-                { label: 'Kasir', href: '/pelayanan/kasir', icon: CreditCard },
+                { label: 'Kepesertaan & hak layanan', href: '/kepesertaan', icon: ShieldCheck },
+                { label: 'Terminologi klinis', href: '/master/terminologi-klinis', icon: ClipboardList },
             ],
         },
         {
@@ -83,18 +84,15 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Laboratorium', href: '/master/laboratorium', icon: Activity },
                 { label: 'Obat & BHP', href: '/master/obat', icon: Pill },
                 { label: 'Depo obat', href: '/master/depo-obat', icon: Pill },
-                { label: 'Biaya pendaftaran', href: '/master/biaya-pendaftaran', icon: CreditCard },
-                { label: 'Biaya administrasi', href: '/master/biaya-admin', icon: CreditCard },
                 { label: 'Alat kesehatan', href: '/master/alkes', icon: HeartPulse },
                 { label: 'Tenaga kesehatan', href: '/master/nakes', icon: UsersRound },
-                { label: 'Asuransi & penjamin', href: '/master/asuransi', icon: ShieldCheck },
             ],
         },
         {
             label: 'Pengelolaan',
             items: [
-                { label: 'Stok & Pengadaan', href: '/stok/purchase-order', icon: ShoppingBag },
-                { label: 'Penjualan langsung', href: '/stok/penjualan-langsung', icon: CreditCard },
+                { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes },
+                { label: 'Pengadaan', href: '/stok/purchase-order', icon: ShoppingBag },
                 { label: 'Pengaturan', href: '/setting', icon: Settings },
                 { label: 'Pengguna', href: '/users', icon: UsersRound },
             ],
@@ -103,7 +101,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             label: 'Laporan',
             items: [
                 { label: 'Kunjungan', href: '/laporan/kunjungan', icon: ClipboardList },
-                { label: 'Pendapatan', href: '/laporan/pendapatan', icon: CreditCard },
+                { label: 'Utilisasi & anggaran', href: '/laporan/utilisasi', icon: ChartNoAxesCombined },
                 { label: 'Stok', href: '/laporan/stok', icon: Boxes },
                 { label: 'Laboratorium', href: '/laporan/laboratorium', icon: Activity },
             ],
@@ -114,6 +112,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             label: 'Pendaftaran',
             items: [
                 { label: 'Dashboard', href: '/pendaftaran', icon: LayoutDashboard },
+                { label: 'Kepesertaan & hak layanan', href: '/kepesertaan', icon: ShieldCheck },
                 { label: 'Pasien Baru', href: '/pendaftaran/pendaftaran-baru', icon: UserRoundPlus },
                 { label: 'Pasien Lama', href: '/pendaftaran/pendaftaran-lama', icon: UserRound },
                 { label: 'Database Pasien', href: '/pendaftaran/database-pasien', icon: UsersRound },
@@ -156,16 +155,20 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         },
     ],
     farmasi: [
-        { label: 'Farmasi', items: [{ label: 'Antrian Farmasi', href: '/pelayanan/farmasi', icon: Pill }] },
+        { label: 'Farmasi', items: [{ label: 'Antrian Farmasi', href: '/pelayanan/farmasi', icon: Pill }, { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes }, { label: 'Pengadaan', href: '/stok/purchase-order', icon: ShoppingBag }] },
     ],
-    kasir: [
-        { label: 'Kasir', items: [{ label: 'Antrian Kasir', href: '/pelayanan/kasir', icon: CreditCard }] },
+    manajemen: [
+        { label: 'Manajemen', items: [{ label: 'Dashboard', href: '/', icon: LayoutDashboard }, { label: 'Utilisasi & anggaran', href: '/laporan/utilisasi', icon: ChartNoAxesCombined }] },
     ],
 };
 
 function getPageTitle(component: string): string {
     const titles: Record<string, string> = {
         'dashboard/index': 'Dashboard',
+        'kepesertaan/index': 'Kepesertaan & Hak Layanan',
+        'laporan/utilisasi': 'Utilisasi & Anggaran Internal',
+        'stok/persediaan/index': 'Persediaan Obat & BHP',
+        'stok/persediaan/show': 'Batch & Kartu Stok',
         'pendaftaran/dashboard': 'Dashboard Pendaftaran',
         'pendaftaran/pendaftaran-baru': 'Pendaftaran Pasien Baru',
         'pendaftaran/pendaftaran-lama': 'Pendaftaran Pasien Lama',

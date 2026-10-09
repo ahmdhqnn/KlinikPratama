@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pelayanan;
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
 use App\Http\Controllers\Controller;
+use App\Models\ClinicalTerminology;
 use App\Models\Diagnosa;
 use App\Models\Farmasi;
 use App\Models\Icd10;
@@ -15,9 +16,9 @@ use App\Models\OdontogramFinding;
 use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
 use App\Models\ResepObat;
-use App\Models\StokMutasi;
 use App\Models\Tindakan;
 use App\Models\TindakanKunjungan;
+use App\PersediaanRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -82,7 +83,18 @@ class PemeriksaanController extends Controller
             ? Nakes::whereKey($this->currentDoctorId())->get()
             : Nakes::where('jabatan', 'dokter')->where('is_active', true)->orderBy('nama')->get();
         $tindakanList = Tindakan::where('is_active', true)->where('poliklinik_id', $kunjungan->poliklinik_id)->orderBy('nama')->get();
-        $obatList = Obat::where('is_active', true)->where('jenis', 'obat')->orderBy('nama')->get();
+        $diagnosisCodeSystems = collect([
+            ['value' => 'icd10_who', 'label' => 'ICD-10 WHO'],
+            ['value' => 'icd10_cm', 'label' => 'ICD-10-CM'],
+            ['value' => 'icd9cm_diagnosis', 'label' => 'ICD-9-CM diagnosis'],
+        ])->merge(ClinicalTerminology::query()->where('is_active', true)->where('code_type', 'diagnosis')
+            ->select('code_system')->distinct()->orderBy('code_system')->get()
+            ->map(fn (ClinicalTerminology $terminology): array => [
+                'value' => $terminology->code_system,
+                'label' => $terminology->code_system,
+            ]))
+            ->unique('value')->values();
+        $obatList = Obat::withSum(['batches as usable_stock' => fn ($query) => $query->usable()], 'stok')->where('is_active', true)->where('jenis', 'obat')->orderBy('nama')->get();
         $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
         $latestNote = $kunjungan->pemeriksaan?->clinicalNoteVersions->sortBy('version')->last();
         $noteIntegrityValid = $kunjungan->pemeriksaan?->signed_at ? $noteRecorder->verify($kunjungan->pemeriksaan) : null;
@@ -101,7 +113,7 @@ class PemeriksaanController extends Controller
                 'id' => $kunjungan->id,
                 'number' => $kunjungan->no_kunjungan,
                 'status' => $kunjungan->status,
-                'paymentType' => $kunjungan->jenis_bayar,
+                'paymentType' => 'internal',
                 'doctorId' => $kunjungan->dokter_id,
                 'clinicId' => $kunjungan->poliklinik_id,
                 'clinicType' => $kunjungan->poliklinik?->jenis,
@@ -155,6 +167,8 @@ class PemeriksaanController extends Controller
                 'diagnoses' => $kunjungan->pemeriksaan?->diagnosa->map(fn (Diagnosa $diagnosis) => [
                     'id' => $diagnosis->id,
                     'code' => $diagnosis->kode_icd10,
+                    'codeSystem' => $diagnosis->code_system,
+                    'codeRelease' => $diagnosis->code_release,
                     'name' => $diagnosis->nama_diagnosa,
                     'type' => $diagnosis->jenis,
                 ])->values() ?? collect(),
@@ -199,6 +213,7 @@ class PemeriksaanController extends Controller
                 ])->values(),
             ],
             'doctors' => $dokterList->map(fn (Nakes $doctor) => ['id' => $doctor->id, 'name' => $doctor->nama]),
+            'diagnosisCodeSystems' => $diagnosisCodeSystems,
             'treatments' => $tindakanList->map(fn (Tindakan $treatment) => [
                 'id' => $treatment->id,
                 'name' => $treatment->nama,
@@ -207,7 +222,7 @@ class PemeriksaanController extends Controller
             'medicines' => $obatList->map(fn (Obat $medicine) => [
                 'id' => $medicine->id,
                 'name' => $medicine->nama,
-                'stock' => (float) $medicine->stok,
+                'stock' => (float) $medicine->usable_stock,
                 'unit' => $medicine->satuan_kecil,
             ]),
             'clinics' => $poliklinikList->where('id', '!=', $kunjungan->poliklinik_id)->map(fn (Poliklinik $clinic) => [
@@ -225,252 +240,282 @@ class PemeriksaanController extends Controller
 
     public function store(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        $this->authorizeMutableVisit($kunjungan);
-        $data = $request->validate([
-            'dokter_id' => ['nullable', 'exists:nakes,id'],
-            'anamnesis' => ['nullable', 'string'],
-            'pemeriksaan_fisik' => ['nullable', 'string'],
-            'catatan' => ['nullable', 'string'],
-            'edukasi' => ['nullable', 'string'],
-            'kontrol_berikutnya' => ['nullable', 'date'],
-        ]);
+        return DB::transaction(function () use ($request, $kunjungan): RedirectResponse {
+            $kunjungan = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($kunjungan);
+            app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.store', $kunjungan->pasien_id, $kunjungan->id);
+            $this->authorizeMutableVisit($kunjungan);
+            $data = $request->validate([
+                'dokter_id' => ['nullable', 'exists:nakes,id'],
+                'anamnesis' => ['nullable', 'string'],
+                'pemeriksaan_fisik' => ['nullable', 'string'],
+                'catatan' => ['nullable', 'string'],
+                'edukasi' => ['nullable', 'string'],
+                'kontrol_berikutnya' => ['nullable', 'date'],
+            ]);
 
-        $data['kunjungan_id'] = $kunjungan->id;
-        $data['dokter_id'] = auth()->user()->role === 'dokter'
-            ? $this->currentDoctorId()
-            : ($data['dokter_id'] ?? $kunjungan->dokter_id);
-        $data['status'] = 'draft';
+            $data['kunjungan_id'] = $kunjungan->id;
+            $data['dokter_id'] = auth()->user()->role === 'dokter'
+                ? $this->currentDoctorId()
+                : ($data['dokter_id'] ?? $kunjungan->dokter_id);
+            $data['status'] = 'draft';
 
-        Pemeriksaan::updateOrCreate(['kunjungan_id' => $kunjungan->id], $data);
+            Pemeriksaan::updateOrCreate(['kunjungan_id' => $kunjungan->id], $data);
 
-        return back()->with('success', 'Data pemeriksaan berhasil disimpan.');
+            return back()->with('success', 'Data pemeriksaan berhasil disimpan.');
+        });
     }
 
     public function update(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        $this->authorizeMutableVisit($kunjungan);
-        $data = $request->validate([
-            'dokter_id' => ['nullable', 'exists:nakes,id'],
-            'anamnesis' => ['nullable', 'string'],
-            'pemeriksaan_fisik' => ['nullable', 'string'],
-            'catatan' => ['nullable', 'string'],
-            'edukasi' => ['nullable', 'string'],
-            'kontrol_berikutnya' => ['nullable', 'date'],
-        ]);
+        return DB::transaction(function () use ($request, $kunjungan): RedirectResponse {
+            $kunjungan = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($kunjungan);
+            app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.update', $kunjungan->pasien_id, $kunjungan->id);
+            $this->authorizeMutableVisit($kunjungan);
+            $data = $request->validate([
+                'dokter_id' => ['nullable', 'exists:nakes,id'],
+                'anamnesis' => ['nullable', 'string'],
+                'pemeriksaan_fisik' => ['nullable', 'string'],
+                'catatan' => ['nullable', 'string'],
+                'edukasi' => ['nullable', 'string'],
+                'kontrol_berikutnya' => ['nullable', 'date'],
+            ]);
 
-        $data['dokter_id'] = auth()->user()->role === 'dokter'
-            ? $this->currentDoctorId()
-            : ($data['dokter_id'] ?? $kunjungan->dokter_id);
-        $kunjungan->pemeriksaan()->updateOrCreate(['kunjungan_id' => $kunjungan->id], $data);
+            $data['dokter_id'] = auth()->user()->role === 'dokter'
+                ? $this->currentDoctorId()
+                : ($data['dokter_id'] ?? $kunjungan->dokter_id);
+            $kunjungan->pemeriksaan()->updateOrCreate(['kunjungan_id' => $kunjungan->id], $data);
 
-        return back()->with('success', 'Data pemeriksaan berhasil diperbarui.');
+            return back()->with('success', 'Data pemeriksaan berhasil diperbarui.');
+        });
     }
 
     public function storeDiagnosa(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        $this->authorizeMutableVisit($kunjungan);
-        $request->validate([
-            'kode_icd10' => ['required', 'string'],
-            'nama_diagnosa' => ['required', 'string'],
-            'jenis' => ['required', 'in:utama,tambahan'],
-        ]);
+        return DB::transaction(function () use ($request, $kunjungan): RedirectResponse {
+            $kunjungan = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($kunjungan);
+            app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.storeDiagnosa', $kunjungan->pasien_id, $kunjungan->id);
+            $this->authorizeMutableVisit($kunjungan);
+            $data = $request->validate([
+                'kode_icd10' => ['required', 'string'],
+                'code_system' => ['sometimes', 'nullable', 'string', 'max:100'],
+                'code_release' => ['sometimes', 'nullable', 'string', 'max:100'],
+                'nama_diagnosa' => ['required', 'string'],
+                'jenis' => ['required', 'in:utama,tambahan'],
+            ]);
+            $codeSystem = $data['code_system'] ?? 'icd10_who';
+            $catalog = ClinicalTerminology::query()->where('code_system', $codeSystem)->where('is_active', true);
+            if (! in_array($codeSystem, ['icd10_who', 'icd10_cm', 'icd9cm_diagnosis'], true) && ! $catalog->exists()) {
+                throw ValidationException::withMessages(['code_system' => 'Sistem kode belum memiliki katalog diagnosis yang dapat digunakan.']);
+            }
+            if ($catalog->exists()) {
+                $canonical = (clone $catalog)->where('code', $data['kode_icd10'])
+                    ->when($data['code_release'] ?? null, fn ($query, string $release) => $query->where('release', $release))
+                    ->orderByDesc('updated_at')->first();
+                if (! $canonical) {
+                    throw ValidationException::withMessages(['kode_icd10' => 'Kode tidak ditemukan pada katalog terminologi yang dipilih.']);
+                }
+                $data['nama_diagnosa'] = $canonical->display;
+                $data['code_release'] = $canonical->release;
+            }
 
-        $pemeriksaan = $kunjungan->pemeriksaan()->firstOrCreate(['kunjungan_id' => $kunjungan->id], ['status' => 'draft']);
+            $pemeriksaan = $kunjungan->pemeriksaan()->firstOrCreate(['kunjungan_id' => $kunjungan->id], ['status' => 'draft']);
 
-        $pemeriksaan->diagnosa()->create([
-            'kode_icd10' => $request->kode_icd10,
-            'nama_diagnosa' => $request->nama_diagnosa,
-            'jenis' => $request->jenis,
-        ]);
+            $pemeriksaan->diagnosa()->create([
+                'kode_icd10' => $data['kode_icd10'],
+                'code_system' => $codeSystem,
+                'code_release' => $data['code_release'] ?? null,
+                'nama_diagnosa' => $data['nama_diagnosa'],
+                'jenis' => $data['jenis'],
+            ]);
 
-        return back()->with('success', 'Diagnosa berhasil ditambahkan.');
+            return back()->with('success', 'Diagnosa berhasil ditambahkan.');
+        });
     }
 
     public function destroyDiagnosa(Diagnosa $diagnosa): RedirectResponse
     {
-        $this->authorizeMutableVisit($diagnosa->load('pemeriksaan.kunjungan')->pemeriksaan->kunjungan);
-        $diagnosa->delete();
+        return DB::transaction(function () use ($diagnosa): RedirectResponse {
+            $kunjungan = Kunjungan::whereKey($diagnosa->pemeriksaan->kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($kunjungan);
+            app(ClinicalAuditRecorder::class)->record(request(), 'clinical_draft.destroyDiagnosa', $kunjungan->pasien_id, $kunjungan->id);
+            $this->authorizeMutableVisit($diagnosa->load('pemeriksaan.kunjungan')->pemeriksaan->kunjungan);
+            $diagnosa->delete();
 
-        return back()->with('success', 'Diagnosa berhasil dihapus.');
+            return back()->with('success', 'Diagnosa berhasil dihapus.');
+        });
     }
 
     public function storeResep(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        $this->authorizeMutableVisit($kunjungan);
-        $isExternal = $request->boolean('is_resep_luar');
-        $data = $request->validate([
-            'obat_id' => ['nullable', 'required_unless:is_resep_luar,1', 'exists:obat,id'],
-            'nama_obat' => ['nullable', 'required_if:is_resep_luar,1', 'string', 'max:255'],
-            'jumlah' => $isExternal ? ['required', 'numeric', 'min:0.01'] : ['required', 'integer', 'min:1'],
-            'satuan' => ['nullable', 'string'],
-            'aturan_pakai' => ['nullable', 'string'],
-            'catatan' => ['nullable', 'string'],
-            'jenis' => ['required', 'in:jadi,racikan'],
-            'is_resep_luar' => ['sometimes', 'boolean'],
-        ]);
-        $data['is_resep_luar'] = $isExternal;
-        if ($data['is_resep_luar']) {
-            $data['obat_id'] = null;
-        }
+        return DB::transaction(function () use ($request, $kunjungan): RedirectResponse {
+            $kunjungan = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($kunjungan);
+            app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.storeResep', $kunjungan->pasien_id, $kunjungan->id);
+            $this->authorizeMutableVisit($kunjungan);
+            $isExternal = $request->boolean('is_resep_luar');
+            $data = $request->validate([
+                'obat_id' => ['nullable', 'required_unless:is_resep_luar,1', 'exists:obat,id'],
+                'nama_obat' => ['nullable', 'required_if:is_resep_luar,1', 'string', 'max:255'],
+                'jumlah' => $isExternal ? ['required', 'numeric', 'min:0.01'] : ['required', 'integer', 'min:1'],
+                'satuan' => ['nullable', 'string'],
+                'aturan_pakai' => ['nullable', 'string'],
+                'catatan' => ['nullable', 'string'],
+                'jenis' => ['required', 'in:jadi,racikan'],
+                'is_resep_luar' => ['sometimes', 'boolean'],
+            ]);
+            $data['is_resep_luar'] = $isExternal;
+            if ($data['is_resep_luar']) {
+                $data['obat_id'] = null;
+            }
 
-        DB::transaction(function () use ($data, $kunjungan): void {
-            $resep = $kunjungan->resep()->firstOrCreate(
-                ['kunjungan_id' => $kunjungan->id],
-                [
-                    'no_resep' => 'RSP-'.now()->format('Ymd').'-'.str_pad($kunjungan->id, 4, '0', STR_PAD_LEFT),
-                    'dokter_id' => auth()->user()->role === 'dokter' ? $this->currentDoctorId() : $kunjungan->dokter_id,
-                    'status' => 'menunggu',
-                ]
-            );
+            DB::transaction(function () use ($data, $kunjungan): void {
+                $resep = $kunjungan->resep()->firstOrCreate(
+                    ['kunjungan_id' => $kunjungan->id],
+                    [
+                        'no_resep' => 'RSP-'.now()->format('Ymd').'-'.str_pad($kunjungan->id, 4, '0', STR_PAD_LEFT),
+                        'dokter_id' => auth()->user()->role === 'dokter' ? $this->currentDoctorId() : $kunjungan->dokter_id,
+                        'status' => 'menunggu',
+                    ]
+                );
 
-            $obat = ! empty($data['obat_id']) ? Obat::whereKey($data['obat_id'])->lockForUpdate()->firstOrFail() : null;
-            $isResepLuar = (bool) ($data['is_resep_luar'] ?? false);
-            $stokDikurangi = false;
-
-            if (! $isResepLuar) {
-                if (! $obat || (float) $obat->stok < (float) $data['jumlah']) {
-                    throw ValidationException::withMessages([
-                        'jumlah' => 'Stok obat tidak mencukupi. Stok tersedia: '.($obat?->stok ?? 0).'.',
-                    ]);
+                $obat = ! empty($data['obat_id']) ? Obat::whereKey($data['obat_id'])->lockForUpdate()->firstOrFail() : null;
+                $isResepLuar = (bool) ($data['is_resep_luar'] ?? false);
+                if (! $isResepLuar && (! $obat || ! $obat->is_active || $obat->jenis !== 'obat')) {
+                    throw ValidationException::withMessages(['obat_id' => 'Pilih obat aktif dari persediaan klinik.']);
                 }
 
-                $stokSebelum = (float) $obat->stok;
-                $obat->update(['stok' => $stokSebelum - (float) $data['jumlah']]);
-                $stokDikurangi = true;
-            }
-
-            $item = $resep->resepObat()->create([
-                'obat_id' => $data['obat_id'] ?? null,
-                'nama_obat' => $data['nama_obat'] ?? $obat?->nama,
-                'jumlah' => $data['jumlah'],
-                'satuan' => $data['satuan'] ?? $obat?->satuan_kecil,
-                'aturan_pakai' => $data['aturan_pakai'] ?? null,
-                'catatan' => $data['catatan'] ?? null,
-                'jenis' => $data['jenis'],
-                'is_resep_luar' => $isResepLuar,
-                'stok_dikurangi' => $stokDikurangi,
-            ]);
-
-            if ($stokDikurangi) {
-                StokMutasi::create([
-                    'obat_id' => $obat->id,
-                    'jenis' => 'keluar',
-                    'referensi_type' => 'ResepObat',
-                    'referensi_id' => $item->id,
+                $item = $resep->resepObat()->create([
+                    'obat_id' => $data['obat_id'] ?? null,
+                    'nama_obat' => $data['nama_obat'] ?? $obat?->nama,
                     'jumlah' => $data['jumlah'],
-                    'harga' => $obat->harga_jual,
-                    'stok_sebelum' => $stokSebelum,
-                    'stok_sesudah' => $obat->stok,
-                    'keterangan' => "Reservasi resep {$resep->no_resep}",
+                    'satuan' => $data['satuan'] ?? $obat?->satuan_kecil,
+                    'aturan_pakai' => $data['aturan_pakai'] ?? null,
+                    'catatan' => $data['catatan'] ?? null,
+                    'jenis' => $data['jenis'],
+                    'is_resep_luar' => $isResepLuar,
+                    'stok_dikurangi' => false,
                 ]);
-            }
-        });
 
-        return back()->with('success', 'Obat berhasil ditambahkan ke resep.');
+            });
+
+            return back()->with('success', 'Obat berhasil ditambahkan ke resep.');
+        });
     }
 
     public function destroyResep(ResepObat $resepObat): RedirectResponse
     {
-        $resepObat->load('resep.kunjungan', 'obat');
-        $this->authorizeMutableVisit($resepObat->resep->kunjungan);
-        abort_unless($resepObat->resep->status === 'menunggu', 422, 'Resep yang sudah diproses tidak dapat diubah.');
+        return DB::transaction(function () use ($resepObat): RedirectResponse {
+            $kunjungan = Kunjungan::whereKey($resepObat->resep->kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($kunjungan);
+            app(ClinicalAuditRecorder::class)->record(request(), 'clinical_draft.destroyResep', $kunjungan->pasien_id, $kunjungan->id);
+            $resepObat->load('resep.kunjungan', 'obat');
+            $this->authorizeMutableVisit($resepObat->resep->kunjungan);
+            abort_unless($resepObat->resep->status === 'menunggu', 422, 'Resep yang sudah diproses tidak dapat diubah.');
 
-        DB::transaction(function () use ($resepObat): void {
-            if ($resepObat->stok_dikurangi && $resepObat->obat) {
-                $obat = Obat::whereKey($resepObat->obat_id)->lockForUpdate()->firstOrFail();
-                $stokSebelum = (float) $obat->stok;
-                $obat->update(['stok' => $stokSebelum + (float) $resepObat->jumlah]);
-                StokMutasi::create([
-                    'obat_id' => $obat->id,
-                    'jenis' => 'masuk',
-                    'referensi_type' => 'ResepObat',
-                    'referensi_id' => $resepObat->id,
-                    'jumlah' => $resepObat->jumlah,
-                    'harga' => $obat->harga_jual,
-                    'stok_sebelum' => $stokSebelum,
-                    'stok_sesudah' => $obat->stok,
-                    'keterangan' => 'Pengembalian stok karena item resep dihapus',
-                ]);
-            }
+            DB::transaction(function () use ($resepObat): void {
+                abort_if($resepObat->stok_dikurangi, 422, 'Rekonsiliasi reservasi stok lama sebelum menghapus resep.');
+                $resepObat->delete();
+            });
 
-            $resepObat->delete();
+            return back()->with('success', 'Obat berhasil dihapus dari resep.');
         });
-
-        return back()->with('success', 'Obat berhasil dihapus dari resep.');
     }
 
     public function storeTindakan(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        $this->authorizeMutableVisit($kunjungan);
-        $request->validate([
-            'tindakan_id' => ['required', 'exists:tindakan,id'],
-            'jumlah' => ['required', 'integer', 'min:1'],
-            'dokter_id' => ['nullable', 'exists:nakes,id'],
-            'tooth_fdi' => ['nullable', Rule::in(OdontogramFinding::toothCodes())],
-        ]);
+        return DB::transaction(function () use ($request, $kunjungan): RedirectResponse {
+            $kunjungan = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($kunjungan);
+            app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.storeTindakan', $kunjungan->pasien_id, $kunjungan->id);
+            $this->authorizeMutableVisit($kunjungan);
+            $request->validate([
+                'tindakan_id' => ['required', 'exists:tindakan,id'],
+                'jumlah' => ['required', 'integer', 'min:1'],
+                'dokter_id' => ['nullable', 'exists:nakes,id'],
+                'tooth_fdi' => ['nullable', Rule::in(OdontogramFinding::toothCodes())],
+            ]);
 
-        abort_if($request->filled('tooth_fdi') && $kunjungan->poliklinik?->jenis !== 'gigi', 422, 'Lokasi gigi hanya untuk kunjungan Poli Gigi.');
+            abort_if($request->filled('tooth_fdi') && $kunjungan->poliklinik?->jenis !== 'gigi', 422, 'Lokasi gigi hanya untuk kunjungan Poli Gigi.');
 
-        $tindakan = Tindakan::findOrFail($request->tindakan_id);
-        abort_unless($tindakan->poliklinik_id === $kunjungan->poliklinik_id, 422, 'Tindakan tidak tersedia di poliklinik kunjungan ini.');
+            $tindakan = Tindakan::findOrFail($request->tindakan_id);
+            abort_unless($tindakan->poliklinik_id === $kunjungan->poliklinik_id, 422, 'Tindakan tidak tersedia di poliklinik kunjungan ini.');
 
-        $kunjungan->tindakanKunjungan()->create([
-            'tindakan_id' => $tindakan->id,
-            'dokter_id' => $request->dokter_id ?? $kunjungan->dokter_id,
-            'jumlah' => $request->jumlah,
-            'tarif' => $tindakan->tarif * $request->jumlah,
-            'tarif_dokter' => $tindakan->tarif_dokter * $request->jumlah,
-            'tooth_fdi' => $request->input('tooth_fdi'),
-        ]);
+            $kunjungan->tindakanKunjungan()->create([
+                'tindakan_id' => $tindakan->id,
+                'dokter_id' => $request->dokter_id ?? $kunjungan->dokter_id,
+                'jumlah' => $request->jumlah,
+                'tarif' => 0,
+                'tarif_dokter' => 0,
+                'tooth_fdi' => $request->input('tooth_fdi'),
+            ]);
 
-        return back()->with('success', 'Tindakan berhasil ditambahkan.');
+            return back()->with('success', 'Tindakan berhasil ditambahkan.');
+        });
     }
 
     public function destroyTindakan(TindakanKunjungan $tindakanKunjungan): RedirectResponse
     {
-        $this->authorizeMutableVisit($tindakanKunjungan->load('kunjungan')->kunjungan);
-        $tindakanKunjungan->delete();
+        return DB::transaction(function () use ($tindakanKunjungan): RedirectResponse {
+            $kunjungan = Kunjungan::whereKey($tindakanKunjungan->kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($kunjungan);
+            app(ClinicalAuditRecorder::class)->record(request(), 'clinical_draft.destroyTindakan', $kunjungan->pasien_id, $kunjungan->id);
+            $this->authorizeMutableVisit($tindakanKunjungan->load('kunjungan')->kunjungan);
+            $tindakanKunjungan->delete();
 
-        return back()->with('success', 'Tindakan berhasil dihapus.');
+            return back()->with('success', 'Tindakan berhasil dihapus.');
+        });
     }
 
     public function storeSurat(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        $this->authorizeMutableVisit($kunjungan);
-        $request->validate([
-            'jenis' => ['required', 'in:sakit,sehat,rujukan,lainnya'],
-            'konten' => ['nullable', 'string'],
-            'nomor_surat' => ['nullable', 'string'],
-            'tanggal' => ['required', 'date'],
-        ]);
+        return DB::transaction(function () use ($request, $kunjungan): RedirectResponse {
+            $kunjungan = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($kunjungan);
+            app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.storeSurat', $kunjungan->pasien_id, $kunjungan->id);
+            $this->authorizeMutableVisit($kunjungan);
+            $request->validate([
+                'jenis' => ['required', 'in:sakit,sehat,rujukan,lainnya'],
+                'konten' => ['nullable', 'string'],
+                'nomor_surat' => ['nullable', 'string'],
+                'tanggal' => ['required', 'date'],
+            ]);
 
-        $kunjungan->suratMedis()->create([
-            'dokter_id' => $kunjungan->dokter_id,
-            'jenis' => $request->jenis,
-            'konten' => $request->konten,
-            'nomor_surat' => $request->nomor_surat,
-            'tanggal' => $request->tanggal,
-        ]);
+            $kunjungan->suratMedis()->create([
+                'dokter_id' => $kunjungan->dokter_id,
+                'jenis' => $request->jenis,
+                'konten' => $request->konten,
+                'nomor_surat' => $request->nomor_surat,
+                'tanggal' => $request->tanggal,
+            ]);
 
-        return back()->with('success', 'Surat medis berhasil dibuat.');
+            return back()->with('success', 'Surat medis berhasil dibuat.');
+        });
     }
 
     public function storeRujukan(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        $this->authorizeMutableVisit($kunjungan);
-        $request->validate([
-            'ke_poli_id' => ['required', 'exists:poliklinik,id'],
-            'catatan' => ['nullable', 'string'],
-        ]);
+        return DB::transaction(function () use ($request, $kunjungan): RedirectResponse {
+            $kunjungan = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($kunjungan);
+            app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.storeRujukan', $kunjungan->pasien_id, $kunjungan->id);
+            $this->authorizeMutableVisit($kunjungan);
+            $request->validate([
+                'ke_poli_id' => ['required', 'exists:poliklinik,id'],
+                'catatan' => ['nullable', 'string'],
+            ]);
 
-        $kunjungan->rujukanInternal()->create([
-            'dari_poli_id' => $kunjungan->poliklinik_id,
-            'ke_poli_id' => $request->ke_poli_id,
-            'catatan' => $request->catatan,
-            'status' => 'menunggu',
-        ]);
+            $kunjungan->rujukanInternal()->create([
+                'dari_poli_id' => $kunjungan->poliklinik_id,
+                'ke_poli_id' => $request->ke_poli_id,
+                'catatan' => $request->catatan,
+                'status' => 'menunggu',
+            ]);
 
-        return back()->with('success', 'Rujukan internal berhasil dibuat.');
+            return back()->with('success', 'Rujukan internal berhasil dibuat.');
+        });
     }
 
     public function selesai(Request $request, Kunjungan $kunjungan, ClinicalNoteRecorder $noteRecorder, ClinicalAuditRecorder $auditRecorder): RedirectResponse
@@ -490,6 +535,25 @@ class PemeriksaanController extends Controller
                 abort_unless($lockedVisit->odontogramFindings()->exists(), 422, 'Catat temuan odontogram sebelum finalisasi kunjungan gigi.');
             }
 
+            $procedures = $lockedVisit->tindakanKunjungan()->with('tindakan.bhp.obat')->orderBy('id')->lockForUpdate()->get();
+            $consumptions = [];
+            foreach ($procedures as $procedure) {
+                if ($procedure->bhp_consumed_at) {
+                    continue;
+                }
+                foreach ($procedure->tindakan->bhp as $supply) {
+                    abort_unless($supply->obat?->jenis === 'bhp', 422, 'Komposisi BHP tindakan harus memakai master BHP.');
+                    $consumptions[] = ['medicine' => $supply->obat_id, 'quantity' => (float) $supply->jumlah * (float) $procedure->jumlah, 'procedure' => $procedure->id];
+                }
+            }
+            usort($consumptions, fn (array $a, array $b): int => $a['medicine'] <=> $b['medicine']);
+            foreach ($consumptions as $consumption) {
+                app(PersediaanRecorder::class)->issue($consumption['medicine'], $consumption['quantity'], $request->user(), $lockedVisit, 'TindakanBhp', $consumption['procedure']);
+            }
+            foreach ($procedures as $procedure) {
+                $procedure->update(['bhp_consumed_at' => now()]);
+            }
+
             $noteRecorder->recordFinal($examination, $noteRecorder->snapshot($lockedVisit, $examination), $request->user()->id);
             $examination->update([
                 'status' => 'selesai',
@@ -498,14 +562,14 @@ class PemeriksaanController extends Controller
             ]);
 
             $prescription = $lockedVisit->resep;
-            if ($prescription) {
+            if ($prescription && $prescription->resepObat()->exists()) {
                 Farmasi::firstOrCreate(
                     ['kunjungan_id' => $lockedVisit->id],
                     ['resep_id' => $prescription->id, 'status' => 'menunggu']
                 );
                 $lockedVisit->update(['status' => 'farmasi']);
             } else {
-                $lockedVisit->update(['status' => 'kasir']);
+                $lockedVisit->update(['status' => 'selesai']);
             }
 
             $auditRecorder->record($request, 'clinical_examination.finalize', $lockedVisit->pasien_id, $lockedVisit->id);
@@ -630,12 +694,43 @@ class PemeriksaanController extends Controller
 
     public function searchIcd10(Request $request): JsonResponse
     {
-        $query = $request->q;
+        $filters = $request->validate([
+            'q' => ['required', 'string', 'min:2', 'max:100'],
+            'code_system' => ['nullable', 'string', 'max:100'],
+        ]);
+        $query = $filters['q'];
+        $system = $filters['code_system'] ?? 'icd10_who';
+        $keywords = collect(preg_split('/[^\pL\pN.-]+/u', $query) ?: [])
+            ->map(fn (string $term): string => trim($term))
+            ->filter(fn (string $term): bool => mb_strlen($term) >= 3)
+            ->unique()->take(6)->values();
+        $catalog = ClinicalTerminology::query()
+            ->where('code_system', $system)
+            ->where('is_active', true)
+            ->where('code_type', 'diagnosis')
+            ->where(function ($builder) use ($query, $keywords): void {
+                $builder->where('code', 'like', '%'.addcslashes($query, '\\%_').'%');
+                foreach ($keywords as $keyword) {
+                    $builder->orWhere('display', 'like', '%'.addcslashes($keyword, '\\%_').'%');
+                }
+            })
+            ->orderByDesc('updated_at')
+            ->orderBy('code')
+            ->limit(50)
+            ->get(['code as kode', 'display as nama', 'release'])
+            ->map(fn ($item): array => ['kode' => $item->kode, 'nama' => $item->nama, 'code_system' => $system, 'release' => $item->release])
+            ->unique('kode')->take(10)->values();
 
-        $results = Icd10::where('kode', 'like', "%$query%")
-            ->orWhere('nama', 'like', "%$query%")
-            ->limit(10)
-            ->get(['kode', 'nama']);
+        $results = $catalog->isNotEmpty() || $system !== 'icd10_who'
+            ? $catalog
+            : Icd10::query()->where(function ($builder) use ($query, $keywords): void {
+                $builder->where('kode', 'like', '%'.addcslashes($query, '\\%_').'%');
+                foreach ($keywords as $keyword) {
+                    $builder->orWhere('nama', 'like', '%'.addcslashes($keyword, '\\%_').'%');
+                }
+            })
+                ->orderBy('kode')->limit(10)->get(['kode', 'nama'])
+                ->map(fn (Icd10 $item): array => ['kode' => $item->kode, 'nama' => $item->nama, 'code_system' => 'icd10_who', 'release' => '']);
 
         return response()->json($results);
     }

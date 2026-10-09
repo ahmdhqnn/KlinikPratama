@@ -55,7 +55,7 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, visit
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(0,1fr)_1fr_1fr_auto]" onSubmit={applyFilters}>
+                        <form className="grid gap-4 sm:grid-cols-2 sm:items-start xl:grid-cols-[minmax(0,1fr)_1fr_1fr_auto]" onSubmit={applyFilters}>
                             <Field htmlFor="screening-search" label="Cari pasien">
                                 <Input id="screening-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama atau nomor RM" value={filters.search} />
                             </Field>
@@ -67,7 +67,7 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, visit
                                     <option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                                 </Select>
                             </Field>
-                            <Button type="submit"><Search className="size-4" />Cari antrean</Button>
+                            <Button className="sm:mt-7" type="submit"><Search className="size-4" />Cari antrean</Button>
                         </form>
                     </CardContent>
                 </Card>
