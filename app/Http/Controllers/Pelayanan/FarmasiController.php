@@ -115,22 +115,39 @@ class FarmasiController extends Controller
 
     public function store(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
+        abort_unless($kunjungan->status === 'farmasi', 422, 'Kunjungan tidak berada pada tahap farmasi.');
+
         $data = $request->validate([
             'items' => ['present', 'array'],
-            'items.*.resep_obat_id' => ['nullable', 'integer'],
+            'items.*.resep_obat_id' => ['nullable', 'integer', 'distinct'],
             'items.*.obat_id' => ['nullable', 'integer', 'exists:obat,id'],
-            'items.*.jumlah_diberikan' => ['required', 'numeric', 'min:0'],
+            'items.*.jumlah_diberikan' => ['required', 'integer', 'min:0'],
             'items.*.aturan_pakai' => ['nullable', 'string'],
             'items.*.catatan' => ['nullable', 'string'],
             'catatan' => ['nullable', 'string'],
         ]);
 
         $prescriptionItems = $kunjungan->resep?->resepObat ?? collect();
+        $submittedPrescriptionItemIds = [];
 
         foreach ($data['items'] as $index => $item) {
             $resepObat = ! empty($item['resep_obat_id'])
                 ? $prescriptionItems->firstWhere('id', (int) $item['resep_obat_id'])
                 : null;
+
+            if (! $resepObat && empty($item['resep_obat_id']) && ! empty($item['obat_id'])) {
+                $matchingItems = $prescriptionItems->where('obat_id', (int) $item['obat_id']);
+                if ($matchingItems->count() > 1) {
+                    throw ValidationException::withMessages([
+                        "items.$index.resep_obat_id" => 'Pilih item resep untuk obat ini secara langsung.',
+                    ]);
+                }
+
+                $resepObat = $matchingItems->first();
+                if ($resepObat) {
+                    $data['items'][$index]['resep_obat_id'] = $resepObat->id;
+                }
+            }
 
             if (! empty($item['resep_obat_id']) && ! $resepObat) {
                 throw ValidationException::withMessages([
@@ -138,9 +155,37 @@ class FarmasiController extends Controller
                 ]);
             }
 
+            if (! $resepObat && (float) $item['jumlah_diberikan'] > 0) {
+                throw ValidationException::withMessages([
+                    "items.$index.resep_obat_id" => 'Obat yang diberikan harus berasal dari resep kunjungan ini.',
+                ]);
+            }
+
+            if ($resepObat && in_array($resepObat->id, $submittedPrescriptionItemIds, true)) {
+                throw ValidationException::withMessages([
+                    "items.$index.resep_obat_id" => 'Item resep tidak boleh dicatat dua kali.',
+                ]);
+            }
+
+            if ($resepObat) {
+                $submittedPrescriptionItemIds[] = $resepObat->id;
+            }
+
             if ($resepObat?->is_resep_luar && (float) $item['jumlah_diberikan'] > 0) {
                 throw ValidationException::withMessages([
                     "items.$index.jumlah_diberikan" => 'Resep luar harus ditebus di apotek luar klinik.',
+                ]);
+            }
+
+            if ($resepObat && (float) $item['jumlah_diberikan'] > (float) $resepObat->jumlah) {
+                throw ValidationException::withMessages([
+                    "items.$index.jumlah_diberikan" => 'Jumlah diberikan tidak boleh melebihi jumlah resep.',
+                ]);
+            }
+
+            if ($resepObat && (float) $item['jumlah_diberikan'] > 0 && $resepObat->obat_id !== (int) ($item['obat_id'] ?? 0)) {
+                throw ValidationException::withMessages([
+                    "items.$index.obat_id" => 'Obat yang diberikan harus sesuai dengan item resep.',
                 ]);
             }
 
@@ -157,10 +202,16 @@ class FarmasiController extends Controller
         }
 
         DB::transaction(function () use ($data, $kunjungan): void {
-            $farmasi = Farmasi::firstOrCreate(
-                ['kunjungan_id' => $kunjungan->id],
-                ['resep_id' => $kunjungan->resep?->id, 'status' => 'diproses']
-            );
+            $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            abort_unless($lockedVisit->status === 'farmasi', 422, 'Kunjungan tidak berada pada tahap farmasi.');
+
+            $farmasi = Farmasi::where('kunjungan_id', $kunjungan->id)->lockForUpdate()->first();
+            abort_if($farmasi?->status === 'selesai', 422, 'Dispensing sudah selesai dan tidak dapat diubah.');
+            $farmasi ??= Farmasi::create([
+                'kunjungan_id' => $kunjungan->id,
+                'resep_id' => $kunjungan->resep?->id,
+                'status' => 'diproses',
+            ]);
 
             $farmasi->items()->delete();
 
@@ -187,27 +238,69 @@ class FarmasiController extends Controller
 
     public function selesai(Kunjungan $kunjungan): RedirectResponse
     {
-        $farmasi = $kunjungan->farmasi()->with(['items.obat', 'items.resepObat'])->first();
+        $result = DB::transaction(function () use ($kunjungan): string {
+            $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $farmasi = Farmasi::where('kunjungan_id', $kunjungan->id)->lockForUpdate()->first();
 
-        if (! $farmasi) {
-            return back()->with('error', 'Data farmasi tidak ditemukan.');
-        }
+            if (! $farmasi) {
+                return 'missing';
+            }
 
-        if ($farmasi->status === 'selesai') {
-            return redirect()->route('pelayanan.farmasi.index')
-                ->with('success', 'Dispensing kunjungan ini sudah selesai.');
-        }
+            if ($farmasi->status === 'selesai') {
+                return 'already';
+            }
 
-        $kunjungan->loadMissing('resep.resepObat');
-        DB::transaction(function () use ($farmasi, $kunjungan): void {
+            abort_unless($lockedVisit->status === 'farmasi', 422, 'Kunjungan tidak berada pada tahap farmasi.');
+
+            $farmasi->load(['items.obat', 'items.resepObat']);
+            $lockedVisit->loadMissing('resep.resepObat');
+
             foreach ($farmasi->items as $item) {
-                $reservedItem = $item->resepObat
-                    ?? $kunjungan->resep?->resepObat->first(
-                        fn (ResepObat $resepObat): bool => $resepObat->obat_id === $item->obat_id
-                            && $resepObat->stok_dikurangi
-                    );
+                if (floor((float) $item->jumlah_diberikan) !== (float) $item->jumlah_diberikan) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Jumlah obat dari stok klinik harus berupa bilangan bulat.',
+                    ]);
+                }
+            }
 
-                if ($reservedItem?->stok_dikurangi) {
+            foreach ($farmasi->items as $item) {
+                if ($item->resep_obat_id || ! $item->obat_id) {
+                    continue;
+                }
+
+                $matchingItems = $lockedVisit->resep?->resepObat->where('obat_id', $item->obat_id) ?? collect();
+                if ($matchingItems->count() > 1) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Item resep tidak jelas untuk obat '.$item->obat?->nama.'. Pilih item resep secara langsung.',
+                    ]);
+                }
+
+                if ($matchingItems->count() === 1) {
+                    $matchingItem = $matchingItems->first();
+                    $item->update(['resep_obat_id' => $matchingItem->id]);
+                    $item->setRelation('resepObat', $matchingItem);
+                }
+            }
+
+            $processedPrescriptionItemIds = [];
+            foreach ($farmasi->items as $item) {
+                $prescriptionItem = $item->resepObat;
+                if (! $prescriptionItem
+                    || (int) $prescriptionItem->resep_id !== (int) $lockedVisit->resep?->id
+                    || $prescriptionItem->is_resep_luar
+                    || (int) $prescriptionItem->obat_id !== (int) $item->obat_id
+                    || (float) $item->jumlah_diberikan > (float) $prescriptionItem->jumlah
+                    || in_array($prescriptionItem->id, $processedPrescriptionItemIds, true)) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Data dispensing tidak sesuai dengan resep kunjungan. Periksa kembali item obat.',
+                    ]);
+                }
+
+                $processedPrescriptionItemIds[] = $prescriptionItem->id;
+            }
+
+            foreach ($farmasi->items as $item) {
+                if ($item->resepObat?->stok_dikurangi) {
                     continue;
                 }
 
@@ -231,18 +324,66 @@ class FarmasiController extends Controller
                     'harga' => $obat->harga_jual,
                     'stok_sebelum' => $stokSebelum,
                     'stok_sesudah' => $stokSesudah,
-                    'keterangan' => "Dispensing kunjungan {$kunjungan->no_kunjungan}",
+                    'keterangan' => "Dispensing kunjungan {$lockedVisit->no_kunjungan}",
                 ]);
             }
+
+            foreach ($lockedVisit->resep?->resepObat ?? collect() as $prescriptionItem) {
+                if (! $prescriptionItem->stok_dikurangi) {
+                    continue;
+                }
+
+                if (floor((float) $prescriptionItem->jumlah) !== (float) $prescriptionItem->jumlah) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Reservasi resep dengan jumlah pecahan harus direkonsiliasi sebelum dispensing.',
+                    ]);
+                }
+
+                $dispensed = (float) $farmasi->items->where('resep_obat_id', $prescriptionItem->id)->sum('jumlah_diberikan');
+                $unused = round((float) $prescriptionItem->jumlah - $dispensed, 2);
+                if ($unused < 0) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Jumlah diberikan melebihi jumlah resep.',
+                    ]);
+                }
+
+                if ($unused === 0.0) {
+                    continue;
+                }
+
+                $obat = Obat::whereKey($prescriptionItem->obat_id)->lockForUpdate()->firstOrFail();
+                $stokSebelum = (float) $obat->stok;
+                $stokSesudah = $stokSebelum + $unused;
+                $obat->update(['stok' => $stokSesudah]);
+
+                StokMutasi::create([
+                    'obat_id' => $obat->id,
+                    'jenis' => 'masuk',
+                    'referensi_type' => 'Farmasi',
+                    'referensi_id' => $farmasi->id,
+                    'jumlah' => $unused,
+                    'harga' => $obat->harga_jual,
+                    'stok_sebelum' => $stokSebelum,
+                    'stok_sesudah' => $stokSesudah,
+                    'keterangan' => "Pengembalian sisa reservasi resep {$lockedVisit->no_kunjungan}",
+                ]);
+            }
+
+            $farmasi->update(['status' => 'selesai']);
+            $lockedVisit->resep?->update(['status' => 'selesai']);
+            $lockedVisit->update(['status' => 'kasir']);
+
+            return 'complete';
         });
 
-        $farmasi->update(['status' => 'selesai']);
-
-        if ($kunjungan->resep) {
-            $kunjungan->resep->update(['status' => 'selesai']);
+        if ($result === 'missing') {
+            return back()->with('error', 'Data farmasi tidak ditemukan.');
         }
 
-        $kunjungan->update(['status' => 'kasir']);
+        if ($result === 'already') {
+            return redirect()->route('pelayanan.farmasi.index')
+                ->with('success', 'Dispensing kunjungan ini sudah selesai.');
+        }
 
         return redirect()->route('pelayanan.farmasi.index')
             ->with('success', 'Dispensing selesai. Pasien diteruskan ke kasir.');

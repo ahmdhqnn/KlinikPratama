@@ -89,6 +89,11 @@ class Kunjungan extends Model
         return $this->hasMany(InformedConsent::class);
     }
 
+    public function odontogramFindings(): HasMany
+    {
+        return $this->hasMany(OdontogramFinding::class);
+    }
+
     public static function generateNomor(): string
     {
         $date = now()->format('Ymd');

@@ -6,6 +6,8 @@ use App\Models\Asuransi;
 use App\Models\BiayaAdmin;
 use App\Models\DepoObat;
 use App\Models\Diagnosa;
+use App\Models\Farmasi;
+use App\Models\FarmasiItem;
 use App\Models\Icd10;
 use App\Models\KlinikSetting;
 use App\Models\Kunjungan;
@@ -19,6 +21,7 @@ use App\Models\Poliklinik;
 use App\Models\Resep;
 use App\Models\ResepObat;
 use App\Models\Screening;
+use App\Models\StokMutasi;
 use App\Models\Tagihan;
 use App\Models\Tindakan;
 use App\Models\User;
@@ -29,6 +32,10 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        if (! app()->environment(['local', 'testing'])) {
+            throw new \RuntimeException('DatabaseSeeder berisi akun dan data contoh; gunakan hanya pada lingkungan local/testing.');
+        }
+
         // Admin user
         User::create([
             'name' => 'Administrator',
@@ -59,13 +66,13 @@ class DatabaseSeeder extends Seeder
         // Depo Obat
         $apotek = DepoObat::create(['kode' => 'APT', 'nama' => 'Apotek', 'is_active' => true]);
         $gudang = DepoObat::create(['kode' => 'GDG', 'nama' => 'Gudang Farmasi', 'is_active' => true]);
-        DepoObat::create(['kode' => 'UGD', 'nama' => 'UGD', 'is_active' => true]);
+        DepoObat::create(['kode' => 'UGD', 'nama' => 'UGD', 'is_active' => false]);
 
         // Poliklinik
         $poliUmum = Poliklinik::create(['kode' => 'PU', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'depo_obat_id' => $apotek->id]);
         $poliGigi = Poliklinik::create(['kode' => 'PG', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'depo_obat_id' => $apotek->id]);
-        $poliKia = Poliklinik::create(['kode' => 'KIA', 'nama' => 'Poli KIA', 'jenis' => 'kia', 'depo_obat_id' => $apotek->id]);
-        $poliLab = Poliklinik::create(['kode' => 'LAB', 'nama' => 'Laboratorium', 'jenis' => 'lab', 'depo_obat_id' => null]);
+        $poliKia = Poliklinik::create(['kode' => 'KIA', 'nama' => 'Poli KIA', 'jenis' => 'kia', 'depo_obat_id' => $apotek->id, 'is_active' => false]);
+        $poliLab = Poliklinik::create(['kode' => 'LAB', 'nama' => 'Laboratorium', 'jenis' => 'lab', 'depo_obat_id' => null, 'is_active' => false]);
 
         // Nakes
         $dokter = Nakes::create([
@@ -312,7 +319,7 @@ class DatabaseSeeder extends Seeder
 
         $obatParacetamol = Obat::where('kode', 'OBT001')->first();
         if ($obatParacetamol) {
-            ResepObat::create([
+            $resepObat = ResepObat::create([
                 'resep_id' => $resep->id,
                 'obat_id' => $obatParacetamol->id,
                 'nama_obat' => $obatParacetamol->nama,
@@ -320,6 +327,31 @@ class DatabaseSeeder extends Seeder
                 'satuan' => 'Tablet',
                 'aturan_pakai' => '3x1 tablet sesudah makan',
                 'jenis' => 'jadi',
+            ]);
+
+            $farmasi = Farmasi::create([
+                'kunjungan_id' => $kunjunganSelesai->id,
+                'resep_id' => $resep->id,
+                'status' => 'selesai',
+            ]);
+            FarmasiItem::create([
+                'farmasi_id' => $farmasi->id,
+                'resep_obat_id' => $resepObat->id,
+                'obat_id' => $obatParacetamol->id,
+                'jumlah_diberikan' => 10,
+                'aturan_pakai' => $resepObat->aturan_pakai,
+            ]);
+            $obatParacetamol->update(['stok' => 90]);
+            StokMutasi::create([
+                'obat_id' => $obatParacetamol->id,
+                'jenis' => 'keluar',
+                'referensi_type' => 'Farmasi',
+                'referensi_id' => $farmasi->id,
+                'jumlah' => 10,
+                'harga' => $obatParacetamol->harga_jual,
+                'stok_sebelum' => 100,
+                'stok_sesudah' => 90,
+                'keterangan' => "Dispensing kunjungan {$kunjunganSelesai->no_kunjungan}",
             ]);
         }
 

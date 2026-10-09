@@ -67,4 +67,28 @@ class DoctorAccountAssignmentTest extends TestCase
             'nakes_id' => $doctor->id,
         ])->assertSessionHasErrors('nakes_id');
     }
+
+    public function test_changing_doctor_account_to_admin_unlinks_professional_profile(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $doctorUser = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $doctor = Nakes::create([
+            'kode' => 'DR-ROLE',
+            'nama' => 'Dokter Beralih Peran',
+            'kategori' => 'medis',
+            'jabatan' => 'dokter',
+            'user_id' => $doctorUser->id,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)->put(route('users.update', $doctorUser), [
+            'name' => $doctorUser->name,
+            'email' => $doctorUser->email,
+            'role' => 'admin',
+            'is_active' => true,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('admin', $doctorUser->fresh()->role);
+        $this->assertNull($doctor->fresh()->user_id);
+    }
 }

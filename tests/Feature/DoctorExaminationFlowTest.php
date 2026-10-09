@@ -93,6 +93,14 @@ class DoctorExaminationFlowTest extends TestCase
             ->has('schedule')
             ->has('recentVisits', 1)
         );
+        $visit->update(['status' => 'selesai']);
+        $this->actingAs($user)->get(route('dokter.dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->where('stats.visitsToday', 1)
+            ->where('stats.completedToday', 1)
+            ->has('recentVisits', 1)
+            ->where('recentVisits.0.status', 'selesai')
+        );
+        $visit->update(['status' => 'pemeriksaan']);
         $this->actingAs($user)->get(route('dokter.janji-kunjungan', [
             'dari' => today()->toDateString(),
             'sampai' => today()->addDay()->toDateString(),
@@ -158,6 +166,13 @@ class DoctorExaminationFlowTest extends TestCase
 
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.resep.store', $visit), [
             'obat_id' => $obat->id,
+            'jumlah' => 0.5,
+            'jenis' => 'jadi',
+        ])->assertSessionHasErrors('jumlah');
+        $this->assertDatabaseHas('obat', ['id' => $obat->id, 'stok' => 10]);
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.resep.store', $visit), [
+            'obat_id' => $obat->id,
             'jumlah' => 3,
             'aturan_pakai' => '3 x 1',
             'jenis' => 'jadi',
@@ -165,5 +180,17 @@ class DoctorExaminationFlowTest extends TestCase
 
         $this->assertDatabaseHas('obat', ['id' => $obat->id, 'stok' => 7]);
         $this->assertDatabaseHas('resep_obat', ['obat_id' => $obat->id, 'stok_dikurangi' => true]);
+
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit))->assertRedirect();
+        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'farmasi']);
+
+        $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), [
+            'obat_id' => $obat->id,
+            'jumlah' => 2,
+            'jenis' => 'jadi',
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseHas('obat', ['id' => $obat->id, 'stok' => 7]);
+        $this->assertDatabaseCount('resep_obat', 1);
     }
 }

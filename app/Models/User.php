@@ -17,11 +17,15 @@ class User extends Authenticatable
         'password',
         'role',
         'is_active',
+        'phone',
+        'address',
+        'photo_path',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'photo_path',
     ];
 
     protected function casts(): array

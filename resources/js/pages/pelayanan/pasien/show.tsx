@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 interface Visit {
     id: number;
+    url: string;
     number: string;
     date: string | null;
     clinic: string;
@@ -24,7 +25,7 @@ interface Patient {
     nik: string | null;
     birthDate: string | null;
     gender: string | null;
-    age: number;
+    age: number | null;
     bloodType: string | null;
     phone: string | null;
     address: string | null;
@@ -35,7 +36,7 @@ interface Patient {
     visits: Visit[];
 };
 
-export default function PatientDetail({ patient }: { patient: Patient }) {
+export default function PatientDetail({ patient, permissions }: { patient: Patient; permissions: { viewRme: boolean; editPatient: boolean; openVisit: boolean } }) {
     return (
         <>
             <Head title={`Profil ${patient.name}`} />
@@ -44,14 +45,14 @@ export default function PatientDetail({ patient }: { patient: Patient }) {
                     <div><p className="text-sm font-medium text-neutral-700">Profil pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{patient.name}</h2><p className="mt-1 font-mono text-sm text-neutral-500">{patient.medicalRecordNumber}</p></div>
                     <div className="flex flex-wrap gap-2">
                         <Button asChild variant="secondary"><Link href="/pelayanan/pasien"><ArrowLeft className="size-4" />Kembali</Link></Button>
-                        <Button asChild variant="secondary"><Link href={`/pelayanan/pasien/${patient.id}/edit`}><Pencil className="size-4" />Edit data</Link></Button>
-                        <Button asChild variant="secondary"><Link href={`/pelayanan/pasien/${patient.id}/rekam-medis`}><HeartPulse className="size-4" />Rekam medis lengkap</Link></Button>
-                        <Button asChild><Link href={`/pelayanan/kunjungan/create?pasien_id=${patient.id}`}><CalendarPlus className="size-4" />Buka kunjungan</Link></Button>
+                        {permissions.editPatient && <Button asChild variant="secondary"><Link href={`/pelayanan/pasien/${patient.id}/edit`}><Pencil className="size-4" />Edit data</Link></Button>}
+                        {permissions.viewRme && <Button asChild variant="secondary"><Link href={`/pelayanan/pasien/${patient.id}/rekam-medis`}><HeartPulse className="size-4" />Rekam medis lengkap</Link></Button>}
+                        {permissions.openVisit && <Button asChild><Link href={`/pelayanan/kunjungan/create?pasien_id=${patient.id}`}><CalendarPlus className="size-4" />Buka kunjungan</Link></Button>}
                     </div>
                 </div>
                 <div className="grid gap-6 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.7fr)]">
                     <Card>
-                        <CardHeader><div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-neutral-50 text-neutral-700"><UserRound className="size-8" /></div><CardTitle className="text-center">Informasi pasien</CardTitle><CardDescription className="text-center">{patient.gender === 'L' ? 'Laki-laki' : patient.gender === 'P' ? 'Perempuan' : 'Jenis kelamin belum diisi'} · {patient.age} tahun</CardDescription></CardHeader>
+                        <CardHeader><div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-neutral-50 text-neutral-700"><UserRound className="size-8" /></div><CardTitle className="text-center">Informasi pasien</CardTitle><CardDescription className="text-center">{patient.gender === 'L' ? 'Laki-laki' : patient.gender === 'P' ? 'Perempuan' : 'Jenis kelamin belum diisi'} · {patient.age === null ? 'umur belum diketahui' : `${patient.age} tahun`}</CardDescription></CardHeader>
                         <CardContent className="space-y-4">
                             <Info label="NIK" value={patient.nik} />
                             <Info label="Tanggal lahir" value={patient.birthDate} />
@@ -66,7 +67,7 @@ export default function PatientDetail({ patient }: { patient: Patient }) {
                     <Card className="overflow-hidden">
                         <CardHeader className="border-b border-neutral-100"><CardTitle>Riwayat kunjungan</CardTitle><CardDescription>Menampilkan hingga 20 kunjungan terakhir pasien.</CardDescription></CardHeader>
                         <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[720px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Poli</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead></tr></TableHeader><TableBody>
-                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={`/pelayanan/kunjungan/${visit.id}`}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? '—'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada riwayat kunjungan." /></TableCell></TableRow>}
+                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={visit.url}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? '—'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada riwayat kunjungan." /></TableCell></TableRow>}
                         </TableBody></Table></div></CardContent>
                     </Card>
                 </div>

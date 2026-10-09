@@ -61,7 +61,7 @@ class RmeAuthFlowTest extends TestCase
             ->where('stats.visitsThisMonth', 0)
             ->where('stats.revenueThisMonth', 0)
             ->has('visitStatuses')
-            ->has('recentVisits', 0)
+            ->missing('recentVisits')
         );
     }
 

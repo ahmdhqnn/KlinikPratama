@@ -173,6 +173,8 @@ class UserController extends Controller
         $nakesRoles = ['dokter', 'perawat', 'farmasi', 'kasir', 'pendaftaran'];
 
         if (! in_array($user->role, $nakesRoles, true)) {
+            Nakes::withTrashed()->where('user_id', $user->id)->update(['user_id' => null]);
+
             return;
         }
 

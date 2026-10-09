@@ -85,8 +85,34 @@ class NakesInertiaTest extends TestCase
             'is_active' => false,
         ])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('nakes', ['id' => $staff->id, 'nama' => 'dr. Dokter Uji, Sp.PD', 'is_active' => false]);
+        $this->assertFalse($account->fresh()->is_active);
 
         $this->delete(route('master.nakes.destroy', $staff))->assertSessionHasNoErrors();
         $this->assertSoftDeleted('nakes', ['id' => $staff->id]);
+    }
+
+    public function test_linked_staff_cannot_change_to_a_position_with_a_different_account_role(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $doctorUser = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $staff = Nakes::create([
+            'kode' => 'DR-GUARD',
+            'nama' => 'Dokter Tetap',
+            'kategori' => 'medis',
+            'jabatan' => 'dokter',
+            'user_id' => $doctorUser->id,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)->put(route('master.nakes.update', $staff), [
+            'kode' => 'DR-GUARD',
+            'nama' => 'Dokter Tetap',
+            'kategori' => 'non_medis',
+            'jabatan' => 'kasir',
+            'is_active' => true,
+        ])->assertSessionHasErrors('jabatan');
+
+        $this->assertSame('dokter', $staff->fresh()->jabatan);
+        $this->assertSame('dokter', $doctorUser->fresh()->role);
     }
 }

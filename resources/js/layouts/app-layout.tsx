@@ -29,7 +29,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Breadcrumb, type BreadcrumbItem } from '@/components/ui/breadcrumb';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Empty } from '@/components/ui/empty';
@@ -42,6 +42,8 @@ interface AppUser {
     name: string;
     email: string;
     role: string;
+    roleLabel: string;
+    photoUrl: string | null;
 }
 
 interface SharedPageProps extends PageProps {
@@ -69,8 +71,6 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Pasien', href: '/pelayanan/pasien', icon: UsersRound },
                 { label: 'Kunjungan', href: '/pelayanan/kunjungan', icon: ClipboardList },
                 { label: 'Antrian', href: '/pelayanan/antrian', icon: Activity },
-                { label: 'Pemeriksaan', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
-                { label: 'Farmasi', href: '/pelayanan/farmasi', icon: Pill },
                 { label: 'Kasir', href: '/pelayanan/kasir', icon: CreditCard },
             ],
         },
@@ -95,9 +95,17 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             items: [
                 { label: 'Stok & Pengadaan', href: '/stok/purchase-order', icon: ShoppingBag },
                 { label: 'Penjualan langsung', href: '/stok/penjualan-langsung', icon: CreditCard },
-                { label: 'Laporan', href: '/laporan/kunjungan', icon: ChartNoAxesCombined },
                 { label: 'Pengaturan', href: '/setting', icon: Settings },
                 { label: 'Pengguna', href: '/users', icon: UsersRound },
+            ],
+        },
+        {
+            label: 'Laporan',
+            items: [
+                { label: 'Kunjungan', href: '/laporan/kunjungan', icon: ClipboardList },
+                { label: 'Pendapatan', href: '/laporan/pendapatan', icon: CreditCard },
+                { label: 'Stok', href: '/laporan/stok', icon: Boxes },
+                { label: 'Laboratorium', href: '/laporan/laboratorium', icon: Activity },
             ],
         },
     ],
@@ -111,6 +119,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Database Pasien', href: '/pendaftaran/database-pasien', icon: UsersRound },
                 { label: 'Kunjungan Per Poli', href: '/pendaftaran/kunjungan-per-poli', icon: BedDouble },
                 { label: 'Laporan Kunjungan', href: '/pendaftaran/laporan-kunjungan', icon: BarChart3 },
+                { label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
                 { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
             ],
         },
@@ -120,9 +129,16 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             label: 'Pelayanan',
             items: [
                 { label: 'Dashboard', href: '/perawat/dashboard', icon: LayoutDashboard },
-                { label: 'Daftar Kunjungan', href: '/pelayanan/screening', icon: ClipboardList },
                 { label: 'Pasien', href: '/pelayanan/pasien', icon: UsersRound },
                 { label: 'Skrining', href: '/pelayanan/screening', icon: HeartPulse },
+            ],
+        },
+        {
+            label: 'Pemantauan',
+            items: [
+                { label: 'Kunjungan Per Poli', href: '/pendaftaran/kunjungan-per-poli', icon: Activity },
+                { label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
+                { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
             ],
         },
     ],
@@ -132,7 +148,6 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             items: [
                 { label: 'Dashboard', href: '/dokter', icon: LayoutDashboard },
                 { label: 'Kunjungan', href: '/dokter/kunjungan', icon: ClipboardList },
-                { label: 'Janji Kunjungan', href: '/dokter/janji-kunjungan', icon: CalendarDays },
                 { label: 'Pasien', href: '/dokter/pasien', icon: UsersRound },
                 { label: 'Stok Obat', href: '/dokter/stok-obat', icon: Pill },
                 { label: 'Top Diagnosis', href: '/dokter/laporan-top-diagnosa', icon: ChartNoAxesCombined },
@@ -188,6 +203,7 @@ function getPageTitle(component: string): string {
         'laporan/stok': 'Laporan Stok',
         'laporan/laboratorium': 'Laporan Laboratorium',
         'users/index': 'Manajemen Pengguna',
+        'profile/show': 'Profil Saya',
         'setting/index': 'Pengaturan Klinik',
         'master/poliklinik/index': 'Poliklinik',
         'master/poliklinik/show': 'Ruang Poliklinik',
@@ -227,6 +243,7 @@ const breadcrumbLabels: Record<string, string> = {
     stok: 'Stok & pengadaan',
     setting: 'Pengaturan',
     users: 'Pengguna',
+    profile: 'Profil Saya',
 };
 
 function getBreadcrumbItems(pathname: string, title: string, validHrefs: Set<string>): BreadcrumbItem[] {
@@ -304,11 +321,12 @@ function SidebarContents({
             <SidebarFooter>
                 <div className={`flex min-w-0 items-center gap-3 rounded-xl bg-neutral-50 p-3 ${isCollapsed ? 'flex-col px-1.5' : ''}`}>
                     <Avatar aria-label={user?.name ?? 'Pengguna'} className="size-9 bg-neutral-100 text-neutral-800">
+                        {user?.photoUrl && <AvatarImage alt="" src={user.photoUrl} />}
                         <AvatarFallback>{user?.name.slice(0, 1).toLocaleUpperCase() ?? 'U'}</AvatarFallback>
                     </Avatar>
                     {!isCollapsed && <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-neutral-900">{user?.name ?? 'Pengguna'}</p>
-                        <p className="truncate text-xs capitalize text-neutral-500">{user?.role ?? ''}</p>
+                        <p className="truncate text-xs text-neutral-500">{user?.roleLabel ?? ''}</p>
                     </div>}
                 </div>
             </SidebarFooter>
@@ -323,10 +341,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchOpen, setSearchOpen] = useState(false);
     const user = auth.user;
-    const groups = navigationByRole[user?.role ?? ''] ?? navigationByRole.admin;
+    const groups: NavigationGroup[] = [
+        ...(navigationByRole[user?.role ?? ''] ?? []),
+        { label: 'Akun', items: [{ label: 'Profil Saya', href: '/profile', icon: UserRound }] },
+    ];
     const pathname = window.location.pathname;
     const pageTitle = getPageTitle(usePage().component);
-    const validHrefs = new Set(Object.values(navigationByRole).flatMap((roleGroups) => roleGroups.flatMap((group) => group.items.map((item) => item.href))));
+    const validHrefs = new Set([...Object.values(navigationByRole).flatMap((roleGroups) => roleGroups.flatMap((group) => group.items.map((item) => item.href))), '/profile']);
     const breadcrumbs = getBreadcrumbItems(pathname, pageTitle, validHrefs);
     const searchResults = groups.flatMap((group) => group.items
         .filter((item) => `${item.label} ${group.label}`.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()))
@@ -458,6 +479,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                         <DropdownMenu.Trigger asChild>
                             <Button aria-label={`Menu akun ${user?.name ?? 'Pengguna'}`} className="size-10 rounded-full p-0" size="icon" variant="ghost">
                                 <Avatar className="size-9 border border-neutral-200 bg-neutral-100 text-neutral-800">
+                                    {user?.photoUrl && <AvatarImage alt="" src={user.photoUrl} />}
                                     <AvatarFallback>{user?.name.slice(0, 1).toLocaleUpperCase() ?? 'U'}</AvatarFallback>
                                 </Avatar>
                             </Button>
@@ -469,6 +491,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                                     <p className="truncate text-xs text-neutral-500">{user?.email ?? ''}</p>
                                 </div>
                                 <DropdownMenu.Separator className="my-1 h-px bg-neutral-200" />
+                                <DropdownMenu.Item asChild className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus:bg-neutral-100">
+                                    <Link href="/profile"><UserRound aria-hidden="true" className="size-4" />Profil Saya</Link>
+                                </DropdownMenu.Item>
                                 <DropdownMenu.Item className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus:bg-neutral-100" onSelect={() => router.post('/logout')}>
                                     <LogOut aria-hidden="true" className="size-4" />
                                     Keluar dari aplikasi

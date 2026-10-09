@@ -18,7 +18,6 @@ interface Patient {
     address: string | null;
     insuranceId: number | null;
     insuranceNumber: string | null;
-    allergies: string | null;
 }
 
 interface InsuranceProvider {
@@ -45,7 +44,6 @@ export default function PatientForm({ patient, insuranceProviders }: Props) {
         alamat: patient?.address ?? '',
         asuransi_id: patient?.insuranceId?.toString() ?? '',
         no_asuransi: patient?.insuranceNumber ?? '',
-        riwayat_alergi: patient?.allergies ?? '',
     });
 
     function submit(event: FormEvent<HTMLFormElement>) {

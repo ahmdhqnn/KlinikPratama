@@ -13,9 +13,9 @@
     </script>
     @viteReactRefresh
     @vite(['resources/css/app.css', 'resources/js/app.tsx'])
-    <x-inertia::head />
+    @inertiaHead
 </head>
 <body class="min-h-full font-sans antialiased">
-    <x-inertia::app />
+    @inertia
 </body>
 </html>

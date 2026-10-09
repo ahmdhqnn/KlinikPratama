@@ -17,7 +17,6 @@ export interface PatientFormData {
     alamat: string;
     asuransi_id: string;
     no_asuransi: string;
-    riwayat_alergi: string;
 }
 
 interface InsuranceProvider {
@@ -62,11 +61,10 @@ export function PatientFields({ data, errors, insuranceProviders, onChange }: Pr
                 </div>
             </section>
             <section className="space-y-4">
-                <div><h3 className="text-sm font-semibold text-neutral-950">Penjamin dan informasi medis</h3><p className="mt-1 text-sm text-neutral-500">Riwayat alergi akan ditampilkan kepada tenaga medis.</p></div>
+                <div><h3 className="text-sm font-semibold text-neutral-950">Penjamin</h3><p className="mt-1 text-sm text-neutral-500">Isi informasi penjamin pasien bila tersedia.</p></div>
                 <div className="grid gap-4 md:grid-cols-2">
                     <Field error={errors.asuransi_id} htmlFor="asuransi_id" label="Penjamin"><Select {...field('asuransi_id', data.asuransi_id)}><option value="">Umum (bayar sendiri)</option>{insuranceProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.name} ({provider.type.toUpperCase()})</option>)}</Select></Field>
                     <Field error={errors.no_asuransi} htmlFor="no_asuransi" label="Nomor kartu penjamin"><Input {...field('no_asuransi', data.no_asuransi)} /></Field>
-                    <div className="md:col-span-2"><Field error={errors.riwayat_alergi} htmlFor="riwayat_alergi" label="Riwayat alergi"><Textarea {...field('riwayat_alergi', data.riwayat_alergi)} className="border-red-200 bg-red-50/60 focus-visible:bg-surface" placeholder="Contoh: alergi Amoxicillin atau makanan laut" rows={3} /></Field></div>
                 </div>
             </section>
         </div>

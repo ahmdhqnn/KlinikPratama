@@ -28,6 +28,7 @@ interface Schedule {
 }
 
 interface Props {
+    canManage: boolean;
     filters: { dokterId: number | ''; poliklinikId: number | ''; hari: string };
     doctors: Option[];
     clinics: Option[];
@@ -43,7 +44,7 @@ interface ScheduleForm {
     jam_selesai: string;
 }
 
-export default function DoctorSchedule({ filters: initialFilters, doctors, clinics, days, schedules }: Props) {
+export default function DoctorSchedule({ canManage, filters: initialFilters, doctors, clinics, days, schedules }: Props) {
     const [filters, setFilters] = useState(initialFilters);
     const form = useForm<ScheduleForm>({ dokter_id: '', poliklinik_id: '', hari: '', jam_mulai: '', jam_selesai: '' });
 
@@ -72,9 +73,9 @@ export default function DoctorSchedule({ filters: initialFilters, doctors, clini
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Pengaturan layanan</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Jadwal praktik dokter</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Atur jam layanan dokter yang menjadi acuan pendaftaran pasien.</p>
+                    <p className="mt-1 text-sm text-neutral-500">{canManage ? 'Atur jam layanan dokter yang menjadi acuan pendaftaran pasien.' : 'Lihat jam layanan dokter yang menjadi acuan pelayanan pasien.'}</p>
                 </div>
-                <Card>
+                {canManage && <Card>
                     <CardHeader>
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Plus className="size-5" /></span>
@@ -109,7 +110,7 @@ export default function DoctorSchedule({ filters: initialFilters, doctors, clini
                             <Button disabled={form.processing || doctors.length === 0 || clinics.length === 0} type="submit"><Plus className="size-4" />{form.processing ? 'Menyimpan…' : 'Tambah jadwal'}</Button>
                         </form>
                     </CardContent>
-                </Card>
+                </Card>}
                 <Card>
                     <CardContent className="p-5 sm:p-6">
                         <form className="grid gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[1fr_1fr_1fr_auto_auto]" onSubmit={applyFilters}>
@@ -149,7 +150,7 @@ export default function DoctorSchedule({ filters: initialFilters, doctors, clini
                                             <TableCell><span className="rounded-full bg-neutral-50 px-2.5 py-1 text-xs font-semibold capitalize text-neutral-700">{schedule.day}</span></TableCell>
                                             <TableCell><span className="inline-flex items-center gap-2 font-mono text-xs text-neutral-600"><Clock3 className="size-3.5" />{schedule.start} – {schedule.end}</span></TableCell>
                                             <TableCell><Badge variant={schedule.active ? 'complete' : 'cancelled'}>{schedule.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell>
-                                            <TableCell className="text-right"><Button aria-label={`Hapus jadwal ${schedule.doctor} ${schedule.day}`} onClick={() => deleteSchedule(schedule)} size="icon" type="button" variant="ghost"><Trash2 className="size-4 text-red-600" /></Button></TableCell>
+                                            <TableCell className="text-right">{canManage ? <Button aria-label={`Hapus jadwal ${schedule.doctor} ${schedule.day}`} onClick={() => deleteSchedule(schedule)} size="icon" type="button" variant="ghost"><Trash2 className="size-4 text-red-600" /></Button> : <span className="text-xs text-neutral-400">—</span>}</TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty size="compact" title="Tidak ada jadwal praktik sesuai filter." /></TableCell></TableRow>}
                                 </TableBody>
