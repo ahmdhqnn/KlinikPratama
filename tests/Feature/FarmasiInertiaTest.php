@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Farmasi;
 use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\ObatBatch;
@@ -17,6 +18,49 @@ use Tests\TestCase;
 class FarmasiInertiaTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_pharmacist_dashboard_summarizes_queue_and_restricts_access_to_pharmacy_role(): void
+    {
+        $pharmacist = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
+        $clinic = Poliklinik::create(['kode' => 'UMUM-DASH-FAR', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $waitingPatient = Pasien::create(['no_rm' => 'RM-DASH-FAR-1', 'nama' => 'Pasien Menunggu']);
+        $processingPatient = Pasien::create(['no_rm' => 'RM-DASH-FAR-2', 'nama' => 'Pasien Diproses']);
+        $waitingVisit = Kunjungan::create([
+            'no_kunjungan' => 'KNJ-DASH-FAR-1', 'pasien_id' => $waitingPatient->id, 'poliklinik_id' => $clinic->id,
+            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama', 'jenis_bayar' => 'umum',
+        ]);
+        $processingVisit = Kunjungan::create([
+            'no_kunjungan' => 'KNJ-DASH-FAR-2', 'pasien_id' => $processingPatient->id, 'poliklinik_id' => $clinic->id,
+            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama', 'jenis_bayar' => 'umum',
+        ]);
+        Farmasi::create(['kunjungan_id' => $processingVisit->id, 'status' => 'diproses']);
+        $lowStockMedicine = Obat::create([
+            'kode' => 'OBT-DASH-LOW', 'nama' => 'Obat stok rendah', 'satuan_kecil' => 'tablet', 'stok' => 8,
+            'stok_minimum' => 10, 'harga_jual' => 1000, 'jenis' => 'obat', 'is_active' => true,
+        ]);
+        ObatBatch::factory()->create(['obat_id' => $lowStockMedicine->id, 'status' => 'karantina', 'stok' => 8]);
+        $availableMedicine = Obat::create([
+            'kode' => 'OBT-DASH-OK', 'nama' => 'Obat stok cukup', 'satuan_kecil' => 'tablet', 'stok' => 10,
+            'stok_minimum' => 5, 'harga_jual' => 1000, 'jenis' => 'obat', 'is_active' => true,
+        ]);
+        ObatBatch::factory()->create(['obat_id' => $availableMedicine->id, 'stok' => 10]);
+
+        $this->actingAs($pharmacist)->get(route('dashboard'))->assertRedirect(route('farmasi.dashboard'));
+        $this->get(route('farmasi.dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->component('farmasi/dashboard')
+            ->where('stats.waitingVisits', 1)
+            ->where('stats.processingVisits', 1)
+            ->where('stats.completedToday', 0)
+            ->where('stats.lowStockMedicines', 1)
+            ->has('recentVisits', 2)
+            ->where('recentVisits.0.number', 'KNJ-DASH-FAR-1')
+            ->where('recentVisits.0.actionUrl', route('pelayanan.farmasi.show', $waitingVisit))
+            ->where('recentVisits.0.actionLabel', 'Proses resep')
+            ->where('recentVisits.1.actionLabel', 'Lanjutkan'));
+
+        $doctor = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $this->actingAs($doctor)->get(route('farmasi.dashboard'))->assertForbidden();
+    }
 
     public function test_dispensing_pages_process_clinic_stock_and_allow_external_prescriptions(): void
     {
@@ -112,6 +156,15 @@ class FarmasiInertiaTest extends TestCase
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'selesai']);
         $this->assertDatabaseHas('farmasi', ['kunjungan_id' => $visit->id, 'status' => 'selesai']);
         $this->assertDatabaseHas('resep', ['id' => $prescription->id, 'status' => 'selesai']);
+
+        $this->get(route('pelayanan.farmasi.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.id', $visit->id)
+            ->where('visits.data.0.pharmacyStatus', 'selesai'));
+        $this->get(route('pelayanan.farmasi.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->component('pelayanan/farmasi/show')
+            ->where('visit.status', 'selesai')
+            ->where('visit.pharmacy.status', 'selesai')
+            ->where('visit.prescriptionItems.0.dispensedQuantity', 3));
 
         $this->post(route('pelayanan.farmasi.store', $visit), [
             'items' => [

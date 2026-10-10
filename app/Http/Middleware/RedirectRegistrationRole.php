@@ -37,7 +37,7 @@ class RedirectRegistrationRole
 
         if ($request->user()?->role === 'farmasi' && ! $this->isAllowedForPharmacy($request)) {
             if ($request->routeIs('dashboard')) {
-                return redirect()->route('pelayanan.farmasi.index');
+                return redirect()->route('farmasi.dashboard');
             }
 
             abort(403, 'Unauthorized access.');
@@ -68,6 +68,7 @@ class RedirectRegistrationRole
     {
         return $request->routeIs(
             'dokter.*',
+            'persuratan.*',
             'pelayanan.pemeriksaan.*',
             'pelayanan.icd10.search',
             'pelayanan.pasien.index',
@@ -79,6 +80,6 @@ class RedirectRegistrationRole
 
     private function isAllowedForPharmacy(Request $request): bool
     {
-        return $request->routeIs('pelayanan.farmasi.*', 'stok.persediaan.*', 'stok.batch.*', 'stok.mutasi.*', 'stok.purchase-order.*', 'logout');
+        return $request->routeIs('farmasi.dashboard', 'pelayanan.farmasi.*', 'stok.persediaan.*', 'stok.batch.*', 'stok.mutasi.*', 'stok.purchase-order.*', 'logout');
     }
 }

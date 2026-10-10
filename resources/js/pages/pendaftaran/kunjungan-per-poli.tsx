@@ -1,5 +1,5 @@
-import { Head, router } from '@inertiajs/react';
-import { Activity, CalendarDays, Clock3, ClipboardCheck, Printer, Search, Stethoscope } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { Activity, Ban, CalendarDays, Clock3, ClipboardCheck, Eye, Pencil, Printer, Search, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { StatusBadge } from '@/components/dashboard/status-badge';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DatePicker } from '@/components/ui/date-picker';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 
 interface Clinic {
     id: number;
@@ -24,13 +25,18 @@ interface Visit {
     medicalRecordNumber: string;
     doctor: string;
     status: string;
+    actionUrl: string;
+    actionLabel: string;
     ticketUrl: string | null;
+    editUrl: string | null;
+    cancelUrl: string | null;
 }
 
 interface Props {
     filters: { poliklinikId: number | ''; tanggal: string; status: string };
     clinics: Clinic[];
     stats: { total: number; waiting: number; screening: number; examination: number };
+    access: { manageVisits: boolean; monitorClinicalFlow: boolean };
     visits: Visit[];
 }
 
@@ -39,7 +45,7 @@ const statusOptions = [
     ['farmasi', 'Farmasi'], ['selesai', 'Selesai'], ['batal', 'Dibatalkan'],
 ];
 
-export default function ClinicVisits({ filters: initialFilters, clinics, stats, visits }: Props) {
+export default function ClinicVisits({ filters: initialFilters, clinics, stats, access, visits }: Props) {
     const [filters, setFilters] = useState(initialFilters);
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
@@ -102,7 +108,12 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
                                             <TableCell><StatusBadge status={visit.status} /></TableCell>
-                                            <TableCell className="text-right">{visit.ticketUrl ? <Button asChild size="sm" variant="secondary"><a href={visit.ticketUrl} rel="noreferrer" target="_blank"><Printer className="size-4" />Cetak antrean</a></Button> : <span className="text-xs text-neutral-400">—</span>}</TableCell>
+                                            <TableCell><div className="flex flex-wrap justify-end gap-2">
+                                                <Button asChild size="sm" variant="secondary"><Link href={visit.actionUrl}><Eye className="size-4" />{visit.actionLabel}</Link></Button>
+                                                {access.manageVisits && visit.editUrl && <Button asChild aria-label={`Perbarui kunjungan ${visit.number}`} size="icon" variant="ghost"><Link href={visit.editUrl}><Pencil className="size-4" /></Link></Button>}
+                                                {access.manageVisits && visit.cancelUrl && <Button aria-label={`Batalkan kunjungan ${visit.number}`} onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} untuk ${visit.patient}?`, () => { router.post(visit.cancelUrl as string, {}, { preserveScroll: true }); }, 'Batalkan')} size="icon" type="button" variant="ghost"><Ban className="size-4 text-red-600" /></Button>}
+                                                {visit.ticketUrl && <Button asChild aria-label={`Cetak antrean ${visit.number}`} size="icon" variant="ghost"><a href={visit.ticketUrl} rel="noreferrer" target="_blank"><Printer className="size-4" /></a></Button>}
+                                            </div></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty description={clinics.length ? 'Coba sesuaikan filter tanggal untuk melihat kunjungan.' : 'Aktifkan poliklinik agar daftar kunjungan dapat ditampilkan.'} size="compact" title={clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'} /></TableCell></TableRow>}
                                 </TableBody>

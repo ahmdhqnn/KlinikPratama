@@ -12,10 +12,10 @@ use App\Models\Nakes;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -124,7 +124,7 @@ class KunjunganController extends Controller
             'jenis_bayar' => ['sometimes', 'in:internal,umum,bpjs,asuransi'],
             'catatan' => ['nullable', 'string'],
         ]);
-        $this->ensureDoctorIsScheduled($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
+        $data['dokter_id'] = $this->resolveScheduledDoctor($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
 
         $data['no_kunjungan'] = Kunjungan::generateNomor();
         $data['status'] = 'menunggu';
@@ -229,7 +229,7 @@ class KunjunganController extends Controller
             'jenis_bayar' => ['sometimes', 'in:internal,umum,bpjs,asuransi'],
             'catatan' => ['nullable', 'string'],
         ]);
-        $this->ensureDoctorIsScheduled($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
+        $data['dokter_id'] = $this->resolveScheduledDoctor($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
 
         DB::transaction(function () use ($kunjungan, $data, $request): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
@@ -284,7 +284,7 @@ class KunjunganController extends Controller
     /**
      * @param  Collection<int, Poliklinik>  $poliklinikList
      * @param  Collection<int, Asuransi>  $asuransiList
-     * @return array{clinics: \Illuminate\Support\Collection<int, array{id: int, name: string}>, insuranceProviders: \Illuminate\Support\Collection<int, array{id: int, name: string, type: string}>}
+     * @return array{clinics: Collection<int, array{id: int, name: string}>, insuranceProviders: Collection<int, array{id: int, name: string, type: string}>}
      */
     private function formOptions(Collection $poliklinikList, Collection $asuransiList): array
     {
@@ -302,8 +302,43 @@ class KunjunganController extends Controller
         ]);
         $date = Carbon::parse($filters['tanggal']);
 
-        $doctors = JadwalDokter::query()
-            ->where('poliklinik_id', $filters['poliklinik_id'])
+        $doctors = $this->scheduledDoctors((int) $filters['poliklinik_id'], $date)
+            ->map(fn (Nakes $doctor): array => ['id' => $doctor->id, 'nama' => $doctor->nama]);
+
+        return response()->json($doctors);
+    }
+
+    private function resolveScheduledDoctor(?int $doctorId, int $clinicId, string $date): ?int
+    {
+        $visitDate = Carbon::parse($date);
+        $doctors = $this->scheduledDoctors($clinicId, $visitDate);
+
+        if ($doctorId !== null && ! $doctors->contains('id', $doctorId)) {
+            throw ValidationException::withMessages(['dokter_id' => 'Dokter tidak memiliki jadwal aktif pada poli dan tanggal kunjungan yang dipilih.']);
+        }
+
+        if ($doctorId !== null) {
+            return $doctorId;
+        }
+
+        if ($doctors->count() === 1) {
+            return $doctors->first()->id;
+        }
+
+        if ($doctors->count() > 1) {
+            throw ValidationException::withMessages(['dokter_id' => 'Pilih salah satu dokter yang tersedia pada poliklinik dan tanggal tersebut.']);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return Collection<int, Nakes>
+     */
+    private function scheduledDoctors(int $clinicId, Carbon $date): Collection
+    {
+        return JadwalDokter::query()
+            ->where('poliklinik_id', $clinicId)
             ->where('hari', strtolower($date->locale('id')->dayName))
             ->where('is_active', true)
             ->where(fn ($query) => $query->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', $date->toDateString()))
@@ -314,30 +349,6 @@ class KunjunganController extends Controller
             ->pluck('dokter')
             ->filter()
             ->unique('id')
-            ->values()
-            ->map(fn (Nakes $doctor): array => ['id' => $doctor->id, 'nama' => $doctor->nama]);
-
-        return response()->json($doctors);
-    }
-
-    private function ensureDoctorIsScheduled(?int $doctorId, int $clinicId, string $date): void
-    {
-        if ($doctorId === null) {
-            return;
-        }
-
-        $visitDate = Carbon::parse($date);
-        $isScheduled = JadwalDokter::query()
-            ->where('dokter_id', $doctorId)
-            ->where('poliklinik_id', $clinicId)
-            ->where('hari', strtolower($visitDate->locale('id')->dayName))
-            ->where('is_active', true)
-            ->where(fn ($query) => $query->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', $visitDate->toDateString()))
-            ->where(fn ($query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', $visitDate->toDateString()))
-            ->exists();
-
-        if (! $isScheduled) {
-            throw ValidationException::withMessages(['dokter_id' => 'Dokter tidak memiliki jadwal aktif pada poli dan tanggal kunjungan yang dipilih.']);
-        }
+            ->values();
     }
 }

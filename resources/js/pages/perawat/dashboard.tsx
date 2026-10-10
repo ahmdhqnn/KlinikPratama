@@ -1,8 +1,10 @@
-import { Head } from '@inertiajs/react';
-import { AlertTriangle, ClipboardCheck, HeartPulse, Stethoscope } from 'lucide-react';
+import { Head, Link } from '@inertiajs/react';
+import { Activity, AlertTriangle, CalendarDays, ClipboardCheck, HeartPulse, Stethoscope, UsersRound } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { VisitTable, type DashboardVisit } from '@/components/dashboard/visit-table';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface Props {
     stats: { menunggu_ttv: number; siap_dokter: number; triase_darurat: number };
@@ -24,6 +26,18 @@ export default function NurseDashboard({ stats, visits }: Props) {
                     <StatCard description="Siap mendapat pemeriksaan dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Siap ke dokter" value={stats.siap_dokter} />
                     <StatCard description="Triase merah yang perlu perhatian" icon={<AlertTriangle className="size-5" />} iconClassName="bg-red-50 text-red-700" label="Triase darurat" value={stats.triase_darurat} />
                 </section>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Akses cepat</CardTitle>
+                        <CardDescription>Buka antrean skrining dan informasi layanan yang sering digunakan.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <QuickLink href="/pelayanan/screening" icon={<ClipboardCheck className="size-4" />} label="Antrean skrining" />
+                        <QuickLink href="/pendaftaran/kunjungan-per-poli" icon={<Activity className="size-4" />} label="Kunjungan per poli" />
+                        <QuickLink href="/pendaftaran/database-pasien" icon={<UsersRound className="size-4" />} label="Database pasien" />
+                        <QuickLink href="/pendaftaran/jadwal-praktik" icon={<CalendarDays className="size-4" />} label="Jadwal praktik" />
+                    </CardContent>
+                </Card>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
@@ -36,4 +50,10 @@ export default function NurseDashboard({ stats, visits }: Props) {
             </div>
         </>
     );
+}
+
+function QuickLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
+    return <Button asChild className="h-auto justify-start gap-3 py-3" variant="secondary">
+        <Link href={href}>{icon}<span>{label}</span></Link>
+    </Button>;
 }

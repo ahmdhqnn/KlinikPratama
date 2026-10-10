@@ -10,8 +10,8 @@ class TindakanKunjungan extends Model
     protected $table = 'tindakan_kunjungan';
 
     protected $fillable = [
-        'kunjungan_id', 'tindakan_id', 'dokter_id',
-        'jumlah', 'tarif', 'tarif_dokter', 'tooth_fdi', 'bhp_consumed_at',
+        'kunjungan_id', 'tindakan_id', 'nama_tindakan_manual', 'dokter_id',
+        'jumlah', 'tarif', 'tarif_dokter', 'tooth_fdi', 'catatan', 'bhp_consumed_at',
     ];
 
     protected $casts = [

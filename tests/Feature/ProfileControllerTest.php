@@ -163,6 +163,28 @@ class ProfileControllerTest extends TestCase
         $this->assertNull($user->fresh()->photo_path);
     }
 
+    public function test_signature_is_private_to_each_staff_account_and_can_be_removed(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $other = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+
+        $this->actingAs($user)->post(route('profile.signature.upload'), [
+            'signature' => UploadedFile::fake()->image('signature.png'),
+        ])->assertSessionHasNoErrors();
+
+        $signaturePath = $user->fresh()->signature_path;
+        Storage::disk('local')->assertExists($signaturePath);
+        $this->get(route('profile.signature'))->assertOk();
+        $this->actingAs($other)->get(route('profile.signature'))->assertNotFound();
+        $this->actingAs($user)->get(route('profile.show'))
+            ->assertInertia(fn (Assert $page) => $page->where('profile.signatureUrl', route('profile.signature')));
+
+        $this->delete(route('profile.signature.delete'))->assertSessionHasNoErrors();
+        $this->assertNull($user->fresh()->signature_path);
+        Storage::disk('local')->assertMissing($signaturePath);
+    }
+
     public function test_deactivated_session_cannot_reach_profile_or_role_pages(): void
     {
         $user = User::factory()->create(['role' => 'farmasi', 'is_active' => false]);

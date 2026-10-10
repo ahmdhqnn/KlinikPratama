@@ -7,6 +7,7 @@ use App\Models\JadwalDokter;
 use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\Pasien;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -18,7 +19,12 @@ class DokterDashboardController extends Controller
     {
         $dokterId = $this->dokterId();
         $today = today();
-        $base = Kunjungan::where('dokter_id', $dokterId);
+        $scheduledClinicIds = $this->scheduledClinicIds($dokterId, $today->toDateString());
+        $base = Kunjungan::where(fn (Builder $query) => $query
+            ->where('dokter_id', $dokterId)
+            ->orWhere(fn (Builder $unassigned) => $unassigned->whereNull('dokter_id')
+                ->where('status', 'pemeriksaan')
+                ->whereIn('poliklinik_id', $scheduledClinicIds)));
 
         $kunjunganHariIni = (clone $base)->whereDate('tanggal', $today)->count();
         $menungguPemeriksaan = (clone $base)->whereDate('tanggal', $today)
@@ -34,7 +40,7 @@ class DokterDashboardController extends Controller
 
         $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik'])
             ->whereDate('tanggal', $today)
-            ->orderBy('created_at')
+            ->orderByDesc('created_at')
             ->limit(10)
             ->get();
 
@@ -57,6 +63,11 @@ class DokterDashboardController extends Controller
                 'medicalRecordNumber' => $visit->pasien->no_rm,
                 'clinic' => $visit->poliklinik->nama,
                 'status' => $visit->status,
+                'actionUrl' => $visit->status === 'pemeriksaan'
+                    ? route('pelayanan.pemeriksaan.show', $visit)
+                    : route('pelayanan.pasien.rekam-medis', $visit->pasien),
+                'actionLabel' => $visit->status === 'pemeriksaan' ? 'Pemeriksaan' : 'Lihat RME',
+                'actionType' => $visit->status === 'pemeriksaan' ? 'examination' : 'detail',
             ])->values(),
         ]);
     }
@@ -224,5 +235,22 @@ class DokterDashboardController extends Controller
     private function hariIndonesia(int $day): string
     {
         return ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'][$day];
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function scheduledClinicIds(int $doctorId, string $date): array
+    {
+        $visitDate = Carbon::parse($date);
+
+        return JadwalDokter::query()
+            ->where('dokter_id', $doctorId)
+            ->where('hari', strtolower($this->hariIndonesia($visitDate->dayOfWeek)))
+            ->where('is_active', true)
+            ->where(fn (Builder $query) => $query->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', $visitDate->toDateString()))
+            ->where(fn (Builder $query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', $visitDate->toDateString()))
+            ->whereHas('dokter', fn (Builder $query) => $query->where('is_active', true)->where('jabatan', 'dokter'))
+            ->pluck('poliklinik_id')->unique()->values()->all();
     }
 }

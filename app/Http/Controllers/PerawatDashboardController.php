@@ -38,6 +38,15 @@ class PerawatDashboardController extends Controller
                 'status' => $visit->status,
                 'triage' => $visit->screening?->kesimpulan_triase,
                 'priority' => $visit->screening?->prioritas_layanan,
+                'actionUrl' => in_array($visit->status, ['menunggu', 'screening'], true)
+                    ? route('pelayanan.screening.show', $visit)
+                    : route('pelayanan.pasien.rekam-medis', $visit->pasien),
+                'actionLabel' => match ($visit->status) {
+                    'menunggu' => 'Skrining',
+                    'screening' => 'Lanjutkan skrining',
+                    default => 'Lihat RME',
+                },
+                'actionType' => in_array($visit->status, ['menunggu', 'screening'], true) ? 'screening' : 'detail',
             ])->values(),
         ]);
     }

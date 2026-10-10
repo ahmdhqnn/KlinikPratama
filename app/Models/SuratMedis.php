@@ -10,7 +10,7 @@ class SuratMedis extends Model
     protected $table = 'surat_medis';
 
     protected $fillable = [
-        'kunjungan_id', 'dokter_id', 'jenis',
+        'kunjungan_id', 'dokter_id', 'surat_template_id', 'jenis',
         'konten', 'tanggal', 'nomor_surat',
     ];
 
@@ -24,5 +24,10 @@ class SuratMedis extends Model
     public function dokter(): BelongsTo
     {
         return $this->belongsTo(Nakes::class, 'dokter_id');
+    }
+
+    public function template(): BelongsTo
+    {
+        return $this->belongsTo(CorrespondenceTemplate::class, 'surat_template_id');
     }
 }

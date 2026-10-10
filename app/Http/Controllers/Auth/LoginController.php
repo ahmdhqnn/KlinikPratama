@@ -30,6 +30,7 @@ class LoginController extends Controller
                 'pendaftaran' => route('pendaftaran.dashboard'),
                 'perawat' => route('perawat.dashboard'),
                 'dokter' => route('dokter.dashboard'),
+                'farmasi' => route('farmasi.dashboard'),
                 default => route('dashboard'),
             };
 

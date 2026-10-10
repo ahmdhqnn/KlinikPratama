@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\DepoObat;
+use App\Models\JadwalDokter;
 use App\Models\Kepesertaan;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
@@ -44,6 +45,14 @@ class RmeEndToEndFlowTest extends TestCase
 
         $depo = DepoObat::create(['kode' => 'APT', 'nama' => 'Apotek Utama', 'is_active' => true]);
         $poli = Poliklinik::create(['kode' => 'PU', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'depo_obat_id' => $depo->id, 'is_active' => true]);
+        JadwalDokter::create([
+            'dokter_id' => $doctor->id,
+            'poliklinik_id' => $poli->id,
+            'hari' => strtolower(now()->locale('id')->dayName),
+            'jam_mulai' => '08:00',
+            'jam_selesai' => '12:00',
+            'is_active' => true,
+        ]);
         $obat = Obat::create([
             'kode' => 'OBT01',
             'nama' => 'Paracetamol 500mg',
@@ -147,12 +156,12 @@ class RmeEndToEndFlowTest extends TestCase
         ]);
 
         // Selesai pemeriksaan dokter -> diteruskan ke farmasi
-        $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/selesai");
+        $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/selesai", ['signature_password' => 'password']);
         $kunjungan->refresh();
         $this->assertEquals('farmasi', $kunjungan->status);
         $this->assertEquals(100, $obat->fresh()->stok);
         $this->assertEquals(3, $supply->fresh()->stok);
-        $this->post('/pelayanan/pemeriksaan/'.$kunjungan->id.'/selesai')->assertUnprocessable();
+        $this->post('/pelayanan/pemeriksaan/'.$kunjungan->id.'/selesai', ['signature_password' => 'password'])->assertUnprocessable();
         $this->assertEquals(3, $supply->fresh()->stok);
 
         $this->actingAs($nurse)->post("/pelayanan/kunjungan/{$kunjungan->id}/screening", [

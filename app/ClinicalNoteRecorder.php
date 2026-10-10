@@ -18,7 +18,15 @@ class ClinicalNoteRecorder
 
         return [
             'anamnesis' => $examination->anamnesis,
+            'riwayat_penyakit_sekarang' => $examination->riwayat_penyakit_sekarang,
+            'riwayat_penyakit_dahulu' => $examination->riwayat_penyakit_dahulu,
+            'riwayat_penyakit_keluarga' => $examination->riwayat_penyakit_keluarga,
+            'riwayat_alergi' => $examination->riwayat_alergi,
             'pemeriksaan_fisik' => $examination->pemeriksaan_fisik,
+            'pemeriksaan_fisik_terstruktur' => $examination->pemeriksaan_fisik_terstruktur ?? [],
+            'pemeriksaan_ekstraoral' => $examination->pemeriksaan_ekstraoral,
+            'oral_hygiene_index' => $examination->oral_hygiene_index,
+            'diagnosis_banding' => $examination->diagnosis_banding,
             'catatan' => $examination->catatan,
             'edukasi' => $examination->edukasi,
             'kontrol_berikutnya' => $examination->kontrol_berikutnya?->toDateString(),
@@ -28,9 +36,10 @@ class ClinicalNoteRecorder
                 'type' => $diagnosis->jenis,
             ])->values()->all(),
             'treatments' => $visit->tindakanKunjungan->sortBy('id')->map(fn ($treatment): array => [
-                'name' => $treatment->tindakan?->nama,
+                'name' => $treatment->nama_tindakan_manual ?? $treatment->tindakan?->nama ?? 'Tindakan tidak tersedia',
                 'quantity' => $treatment->jumlah,
                 'tooth_fdi' => $treatment->tooth_fdi,
+                'note' => $treatment->catatan,
             ])->values()->all(),
             'prescriptions' => $visit->resep?->resepObat->sortBy('id')->map(fn ($item): array => [
                 'name' => $item->nama_obat,

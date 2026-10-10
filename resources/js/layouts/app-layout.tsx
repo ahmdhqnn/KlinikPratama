@@ -9,6 +9,7 @@ import {
     ChartNoAxesCombined,
     ClipboardList,
     CreditCard,
+    FileText,
     HeartPulse,
     LayoutDashboard,
     LogOut,
@@ -71,6 +72,8 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Pasien', href: '/pelayanan/pasien', icon: UsersRound },
                 { label: 'Kunjungan', href: '/pelayanan/kunjungan', icon: ClipboardList },
                 { label: 'Antrian', href: '/pelayanan/antrian', icon: Activity },
+                { label: 'Persuratan', href: '/persuratan', icon: FileText },
+                { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
                 { label: 'Kepesertaan & hak layanan', href: '/kepesertaan', icon: ShieldCheck },
                 { label: 'Terminologi klinis', href: '/master/terminologi-klinis', icon: ClipboardList },
             ],
@@ -151,11 +154,12 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Stok Obat', href: '/dokter/stok-obat', icon: Pill },
                 { label: 'Top Diagnosis', href: '/dokter/laporan-top-diagnosa', icon: ChartNoAxesCombined },
                 { label: 'Pemeriksaan', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
+                { label: 'Persuratan', href: '/persuratan', icon: FileText },
             ],
         },
     ],
     farmasi: [
-        { label: 'Farmasi', items: [{ label: 'Antrian Farmasi', href: '/pelayanan/farmasi', icon: Pill }, { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes }, { label: 'Pengadaan', href: '/stok/purchase-order', icon: ShoppingBag }] },
+        { label: 'Farmasi', items: [{ label: 'Dashboard', href: '/farmasi/dashboard', icon: LayoutDashboard }, { label: 'Antrian Farmasi', href: '/pelayanan/farmasi', icon: Pill }, { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes }, { label: 'Pengadaan', href: '/stok/purchase-order', icon: ShoppingBag }] },
     ],
     manajemen: [
         { label: 'Manajemen', items: [{ label: 'Dashboard', href: '/', icon: LayoutDashboard }, { label: 'Utilisasi & anggaran', href: '/laporan/utilisasi', icon: ChartNoAxesCombined }] },
@@ -196,8 +200,11 @@ function getPageTitle(component: string): string {
         'pelayanan/kunjungan/antrian': 'Antrean Pasien',
         'pelayanan/pemeriksaan/index': 'Pemeriksaan Dokter',
         'pelayanan/pemeriksaan/show': 'Pemeriksaan Klinis',
+        'persuratan/index': 'Persuratan',
+        'persuratan/cetak': 'Cetak Dokumen',
         'pelayanan/farmasi/index': 'Antrean Farmasi',
         'pelayanan/farmasi/show': 'Dispensing Obat',
+        'farmasi/dashboard': 'Dashboard Farmasi',
         'pelayanan/kasir/index': 'Antrean Kasir',
         'pelayanan/kasir/show': 'Pembayaran Tagihan',
         'pelayanan/kasir/kuitansi': 'Kuitansi Pembayaran',
@@ -322,19 +329,57 @@ function SidebarContents({
             </SidebarContent>
 
             <SidebarFooter>
-                <div className={`flex min-w-0 items-center gap-3 rounded-xl bg-neutral-50 p-3 ${isCollapsed ? 'flex-col px-1.5' : ''}`}>
-                    <Avatar aria-label={user?.name ?? 'Pengguna'} className="size-9 bg-neutral-100 text-neutral-800">
-                        {user?.photoUrl && <AvatarImage alt="" src={user.photoUrl} />}
-                        <AvatarFallback>{user?.name.slice(0, 1).toLocaleUpperCase() ?? 'U'}</AvatarFallback>
-                    </Avatar>
-                    {!isCollapsed && <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-neutral-900">{user?.name ?? 'Pengguna'}</p>
-                        <p className="truncate text-xs text-neutral-500">{user?.roleLabel ?? ''}</p>
-                    </div>}
-                </div>
+                <AccountMenu isCollapsed={isCollapsed} isSidebar user={user} />
             </SidebarFooter>
         </>
     );
+}
+
+function AccountMenu({ user, isSidebar = false, isCollapsed = false }: { user: AppUser | null; isSidebar?: boolean; isCollapsed?: boolean }) {
+    const name = user?.name ?? 'Pengguna';
+
+    return (
+        <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+                {isSidebar ? (
+                    <button aria-label={`Menu akun ${name}`} className={`flex w-full min-w-0 items-center gap-3 rounded-xl bg-neutral-50 p-3 text-left outline-none transition hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 ${isCollapsed ? 'flex-col px-1.5' : ''}`} type="button">
+                        <AccountAvatar user={user} />
+                        {!isCollapsed && <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold text-neutral-900">{name}</span>
+                            <span className="block truncate text-xs text-neutral-500">{user?.roleLabel ?? ''}</span>
+                        </span>}
+                    </button>
+                ) : (
+                    <Button aria-label={`Menu akun ${name}`} className="size-10 rounded-full p-0" size="icon" variant="ghost">
+                        <AccountAvatar user={user} />
+                    </Button>
+                )}
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+                <DropdownMenu.Content align="end" className="z-50 min-w-56 rounded-xl border border-neutral-200 bg-surface p-1.5 shadow-xl shadow-inverse/10" side={isSidebar ? 'right' : 'bottom'} sideOffset={8}>
+                    <div className="px-3 py-2">
+                        <p className="truncate text-sm font-semibold text-neutral-900">{name}</p>
+                        <p className="truncate text-xs text-neutral-500">{user?.email ?? ''}</p>
+                        <p className="truncate text-xs text-neutral-500">{user?.roleLabel ?? ''}</p>
+                    </div>
+                    <DropdownMenu.Separator className="my-1 h-px bg-neutral-200" />
+                    <DropdownMenu.Item asChild className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus:bg-neutral-100">
+                        <Link href="/profile"><UserRound aria-hidden="true" className="size-4" />Profil Saya</Link>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus:bg-neutral-100" onSelect={() => router.post('/logout')}>
+                        <LogOut aria-hidden="true" className="size-4" />Keluar dari aplikasi
+                    </DropdownMenu.Item>
+                </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+    );
+}
+
+function AccountAvatar({ user }: { user: AppUser | null }) {
+    return <Avatar aria-label={user?.name ?? 'Pengguna'} className="size-9 border border-neutral-200 bg-neutral-100 text-neutral-800">
+        {user?.photoUrl && <AvatarImage alt="" src={user.photoUrl} />}
+        <AvatarFallback>{user?.name.slice(0, 1).toLocaleUpperCase() ?? 'U'}</AvatarFallback>
+    </Avatar>;
 }
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -478,32 +523,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                         )}
                     </div>
                     <ThemeToggle className="shrink-0" />
-                    <DropdownMenu.Root>
-                        <DropdownMenu.Trigger asChild>
-                            <Button aria-label={`Menu akun ${user?.name ?? 'Pengguna'}`} className="size-10 rounded-full p-0" size="icon" variant="ghost">
-                                <Avatar className="size-9 border border-neutral-200 bg-neutral-100 text-neutral-800">
-                                    {user?.photoUrl && <AvatarImage alt="" src={user.photoUrl} />}
-                                    <AvatarFallback>{user?.name.slice(0, 1).toLocaleUpperCase() ?? 'U'}</AvatarFallback>
-                                </Avatar>
-                            </Button>
-                        </DropdownMenu.Trigger>
-                        <DropdownMenu.Portal>
-                            <DropdownMenu.Content align="end" className="z-50 min-w-56 rounded-xl border border-neutral-200 bg-surface p-1.5 shadow-xl shadow-inverse/10" sideOffset={8}>
-                                <div className="px-3 py-2">
-                                    <p className="truncate text-sm font-semibold text-neutral-900">{user?.name ?? 'Pengguna'}</p>
-                                    <p className="truncate text-xs text-neutral-500">{user?.email ?? ''}</p>
-                                </div>
-                                <DropdownMenu.Separator className="my-1 h-px bg-neutral-200" />
-                                <DropdownMenu.Item asChild className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus:bg-neutral-100">
-                                    <Link href="/profile"><UserRound aria-hidden="true" className="size-4" />Profil Saya</Link>
-                                </DropdownMenu.Item>
-                                <DropdownMenu.Item className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus:bg-neutral-100" onSelect={() => router.post('/logout')}>
-                                    <LogOut aria-hidden="true" className="size-4" />
-                                    Keluar dari aplikasi
-                                </DropdownMenu.Item>
-                            </DropdownMenu.Content>
-                        </DropdownMenu.Portal>
-                    </DropdownMenu.Root>
+                    <AccountMenu user={user} />
                 </header>
 
                 <main className="mx-auto w-full max-w-[1600px] p-4 print:max-w-none print:p-0 sm:p-6 lg:p-8">
