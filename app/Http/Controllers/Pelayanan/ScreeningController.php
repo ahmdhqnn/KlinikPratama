@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Pelayanan;
 
+use App\ClinicalAuditRecorder;
 use App\Http\Controllers\Controller;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
@@ -10,6 +11,7 @@ use App\Models\Screening;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -34,7 +36,7 @@ class ScreeningController extends Controller
             ->orderBy('created_at')
             ->get();
 
-        $clinics = Poliklinik::where('is_active', true)->orderBy('nama')->get(['id', 'nama']);
+        $clinics = Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama']);
 
         return Inertia::render('pelayanan/screening/index', [
             'filters' => [
@@ -58,11 +60,13 @@ class ScreeningController extends Controller
         ]);
     }
 
-    public function show(Kunjungan $kunjungan): Response
+    public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): Response
     {
         abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Skrining tidak dapat diubah setelah pelayanan dimulai.');
 
         $kunjungan->load(['pasien.asuransi', 'poliklinik', 'dokter', 'screening']);
+        abort_unless(in_array($kunjungan->poliklinik?->jenis, ['umum', 'gigi'], true), 404);
+        $auditRecorder->record($request, 'screening.view', $kunjungan->pasien_id, $kunjungan->id);
         $petugasList = Nakes::whereIn('jabatan', ['perawat', 'bidan'])->where('is_active', true)->orderBy('nama')->get();
 
         $screeningFields = [
@@ -71,6 +75,8 @@ class ScreeningController extends Controller
             'risiko_nyeri', 'skrining_gizi', 'alergi_jenis', 'alergi_reaksi', 'penyakit_nama',
             'penyakit_keterangan', 'nyeri_dada', 'kondisi_psikiatri', 'nadi_teraba', 'kejang',
             'pola_pernapasan', 'kesadaran', 'risiko_jatuh_visual',
+            'riwayat_penyakit_keluarga', 'skala_nyeri', 'lokasi_nyeri_gigi', 'pemicu_nyeri_gigi',
+            'durasi_keluhan_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi', 'catatan_medis_gigi',
         ];
 
         return Inertia::render('pelayanan/screening/show', [
@@ -87,6 +93,7 @@ class ScreeningController extends Controller
                     'allergyHistory' => $kunjungan->pasien?->riwayat_alergi,
                 ],
                 'clinic' => $kunjungan->poliklinik?->nama ?? '—',
+                'clinicType' => $kunjungan->poliklinik?->jenis,
                 'doctor' => $kunjungan->dokter?->nama ?? 'Belum ditentukan',
                 'screening' => array_combine(
                     $screeningFields,
@@ -103,9 +110,13 @@ class ScreeningController extends Controller
         ]);
     }
 
-    public function store(Request $request, Kunjungan $kunjungan): RedirectResponse
+    public function store(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): RedirectResponse
     {
         abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Skrining tidak dapat diubah setelah pelayanan dimulai.');
+
+        $kunjungan->loadMissing('poliklinik');
+        $isDental = $kunjungan->poliklinik?->jenis === 'gigi';
+        abort_unless(in_array($kunjungan->poliklinik?->jenis, ['umum', 'gigi'], true), 404);
 
         $data = $request->validate([
             'petugas_id' => ['nullable', 'exists:nakes,id'],
@@ -129,7 +140,18 @@ class ScreeningController extends Controller
             'alergi_reaksi' => ['nullable', 'string'],
             'risiko_jatuh' => ['nullable', 'string'],
             'risiko_nyeri' => ['nullable', 'string'],
+            'skala_nyeri' => ['nullable', 'integer', 'between:0,10'],
             'skrining_gizi' => ['nullable', 'string'],
+            'riwayat_penyakit_keluarga' => ['nullable', 'string', 'max:5000'],
+            'lokasi_nyeri_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:255'],
+            'pemicu_nyeri_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'array'],
+            'pemicu_nyeri_gigi.*' => ['in:dingin,manis,mengunyah,panas,spontan,lainnya'],
+            'durasi_keluhan_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:255'],
+            'risiko_medis_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'array'],
+            'risiko_medis_gigi.*' => ['in:hipertensi,diabetes,penyakit_jantung,gangguan_pembekuan,antikoagulan,lainnya'],
+            'riwayat_infeksi_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'array'],
+            'riwayat_infeksi_gigi.*' => ['in:hepatitis,hiv,infeksi_lain,tidak_ada'],
+            'catatan_medis_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:5000'],
             'pemeriksaan_fisik' => ['nullable', 'string'],
             'nyeri_dada' => ['required', 'in:ya,tidak'],
             'kondisi_psikiatri' => ['required', 'in:normal,terganggu'],
@@ -140,10 +162,14 @@ class ScreeningController extends Controller
             'risiko_jatuh_visual' => ['required', 'in:rendah,sedang,tinggi'],
         ]);
 
+        if (in_array('tidak_ada', $data['riwayat_infeksi_gigi'] ?? [], true) && count($data['riwayat_infeksi_gigi'] ?? []) > 1) {
+            return back()->withErrors(['riwayat_infeksi_gigi' => 'Pilihan Tidak ada tidak dapat digabung dengan riwayat infeksi lain.'])->withInput();
+        }
+
         $data['kunjungan_id'] = $kunjungan->id;
         [$data['kesimpulan_triase'], $data['prioritas_layanan']] = $this->determineTriage($data);
 
-        DB::transaction(function () use ($data, $kunjungan): void {
+        DB::transaction(function () use ($data, $kunjungan, $request, $auditRecorder): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             abort_unless(in_array($lockedVisit->status, ['menunggu', 'screening'], true), 422, 'Skrining tidak dapat diubah setelah pelayanan dimulai.');
 
@@ -154,6 +180,7 @@ class ScreeningController extends Controller
             }
 
             $lockedVisit->update(['status' => 'pemeriksaan']);
+            $auditRecorder->record($request, 'screening.create_or_update', $lockedVisit->pasien_id, $lockedVisit->id);
         });
 
         return redirect()->route('pelayanan.kunjungan.show', $kunjungan)

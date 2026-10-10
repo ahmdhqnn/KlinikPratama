@@ -148,7 +148,9 @@ class RegistrationRoleTest extends TestCase
             ->component('perawat/dashboard')
             ->where('auth.user.role', 'perawat')
             ->has('stats.menunggu_ttv')
-            ->has('visits')
+            ->has('visits', 1)
+            ->where('visits.0.actionUrl', route('pelayanan.screening.show', $visit))
+            ->where('visits.0.actionLabel', 'Skrining')
         );
         $this->actingAs($user)->get(route('pelayanan.screening.index'))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/screening/index')
@@ -179,6 +181,11 @@ class RegistrationRoleTest extends TestCase
             'id' => $visit->id,
             'status' => 'pemeriksaan',
         ]);
+        $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
+            ->component('pelayanan/pasien/rekam-medis'));
+        $this->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.0.actionUrl', route('pelayanan.pasien.rekam-medis', $patient))
+            ->where('visits.0.actionLabel', 'Lihat RME'));
         $this->actingAs($user)->get(route('pendaftaran.pendaftaran-baru'))->assertForbidden();
         $this->actingAs($user)->get(route('users.index'))->assertForbidden();
     }
@@ -277,6 +284,7 @@ class RegistrationRoleTest extends TestCase
             'jenis_bayar' => 'internal',
             'status' => 'menunggu',
         ]);
+        $kunjungan = Kunjungan::where('pasien_id', $pasien->id)->firstOrFail();
         $this->actingAs($user)->get(route('pendaftaran.laporan-kunjungan', ['tanggal' => today()->toDateString()]))
             ->assertInertia(fn (Assert $page) => $page
                 ->component('pendaftaran/laporan-kunjungan')
@@ -298,6 +306,9 @@ class RegistrationRoleTest extends TestCase
             ->where('stats.total', 1)
             ->where('stats.waiting', 1)
             ->where('visits.0.patient', 'Siti Pasien')
+            ->where('visits.0.actionLabel', 'Detail')
+            ->where('visits.0.editUrl', route('pendaftaran.edit-kunjungan', $kunjungan))
+            ->where('visits.0.cancelUrl', route('pendaftaran.batal-kunjungan', $kunjungan))
         );
     }
 
@@ -368,16 +379,30 @@ class RegistrationRoleTest extends TestCase
             'jenis_pasien' => 'lama',
             'jenis_bayar' => 'umum',
         ]);
+        $doctor = Nakes::create(['kode' => 'MON-DR', 'nama' => 'Dokter Pantau', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
+        $schedule = JadwalDokter::create([
+            'dokter_id' => $doctor->id,
+            'poliklinik_id' => $clinic->id,
+            'hari' => 'senin',
+            'jam_mulai' => '08:00',
+            'jam_selesai' => '12:00',
+        ]);
 
         $this->actingAs($nurse)->get(route('pendaftaran.kunjungan-per-poli', ['poliklinik_id' => $clinic->id]))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('visits.0.ticketUrl', null)
+                ->where('visits.0.actionLabel', 'Skrining')
+                ->where('visits.0.actionUrl', route('pelayanan.screening.show', Kunjungan::firstOrFail()))
+                ->where('visits.0.editUrl', null)
+                ->where('visits.0.cancelUrl', null)
             );
         $this->get(route('pendaftaran.jadwal-praktik'))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('canManage', false)
+                ->has('schedules', 1)
             );
         $this->post(route('pendaftaran.store-jadwal-praktik'))->assertForbidden();
+        $this->put(route('pendaftaran.update-jadwal-praktik', $schedule))->assertForbidden();
     }
 
     public function test_existing_patient_registration_uses_the_active_doctor_schedule(): void
@@ -422,7 +447,6 @@ class RegistrationRoleTest extends TestCase
         $response = $this->actingAs($user)->post(route('pendaftaran.store-pasien-lama'), [
             'pasien_id' => $pasien->id,
             'poliklinik_id' => $poliklinik->id,
-            'dokter_id' => $dokter->id,
             'jenis_bayar' => 'umum',
         ]);
 
@@ -459,6 +483,61 @@ class RegistrationRoleTest extends TestCase
         $this->post(route('pendaftaran.store-jadwal-praktik'), [...$scheduleData, 'berlaku_mulai' => '2026-10-23', 'berlaku_sampai' => '2026-11-06'])
             ->assertSessionHasErrors('hari');
         $this->assertDatabaseCount('jadwal_dokter', 1);
+
+        JadwalDokter::create([...$scheduleData, 'berlaku_mulai' => '2026-11-01', 'berlaku_sampai' => '2026-11-10']);
+        $this->put(route('pendaftaran.update-jadwal-praktik', $schedule), [
+            ...$scheduleData,
+            'berlaku_mulai' => '2026-10-23',
+            'berlaku_sampai' => '2026-11-06',
+        ])->assertSessionHasErrors('hari');
+        $this->assertSame('2026-10-16', $schedule->fresh()->berlaku_mulai?->toDateString());
+        $this->assertSame('2026-10-30', $schedule->fresh()->berlaku_sampai?->toDateString());
+    }
+
+    public function test_admin_can_open_and_manage_practice_schedules(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $clinic = Poliklinik::create(['kode' => 'ADMIN-JADWAL', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $doctor = Nakes::create(['kode' => 'DR-ADMIN-JADWAL', 'nama' => 'Dokter Jadwal Admin', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
+
+        $this->actingAs($admin)->get(route('pendaftaran.jadwal-praktik'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pendaftaran/jadwal-praktik')
+                ->where('canManage', true)
+            );
+
+        $this->post(route('pendaftaran.store-jadwal-praktik'), [
+            'dokter_id' => $doctor->id,
+            'poliklinik_id' => $clinic->id,
+            'hari' => 'senin',
+            'jam_mulai' => '08:00',
+            'jam_selesai' => '12:00',
+            'berlaku_mulai' => today()->addWeek()->toDateString(),
+            'berlaku_sampai' => today()->addWeeks(3)->toDateString(),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('jadwal_dokter', [
+            'dokter_id' => $doctor->id,
+            'poliklinik_id' => $clinic->id,
+            'hari' => 'senin',
+        ]);
+
+        $schedule = JadwalDokter::where('dokter_id', $doctor->id)->firstOrFail();
+        $this->get(route('pendaftaran.jadwal-praktik'))->assertInertia(fn (Assert $page) => $page
+            ->where('schedules.0.doctorId', $doctor->id)
+            ->where('schedules.0.updateUrl', route('pendaftaran.update-jadwal-praktik', $schedule))
+        );
+
+        $this->put(route('pendaftaran.update-jadwal-praktik', $schedule), [
+            'dokter_id' => $doctor->id,
+            'poliklinik_id' => $clinic->id,
+            'hari' => 'selasa',
+            'jam_mulai' => '09:00',
+            'jam_selesai' => '13:00',
+            'berlaku_mulai' => today()->addWeek()->toDateString(),
+            'berlaku_sampai' => today()->addWeeks(3)->toDateString(),
+        ])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('jadwal_dokter', ['id' => $schedule->id, 'hari' => 'selasa', 'jam_mulai' => '09:00']);
     }
 
     public function test_top_diagnosis_report_uses_recorded_diagnosis_rows(): void

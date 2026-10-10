@@ -13,6 +13,7 @@ use App\KepesertaanRegistry;
 use App\Models\Asuransi;
 use App\Models\Kepesertaan;
 use App\Models\Pasien;
+use App\Models\Poliklinik;
 use App\PatientRegistrationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -342,19 +343,67 @@ class PasienController extends Controller
     {
         $this->authorizeDoctorPatient($pasien);
         $auditRecorder->record($request, 'medical_record.view', $pasien->id);
-        $pasien->load(['kunjungan' => fn ($query) => $query
-            ->when(auth()->user()->role === 'dokter', fn ($visits) => $visits->where('dokter_id', auth()->user()->nakes?->id ?? 0))
-            ->with([
-                'poliklinik:id,nama,jenis',
-                'dokter:id,nama',
-                'screening',
-                'pemeriksaan.diagnosa',
-                'pemeriksaan.signedBy',
-                'pemeriksaan.clinicalNoteVersions.actor',
-                'odontogramFindings',
-                'resep.resepObat',
-                'tindakanKunjungan.tindakan:id,nama',
-            ])->latest()]);
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
+            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,farmasi,selesai,batal'],
+            'dari' => ['nullable', 'date_format:Y-m-d'],
+            'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
+        ]);
+
+        $authorizedVisits = $pasien->kunjungan()
+            ->when(auth()->user()->role === 'dokter', fn ($visits) => $visits->where('dokter_id', auth()->user()->nakes?->id ?? 0));
+        $visitQuery = (clone $authorizedVisits)
+            ->when($filters['poliklinik_id'] ?? null, fn ($visits, $clinicId) => $visits->where('poliklinik_id', $clinicId))
+            ->when($filters['status'] ?? null, fn ($visits, $status) => $visits->where('status', $status))
+            ->when($filters['dari'] ?? null, fn ($visits, $date) => $visits->whereDate('tanggal', '>=', $date))
+            ->when($filters['sampai'] ?? null, fn ($visits, $date) => $visits->whereDate('tanggal', '<=', $date))
+            ->when($filters['search'] ?? null, function ($visits, $search): void {
+                $term = '%'.trim($search).'%';
+                $visits->where(function ($query) use ($term): void {
+                    $query->where('no_kunjungan', 'like', $term)
+                        ->orWhereHas('poliklinik', fn ($clinic) => $clinic->where('nama', 'like', $term))
+                        ->orWhereHas('dokter', fn ($doctor) => $doctor->where('nama', 'like', $term))
+                        ->orWhereHas('screening', fn ($screening) => $screening->where('keluhan', 'like', $term))
+                        ->orWhereHas('pemeriksaan', function ($examination) use ($term): void {
+                            $examination->where('anamnesis', 'like', $term)
+                                ->orWhere('riwayat_penyakit_sekarang', 'like', $term)
+                                ->orWhereHas('diagnosa', fn ($diagnosis) => $diagnosis
+                                    ->where('kode_icd10', 'like', $term)
+                                    ->orWhere('nama_diagnosa', 'like', $term));
+                        });
+                });
+            });
+
+        $clinics = Poliklinik::query()
+            ->whereIn('id', (clone $authorizedVisits)->select('poliklinik_id')->distinct())
+            ->orderBy('nama')
+            ->get(['id', 'nama']);
+        $visits = $visitQuery->with([
+            'poliklinik:id,nama,jenis',
+            'dokter:id,nama',
+            'screening',
+            'pemeriksaan.diagnosa',
+            'pemeriksaan.signedBy',
+            'pemeriksaan.clinicalNoteVersions.actor',
+            'odontogramFindings',
+            'resep.resepObat',
+            'tindakanKunjungan.tindakan:id,nama',
+        ])->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
+        $backUrl = route('pelayanan.pasien.show', $pasien);
+        $referer = $request->headers->get('referer');
+        $refererParts = $referer ? parse_url($referer) : false;
+        $refererPath = is_array($refererParts) ? ($refererParts['path'] ?? '/') : null;
+        $refererScheme = is_array($refererParts) ? ($refererParts['scheme'] ?? null) : null;
+        $refererPort = is_array($refererParts) ? ($refererParts['port'] ?? ($refererScheme === 'https' ? 443 : 80)) : null;
+
+        if (is_array($refererParts)
+            && in_array($refererScheme, ['http', 'https'], true)
+            && ($refererParts['host'] ?? null) === $request->getHost()
+            && $refererPort === $request->getPort()
+            && $refererPath !== parse_url($request->url(), PHP_URL_PATH)) {
+            $backUrl = $request->getSchemeAndHttpHost().$refererPath.(isset($refererParts['query']) ? '?'.$refererParts['query'] : '');
+        }
 
         return Inertia::render('pelayanan/pasien/rekam-medis', [
             'patient' => [
@@ -367,11 +416,32 @@ class PasienController extends Controller
                 'bloodType' => $pasien->golongan_darah,
                 'allergies' => $pasien->riwayat_alergi,
             ],
-            'backUrl' => route('pelayanan.pasien.show', $pasien),
-            'visits' => $pasien->kunjungan->map(function ($visit) use ($noteRecorder): array {
+            'backUrl' => $backUrl,
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'poliklinik_id' => $filters['poliklinik_id'] ?? '',
+                'status' => $filters['status'] ?? '',
+                'dari' => $filters['dari'] ?? '',
+                'sampai' => $filters['sampai'] ?? '',
+            ],
+            'clinics' => $clinics->map(fn (Poliklinik $clinic): array => [
+                'id' => $clinic->id,
+                'name' => $clinic->nama,
+            ])->values(),
+            'pagination' => [
+                'currentPage' => $visits->currentPage(),
+                'lastPage' => $visits->lastPage(),
+                'from' => $visits->firstItem(),
+                'to' => $visits->lastItem(),
+                'total' => $visits->total(),
+                'previousUrl' => $visits->previousPageUrl(),
+                'nextUrl' => $visits->nextPageUrl(),
+            ],
+            'visits' => $visits->getCollection()->map(function ($visit) use ($noteRecorder): array {
                 $versions = $visit->pemeriksaan?->clinicalNoteVersions->sortBy('version') ?? collect();
                 $integrityValid = $visit->pemeriksaan?->signed_at ? $noteRecorder->verify($visit->pemeriksaan) : null;
                 $effectiveNote = $integrityValid ? $versions->last()->payload : null;
+                $oralHygieneIndex = is_array($effectiveNote) ? ($effectiveNote['oral_hygiene_index'] ?? null) : $visit->pemeriksaan?->oral_hygiene_index;
                 $odontogram = is_array($effectiveNote)
                     ? ($effectiveNote['odontogram'] ?? [])
                     : ($integrityValid === false ? [] : $visit->odontogramFindings->map(fn ($finding): array => [
@@ -397,12 +467,32 @@ class PasienController extends Controller
                         'oxygenSaturation' => $visit->screening->spo2,
                         'weight' => $visit->screening->berat_badan,
                         'height' => $visit->screening->tinggi_badan,
+                        'bmi' => $visit->screening->imt,
                         'respiration' => $visit->screening->respirasi,
                         'complaint' => $visit->screening->keluhan,
+                        'medicalHistory' => $visit->screening->riwayat_penyakit,
+                        'familyHistory' => $visit->screening->riwayat_penyakit_keluarga,
+                        'allergyHistory' => $visit->screening->riwayat_alergi,
+                        'fallRisk' => $visit->screening->risiko_jatuh,
+                        'painScale' => $visit->screening->skala_nyeri,
+                        'dentalPainLocation' => $visit->screening->lokasi_nyeri_gigi,
+                        'dentalPainTriggers' => $visit->screening->pemicu_nyeri_gigi ?? [],
+                        'dentalPainDuration' => $visit->screening->durasi_keluhan_gigi,
+                        'dentalMedicalRisks' => $visit->screening->risiko_medis_gigi ?? [],
+                        'dentalInfectionHistory' => $visit->screening->riwayat_infeksi_gigi ?? [],
+                        'dentalNotes' => $visit->screening->catatan_medis_gigi,
                     ] : null,
                     'examination' => $visit->pemeriksaan ? [
                         'anamnesis' => is_array($effectiveNote) ? ($effectiveNote['anamnesis'] ?? null) : $visit->pemeriksaan->anamnesis,
+                        'currentHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_sekarang'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_sekarang,
+                        'pastHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_dahulu'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_dahulu,
+                        'familyHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_keluarga,
+                        'allergyHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $visit->pemeriksaan->riwayat_alergi,
                         'physicalExamination' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $visit->pemeriksaan->pemeriksaan_fisik,
+                        'physicalSystems' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik_terstruktur'] ?? []) : ($visit->pemeriksaan->pemeriksaan_fisik_terstruktur ?? []),
+                        'extraoralExamination' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_ekstraoral'] ?? null) : $visit->pemeriksaan->pemeriksaan_ekstraoral,
+                        'oralHygieneIndex' => is_numeric($oralHygieneIndex) ? (float) $oralHygieneIndex : null,
+                        'differentialDiagnosis' => is_array($effectiveNote) ? ($effectiveNote['diagnosis_banding'] ?? null) : $visit->pemeriksaan->diagnosis_banding,
                         'education' => is_array($effectiveNote) ? ($effectiveNote['edukasi'] ?? null) : $visit->pemeriksaan->edukasi,
                         'notes' => is_array($effectiveNote) ? ($effectiveNote['catatan'] ?? null) : $visit->pemeriksaan->catatan,
                         'nextControl' => is_array($effectiveNote)
@@ -418,7 +508,15 @@ class PasienController extends Controller
                             'actor' => $version->actor?->name,
                             'recordedAt' => $version->recorded_at?->locale('id')->isoFormat('D MMMM Y HH:mm'),
                             'anamnesis' => $version->payload['anamnesis'] ?? null,
+                            'currentHistory' => $version->payload['riwayat_penyakit_sekarang'] ?? null,
+                            'pastHistory' => $version->payload['riwayat_penyakit_dahulu'] ?? null,
+                            'familyHistory' => $version->payload['riwayat_penyakit_keluarga'] ?? null,
+                            'allergyHistory' => $version->payload['riwayat_alergi'] ?? null,
                             'physicalExamination' => $version->payload['pemeriksaan_fisik'] ?? null,
+                            'physicalSystems' => $version->payload['pemeriksaan_fisik_terstruktur'] ?? [],
+                            'extraoralExamination' => $version->payload['pemeriksaan_ekstraoral'] ?? null,
+                            'oralHygieneIndex' => is_numeric($version->payload['oral_hygiene_index'] ?? null) ? (float) $version->payload['oral_hygiene_index'] : null,
+                            'differentialDiagnosis' => $version->payload['diagnosis_banding'] ?? null,
                             'odontogram' => collect($version->payload['odontogram'] ?? [])->map(fn (array $finding): array => [
                                 'toothFdi' => $finding['tooth_fdi'],
                                 'surface' => $finding['surface'],
@@ -441,9 +539,10 @@ class PasienController extends Controller
                     ])->all(),
                     'treatments' => collect(is_array($effectiveNote) ? ($effectiveNote['treatments'] ?? []) : ($integrityValid === false ? [] : $visit->tindakanKunjungan))->values()->map(fn ($item, int $index): array => [
                         'id' => is_array($item) ? $index + 1 : $item->id,
-                        'name' => is_array($item) ? $item['name'] : ($item->tindakan?->nama ?? 'Tindakan dihapus'),
+                        'name' => is_array($item) ? $item['name'] : ($item->nama_tindakan_manual ?? $item->tindakan?->nama ?? 'Tindakan dihapus'),
                         'quantity' => is_array($item) ? $item['quantity'] : $item->jumlah,
                         'toothFdi' => is_array($item) ? ($item['tooth_fdi'] ?? null) : $item->tooth_fdi,
+                        'note' => is_array($item) ? ($item['note'] ?? null) : $item->catatan,
                     ])->all(),
                     'odontogram' => collect($odontogram)->map(fn (array $finding): array => [
                         'toothFdi' => $finding['tooth_fdi'],

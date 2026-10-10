@@ -57,9 +57,11 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
             ->where('patients.total', 1)
             ->where('patients.data.0.name', 'Pasien Bersama')
         );
-        $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
+        $previousPage = route('pelayanan.pasien.index');
+        $this->get(route('pelayanan.pasien.rekam-medis', $patient), ['HTTP_REFERER' => $previousPage])->assertInertia(fn (Assert $page) => $page
             ->has('visits', 1)
             ->where('visits.0.number', 'KNJ-SEC-1')
+            ->where('backUrl', $previousPage)
         );
         $this->assertDatabaseHas('clinical_audit_events', [
             'actor_id' => $doctorUser->id,

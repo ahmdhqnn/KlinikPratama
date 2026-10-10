@@ -22,10 +22,12 @@ class ProfileController extends Controller
                 'email' => $user->email,
                 'phone' => $user->phone ?? '',
                 'address' => $user->address ?? '',
+                'role' => $user->role,
                 'roleLabel' => $user->role_label,
                 'active' => $user->is_active,
                 'joinedAt' => $user->created_at?->format('d/m/Y'),
                 'photoUrl' => $user->photo_path ? route('profile.photo', ['v' => basename($user->photo_path)]) : null,
+                'signatureUrl' => $user->signature_path ? route('profile.signature') : null,
                 'professional' => $user->nakes ? [
                     'name' => $user->nakes->nama,
                     'code' => $user->nakes->kode,
@@ -79,6 +81,14 @@ class ProfileController extends Controller
         return Storage::disk('local')->response($path, null, ['Cache-Control' => 'private, no-store']);
     }
 
+    public function signature(Request $request): StreamedResponse
+    {
+        $path = $request->user()->signature_path;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->response($path, null, ['Cache-Control' => 'private, no-store']);
+    }
+
     public function uploadPhoto(Request $request): RedirectResponse
     {
         $request->validate([
@@ -110,5 +120,38 @@ class ProfileController extends Controller
         }
 
         return back()->with('success', 'Foto profil berhasil dihapus.');
+    }
+
+    public function uploadSignature(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'signature' => ['required', 'image', 'mimes:png,jpg,jpeg', 'max:1024'],
+        ]);
+
+        $user = $request->user();
+        $previousPath = $user->signature_path;
+        $path = $request->file('signature')->store('signatures/'.$user->id, 'local');
+        abort_unless(is_string($path), 500, 'Tanda tangan gagal disimpan.');
+
+        $user->update(['signature_path' => $path]);
+
+        if ($previousPath) {
+            Storage::disk('local')->delete($previousPath);
+        }
+
+        return back()->with('success', 'Tanda tangan berhasil diperbarui.');
+    }
+
+    public function deleteSignature(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $previousPath = $user->signature_path;
+        $user->update(['signature_path' => null]);
+
+        if ($previousPath) {
+            Storage::disk('local')->delete($previousPath);
+        }
+
+        return back()->with('success', 'Tanda tangan berhasil dihapus.');
     }
 }

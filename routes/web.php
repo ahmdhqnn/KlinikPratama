@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DokterDashboardController;
+use App\Http\Controllers\FarmasiDashboardController;
 use App\Http\Controllers\KepesertaanController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\Master\AlkesController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\Pelayanan\PemeriksaanController;
 use App\Http\Controllers\Pelayanan\ScreeningController;
 use App\Http\Controllers\Pendaftaran\RegistrationController;
 use App\Http\Controllers\PerawatDashboardController;
+use App\Http\Controllers\PersuratanController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\Stok\PenjualanLangsungController;
@@ -50,15 +52,33 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     Route::get('/photo', [ProfileController::class, 'photo'])->name('photo');
     Route::post('/photo', [ProfileController::class, 'uploadPhoto'])->name('photo.upload');
     Route::delete('/photo', [ProfileController::class, 'deletePhoto'])->name('photo.delete');
+    Route::get('/signature', [ProfileController::class, 'signature'])->name('signature');
+    Route::post('/signature', [ProfileController::class, 'uploadSignature'])->name('signature.upload');
+    Route::delete('/signature', [ProfileController::class, 'deleteSignature'])->name('signature.delete');
 });
 
 // Authenticated routes
 Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pendaftaran,manajemen', DisablePatientBilling::class, RedirectRegistrationRole::class])->group(function () {
+    Route::prefix('persuratan')->name('persuratan.')->middleware(EnsureRole::class.':admin,dokter')->group(function (): void {
+        Route::get('/', [PersuratanController::class, 'index'])->name('index');
+        Route::get('kunjungan/{kunjungan}/resep', [PersuratanController::class, 'printPrescription'])->name('resep.cetak');
+        Route::get('surat/{suratMedis}', [PersuratanController::class, 'printLetter'])->name('surat.cetak');
+        Route::get('rujukan/{rujukanInternal}', [PersuratanController::class, 'printReferral'])->name('rujukan.cetak');
+        Route::middleware(EnsureAdminRole::class)->group(function (): void {
+            Route::post('template', [PersuratanController::class, 'storeTemplate'])->name('template.store');
+            Route::put('template/{template}', [PersuratanController::class, 'updateTemplate'])->name('template.update');
+            Route::delete('template/{template}', [PersuratanController::class, 'destroyTemplate'])->name('template.destroy');
+        });
+    });
+
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/perawat/dashboard', PerawatDashboardController::class)
         ->middleware(EnsureRole::class.':admin,perawat')
         ->name('perawat.dashboard');
+    Route::get('/farmasi/dashboard', [FarmasiDashboardController::class, 'index'])
+        ->middleware(EnsureRole::class.':farmasi')
+        ->name('farmasi.dashboard');
     Route::prefix('dokter')->name('dokter.')->middleware(EnsureRole::class.':dokter')->group(function (): void {
         Route::get('/', [DokterDashboardController::class, 'index'])->name('dashboard');
         Route::get('kunjungan', [DokterDashboardController::class, 'appointments'])->name('kunjungan');
@@ -170,6 +190,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::middleware(EnsureRole::class.':dokter')->group(function (): void {
             Route::get('pemeriksaan', [PemeriksaanController::class, 'index'])->name('pemeriksaan.index');
             Route::get('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'show'])->name('pemeriksaan.show');
+            Route::post('pemeriksaan/{kunjungan}/ambil', [PemeriksaanController::class, 'claim'])->name('pemeriksaan.claim');
             Route::post('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'store'])->name('pemeriksaan.store');
             Route::put('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'update'])->name('pemeriksaan.update');
             Route::post('pemeriksaan/{kunjungan}/diagnosa', [PemeriksaanController::class, 'storeDiagnosa'])->name('pemeriksaan.diagnosa.store');
@@ -262,6 +283,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
 
         Route::get('jadwal-praktik', [RegistrationController::class, 'jadwalPraktik'])->name('jadwal-praktik');
         Route::post('jadwal-praktik', [RegistrationController::class, 'storeJadwalPraktik'])->name('store-jadwal-praktik');
+        Route::put('jadwal-praktik/{jadwal}', [RegistrationController::class, 'updateJadwalPraktik'])->name('update-jadwal-praktik');
         Route::delete('jadwal-praktik/{jadwal}', [RegistrationController::class, 'destroyJadwalPraktik'])->name('destroy-jadwal-praktik');
         Route::get('dokter/by-poli', [RegistrationController::class, 'getDokterByPoli'])->name('dokter.by-poli');
     });

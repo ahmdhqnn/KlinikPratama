@@ -20,10 +20,17 @@ class Screening extends Model
         'nyeri_dada', 'kondisi_psikiatri', 'nadi_teraba', 'kejang',
         'pola_pernapasan', 'kesadaran', 'risiko_jatuh_visual',
         'kesimpulan_triase', 'prioritas_layanan',
+        'riwayat_penyakit_keluarga', 'skala_nyeri', 'lokasi_nyeri_gigi',
+        'pemicu_nyeri_gigi', 'durasi_keluhan_gigi', 'risiko_medis_gigi',
+        'riwayat_infeksi_gigi', 'catatan_medis_gigi',
     ];
 
     protected $casts = [
         'lingkar_perut' => 'decimal:1',
+        'skala_nyeri' => 'integer',
+        'pemicu_nyeri_gigi' => 'array',
+        'risiko_medis_gigi' => 'array',
+        'riwayat_infeksi_gigi' => 'array',
     ];
 
     public function kunjungan(): BelongsTo

@@ -252,13 +252,13 @@ class KasirController extends Controller
 
         // Tindakan
         foreach ($kunjungan->tindakanKunjungan as $tk) {
-            if ($tk->tindakan) {
+            if ($tk->tindakan || $tk->nama_tindakan_manual) {
                 $items[] = [
                     'jenis' => 'tindakan',
                     'referensi_id' => $tk->id,
-                    'nama' => $tk->tindakan->nama,
+                    'nama' => $tk->nama_tindakan_manual ?? $tk->tindakan?->nama,
                     'jumlah' => $tk->jumlah,
-                    'tarif' => $tk->tindakan->tarif,
+                    'tarif' => $tk->tindakan?->tarif ?? $tk->tarif,
                 ];
             }
         }

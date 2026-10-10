@@ -1,7 +1,9 @@
-import { Head } from '@inertiajs/react';
-import { CalendarClock, ClipboardCheck, Stethoscope } from 'lucide-react';
+import { Head, Link } from '@inertiajs/react';
+import { CalendarClock, ChartNoAxesCombined, ClipboardCheck, ClipboardList, Pill, Stethoscope, UsersRound } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { VisitTable, type DashboardVisit } from '@/components/dashboard/visit-table';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 
@@ -26,6 +28,19 @@ export default function DoctorDashboard({ stats, schedule, recentVisits }: Props
                     <StatCard description="Menunggu pemeriksaan dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Menunggu pemeriksaan" value={stats.waitingExaminations} />
                     <StatCard description="Diteruskan ke farmasi atau kunjungan selesai" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Selesai ditangani" value={stats.completedToday} />
                 </section>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Akses cepat</CardTitle>
+                        <CardDescription>Buka antrean, data pasien, dan informasi klinis yang sering digunakan.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                        <QuickLink href="/pelayanan/pemeriksaan" icon={<Stethoscope className="size-4" />} label="Antrean pemeriksaan" />
+                        <QuickLink href="/dokter/kunjungan" icon={<ClipboardList className="size-4" />} label="Kunjungan saya" />
+                        <QuickLink href="/dokter/pasien" icon={<UsersRound className="size-4" />} label="Daftar pasien" />
+                        <QuickLink href="/dokter/stok-obat" icon={<Pill className="size-4" />} label="Ketersediaan obat" />
+                        <QuickLink href="/dokter/laporan-top-diagnosa" icon={<ChartNoAxesCombined className="size-4" />} label="Top diagnosis" />
+                    </CardContent>
+                </Card>
                 <section className="grid gap-6 xl:grid-cols-[minmax(16rem,0.75fr)_minmax(0,1.5fr)]">
                     <Card>
                         <CardHeader>
@@ -52,4 +67,10 @@ export default function DoctorDashboard({ stats, schedule, recentVisits }: Props
             </div>
         </>
     );
+}
+
+function QuickLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
+    return <Button asChild className="h-auto justify-start gap-3 py-3" variant="secondary">
+        <Link href={href}>{icon}<span>{label}</span></Link>
+    </Button>;
 }

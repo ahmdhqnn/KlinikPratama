@@ -1,5 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { Camera, IdCard, KeyRound, Save, Trash2, UserRound } from 'lucide-react';
+import { Camera, IdCard, KeyRound, PenTool, Save, Trash2, UserRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Attachment } from '@/components/ui/attachment';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -26,10 +26,12 @@ interface Props {
         email: string;
         phone: string;
         address: string;
+        role: string;
         roleLabel: string;
         active: boolean;
         joinedAt: string | null;
         photoUrl: string | null;
+        signatureUrl: string | null;
         professional: ProfessionalProfile | null;
     };
 }
@@ -44,9 +46,19 @@ function Detail({ label, value }: { label: string; value: string | null }) {
 }
 
 export default function Profile({ profile }: Props) {
+    const roleDescriptions: Record<string, string> = {
+        admin: 'Kelola informasi akun administrator dan data kontak kerja.',
+        dokter: 'Kelola informasi akun dokter, kontak, dan identitas profesi yang tercatat.',
+        perawat: 'Kelola informasi akun perawat, kontak, dan identitas profesi yang tercatat.',
+        farmasi: 'Kelola informasi akun farmasi, kontak, dan identitas profesi yang tercatat.',
+        pendaftaran: 'Kelola informasi akun petugas pendaftaran dan data kontak kerja.',
+        manajemen: 'Kelola informasi akun manajemen dan data kontak kerja.',
+    };
     const [photoInputKey, setPhotoInputKey] = useState(0);
+    const [signatureInputKey, setSignatureInputKey] = useState(0);
     const details = useForm({ name: profile.name, email: profile.email, phone: profile.phone, address: profile.address });
     const photo = useForm<{ photo: File | null }>({ photo: null });
+    const signature = useForm<{ signature: File | null }>({ signature: null });
     const password = useForm({ current_password: '', password: '', password_confirmation: '' });
 
     function saveDetails(event: FormEvent<HTMLFormElement>) {
@@ -66,6 +78,18 @@ export default function Profile({ profile }: Props) {
         });
     }
 
+    function uploadSignature(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        signature.post('/profile/signature', {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                signature.reset();
+                setSignatureInputKey((key) => key + 1);
+            },
+        });
+    }
+
     function savePassword(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         password.put('/profile/password', {
@@ -81,7 +105,7 @@ export default function Profile({ profile }: Props) {
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Akun pribadi</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Profil Saya</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Kelola identitas akun, foto, informasi kontak, dan keamanan masuk Anda.</p>
+                    <p className="mt-1 text-sm text-neutral-500">{roleDescriptions[profile.role] ?? 'Kelola identitas akun, foto, informasi kontak, dan keamanan masuk Anda.'}</p>
                 </div>
 
                 <Card>
@@ -141,6 +165,18 @@ export default function Profile({ profile }: Props) {
                                     <Button className="w-full" disabled={photo.processing || !photo.data.photo} type="submit"><Camera className="size-4" />{photo.processing ? 'Mengunggah…' : 'Unggah foto'}</Button>
                                 </form>
                                 {profile.photoUrl && <Button className="w-full" onClick={() => router.delete('/profile/photo', { preserveScroll: true })} type="button" variant="secondary"><Trash2 className="size-4" />Hapus foto</Button>}
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><PenTool className="size-5" /></span><div><CardTitle>Tanda tangan</CardTitle><CardDescription className="mt-1">Tersimpan privat dan digunakan pada resep luar, surat medis, serta rujukan yang Anda terbitkan.</CardDescription></div></div></CardHeader>
+                            <CardContent className="space-y-4">
+                                {profile.signatureUrl && <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-white p-4"><img alt={`Tanda tangan ${profile.name}`} className="max-h-20 max-w-full object-contain" src={profile.signatureUrl} /></div>}
+                                <form className="space-y-4" onSubmit={uploadSignature}>
+                                    <Attachment accept="image/png,image/jpeg" error={signature.errors.signature} fileName={signature.data.signature?.name} id="profile-signature" inputKey={signatureInputKey} label="Pilih gambar tanda tangan" onFileChange={(file) => signature.setData('signature', file)} required />
+                                    <Button className="w-full" disabled={signature.processing || !signature.data.signature} type="submit"><PenTool className="size-4" />{signature.processing ? 'Menyimpan…' : 'Simpan tanda tangan'}</Button>
+                                </form>
+                                {profile.signatureUrl && <Button className="w-full" onClick={() => router.delete('/profile/signature', { preserveScroll: true })} type="button" variant="secondary"><Trash2 className="size-4" />Hapus tanda tangan</Button>}
                             </CardContent>
                         </Card>
 

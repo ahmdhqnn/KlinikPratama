@@ -36,18 +36,19 @@ class ClinicalNoteVersionFlowTest extends TestCase
         ]);
         $examination = Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id]);
 
-        $this->actingAs($doctorUser)->post(route('pelayanan.pemeriksaan.selesai', $visit))->assertUnprocessable();
+        $this->actingAs($doctorUser)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertUnprocessable();
         $this->assertDatabaseCount('clinical_note_versions', 0);
 
         $examination->update(['anamnesis' => 'Demam dua hari', 'pemeriksaan_fisik' => 'Suhu 38 C']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit))->assertUnprocessable();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertUnprocessable();
         $this->assertDatabaseCount('clinical_note_versions', 0);
 
         Diagnosa::create([
             'pemeriksaan_id' => $examination->id, 'kode_icd10' => 'R50.9',
             'nama_diagnosa' => 'Demam, tidak spesifik', 'jenis' => 'utama',
         ]);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit))->assertRedirect(route('pelayanan.pemeriksaan.index'));
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'wrong-password'])->assertSessionHasErrors('signature_password');
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertRedirect(route('pelayanan.pemeriksaan.index'));
         $this->assertDatabaseHas('pemeriksaan', [
             'id' => $examination->id, 'status' => 'selesai', 'signed_by_user_id' => $doctorUser->id,
             'anamnesis' => 'Demam dua hari',
@@ -59,12 +60,13 @@ class ClinicalNoteVersionFlowTest extends TestCase
         $this->assertSame('finalized', $final->kind);
         $this->assertSame(1, $final->version);
         $this->assertSame('Demam dua hari', $final->payload['anamnesis']);
+        $this->assertArrayHasKey('pemeriksaan_fisik_terstruktur', $final->payload);
         $this->assertSame('R50.9', $final->payload['diagnoses'][0]['code']);
         $this->assertNull($final->previous_hash);
         $this->assertSame(64, strlen($final->content_hash));
         $this->assertTrue((new ClinicalNoteRecorder)->verify($examination));
 
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit))->assertUnprocessable();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertUnprocessable();
         $this->post(route('pelayanan.pemeriksaan.store', $visit), [
             'anamnesis' => 'Menimpa catatan lama',
         ])->assertUnprocessable();
@@ -82,7 +84,9 @@ class ClinicalNoteVersionFlowTest extends TestCase
         ])->assertForbidden();
 
         $this->actingAs($doctorUser)->post(route('pelayanan.pemeriksaan.addendum', $visit), [
-            'reason' => 'Pasien mengoreksi lama demam', 'anamnesis' => 'Demam tiga hari',
+            'reason' => 'Pasien mengoreksi lama demam',
+            'anamnesis' => 'Demam tiga hari',
+            'riwayat_penyakit_sekarang' => 'Demam mulai tiga hari lalu',
         ])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('pemeriksaan', ['id' => $examination->id, 'anamnesis' => 'Demam dua hari']);
         $this->assertDatabaseCount('clinical_note_versions', 2);
@@ -91,6 +95,7 @@ class ClinicalNoteVersionFlowTest extends TestCase
         $this->assertSame('addendum', $addendum->kind);
         $this->assertSame('Pasien mengoreksi lama demam', $addendum->reason);
         $this->assertSame('Demam tiga hari', $addendum->payload['anamnesis']);
+        $this->assertSame('Demam mulai tiga hari lalu', $addendum->payload['riwayat_penyakit_sekarang']);
         $this->assertSame($final->content_hash, $addendum->previous_hash);
         $this->assertTrue((new ClinicalNoteRecorder)->verify($examination));
         $this->assertDatabaseHas('clinical_audit_events', ['kunjungan_id' => $visit->id, 'action' => 'clinical_examination.finalize']);

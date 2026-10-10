@@ -20,12 +20,14 @@ class User extends Authenticatable
         'phone',
         'address',
         'photo_path',
+        'signature_path',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
         'photo_path',
+        'signature_path',
     ];
 
     protected function casts(): array

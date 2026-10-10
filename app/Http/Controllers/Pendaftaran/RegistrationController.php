@@ -142,7 +142,7 @@ class RegistrationController extends Controller
             'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $this->ensureDoctorIsScheduled($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], today()->toDateString());
+        $validated['dokter_id'] = $this->resolveScheduledDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], today()->toDateString());
 
         $pasien = DB::transaction(function () use ($validated, $request): Pasien {
             $member = app(HakLayananVerifier::class)->member((int) $validated['kepesertaan_id'], today()->toDateString());
@@ -233,7 +233,7 @@ class RegistrationController extends Controller
             'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $this->ensureDoctorIsScheduled($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], today()->toDateString());
+        $validated['dokter_id'] = $this->resolveScheduledDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], today()->toDateString());
         $pasien = Pasien::findOrFail($validated['pasien_id']);
 
         DB::transaction(function () use ($validated, $pasien, $request): void {
@@ -330,8 +330,13 @@ class RegistrationController extends Controller
             ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
             ->latest('created_at')->latest('id')
             ->get();
+        $role = $request->user()->role;
 
         return Inertia::render('pendaftaran/kunjungan-per-poli', [
+            'access' => [
+                'manageVisits' => in_array($role, ['admin', 'pendaftaran'], true),
+                'monitorClinicalFlow' => $role === 'perawat',
+            ],
             'filters' => [
                 'poliklinikId' => $selectedPoli ? (int) $selectedPoli : '',
                 'tanggal' => $filters['tanggal'] ?? today()->toDateString(),
@@ -354,7 +359,25 @@ class RegistrationController extends Controller
                 'medicalRecordNumber' => $visit->pasien?->no_rm ?? '—',
                 'doctor' => $visit->dokter?->nama ?? 'Belum ditentukan',
                 'status' => $visit->status,
+                'actionUrl' => $role === 'perawat'
+                    ? (in_array($visit->status, ['menunggu', 'screening'], true)
+                        ? route('pelayanan.screening.show', $visit)
+                        : ($visit->status === 'batal'
+                            ? route('pelayanan.kunjungan.show', $visit)
+                            : route('pelayanan.pasien.rekam-medis', $visit->pasien)))
+                    : route('pelayanan.kunjungan.show', $visit),
+                'actionLabel' => $role === 'perawat'
+                    ? (in_array($visit->status, ['menunggu', 'screening'], true)
+                        ? 'Skrining'
+                        : ($visit->status === 'batal' ? 'Detail' : 'Lihat RME'))
+                    : 'Detail',
                 'ticketUrl' => $visit->status !== 'batal' && $request->user()->role !== 'perawat' ? route('pendaftaran.cetak-antrian', $visit) : null,
+                'editUrl' => in_array($role, ['admin', 'pendaftaran'], true) && $visit->status === 'menunggu'
+                    ? route('pendaftaran.edit-kunjungan', $visit)
+                    : null,
+                'cancelUrl' => in_array($role, ['admin', 'pendaftaran'], true) && $visit->status === 'menunggu'
+                    ? route('pendaftaran.batal-kunjungan', $visit)
+                    : null,
             ])->values(),
         ]);
     }
@@ -422,7 +445,7 @@ class RegistrationController extends Controller
             ->get();
 
         return Inertia::render('pendaftaran/jadwal-praktik', [
-            'canManage' => $request->user()->role !== 'perawat',
+            'canManage' => in_array($request->user()->role, ['admin', 'pendaftaran'], true),
             'filters' => [
                 'dokterId' => isset($filters['dokter_id']) ? (int) $filters['dokter_id'] : '',
                 'poliklinikId' => isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : '',
@@ -440,6 +463,8 @@ class RegistrationController extends Controller
             'today' => today()->toDateString(),
             'schedules' => $jadwal->map(fn (JadwalDokter $schedule): array => [
                 'id' => $schedule->id,
+                'doctorId' => $schedule->dokter_id,
+                'clinicId' => $schedule->poliklinik_id,
                 'doctor' => $schedule->dokter?->nama ?? '—',
                 'clinic' => $schedule->poliklinik?->nama ?? '—',
                 'day' => $schedule->hari,
@@ -448,6 +473,7 @@ class RegistrationController extends Controller
                 'active' => $schedule->is_active,
                 'validFrom' => $schedule->berlaku_mulai?->toDateString(),
                 'validUntil' => $schedule->berlaku_sampai?->toDateString(),
+                'updateUrl' => route('pendaftaran.update-jadwal-praktik', $schedule),
                 'deleteUrl' => route('pendaftaran.destroy-jadwal-praktik', $schedule),
             ])->values(),
         ]);
@@ -492,6 +518,47 @@ class RegistrationController extends Controller
         JadwalDokter::create($validated);
 
         return back()->with('success', 'Jadwal praktik berhasil ditambahkan.');
+    }
+
+    public function updateJadwalPraktik(Request $request, JadwalDokter $jadwal): RedirectResponse
+    {
+        $validated = $request->validate([
+            'dokter_id' => ['required', 'exists:nakes,id'],
+            'poliklinik_id' => ['required', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
+            'hari' => ['required', 'in:senin,selasa,rabu,kamis,jumat,sabtu,minggu'],
+            'berlaku_mulai' => ['required', 'date_format:Y-m-d'],
+            'berlaku_sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:berlaku_mulai'],
+            'jam_mulai' => ['required', 'date_format:H:i'],
+            'jam_selesai' => ['required', 'date_format:H:i', 'after:jam_mulai'],
+        ]);
+
+        $doctorIsActiveDoctor = Nakes::whereKey($validated['dokter_id'])
+            ->where('jabatan', 'dokter')
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $doctorIsActiveDoctor) {
+            throw ValidationException::withMessages(['dokter_id' => 'Pilih tenaga kesehatan aktif dengan jabatan dokter.']);
+        }
+
+        $periodEnd = $validated['berlaku_sampai'] ?? '9999-12-31';
+        $overlapsAnotherSchedule = JadwalDokter::where('id', '!=', $jadwal->id)
+            ->where('dokter_id', $validated['dokter_id'])
+            ->where('poliklinik_id', $validated['poliklinik_id'])
+            ->where('hari', $validated['hari'])
+            ->where(function ($period) use ($validated): void {
+                $period->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', $validated['berlaku_mulai']);
+            })
+            ->whereDate('berlaku_mulai', '<=', $periodEnd)
+            ->exists();
+
+        if ($overlapsAnotherSchedule) {
+            throw ValidationException::withMessages(['hari' => 'Jadwal dokter untuk poli dan hari tersebut sudah bertumpuk dengan jadwal lain.']);
+        }
+
+        $jadwal->update($validated);
+
+        return back()->with('success', 'Jadwal praktik berhasil diperbarui.');
     }
 
     public function destroyJadwalPraktik(JadwalDokter $jadwal): RedirectResponse
@@ -606,7 +673,7 @@ class RegistrationController extends Controller
 
             'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
-        $this->ensureDoctorIsScheduled($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], $kunjungan->tanggal->toDateString());
+        $validated['dokter_id'] = $this->resolveScheduledDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], $kunjungan->tanggal->toDateString());
         DB::transaction(function () use ($kunjungan, $validated, $request): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             abort_unless($lockedVisit->status === 'menunggu', 422, 'Kunjungan yang sudah dilayani tidak dapat diubah dari pendaftaran.');
@@ -643,25 +710,35 @@ class RegistrationController extends Controller
         ];
     }
 
-    private function ensureDoctorIsScheduled(?int $doctorId, int $poliklinikId, string $date): void
+    private function resolveScheduledDoctor(?int $doctorId, int $poliklinikId, string $date): ?int
     {
-        if ($doctorId === null) {
-            return;
-        }
-
         $visitDate = Carbon::parse($date);
-        $isScheduled = JadwalDokter::where('dokter_id', $doctorId)
+        $scheduledDoctors = JadwalDokter::query()
             ->where('poliklinik_id', $poliklinikId)
             ->where('hari', strtolower($visitDate->locale('id')->dayName))
             ->where(fn ($query) => $query->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', $visitDate->toDateString()))
             ->where(fn ($query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', $visitDate->toDateString()))
             ->where('is_active', true)
             ->whereHas('dokter', fn ($query) => $query->where('jabatan', 'dokter')->where('is_active', true))
-            ->exists();
+            ->pluck('dokter_id')->unique()->values();
 
-        if (! $isScheduled) {
+        if ($doctorId !== null && ! $scheduledDoctors->contains($doctorId)) {
             throw ValidationException::withMessages(['dokter_id' => 'Dokter tidak memiliki jadwal aktif pada poli dan hari yang dipilih.']);
         }
+
+        if ($doctorId !== null) {
+            return $doctorId;
+        }
+
+        if ($scheduledDoctors->count() === 1) {
+            return (int) $scheduledDoctors->first();
+        }
+
+        if ($scheduledDoctors->count() > 1) {
+            throw ValidationException::withMessages(['dokter_id' => 'Pilih salah satu dokter yang tersedia pada poliklinik dan tanggal tersebut.']);
+        }
+
+        return null;
     }
 
     private function generateNoRM(): string

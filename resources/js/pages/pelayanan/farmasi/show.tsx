@@ -1,5 +1,5 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ArrowLeft, Check, Printer, Save, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ChevronUp, Printer, Save, TriangleAlert } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
@@ -54,6 +54,7 @@ interface FormData {
 
 export default function PharmacyDispensing({ visit, today, appName }: { visit: Visit; today: string; appName: string }) {
     const [etiketItem, setEtiketItem] = useState<{ name: string; instructions: string } | null>(null);
+    const [allocationsExpanded, setAllocationsExpanded] = useState(false);
     const form = useForm<FormData>({
         items: visit.prescriptionItems.map((item) => ({
             resep_obat_id: item.id,
@@ -89,13 +90,15 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
     }
 
     const alreadyComplete = visit.pharmacy?.status === 'selesai' || visit.status !== 'farmasi';
+    const dispensedMedicineCount = new Set(visit.allocations.map((allocation) => allocation.medicine)).size;
+    const firstAllocation = visit.allocations[0];
 
     return (
         <>
             <Head title={`Dispensing ${visit.patient.name}`} />
             <div className="space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-neutral-700">Dispensing farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{visit.patient.name}</h2><p className="mt-1 text-sm text-neutral-500">{visit.patient.medicalRecordNumber} · Kunjungan {visit.number}</p></div><Button asChild variant="secondary"><Link href="/pelayanan/farmasi"><ArrowLeft className="size-4" />Kembali ke antrean</Link></Button></div>
-                <Card><CardContent className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center"><div><p className="text-xs font-medium uppercase tracking-wide text-neutral-700">Nomor resep</p><p className="mt-1 font-mono text-lg font-semibold text-neutral-950">{visit.prescriptionNumber ?? '—'}</p><p className="mt-1 text-sm text-neutral-500">Dokter peresep: {visit.doctor ?? 'Belum ditentukan'}</p></div><div className="flex flex-wrap items-center gap-2"><StatusBadge status={alreadyComplete ? 'selesai' : 'farmasi'} />{visit.patient.allergies && <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900"><TriangleAlert className="mt-0.5 size-4 shrink-0" /><span><strong>Alergi:</strong> {visit.patient.allergies}</span></div>}</div></CardContent></Card>
+                <Card><CardContent className="flex flex-col items-center gap-4 p-5 text-center sm:p-6"><div><p className="text-xs font-medium uppercase tracking-wide text-neutral-700">Nomor resep</p><p className="mt-1 break-all font-mono text-lg font-semibold text-neutral-950">{visit.prescriptionNumber ?? '—'}</p><p className="mt-1 text-sm text-neutral-500">Dokter peresep: {visit.doctor ?? 'Belum ditentukan'}</p></div><div className="flex flex-wrap items-center justify-center gap-2"><StatusBadge status={alreadyComplete ? 'selesai' : 'farmasi'} />{visit.patient.allergies && <div className="flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900"><TriangleAlert className="size-4 shrink-0" /><span><strong>Alergi:</strong> {visit.patient.allergies}</span></div>}</div></CardContent></Card>
                 <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><CardTitle>Verifikasi dan penyiapan obat</CardTitle><CardDescription>Periksa jumlah dan aturan pakai. Stok keluar saat obat diserahkan. Catat alasan dan tindak lanjut jika resep belum terpenuhi seluruhnya.</CardDescription></CardHeader>
                     <form onSubmit={saveDispensing}><CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[980px]"><TableHeader><tr><TableHead>Obat</TableHead><TableHead>Permintaan resep</TableHead><TableHead>Stok layak pakai</TableHead><TableHead>Jumlah diserahkan</TableHead><TableHead>Aturan pakai</TableHead><TableHead>Etiket</TableHead></tr></TableHeader><TableBody>
                         {visit.prescriptionItems.length ? visit.prescriptionItems.map((item, index) => {
@@ -116,7 +119,51 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
                         {form.isDirty && <p role="status" className="text-sm text-muted-foreground">Simpan perubahan draf sebelum menyerahkan obat.</p>}<div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><p className="text-xs text-neutral-500">Resep luar dicatat pada resep dan tidak dimasukkan dalam stok dispensing klinik.</p><div className="flex flex-wrap justify-end gap-2"><Button asChild variant="secondary"><Link href="/pelayanan/farmasi">Batalkan</Link></Button><Button disabled={form.processing || alreadyComplete} type="submit" variant="secondary"><Save className="size-4" />Simpan draf</Button><Button disabled={form.processing || form.isDirty || alreadyComplete || !visit.pharmacy || visit.pharmacy.status !== 'diproses'} onClick={finishDispensing} type="button"><Check className="size-4" />Serahkan obat & selesaikan</Button></div></div>
                     </div></form>
                 </Card>
-                {visit.allocations.length > 0 && <Card className="overflow-hidden"><CardHeader><CardTitle>Obat telah diserahkan</CardTitle><CardDescription>Batch fisik, kedaluwarsa, waktu penyerahan, dan petugas yang tercatat.</CardDescription></CardHeader><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Obat</TableHead><TableHead>Batch</TableHead><TableHead>Kedaluwarsa</TableHead><TableHead>Jumlah</TableHead><TableHead>Petugas / waktu</TableHead></TableRow></TableHeader><TableBody>{visit.allocations.map((allocation, index) => <TableRow key={index}><TableCell>{allocation.medicine}</TableCell><TableCell className="font-mono">{allocation.batch ?? 'Historis'}</TableCell><TableCell>{allocation.expiry ?? 'Historis'}</TableCell><TableCell>{allocation.quantity}</TableCell><TableCell>{allocation.actor ?? 'Historis'}<p className="text-xs text-muted-foreground">{allocation.at}</p></TableCell></TableRow>)}</TableBody></Table></div></Card>}
+                {visit.allocations.length > 0 && (
+                    <Card className="overflow-hidden">
+                        <CardHeader>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <CardTitle>Obat telah diserahkan</CardTitle>
+                                    <CardDescription className="mt-1">
+                                        {dispensedMedicineCount} jenis obat · {visit.allocations.length} rincian batch
+                                        {firstAllocation ? ` · ${firstAllocation.actor ?? 'Petugas historis'} · ${firstAllocation.at ?? 'Waktu historis'}` : ''}
+                                    </CardDescription>
+                                </div>
+                                <Button
+                                    aria-controls="dispensed-allocation-details"
+                                    aria-expanded={allocationsExpanded}
+                                    onClick={() => setAllocationsExpanded((expanded) => !expanded)}
+                                    size="sm"
+                                    type="button"
+                                    variant="secondary"
+                                >
+                                    {allocationsExpanded
+                                        ? <><ChevronUp className="size-4" />Tutup detail</>
+                                        : <><ChevronDown className="size-4" />Detail penyerahan</>}
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        {allocationsExpanded && (
+                            <div className="overflow-x-auto border-t border-neutral-100" id="dispensed-allocation-details">
+                                <Table className="min-w-[760px]">
+                                    <TableHeader><TableRow><TableHead>Obat</TableHead><TableHead>Batch</TableHead><TableHead>Kedaluwarsa</TableHead><TableHead>Jumlah</TableHead><TableHead>Petugas / waktu</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {visit.allocations.map((allocation, index) => (
+                                            <TableRow key={`${allocation.medicine}-${allocation.batch ?? 'historis'}-${index}`}>
+                                                <TableCell>{allocation.medicine}</TableCell>
+                                                <TableCell className="font-mono">{allocation.batch ?? 'Historis'}</TableCell>
+                                                <TableCell>{allocation.expiry ?? 'Historis'}</TableCell>
+                                                <TableCell>{allocation.quantity}</TableCell>
+                                                <TableCell>{allocation.actor ?? 'Historis'}<p className="text-xs text-muted-foreground">{allocation.at}</p></TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </Card>
+                )}
             </div>
             <Dialog onOpenChange={(open) => { if (!open) setEtiketItem(null); }} open={Boolean(etiketItem)}><DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Pratinjau etiket</DialogTitle><DialogDescription>Periksa informasi pasien dan aturan pakai sebelum mencetak.</DialogDescription></DialogHeader>{etiketItem && <><div className="rounded-xl border-2 border-neutral-600 p-5 text-center"><p className="font-semibold text-neutral-800">{appName}</p><p className="mt-1 text-[10px] text-neutral-500">INSTALASI FARMASI</p><div className="my-3 border-y border-neutral-200 py-2"><p className="font-medium text-neutral-800">{visit.patient.name}</p><p className="text-xs text-neutral-500">{today}</p></div><p className="text-lg font-bold text-neutral-950">{etiketItem.name}</p><p className="mt-2 rounded-lg bg-neutral-50 px-3 py-2 text-sm font-semibold text-neutral-900">{etiketItem.instructions || 'Ikuti petunjuk dokter'}</p><p className="mt-3 text-xs italic text-neutral-400">Semoga lekas sembuh</p></div><div className="flex justify-end gap-2"><Button onClick={() => setEtiketItem(null)} type="button" variant="secondary">Tutup</Button><Button onClick={printLabel} type="button"><Printer className="size-4" />Cetak</Button></div></>}</DialogContent></Dialog>
         </>

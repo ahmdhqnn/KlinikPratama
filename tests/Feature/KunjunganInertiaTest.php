@@ -133,5 +133,18 @@ class KunjunganInertiaTest extends TestCase
         ])->assertSessionHasErrors('dokter_id');
 
         $this->assertDatabaseCount('kunjungan', 0);
+
+        $this->post(route('pelayanan.kunjungan.store'), [
+            'pasien_id' => $patient->id,
+            'poliklinik_id' => $clinic->id,
+            'tanggal' => '2026-10-09',
+            'jenis_pasien' => 'lama',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('kunjungan', [
+            'pasien_id' => $patient->id,
+            'poliklinik_id' => $clinic->id,
+            'dokter_id' => $scheduledDoctor->id,
+        ]);
     }
 }
