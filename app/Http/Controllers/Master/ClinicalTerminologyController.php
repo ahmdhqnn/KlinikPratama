@@ -23,6 +23,13 @@ class ClinicalTerminologyController extends Controller
         'icd9cm_procedure' => 'ICD-9-CM Volume 3 (procedure)',
     ];
 
+    /**
+     * Additional procedure code included in the ICD9CM_2010 catalog linked by SATUSEHAT.
+     *
+     * @var list<string>
+     */
+    private const SATUSEHAT_PROCEDURE_EXTENSIONS = ['93.960'];
+
     public function index(): Response
     {
         $systems = ClinicalTerminology::query()
@@ -35,6 +42,7 @@ class ClinicalTerminologyController extends Controller
                 'system' => $item->code_system,
                 'label' => self::SYSTEMS[$item->code_system] ?? $item->code_system,
                 'release' => $item->release ?: 'Tidak ditentukan',
+                'releaseValue' => $item->release,
                 'count' => (int) $item->code_count,
                 'importedAt' => $item->imported_at,
             ]);
@@ -43,6 +51,81 @@ class ClinicalTerminologyController extends Controller
             'systems' => $systems,
             'codeSystems' => collect(self::SYSTEMS)->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])->values(),
         ]);
+    }
+
+    public function show(Request $request): Response
+    {
+        $data = $request->validate([
+            'system' => ['required', 'string', 'max:100'],
+            'release' => ['present', 'string', 'max:100'],
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
+        $system = $data['system'];
+        $release = $data['release'];
+        $catalog = ClinicalTerminology::query()
+            ->where('code_system', $system)
+            ->where('release', $release)
+            ->select('code_system', 'release', DB::raw('count(*) as code_count'), DB::raw('max(updated_at) as imported_at'))
+            ->groupBy('code_system', 'release')
+            ->firstOrFail();
+        $codes = ClinicalTerminology::query()
+            ->where('code_system', $system)
+            ->where('release', $release)
+            ->when($data['search'] ?? null, function ($query, string $search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query->where('code', 'like', '%'.$search.'%')
+                        ->orWhere('display', 'like', '%'.$search.'%');
+                });
+            })
+            ->orderBy('code')
+            ->paginate(50)
+            ->withQueryString();
+
+        return Inertia::render('master/terminologi/show', [
+            'catalog' => [
+                'system' => $catalog->code_system,
+                'label' => self::SYSTEMS[$catalog->code_system] ?? $catalog->code_system,
+                'release' => $catalog->release ?: 'Tidak ditentukan',
+                'releaseValue' => $catalog->release,
+                'count' => (int) $catalog->code_count,
+                'importedAt' => $catalog->imported_at,
+            ],
+            'codes' => [
+                'data' => $codes->getCollection()->map(fn (ClinicalTerminology $code): array => [
+                    'code' => $code->code,
+                    'display' => $code->display,
+                    'type' => $code->code_type,
+                    'active' => $code->is_active,
+                ])->values(),
+                'currentPage' => $codes->currentPage(),
+                'lastPage' => $codes->lastPage(),
+                'from' => $codes->firstItem(),
+                'to' => $codes->lastItem(),
+                'total' => $codes->total(),
+                'previousUrl' => $codes->previousPageUrl(),
+                'nextUrl' => $codes->nextPageUrl(),
+            ],
+            'search' => $data['search'] ?? '',
+        ]);
+    }
+
+    public function destroy(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'system' => ['required', 'string', 'max:100'],
+            'release' => ['present', 'string', 'max:100'],
+        ]);
+
+        $deleted = DB::transaction(fn (): int => ClinicalTerminology::query()
+            ->where('code_system', $data['system'])
+            ->where('release', $data['release'])
+            ->delete());
+
+        if ($deleted === 0) {
+            return to_route('master.terminologi.index')->with('error', 'Katalog terminologi tidak ditemukan atau sudah dihapus.');
+        }
+
+        return to_route('master.terminologi.index')->with('success', $deleted.' kode dari katalog '.$data['system'].' ('.($data['release'] ?: 'tanpa rilis').') berhasil dihapus.');
     }
 
     public function import(Request $request): RedirectResponse
@@ -84,6 +167,16 @@ class ClinicalTerminologyController extends Controller
 
                 continue;
             }
+            if (in_array($system, ['icd10_who', 'icd10_cm'], true) && preg_match('/^[A-Z]/i', $code) !== 1) {
+                throw ValidationException::withMessages(['file' => 'Kode '.$code.' bukan kode diagnosis ICD-10. Untuk berkas tindakan ICD-9-CM, pilih ICD-9-CM Volume 3 (procedure). Tidak ada perubahan yang disimpan.']);
+            }
+            if ($system === 'icd9cm_procedure' && preg_match('/^\d{2}(?:\.\d{1,2})?$/', $code) !== 1 && ! in_array($code, self::SATUSEHAT_PROCEDURE_EXTENSIONS, true)) {
+                throw ValidationException::withMessages(['file' => 'Kode '.$code.' bukan kode prosedur ICD-9-CM. Pilih sistem kode yang sesuai dengan isi berkas. Tidak ada perubahan yang disimpan.']);
+            }
+            $codeType = $this->typeForRow($typeColumn !== null ? (string) ($row[$typeColumn] ?? '') : '', $system);
+            if (isset(self::SYSTEMS[$system]) && $codeType !== $this->defaultType($system)) {
+                throw ValidationException::withMessages(['file' => 'Jenis kode tidak sesuai dengan sistem terminologi yang dipilih pada baris '.($index + 1).'. Tidak ada perubahan yang disimpan.']);
+            }
             if (isset($seenCodes[$code])) {
                 $invalidRows[] = $index + 1;
                 if (count($invalidRows) >= 10) {
@@ -99,7 +192,7 @@ class ClinicalTerminologyController extends Controller
                 'release' => $release,
                 'code' => mb_substr($code, 0, 100),
                 'display' => $display,
-                'code_type' => $this->typeForRow($typeColumn !== null ? (string) ($row[$typeColumn] ?? '') : '', $system),
+                'code_type' => $codeType,
                 'source_file' => $source,
                 'is_active' => true,
                 'created_at' => $timestamp,

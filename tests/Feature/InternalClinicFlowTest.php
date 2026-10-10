@@ -69,7 +69,25 @@ class InternalClinicFlowTest extends TestCase
     public function test_manual_ten_person_sample_imports_complete_identity_and_family_links(): void
     {
         $actor = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
-        $sheet = IOFactory::load(base_path('outputs/manual-test-kepesertaan/data-peserta-internal-sampel-10.xlsx'));
+        $sheet = IOFactory::load(resource_path('templates/contoh-kepesertaan-internal.xlsx'));
+        $worksheet = $sheet->getActiveSheet();
+        $sample = $worksheet->rangeToArray('A2:V2')[0];
+        $worksheet->removeRow(2, $worksheet->getHighestRow() - 1);
+        for ($index = 0; $index < 10; $index++) {
+            $row = $sample;
+            $row[0] = $index === 0 ? 'Andi Firmansyah' : ($index === 9 ? 'Rina Kurniasih' : 'Peserta Contoh '.($index + 1));
+            $row[1] = sprintf('%016d', $index + 1);
+            $row[2] = $index === 9 ? '' : sprintf('%018d', $index + 1);
+            $row[3] = $index === 9 ? 'keluarga' : 'pegawai_pusat';
+            $row[7] = $index === 9 ? sprintf('%018d', 1) : '';
+            $row[8] = $index === 9 ? 'istri' : '';
+            $row[13] = '1986-10-12';
+            $row[18] = '003';
+            foreach ($row as $column => $value) {
+                $worksheet->setCellValueExplicit([$column + 1, $index + 2], (string) $value, DataType::TYPE_STRING);
+            }
+        }
+
         $this->actingAs($actor)->post(route('kepesertaan.import'), [
             'file' => $this->workbook($sheet), 'referensi_bukti' => 'SIMULASI - Data sampel internal 10 peserta',
         ])->assertSessionHasNoErrors();

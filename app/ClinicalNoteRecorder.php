@@ -36,7 +36,11 @@ class ClinicalNoteRecorder
                 'type' => $diagnosis->jenis,
             ])->values()->all(),
             'treatments' => $visit->tindakanKunjungan->sortBy('id')->map(fn ($treatment): array => [
-                'name' => $treatment->nama_tindakan_manual ?? $treatment->tindakan?->nama ?? 'Tindakan tidak tersedia',
+                'id' => $treatment->id,
+                'name' => $treatment->nama_tindakan ?? $treatment->nama_tindakan_manual ?? $treatment->tindakan?->nama ?? 'Tindakan tidak tersedia',
+                'code' => $treatment->kode_icd9cm,
+                'code_system' => $treatment->code_system,
+                'code_release' => $treatment->code_release,
                 'quantity' => $treatment->jumlah,
                 'tooth_fdi' => $treatment->tooth_fdi,
                 'note' => $treatment->catatan,

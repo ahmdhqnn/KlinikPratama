@@ -539,7 +539,10 @@ class PasienController extends Controller
                     ])->all(),
                     'treatments' => collect(is_array($effectiveNote) ? ($effectiveNote['treatments'] ?? []) : ($integrityValid === false ? [] : $visit->tindakanKunjungan))->values()->map(fn ($item, int $index): array => [
                         'id' => is_array($item) ? $index + 1 : $item->id,
-                        'name' => is_array($item) ? $item['name'] : ($item->nama_tindakan_manual ?? $item->tindakan?->nama ?? 'Tindakan dihapus'),
+                        'name' => is_array($item) ? $item['name'] : ($item->nama_tindakan ?? $item->nama_tindakan_manual ?? $item->tindakan?->nama ?? 'Tindakan dihapus'),
+                        'code' => is_array($item) ? ($item['code'] ?? null) : $item->kode_icd9cm,
+                        'codeSystem' => is_array($item) ? ($item['code_system'] ?? null) : $item->code_system,
+                        'codeRelease' => is_array($item) ? ($item['code_release'] ?? null) : $item->code_release,
                         'quantity' => is_array($item) ? $item['quantity'] : $item->jumlah,
                         'toothFdi' => is_array($item) ? ($item['tooth_fdi'] ?? null) : $item->tooth_fdi,
                         'note' => is_array($item) ? ($item['note'] ?? null) : $item->catatan,

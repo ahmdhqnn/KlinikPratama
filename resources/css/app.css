@@ -8,6 +8,164 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@layer components {
+    .odontogram-fdi .tooth-shape {
+        fill: #ffffff;
+        stroke: #64748b;
+        stroke-width: 1.5;
+        vector-effect: non-scaling-stroke;
+        transition: stroke 0.15s ease-out, fill 0.15s ease-out, opacity 0.2s ease-out;
+    }
+
+    .odontogram-fdi .tooth-sound .tooth-shape { fill: #ffffff; stroke: #64748b; stroke-width: 1.6; }
+    .odontogram-fdi .tooth-caries .tooth-shape { fill: #fee2e2; stroke: #dc2626; stroke-width: 1.8; }
+    .odontogram-fdi .tooth-restored .tooth-shape { fill: #e2e8f0; stroke: #475569; stroke-width: 1.8; }
+    .odontogram-fdi .tooth-missing .tooth-shape { fill: transparent; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 3 2; opacity: 0.6; }
+    .odontogram-fdi .tooth-unerupted .tooth-shape { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 2 2; }
+    .odontogram-fdi .tooth-fractured_crown .tooth-shape { fill: #f1f5f9; stroke: #334155; stroke-width: 1.8; stroke-dasharray: 4 2; }
+    .odontogram-fdi .tooth-root_remnant .tooth-shape { fill: #cbd5e1; stroke: #334155; stroke-width: 1.8; }
+
+    .dark .odontogram-fdi .tooth-shape { fill: #262626; stroke: #52525b; stroke-width: 1.5; }
+    .dark .odontogram-fdi .tooth-sound .tooth-shape { fill: #262626; stroke: #52525b; stroke-width: 1.6; }
+    .dark .odontogram-fdi .tooth-caries .tooth-shape { fill: #3b1414; stroke: #ef4444; stroke-width: 1.8; }
+    .dark .odontogram-fdi .tooth-restored .tooth-shape { fill: #404040; stroke: #a1a1aa; stroke-width: 1.8; }
+    .dark .odontogram-fdi .tooth-missing .tooth-shape { fill: transparent; stroke: #52525b; stroke-width: 1.5; stroke-dasharray: 3 2; opacity: 0.45; }
+    .dark .odontogram-fdi .tooth-unerupted .tooth-shape { fill: #1c1c1f; stroke: #52525b; stroke-width: 1.5; stroke-dasharray: 2 2; }
+    .dark .odontogram-fdi .tooth-fractured_crown .tooth-shape { fill: #262626; stroke: #d4d4d8; stroke-width: 1.8; stroke-dasharray: 4 2; }
+    .dark .odontogram-fdi .tooth-root_remnant .tooth-shape { fill: #3f3f46; stroke: #d4d4d8; stroke-width: 1.8; }
+
+    .odontogram-fdi .tooth-fissure { fill: none; stroke: #94a3b8; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; opacity: 0.7; }
+    .dark .odontogram-fdi .tooth-fissure { stroke: #71717a; opacity: 0.7; }
+    .odontogram-fdi .tooth-caries .tooth-fissure { stroke: #dc2626; opacity: 0.85; }
+    .dark .odontogram-fdi .tooth-caries .tooth-fissure { stroke: #f87171; opacity: 0.85; }
+    .odontogram-fdi .tooth-missing .tooth-fissure { opacity: 0.15; }
+    .dark .odontogram-fdi .tooth-missing .tooth-fissure { opacity: 0.1; }
+
+    .odontogram-fdi .tooth-interactive:hover .tooth-shape { stroke: #0f172a; stroke-width: 2.2; }
+    .dark .odontogram-fdi .tooth-interactive:hover .tooth-shape { stroke: #f4f4f5; stroke-width: 2.2; }
+    .odontogram-fdi .tooth-interactive.is-selected .tooth-shape { stroke: #09090b !important; stroke-width: 2.4 !important; }
+    .dark .odontogram-fdi .tooth-interactive.is-selected .tooth-shape { stroke: #ffffff !important; stroke-width: 2.4 !important; }
+
+    .odontogram-fdi .gingiva-tissue { fill: #f5ecec; stroke: #d4b8b8; stroke-width: 1.4; }
+    .odontogram-fdi .gingiva-contour { fill: none; stroke: #b89898; stroke-width: 1; stroke-linecap: round; opacity: 0.4; }
+    .dark .odontogram-fdi .gingiva-tissue { fill: #2a1c1d; stroke: #4e3032; stroke-width: 1.4; }
+    .dark .odontogram-fdi .gingiva-contour { stroke: #6e464a; opacity: 0.35; }
+
+    .odontogram-fdi .arch-loop-path { fill: none; stroke: #cbd5e1; stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 4 4; }
+    .dark .odontogram-fdi .arch-loop-path { stroke: #3f3f46; }
+    .odontogram-fdi .arch-arrowhead { fill: #94a3b8; stroke: none; }
+    .dark .odontogram-fdi .arch-arrowhead { fill: #52525b; }
+    .odontogram-fdi .arch-divider { stroke: #e2e8f0; stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.8; }
+    .dark .odontogram-fdi .arch-divider { stroke: #27272a; opacity: 0.8; }
+    .odontogram-fdi .arch-label { fill: #64748b; font-family: var(--font-sans); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; }
+    .dark .odontogram-fdi .arch-label { fill: #71717a; }
+    .odontogram-fdi .fdi-number { fill: #334155; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; font-weight: 700; text-anchor: middle; dominant-baseline: central; user-select: none; }
+    .dark .odontogram-fdi .fdi-number { fill: #a1a1aa; }
+    .odontogram-fdi .fdi-number.is-active { fill: #0f172a; font-size: 15px; font-weight: 900; }
+    .dark .odontogram-fdi .fdi-number.is-active { fill: #fafafa; }
+
+    /* Anatomy Body Map Styles for General Practice */
+    .anatomy-body-map .body-silhouette {
+        fill: #f8fafc;
+        stroke: #94a3b8;
+        stroke-width: 1.5;
+        vector-effect: non-scaling-stroke;
+        transition: fill 0.15s ease-out, stroke 0.15s ease-out;
+    }
+    .dark .anatomy-body-map .body-silhouette {
+        fill: #18181b;
+        stroke: #52525b;
+    }
+
+    .anatomy-body-map .body-skeleton {
+        fill: none;
+        stroke: #cbd5e1;
+        stroke-width: 1.2;
+        opacity: 0.6;
+    }
+    .dark .anatomy-body-map .body-skeleton {
+        stroke: #3f3f46;
+        opacity: 0.5;
+    }
+
+    .anatomy-body-map .organ-shape {
+        vector-effect: non-scaling-stroke;
+        transition: transform 0.15s ease-out, filter 0.15s ease-out, stroke 0.15s ease-out, fill 0.15s ease-out;
+        cursor: pointer;
+    }
+
+    /* Organ System Fills - Light Mode */
+    .anatomy-body-map .organ-respiratory { fill: #eff6ff; stroke: #3b82f6; stroke-width: 1.5; }
+    .anatomy-body-map .organ-circulatory { fill: #fef2f2; stroke: #ef4444; stroke-width: 1.6; }
+    .anatomy-body-map .organ-digestive { fill: #fffbeb; stroke: #d97706; stroke-width: 1.5; }
+    .anatomy-body-map .organ-nervous { fill: #faf5ff; stroke: #a855f7; stroke-width: 1.5; }
+    .anatomy-body-map .organ-urinary { fill: #ecfdf5; stroke: #10b981; stroke-width: 1.5; }
+    .anatomy-body-map .organ-musculoskeletal { fill: #f1f5f9; stroke: #64748b; stroke-width: 1.5; }
+
+    /* Organ System Fills - Dark Mode */
+    .dark .anatomy-body-map .organ-respiratory { fill: #172554; stroke: #38bdf8; stroke-width: 1.5; }
+    .dark .anatomy-body-map .organ-circulatory { fill: #450a0a; stroke: #f87171; stroke-width: 1.6; }
+    .dark .anatomy-body-map .organ-digestive { fill: #3f2208; stroke: #fbbf24; stroke-width: 1.5; }
+    .dark .anatomy-body-map .organ-nervous { fill: #2e1065; stroke: #c084fc; stroke-width: 1.5; }
+    .dark .anatomy-body-map .organ-urinary { fill: #064e3b; stroke: #34d399; stroke-width: 1.5; }
+    .dark .anatomy-body-map .organ-musculoskeletal { fill: #27272a; stroke: #a1a1aa; stroke-width: 1.5; }
+
+    /* Hover & Active Selection */
+    .anatomy-body-map .organ-shape:hover {
+        stroke-width: 2.3;
+        filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+    }
+    .dark .anatomy-body-map .organ-shape:hover {
+        filter: drop-shadow(0 2px 6px rgba(255, 255, 255, 0.1));
+    }
+    .anatomy-body-map .organ-shape.is-selected {
+        stroke: #09090b !important;
+        stroke-width: 2.6 !important;
+        filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.25));
+    }
+    .dark .anatomy-body-map .organ-shape.is-selected {
+        stroke: #ffffff !important;
+        stroke-width: 2.6 !important;
+        filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
+    }
+
+    /* Callout Pointers and Labels */
+    .anatomy-body-map .pointer-line {
+        fill: none;
+        stroke: #94a3b8;
+        stroke-width: 1.2;
+        stroke-dasharray: 3 3;
+    }
+    .dark .anatomy-body-map .pointer-line {
+        stroke: #52525b;
+    }
+    .anatomy-body-map .pointer-dot {
+        fill: #64748b;
+    }
+    .dark .anatomy-body-map .pointer-dot {
+        fill: #a1a1aa;
+    }
+    .anatomy-body-map .pointer-text {
+        fill: #334155;
+        font-family: var(--font-sans);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        user-select: none;
+    }
+    .dark .anatomy-body-map .pointer-text {
+        fill: #d4d4d8;
+    }
+    .anatomy-body-map .pointer-text.is-active {
+        fill: #09090b;
+        font-weight: 800;
+    }
+    .dark .anatomy-body-map .pointer-text.is-active {
+        fill: #ffffff;
+        font-weight: 800;
+    }
+}
+
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     --color-accent: var(--clinic-neutral-900);

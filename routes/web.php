@@ -114,7 +114,9 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     // Master Data
     Route::prefix('master')->name('master.')->middleware(EnsureAdminRole::class)->group(function () {
         Route::get('terminologi-klinis', [ClinicalTerminologyController::class, 'index'])->name('terminologi.index');
+        Route::get('terminologi-klinis/detail', [ClinicalTerminologyController::class, 'show'])->name('terminologi.show');
         Route::post('terminologi-klinis/import', [ClinicalTerminologyController::class, 'import'])->name('terminologi.import');
+        Route::delete('terminologi-klinis', [ClinicalTerminologyController::class, 'destroy'])->name('terminologi.destroy');
         Route::resource('depo-obat', DepoObatController::class);
         Route::resource('poliklinik', PoliklinikController::class);
         Route::post('poliklinik/{poliklinik}/ruang', [PoliklinikController::class, 'storeRuang'])->name('poliklinik.ruang.store');
@@ -204,8 +206,10 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::post('pemeriksaan/{kunjungan}/selesai', [PemeriksaanController::class, 'selesai'])->name('pemeriksaan.selesai');
             Route::post('pemeriksaan/{kunjungan}/addendum', [PemeriksaanController::class, 'addendum'])->name('pemeriksaan.addendum');
             Route::post('pemeriksaan/{kunjungan}/odontogram', [PemeriksaanController::class, 'storeOdontogram'])->name('pemeriksaan.odontogram.store');
+            Route::delete('pemeriksaan/{kunjungan}/odontogram', [PemeriksaanController::class, 'destroyOdontogram'])->name('pemeriksaan.odontogram.destroy');
             Route::post('pemeriksaan/{kunjungan}/odontogram/addendum', [PemeriksaanController::class, 'addendumOdontogram'])->name('pemeriksaan.odontogram.addendum');
             Route::get('icd10/search', [PemeriksaanController::class, 'searchIcd10'])->name('icd10.search');
+            Route::get('icd9cm/search', [PemeriksaanController::class, 'searchIcd9cm'])->name('icd9cm.search');
         });
 
         Route::middleware(EnsureRole::class.':farmasi')->group(function (): void {

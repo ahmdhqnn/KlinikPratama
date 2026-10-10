@@ -57,7 +57,8 @@ class DatabaseSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        Excel::import(new KepesertaanImport($admin, 'CONTOH - data sintetis untuk pengujian'), resource_path('templates/contoh-kepesertaan-internal.xlsx'));
+        $membershipFile = resource_path('templates/contoh-kepesertaan-internal.xlsx');
+        Excel::import(new KepesertaanImport($admin, 'CONTOH - data sintetis untuk pengujian', $membershipFile), $membershipFile);
         foreach (['dokter', 'perawat', 'farmasi', 'manajemen'] as $role) {
             User::factory()->create(['name' => ucfirst($role).' Contoh', 'email' => $role.'@klinik.com', 'password' => Hash::make('password'), 'role' => $role, 'is_active' => true]);
         }
