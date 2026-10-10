@@ -71,6 +71,7 @@ class RedirectRegistrationRole
             'persuratan.*',
             'pelayanan.pemeriksaan.*',
             'pelayanan.icd10.search',
+            'pelayanan.icd9cm.search',
             'pelayanan.pasien.index',
             'pelayanan.pasien.show',
             'pelayanan.pasien.rekam-medis',

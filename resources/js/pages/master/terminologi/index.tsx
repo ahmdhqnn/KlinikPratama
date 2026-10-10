@@ -1,5 +1,5 @@
-import { Head, useForm } from '@inertiajs/react';
-import { FileSpreadsheet, Upload } from 'lucide-react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Eye, FileSpreadsheet, Trash2, Upload } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,13 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { confirmAction } from '@/components/ui/confirm-dialog';
 
 interface TerminologySystem {
     system: string;
     label: string;
     release: string;
+    releaseValue: string;
     count: number;
     importedAt: string;
 }
@@ -34,6 +36,12 @@ export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         form.post('/master/terminologi-klinis/import', { forceFormData: true, preserveScroll: true, onSuccess: () => form.reset('file', 'release') });
+    }
+
+    function remove(system: TerminologySystem) {
+        confirmAction(`Hapus seluruh ${new Intl.NumberFormat('id-ID').format(system.count)} kode dari ${system.label}, rilis ${system.release}? Penghapusan ini tidak dapat dibatalkan.`, () => {
+            router.delete('/master/terminologi-klinis', { data: { system: system.system, release: system.releaseValue }, preserveScroll: true });
+        }, 'Hapus katalog');
     }
 
     return (
@@ -64,7 +72,7 @@ export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props
                 </Card>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100"><CardTitle>Katalog terpasang</CardTitle><CardDescription>Setiap sistem dan rilis tetap terpisah untuk mempertahankan identitas kode aslinya.</CardDescription></CardHeader>
-                    <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[720px]"><TableHeader><tr><TableHead>Sistem kode</TableHead><TableHead>Rilis</TableHead><TableHead>Jumlah kode</TableHead><TableHead>Status</TableHead></tr></TableHeader><TableBody>{systems.length ? systems.map((system) => <TableRow key={`${system.system}-${system.release}`}><TableCell className="font-medium text-neutral-900">{system.label}</TableCell><TableCell>{system.release}</TableCell><TableCell>{new Intl.NumberFormat('id-ID').format(system.count)}</TableCell><TableCell><Badge variant="complete">Tersedia untuk pencarian</Badge></TableCell></TableRow>) : <TableRow><TableCell colSpan={4}><Empty description="Impor file terminologi yang telah dimiliki dan diizinkan untuk penggunaan instansi." size="compact" title="Belum ada katalog terminologi" /></TableCell></TableRow>}</TableBody></Table></div></CardContent>
+                    <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[900px]"><TableHeader><tr><TableHead>Sistem kode</TableHead><TableHead>Rilis</TableHead><TableHead>Jumlah kode</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></tr></TableHeader><TableBody>{systems.length ? systems.map((system) => <TableRow key={`${system.system}-${system.releaseValue}`}><TableCell className="font-medium text-neutral-900">{system.label}</TableCell><TableCell>{system.release}</TableCell><TableCell>{new Intl.NumberFormat('id-ID').format(system.count)}</TableCell><TableCell><Badge variant="complete">Tersedia untuk pencarian</Badge></TableCell><TableCell><div className="flex justify-end gap-1"><Button asChild size="sm" variant="secondary"><Link href={`/master/terminologi-klinis/detail?system=${encodeURIComponent(system.system)}&release=${encodeURIComponent(system.releaseValue)}`}><Eye className="size-4" />Detail</Link></Button><Button onClick={() => remove(system)} size="sm" variant="destructive"><Trash2 className="size-4" />Hapus</Button></div></TableCell></TableRow>) : <TableRow><TableCell colSpan={5}><Empty description="Impor file terminologi yang telah dimiliki dan diizinkan untuk penggunaan instansi." size="compact" title="Belum ada katalog terminologi" /></TableCell></TableRow>}</TableBody></Table></div></CardContent>
                 </Card>
             </div>
         </>

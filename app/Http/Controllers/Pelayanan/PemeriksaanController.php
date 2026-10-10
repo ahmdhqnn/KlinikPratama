@@ -212,13 +212,16 @@ class PemeriksaanController extends Controller
                     'name' => $diagnosis->nama_diagnosa,
                     'type' => $diagnosis->jenis,
                 ])->values() ?? collect(),
-                'treatments' => $kunjungan->tindakanKunjungan->map(fn (TindakanKunjungan $item) => [
-                    'id' => $item->id,
-                    'name' => $item->nama_tindakan_manual ?? $item->tindakan?->nama ?? 'Tindakan dihapus',
-                    'quantity' => $item->jumlah,
-                    'tariff' => (float) $item->tarif,
-                    'toothFdi' => $item->tooth_fdi,
-                    'note' => $item->catatan,
+                'treatments' => collect(is_array($effectiveNote) ? ($effectiveNote['treatments'] ?? []) : ($noteIntegrityValid === false ? [] : $kunjungan->tindakanKunjungan))->values()->map(fn ($item, int $index): array => [
+                    'id' => is_array($item) ? ($item['id'] ?? $index + 1) : $item->id,
+                    'name' => is_array($item) ? $item['name'] : ($item->nama_tindakan ?? $item->nama_tindakan_manual ?? $item->tindakan?->nama ?? 'Tindakan dihapus'),
+                    'code' => is_array($item) ? ($item['code'] ?? null) : $item->kode_icd9cm,
+                    'codeSystem' => is_array($item) ? ($item['code_system'] ?? null) : $item->code_system,
+                    'codeRelease' => is_array($item) ? ($item['code_release'] ?? null) : $item->code_release,
+                    'quantity' => is_array($item) ? $item['quantity'] : $item->jumlah,
+                    'tariff' => is_array($item) ? 0 : (float) $item->tarif,
+                    'toothFdi' => is_array($item) ? ($item['tooth_fdi'] ?? null) : $item->tooth_fdi,
+                    'note' => is_array($item) ? ($item['note'] ?? null) : $item->catatan,
                 ])->values(),
                 'odontogram' => collect($odontogram)->map(fn (array $finding): array => [
                     'toothFdi' => $finding['tooth_fdi'],
@@ -260,6 +263,9 @@ class PemeriksaanController extends Controller
             ],
             'doctors' => $dokterList->map(fn (Nakes $doctor) => ['id' => $doctor->id, 'name' => $doctor->nama]),
             'diagnosisCodeSystems' => $diagnosisCodeSystems,
+            'procedureCatalogAvailable' => ClinicalTerminology::query()->where('code_system', 'icd9cm_procedure')
+                ->where('code_type', 'procedure')->where('is_active', true)->exists(),
+            'procedureSearchUrl' => route('pelayanan.icd9cm.search'),
             'treatments' => $tindakanList->map(fn (Tindakan $treatment) => [
                 'id' => $treatment->id,
                 'name' => $treatment->nama,
@@ -368,7 +374,13 @@ class PemeriksaanController extends Controller
                 'jenis' => ['required', 'in:utama,tambahan'],
             ]);
             $codeSystem = $data['code_system'] ?? 'icd10_who';
-            $catalog = ClinicalTerminology::query()->where('code_system', $codeSystem)->where('is_active', true);
+            $catalog = ClinicalTerminology::query()->where('code_system', $codeSystem)->where('code_type', 'diagnosis')->where('is_active', true);
+            if ($codeSystem === 'icd9cm_procedure') {
+                throw ValidationException::withMessages(['code_system' => 'Kode prosedur ICD-9-CM harus dicatat pada tindakan, bukan diagnosis.']);
+            }
+            if (in_array($codeSystem, ['icd10_who', 'icd10_cm'], true) && preg_match('/^[A-Z]/i', $data['kode_icd10']) !== 1) {
+                throw ValidationException::withMessages(['kode_icd10' => 'Kode diagnosis ICD-10 harus diawali huruf. Catat kode prosedur ICD-9-CM pada tindakan.']);
+            }
             if (! in_array($codeSystem, ['icd10_who', 'icd10_cm', 'icd9cm_diagnosis'], true) && ! $catalog->exists()) {
                 throw ValidationException::withMessages(['code_system' => 'Sistem kode belum memiliki katalog diagnosis yang dapat digunakan.']);
             }
@@ -494,44 +506,88 @@ class PemeriksaanController extends Controller
             app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.storeTindakan', $kunjungan->pasien_id, $kunjungan->id);
             $this->authorizeMutableVisit($kunjungan);
             $data = $request->validate([
-                'tindakan_id' => ['nullable', 'required_without:nama_tindakan_manual', 'exists:tindakan,id'],
-                'nama_tindakan_manual' => ['nullable', 'required_without:tindakan_id', 'string', 'min:3', 'max:255'],
+                'terminology_id' => ['nullable', 'integer'],
+                'tindakan_id' => ['nullable', 'integer', 'exists:tindakan,id'],
+                'nama_tindakan_manual' => ['nullable', 'string', 'min:3', 'max:255'],
                 'jumlah' => ['required', 'integer', 'min:1'],
                 'catatan' => ['nullable', 'string', 'max:2000'],
                 'tooth_fdi' => ['nullable', Rule::in(OdontogramFinding::toothCodes())],
+                'tooth_fdis' => ['nullable', 'array', 'max:32'],
+                'tooth_fdis.*' => ['required', 'distinct', Rule::in(OdontogramFinding::toothCodes())],
             ]);
 
-            if (filled($data['tindakan_id'] ?? null) === filled($data['nama_tindakan_manual'] ?? null)) {
-                throw ValidationException::withMessages(['tindakan_id' => 'Pilih tindakan dari daftar atau isi nama tindakan manual, bukan keduanya.']);
+            $hasTerminology = filled($data['terminology_id'] ?? null);
+            $hasClinicTreatment = filled($data['tindakan_id'] ?? null);
+            $hasManualName = filled($data['nama_tindakan_manual'] ?? null);
+            if ((! $hasTerminology && ! $hasClinicTreatment && ! $hasManualName)
+                || ($hasManualName && ($hasTerminology || $hasClinicTreatment))) {
+                throw ValidationException::withMessages(['tindakan_id' => 'Pilih tindakan ICD-9-CM, tindakan klinik, atau isi nama tindakan manual. Nama manual tidak dapat digabung dengan pilihan katalog.']);
             }
 
-            abort_if($request->filled('tooth_fdi') && $kunjungan->poliklinik?->jenis !== 'gigi', 422, 'Lokasi gigi hanya untuk kunjungan Poli Gigi.');
+            $terminology = null;
+            if ($hasTerminology) {
+                $terminology = ClinicalTerminology::query()->where('code_system', 'icd9cm_procedure')
+                    ->where('code_type', 'procedure')->where('is_active', true)->find($data['terminology_id']);
+                if (! $terminology) {
+                    throw ValidationException::withMessages(['terminology_id' => 'Pilih kode prosedur ICD-9-CM yang masih aktif dari hasil pencarian.']);
+                }
+            }
+
+            $toothFdis = collect($data['tooth_fdis'] ?? [])
+                ->when(filled($data['tooth_fdi'] ?? null), fn ($teeth) => $teeth->push($data['tooth_fdi']))
+                ->unique()
+                ->values();
+
+            abort_if($toothFdis->isNotEmpty() && $kunjungan->poliklinik?->jenis !== 'gigi', 422, 'Lokasi gigi hanya untuk kunjungan Poli Gigi.');
+            if (! empty($data['tooth_fdis'])) {
+                $recordedTeeth = $kunjungan->odontogramFindings()
+                    ->whereIn('tooth_fdi', $data['tooth_fdis'])
+                    ->distinct()
+                    ->pluck('tooth_fdi');
+                $unrecordedTeeth = collect($data['tooth_fdis'])->diff($recordedTeeth);
+
+                if ($unrecordedTeeth->isNotEmpty()) {
+                    throw ValidationException::withMessages(['tooth_fdis' => 'Tindakan hanya dapat ditautkan ke gigi yang memiliki temuan odontogram.']);
+                }
+            }
 
             $tindakanId = null;
             $manualName = null;
-            if (filled($data['tindakan_id'] ?? null)) {
+            $treatmentName = $terminology?->display;
+            if ($hasClinicTreatment) {
                 $tindakan = Tindakan::query()->where('is_active', true)->findOrFail($data['tindakan_id']);
                 abort_unless($tindakan->poliklinik_id === $kunjungan->poliklinik_id, 422, 'Tindakan tidak tersedia di poliklinik kunjungan ini.');
                 $tindakanId = $tindakan->id;
-            } else {
+                $treatmentName ??= $tindakan->nama;
+            } elseif ($hasManualName) {
                 $manualName = trim($data['nama_tindakan_manual']);
                 if ($manualName === '') {
                     throw ValidationException::withMessages(['nama_tindakan_manual' => 'Nama tindakan manual tidak boleh kosong.']);
                 }
             }
 
-            $kunjungan->tindakanKunjungan()->create([
-                'tindakan_id' => $tindakanId,
-                'nama_tindakan_manual' => $manualName,
-                'dokter_id' => $kunjungan->dokter_id,
-                'jumlah' => $data['jumlah'],
-                'tarif' => 0,
-                'tarif_dokter' => 0,
-                'tooth_fdi' => $request->input('tooth_fdi'),
-                'catatan' => $data['catatan'] ?? null,
-            ]);
+            foreach ($toothFdis->isNotEmpty() ? $toothFdis : collect([null]) as $toothFdi) {
+                $kunjungan->tindakanKunjungan()->create([
+                    'tindakan_id' => $tindakanId,
+                    'nama_tindakan_manual' => $manualName,
+                    'nama_tindakan' => $treatmentName ?? $manualName,
+                    'kode_icd9cm' => $terminology?->code,
+                    'code_system' => $terminology?->code_system,
+                    'code_release' => $terminology?->release,
+                    'dokter_id' => $kunjungan->dokter_id,
+                    'jumlah' => $data['jumlah'],
+                    'tarif' => 0,
+                    'tarif_dokter' => 0,
+                    'tooth_fdi' => $toothFdi,
+                    'catatan' => $data['catatan'] ?? null,
+                ]);
+            }
 
-            return back()->with('success', 'Tindakan berhasil ditambahkan.');
+            $message = $toothFdis->count() > 1
+                ? 'Tindakan berhasil ditambahkan ke '.$toothFdis->count().' gigi.'
+                : 'Tindakan berhasil ditambahkan.';
+
+            return back()->with('success', $message);
         });
     }
 
@@ -805,6 +861,57 @@ class PemeriksaanController extends Controller
         return back()->with('success', 'Temuan odontogram tersimpan.');
     }
 
+    public function destroyOdontogram(Request $request, Kunjungan $kunjungan, ClinicalNoteRecorder $noteRecorder, ClinicalAuditRecorder $auditRecorder): RedirectResponse
+    {
+        $this->authorizeVisit($kunjungan);
+        $data = $request->validate([
+            'tooth_fdi' => ['required', Rule::in(OdontogramFinding::toothCodes())],
+            'surface' => ['required', Rule::in(array_keys(OdontogramFinding::surfaceLabels()))],
+            'reason' => ['nullable', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($request, $kunjungan, $noteRecorder, $auditRecorder, $data): void {
+            $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeVisit($lockedVisit);
+            abort_unless($lockedVisit->poliklinik?->jenis === 'gigi', 422, 'Odontogram hanya untuk kunjungan Poli Gigi.');
+
+            $examination = $lockedVisit->pemeriksaan()->lockForUpdate()->first();
+            if (! $examination?->signed_at) {
+                $this->authorizeMutableVisit($lockedVisit);
+                $finding = $lockedVisit->odontogramFindings()
+                    ->where('tooth_fdi', $data['tooth_fdi'])
+                    ->where('surface', $data['surface'])
+                    ->firstOrFail();
+                $finding->delete();
+                $auditRecorder->record($request, 'odontogram.draft_undo', $lockedVisit->pasien_id, $lockedVisit->id);
+
+                return;
+            }
+
+            $reason = trim((string) ($data['reason'] ?? ''));
+            if (mb_strlen($reason) < 10) {
+                throw ValidationException::withMessages(['reason' => 'Alasan pembatalan temuan final minimal 10 karakter.']);
+            }
+
+            abort_unless(in_array($lockedVisit->status, ['farmasi', 'kasir', 'selesai'], true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
+            abort_unless($noteRecorder->verify($examination), 422, 'Integritas riwayat catatan tidak valid; koreksi dihentikan.');
+
+            $latestVersion = $examination->clinicalNoteVersions()->latest('version')->firstOrFail();
+            $payload = $latestVersion->payload;
+            $findings = collect($payload['odontogram'] ?? []);
+            $matchingFinding = $findings->contains(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] === $data['surface']);
+            abort_unless($matchingFinding, 404, 'Temuan tidak ditemukan pada versi RME terbaru.');
+
+            $payload['odontogram'] = $findings
+                ->reject(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] === $data['surface'])
+                ->values()->all();
+            $noteRecorder->recordAddendum($examination, $payload, $request->user()->id, $reason);
+            $auditRecorder->record($request, 'odontogram.addendum_undo', $lockedVisit->pasien_id, $lockedVisit->id);
+        });
+
+        return back()->with('success', 'Temuan dibatalkan; riwayat versi sebelumnya tetap tersimpan.');
+    }
+
     public function addendumOdontogram(Request $request, Kunjungan $kunjungan, ClinicalNoteRecorder $noteRecorder, ClinicalAuditRecorder $auditRecorder): RedirectResponse
     {
         $this->authorizeVisit($kunjungan);
@@ -847,6 +954,32 @@ class PemeriksaanController extends Controller
         });
 
         return back()->with('success', 'Addendum odontogram tersimpan; temuan final awal tetap ada.');
+    }
+
+    public function searchIcd9cm(Request $request): JsonResponse
+    {
+        $filters = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']]);
+        $search = trim($filters['q']);
+        $codeSearch = preg_match('/^\d{3,4}$/', $search) === 1
+            ? substr($search, 0, 2).'.'.substr($search, 2)
+            : $search;
+        $keywords = preg_split('/\s+/u', $search, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $results = ClinicalTerminology::query()
+            ->where('code_system', 'icd9cm_procedure')
+            ->where('code_type', 'procedure')
+            ->where('is_active', true)
+            ->where(function ($query) use ($codeSearch, $keywords): void {
+                $query->where('code', 'like', '%'.addcslashes($codeSearch, '\\%_').'%')
+                    ->orWhere(function ($query) use ($keywords): void {
+                        foreach ($keywords as $keyword) {
+                            $query->where('display', 'like', '%'.addcslashes($keyword, '\\%_').'%');
+                        }
+                    });
+            })
+            ->orderBy('code')->orderByDesc('updated_at')->orderByDesc('id')
+            ->limit(20)->get(['id', 'code', 'display', 'release']);
+
+        return response()->json($results);
     }
 
     public function searchIcd10(Request $request): JsonResponse
