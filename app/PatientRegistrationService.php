@@ -66,6 +66,10 @@ class PatientRegistrationService
             ])->validate();
         }
 
+        $data['riwayat_alergi'] = filled($data['riwayat_alergi'] ?? null)
+            ? trim($data['riwayat_alergi'])
+            : null;
+
         return $data;
     }
 

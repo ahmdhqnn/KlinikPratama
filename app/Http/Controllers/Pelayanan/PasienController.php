@@ -126,6 +126,10 @@ class PasienController extends Controller
             'riwayat_alergi' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $data['riwayat_alergi'] = filled($data['riwayat_alergi'] ?? null)
+            ? trim($data['riwayat_alergi'])
+            : null;
+
         $data['no_rm'] = app(ClinicDocumentNumber::class)->next('pasien', 'RM-', 6, 'pasien', 'no_rm');
 
         $pasien = DB::transaction(function () use ($data): Pasien {
@@ -254,7 +258,9 @@ class PasienController extends Controller
                 'insurance' => $pasien->kepesertaan ? Kepesertaan::CATEGORIES[$pasien->kepesertaan->kategori] : 'Belum terverifikasi',
                 'insuranceType' => $pasien->asuransi?->jenis,
                 'insuranceNumber' => null,
-                'allergies' => in_array(auth()->user()->role, ['dokter', 'perawat'], true) ? $pasien->riwayat_alergi : null,
+                'allergies' => in_array(auth()->user()->role, ['dokter', 'perawat'], true)
+                    ? ($pasien->riwayat_alergi ?: 'Belum dicatat')
+                    : null,
                 'visits' => $pasien->kunjungan->map(fn ($visit) => [
                     'id' => $visit->id,
                     'url' => auth()->user()->role === 'dokter'
@@ -262,8 +268,8 @@ class PasienController extends Controller
                         : route('pelayanan.kunjungan.show', $visit),
                     'number' => $visit->no_kunjungan,
                     'date' => $visit->tanggal?->isoFormat('D MMM Y'),
-                    'clinic' => $visit->poliklinik?->nama ?? '—',
-                    'doctor' => $visit->dokter?->nama ?? '—',
+                    'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
+                    'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'status' => $visit->status,
                     'billId' => null,
                 ]),
@@ -297,6 +303,7 @@ class PasienController extends Controller
                 'insuranceId' => null,
                 'membershipId' => $pasien->kepesertaan_id,
                 'insuranceNumber' => null,
+                'allergyHistory' => $pasien->riwayat_alergi,
             ],
             'today' => today()->toDateString(),
             'insuranceProviders' => $asuransiList->map(fn (Asuransi $insurance) => [
@@ -314,6 +321,12 @@ class PasienController extends Controller
             'telepon' => ['nullable', 'string', 'max:20'],
             'riwayat_alergi' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        if (array_key_exists('riwayat_alergi', $data)) {
+            $data['riwayat_alergi'] = filled($data['riwayat_alergi'])
+                ? trim($data['riwayat_alergi'])
+                : null;
+        }
 
         DB::transaction(function () use ($data, $pasien): void {
             $member = Kepesertaan::whereKey($data['kepesertaan_id'])->lockForUpdate()->firstOrFail();
@@ -414,7 +427,7 @@ class PasienController extends Controller
                 'gender' => $pasien->jenis_kelamin,
                 'age' => $pasien->umur,
                 'bloodType' => $pasien->golongan_darah,
-                'allergies' => $pasien->riwayat_alergi,
+                'allergies' => $pasien->riwayat_alergi ?: 'Belum dicatat',
             ],
             'backUrl' => $backUrl,
             'filters' => [
@@ -441,6 +454,7 @@ class PasienController extends Controller
                 $versions = $visit->pemeriksaan?->clinicalNoteVersions->sortBy('version') ?? collect();
                 $integrityValid = $visit->pemeriksaan?->signed_at ? $noteRecorder->verify($visit->pemeriksaan) : null;
                 $effectiveNote = $integrityValid ? $versions->last()->payload : null;
+                $clinicalAnswer = static fn (?string $value, string $fallback): string => filled($value) ? $value : $fallback;
                 $oralHygieneIndex = is_array($effectiveNote) ? ($effectiveNote['oral_hygiene_index'] ?? null) : $visit->pemeriksaan?->oral_hygiene_index;
                 $odontogram = is_array($effectiveNote)
                     ? ($effectiveNote['odontogram'] ?? [])
@@ -454,9 +468,9 @@ class PasienController extends Controller
                 return [
                     'id' => $visit->id,
                     'number' => $visit->no_kunjungan,
-                    'clinic' => $visit->poliklinik?->nama ?? '—',
+                    'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
                     'clinicType' => $visit->poliklinik?->jenis,
-                    'doctor' => $visit->dokter?->nama ?? '—',
+                    'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'date' => $visit->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
                     'status' => $visit->status,
                     'screening' => $visit->screening ? [
@@ -469,32 +483,32 @@ class PasienController extends Controller
                         'height' => $visit->screening->tinggi_badan,
                         'bmi' => $visit->screening->imt,
                         'respiration' => $visit->screening->respirasi,
-                        'complaint' => $visit->screening->keluhan,
-                        'medicalHistory' => $visit->screening->riwayat_penyakit,
-                        'familyHistory' => $visit->screening->riwayat_penyakit_keluarga,
-                        'allergyHistory' => $visit->screening->riwayat_alergi,
+                        'complaint' => $clinicalAnswer($visit->screening->keluhan, 'Belum dicatat'),
+                        'medicalHistory' => $clinicalAnswer($visit->screening->riwayat_penyakit, 'Belum dicatat'),
+                        'familyHistory' => $clinicalAnswer($visit->screening->riwayat_penyakit_keluarga, 'Belum dicatat'),
+                        'allergyHistory' => $clinicalAnswer($visit->screening->riwayat_alergi ?: $visit->pasien?->riwayat_alergi, 'Belum dicatat'),
                         'fallRisk' => $visit->screening->risiko_jatuh,
                         'painScale' => $visit->screening->skala_nyeri,
-                        'dentalPainLocation' => $visit->screening->lokasi_nyeri_gigi,
+                        'dentalPainLocation' => $clinicalAnswer($visit->screening->lokasi_nyeri_gigi, 'Belum dicatat'),
                         'dentalPainTriggers' => $visit->screening->pemicu_nyeri_gigi ?? [],
-                        'dentalPainDuration' => $visit->screening->durasi_keluhan_gigi,
+                        'dentalPainDuration' => $clinicalAnswer($visit->screening->durasi_keluhan_gigi, 'Belum dicatat'),
                         'dentalMedicalRisks' => $visit->screening->risiko_medis_gigi ?? [],
                         'dentalInfectionHistory' => $visit->screening->riwayat_infeksi_gigi ?? [],
-                        'dentalNotes' => $visit->screening->catatan_medis_gigi,
+                        'dentalNotes' => $clinicalAnswer($visit->screening->catatan_medis_gigi, 'Belum dicatat'),
                     ] : null,
                     'examination' => $visit->pemeriksaan ? [
                         'anamnesis' => is_array($effectiveNote) ? ($effectiveNote['anamnesis'] ?? null) : $visit->pemeriksaan->anamnesis,
-                        'currentHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_sekarang'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_sekarang,
-                        'pastHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_dahulu'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_dahulu,
-                        'familyHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_keluarga,
-                        'allergyHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $visit->pemeriksaan->riwayat_alergi,
+                        'currentHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_sekarang'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_sekarang, 'Belum dicatat'),
+                        'pastHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_dahulu'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_dahulu, 'Belum dicatat'),
+                        'familyHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_keluarga, 'Belum dicatat'),
+                        'allergyHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : ($visit->pemeriksaan->riwayat_alergi ?: $visit->screening?->riwayat_alergi ?: $visit->pasien?->riwayat_alergi), 'Belum dicatat'),
                         'physicalExamination' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $visit->pemeriksaan->pemeriksaan_fisik,
                         'physicalSystems' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik_terstruktur'] ?? []) : ($visit->pemeriksaan->pemeriksaan_fisik_terstruktur ?? []),
-                        'extraoralExamination' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_ekstraoral'] ?? null) : $visit->pemeriksaan->pemeriksaan_ekstraoral,
+                        'extraoralExamination' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_ekstraoral'] ?? null) : $visit->pemeriksaan->pemeriksaan_ekstraoral, 'Belum diperiksa'),
                         'oralHygieneIndex' => is_numeric($oralHygieneIndex) ? (float) $oralHygieneIndex : null,
-                        'differentialDiagnosis' => is_array($effectiveNote) ? ($effectiveNote['diagnosis_banding'] ?? null) : $visit->pemeriksaan->diagnosis_banding,
-                        'education' => is_array($effectiveNote) ? ($effectiveNote['edukasi'] ?? null) : $visit->pemeriksaan->edukasi,
-                        'notes' => is_array($effectiveNote) ? ($effectiveNote['catatan'] ?? null) : $visit->pemeriksaan->catatan,
+                        'differentialDiagnosis' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['diagnosis_banding'] ?? null) : $visit->pemeriksaan->diagnosis_banding, 'Belum dicatat'),
+                        'education' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['edukasi'] ?? null) : $visit->pemeriksaan->edukasi, 'Belum dicatat'),
+                        'notes' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['catatan'] ?? null) : $visit->pemeriksaan->catatan, 'Belum dicatat'),
                         'nextControl' => is_array($effectiveNote)
                             ? (isset($effectiveNote['kontrol_berikutnya']) ? Carbon::parse($effectiveNote['kontrol_berikutnya'])->format('d/m/Y') : null)
                             : $visit->pemeriksaan->kontrol_berikutnya?->format('d/m/Y'),
@@ -508,15 +522,15 @@ class PasienController extends Controller
                             'actor' => $version->actor?->name,
                             'recordedAt' => $version->recorded_at?->locale('id')->isoFormat('D MMMM Y HH:mm'),
                             'anamnesis' => $version->payload['anamnesis'] ?? null,
-                            'currentHistory' => $version->payload['riwayat_penyakit_sekarang'] ?? null,
-                            'pastHistory' => $version->payload['riwayat_penyakit_dahulu'] ?? null,
-                            'familyHistory' => $version->payload['riwayat_penyakit_keluarga'] ?? null,
-                            'allergyHistory' => $version->payload['riwayat_alergi'] ?? null,
+                            'currentHistory' => $clinicalAnswer($version->payload['riwayat_penyakit_sekarang'] ?? null, 'Belum dicatat'),
+                            'pastHistory' => $clinicalAnswer($version->payload['riwayat_penyakit_dahulu'] ?? null, 'Belum dicatat'),
+                            'familyHistory' => $clinicalAnswer($version->payload['riwayat_penyakit_keluarga'] ?? null, 'Belum dicatat'),
+                            'allergyHistory' => $clinicalAnswer($version->payload['riwayat_alergi'] ?? null, 'Belum dicatat'),
                             'physicalExamination' => $version->payload['pemeriksaan_fisik'] ?? null,
                             'physicalSystems' => $version->payload['pemeriksaan_fisik_terstruktur'] ?? [],
-                            'extraoralExamination' => $version->payload['pemeriksaan_ekstraoral'] ?? null,
+                            'extraoralExamination' => $clinicalAnswer($version->payload['pemeriksaan_ekstraoral'] ?? null, 'Belum diperiksa'),
                             'oralHygieneIndex' => is_numeric($version->payload['oral_hygiene_index'] ?? null) ? (float) $version->payload['oral_hygiene_index'] : null,
-                            'differentialDiagnosis' => $version->payload['diagnosis_banding'] ?? null,
+                            'differentialDiagnosis' => $clinicalAnswer($version->payload['diagnosis_banding'] ?? null, 'Belum dicatat'),
                             'odontogram' => collect($version->payload['odontogram'] ?? [])->map(fn (array $finding): array => [
                                 'toothFdi' => $finding['tooth_fdi'],
                                 'surface' => $finding['surface'],

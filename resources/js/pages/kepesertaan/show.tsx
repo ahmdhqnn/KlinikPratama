@@ -44,7 +44,7 @@ export default function MembershipDetail({ member, urls }: { member: Member; url
                 <Card>
                     <CardHeader><div className="flex items-start justify-between gap-4"><div><CardTitle>{member.nama}</CardTitle><CardDescription className="mt-1">{member.unitKerja} · {member.costCenter}</CardDescription></div><Badge variant={member.hakLayanan ? 'complete' : 'cancelled'}><ShieldCheck className="size-3.5" />{member.hakLayanan ? 'Hak layanan tersedia' : 'Hak layanan tidak aktif'}</Badge></div></CardHeader>
                     <CardContent className="space-y-7">
-                        {groups.map((group) => <section className="space-y-3" key={group.title}><h3 className="text-sm font-semibold text-neutral-950">{group.title}</h3><dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">{group.entries.map(([label, value]) => <div className="min-w-0" key={label}><dt className="text-xs font-medium uppercase tracking-wide text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm text-neutral-900">{value || '—'}</dd></div>)}</dl></section>)}
+                        {groups.map((group) => <section className="space-y-3" key={group.title}><h3 className="text-sm font-semibold text-neutral-950">{group.title}</h3><dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">{group.entries.map(([label, value]) => <div className="min-w-0" key={label}><dt className="text-xs font-medium uppercase tracking-wide text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm text-neutral-900">{value || 'Belum diisi'}</dd></div>)}</dl></section>)}
                     </CardContent>
                 </Card>
             </div>

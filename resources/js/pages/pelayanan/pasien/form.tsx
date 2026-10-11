@@ -33,6 +33,7 @@ interface Patient {
     insuranceId: number | null;
     membershipId: number | null;
     insuranceNumber: string | null;
+    allergyHistory: string | null;
 }
 
 interface InsuranceProvider {
@@ -65,7 +66,7 @@ export default function PatientForm({ patient, insuranceProviders, today }: Prop
         tempat_lahir: patient?.birthPlace ?? '', tanggal_lahir: patient?.birthDate ?? '', jenis_kelamin: patient?.gender ?? '',
         golongan_darah: patient?.bloodType ?? '', agama: patient?.religion ?? '', nama_ibu: '', telepon: patient?.phone ?? '',
         alamat: patient?.address ?? '', rt: patient?.rt ?? '', rw: patient?.rw ?? '', kelurahan: patient?.village ?? '',
-        kecamatan: patient?.district ?? '', riwayat_alergi: '', asuransi_id: patient?.insuranceId?.toString() ?? '',
+        kecamatan: patient?.district ?? '', riwayat_alergi: patient?.allergyHistory ?? '', asuransi_id: patient?.insuranceId?.toString() ?? '',
         no_asuransi: patient?.insuranceNumber ?? '', grant_special_access: false, special_unit_kerja: '',
         special_cost_center: '', special_valid_from: today, special_valid_until: '', special_reference: '',
     });
@@ -138,7 +139,7 @@ function PatientIdentityCard({ form, insuranceProviders }: { form: ReturnType<ty
                         <Field error={form.errors.nama_ibu} htmlFor="admin-patient-mother" label="Nama ibu kandung"><Input id="admin-patient-mother" onChange={(event) => form.setData('nama_ibu', event.target.value)} value={form.data.nama_ibu} /></Field>
                         <Field error={form.errors.telepon} htmlFor="admin-patient-phone" label="Nomor telepon"><Input autoComplete="tel" id="admin-patient-phone" onChange={(event) => form.setData('telepon', event.target.value)} type="tel" value={form.data.telepon} /></Field>
                     </div>
-                    <Field error={form.errors.riwayat_alergi} htmlFor="admin-patient-allergy" label="Riwayat alergi"><Textarea id="admin-patient-allergy" onChange={(event) => form.setData('riwayat_alergi', event.target.value)} value={form.data.riwayat_alergi} /></Field>
+                    <Field error={form.errors.riwayat_alergi} htmlFor="admin-patient-allergy" label="Riwayat alergi"><Textarea id="admin-patient-allergy" onChange={(event) => form.setData('riwayat_alergi', event.target.value)} placeholder="Contoh: alergi obat atau makanan; konfirmasi bila tidak ada alergi." value={form.data.riwayat_alergi} /></Field>
                 </section>
             </CardContent>
         </Card>

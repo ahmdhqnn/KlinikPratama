@@ -517,7 +517,7 @@ export function OdontogramFdi({
             <div className="flex flex-col justify-between gap-3 rounded-xl border border-neutral-200/90 bg-neutral-50/70 p-3.5 transition-colors sm:flex-row sm:items-center">
                 <div className="flex items-center gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900 font-mono text-base font-black text-neutral-50">
-                        {activeMeta ? activeMeta.fdi : '—'}
+                        {activeMeta ? activeMeta.fdi : 'Belum diisi'}
                     </div>
                     <div>
                         <div className="flex flex-wrap items-center gap-2">

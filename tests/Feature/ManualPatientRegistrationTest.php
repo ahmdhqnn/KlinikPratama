@@ -39,6 +39,7 @@ class ManualPatientRegistrationTest extends TestCase
         $patient = Pasien::where('nik', '3273015205900001')->firstOrFail();
         $this->assertSame('Siti Rahmawati', $patient->nama);
         $this->assertSame('004', $patient->rt);
+        $this->assertNull($patient->riwayat_alergi);
         $this->assertNull($patient->kepesertaan_id);
         $this->assertDatabaseCount('kunjungan', 0);
         $response->assertSessionHas('success', "Pasien Siti Rahmawati (No. RM: {$patient->no_rm}) berhasil didaftarkan. Hak layanan belum diverifikasi; tautkan kepesertaan sebelum membuat kunjungan internal.");
@@ -79,7 +80,6 @@ class ManualPatientRegistrationTest extends TestCase
             'rw' => '002',
             'kelurahan' => 'Cikini',
             'kecamatan' => 'Menteng',
-            'riwayat_alergi' => 'Tidak ada',
             'grant_special_access' => true,
             'special_unit_kerja' => 'Unit Protokol',
             'special_cost_center' => 'CC-ADM-01',
@@ -96,7 +96,7 @@ class ManualPatientRegistrationTest extends TestCase
         $this->assertSame('Budi Santoso', $patient->nama);
         $this->assertSame('Siti Aminah', $patient->nama_ibu);
         $this->assertSame('004', $patient->rt);
-        $this->assertSame('Tidak ada', $patient->riwayat_alergi);
+        $this->assertNull($patient->riwayat_alergi);
         $this->assertSame('khusus', $membership->kategori);
         $this->assertSame($admin->id, $membership->verified_by);
         $this->assertSame('CC-ADM-01', $membership->cost_center);

@@ -21,6 +21,56 @@ class DoctorExaminationFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_doctor_examination_keeps_unanswered_optional_history_and_notes_empty(): void
+    {
+        $user = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $doctor = Nakes::create([
+            'kode' => 'DOK-DEF', 'nama' => 'dr. Pemeriksa', 'kategori' => 'medis',
+            'jabatan' => 'dokter', 'user_id' => $user->id, 'is_active' => true,
+        ]);
+        $clinic = Poliklinik::create(['kode' => 'UMUM-DEF', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $patient = Pasien::create(['no_rm' => 'RM-UMUM-DEF', 'nama' => 'Pasien Tanpa Riwayat']);
+        $visit = Kunjungan::create([
+            'no_kunjungan' => 'KNJ-UMUM-DEF', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id,
+            'dokter_id' => $doctor->id, 'tanggal' => today(), 'status' => 'pemeriksaan',
+            'jenis_pasien' => 'lama', 'jenis_bayar' => 'umum',
+        ]);
+
+        $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visit.examinationFormDefaults.anamnesis', null)
+                ->where('visit.examinationFormDefaults.pastHistory', 'Tidak ada riwayat penyakit kronis')
+                ->where('visit.examinationFormDefaults.familyHistory', 'Tidak ada riwayat penyakit keluarga')
+                ->where('visit.examinationFormDefaults.allergyHistory', 'Tidak ada riwayat alergi')
+            );
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'anamnesis' => 'Demam sejak pagi',
+            'pemeriksaan_fisik' => 'Keadaan umum baik',
+        ])->assertSessionHasNoErrors();
+
+        $examination = Pemeriksaan::where('kunjungan_id', $visit->id)->firstOrFail();
+        $this->assertNull($examination->riwayat_penyakit_sekarang);
+        $this->assertNull($examination->riwayat_penyakit_dahulu);
+        $this->assertNull($examination->riwayat_penyakit_keluarga);
+        $this->assertNull($examination->riwayat_alergi);
+        $this->assertNull($examination->catatan);
+        $this->assertNull($examination->edukasi);
+
+        $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visit.examination.currentHistory', null)
+                ->where('visit.examination.allergyHistory', null)
+                ->where('visit.examination.notes', null)
+            );
+
+        $this->actingAs($user)->get(route('pelayanan.pasien.rekam-medis', $patient))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visits.0.examination.currentHistory', 'Belum dicatat')
+                ->where('visits.0.examination.allergyHistory', 'Belum dicatat')
+            );
+    }
+
     public function test_doctor_only_sees_assigned_visits_and_does_not_deduct_stock_when_prescribing(): void
     {
         $user = User::create([
@@ -166,6 +216,10 @@ class DoctorExaminationFlowTest extends TestCase
             ->where('visit.screening.medicalHistory', 'Asma')
             ->where('visit.screening.familyHistory', 'Hipertensi')
             ->where('visit.screening.allergyHistory', 'Alergi udang')
+            ->where('visit.examinationFormDefaults.anamnesis', 'Demam sejak kemarin')
+            ->where('visit.examinationFormDefaults.pastHistory', 'Asma')
+            ->where('visit.examinationFormDefaults.familyHistory', 'Hipertensi')
+            ->where('visit.examinationFormDefaults.allergyHistory', 'Alergi udang')
             ->where('visit.screening.painScale', 2)
             ->where('visit.diagnoses.0.code', 'R50.9')
             ->where('medicines.0.name', 'Paracetamol')
@@ -214,6 +268,7 @@ class DoctorExaminationFlowTest extends TestCase
 
         $this->assertDatabaseHas('obat', ['id' => $obat->id, 'stok' => 10]);
         $this->assertDatabaseHas('resep_obat', ['obat_id' => $obat->id, 'stok_dikurangi' => false]);
+        $this->assertDatabaseHas('resep_obat', ['obat_id' => $obat->id, 'catatan' => null]);
 
         $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), [
             'nama_obat' => 'Obat luar sesuai instruksi dokter',

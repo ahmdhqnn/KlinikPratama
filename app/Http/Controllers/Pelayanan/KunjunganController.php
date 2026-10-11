@@ -43,10 +43,10 @@ class KunjunganController extends Controller
                 'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit) => [
                     'id' => $visit->id,
                     'number' => $visit->no_kunjungan,
-                    'patient' => $visit->pasien?->nama ?? '—',
-                    'medicalRecordNumber' => $visit->pasien?->no_rm ?? '—',
+                    'patient' => $visit->pasien?->nama ?? 'Belum diisi',
+                    'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
                     'gender' => $visit->pasien?->jenis_kelamin,
-                    'clinic' => $visit->poliklinik?->nama ?? '—',
+                    'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
                     'doctor' => $visit->dokter?->nama,
                     'paymentType' => $visit->jenis_bayar,
                     'funding' => $visit->verified_at ? 'Anggaran instansi' : 'Historis / belum diverifikasi',
@@ -82,8 +82,8 @@ class KunjunganController extends Controller
         $visits = $kunjungan->map(fn (Kunjungan $visit) => [
             'id' => $visit->id,
             'number' => $visit->no_kunjungan,
-            'patient' => $visit->pasien?->nama ?? '—',
-            'clinic' => $visit->poliklinik?->nama ?? '—',
+            'patient' => $visit->pasien?->nama ?? 'Belum diisi',
+            'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
             'doctor' => $visit->dokter?->nama,
             'status' => $visit->status,
         ]);
@@ -124,6 +124,9 @@ class KunjunganController extends Controller
             'jenis_bayar' => ['sometimes', 'in:internal,umum,bpjs,asuransi'],
             'catatan' => ['nullable', 'string'],
         ]);
+        $data['catatan'] = filled($data['catatan'] ?? null)
+            ? trim($data['catatan'])
+            : null;
         $data['dokter_id'] = $this->resolveScheduledDoctor($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
 
         $data['no_kunjungan'] = Kunjungan::generateNomor();
@@ -150,6 +153,11 @@ class KunjunganController extends Controller
         ]);
 
         return Inertia::render('pelayanan/kunjungan/show', [
+            'backUrl' => match (auth()->user()->role) {
+                'perawat' => route('perawat.dashboard'),
+                'pendaftaran' => route('pendaftaran.dashboard'),
+                default => route('pelayanan.kunjungan.index'),
+            },
             'permissions' => [
                 'editVisit' => auth()->user()->role === 'admin' && $kunjungan->status === 'menunggu',
                 'viewRme' => auth()->user()->role === 'perawat',
@@ -161,7 +169,7 @@ class KunjunganController extends Controller
                 'number' => $kunjungan->no_kunjungan,
                 'date' => $kunjungan->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
                 'status' => $kunjungan->status,
-                'clinic' => $kunjungan->poliklinik?->nama ?? '—',
+                'clinic' => $kunjungan->poliklinik?->nama ?? 'Belum diisi',
                 'doctor' => $kunjungan->dokter?->nama,
                 'paymentType' => 'internal',
                 'eligibility' => $kunjungan->hak_layanan_snapshot,
@@ -170,12 +178,14 @@ class KunjunganController extends Controller
                 'notes' => $kunjungan->catatan,
                 'patient' => [
                     'id' => $kunjungan->pasien?->id,
-                    'name' => $kunjungan->pasien?->nama ?? '—',
-                    'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? '—',
+                    'name' => $kunjungan->pasien?->nama ?? 'Belum diisi',
+                    'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? 'Belum diisi',
                     'gender' => $kunjungan->pasien?->jenis_kelamin,
                     'age' => $kunjungan->pasien?->umur,
                     'bloodType' => $kunjungan->pasien?->golongan_darah,
-                    'allergies' => auth()->user()->role === 'perawat' ? $kunjungan->pasien?->riwayat_alergi : null,
+                    'allergies' => auth()->user()->role === 'perawat'
+                        ? ($kunjungan->pasien?->riwayat_alergi ?: 'Belum dicatat')
+                        : null,
                 ],
                 'progress' => [
                     ['label' => 'Verifikasi hak layanan', 'done' => (bool) $kunjungan->verified_at],
@@ -229,6 +239,9 @@ class KunjunganController extends Controller
             'jenis_bayar' => ['sometimes', 'in:internal,umum,bpjs,asuransi'],
             'catatan' => ['nullable', 'string'],
         ]);
+        $data['catatan'] = filled($data['catatan'] ?? null)
+            ? trim($data['catatan'])
+            : null;
         $data['dokter_id'] = $this->resolveScheduledDoctor($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
 
         DB::transaction(function () use ($kunjungan, $data, $request): void {

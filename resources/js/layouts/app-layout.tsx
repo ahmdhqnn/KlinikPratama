@@ -442,7 +442,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </Drawer>
 
             <div className={`min-h-screen transition-[padding] duration-200 ${sidebarCollapsed ? 'lg:pl-[6.5rem]' : 'lg:pl-[19rem]'}`}>
-                <header className="sticky top-0 z-30 flex h-16 items-center gap-2 bg-canvas px-3 print:hidden sm:gap-3 sm:px-6 lg:top-4 lg:mt-4 lg:h-[4.5rem] lg:px-8">
+                <header className="sticky top-0 z-30 flex h-16 items-center gap-2 bg-canvas px-3 print:hidden sm:gap-3 sm:px-6 lg:top-4 lg:mt-4 lg:h-[4.5rem] lg:px-8 lg:before:pointer-events-none lg:before:absolute lg:before:inset-x-0 lg:before:-top-4 lg:before:h-4 lg:before:bg-canvas lg:before:content-['']">
                     <Button
                         aria-label="Buka navigasi"
                         className="lg:hidden"

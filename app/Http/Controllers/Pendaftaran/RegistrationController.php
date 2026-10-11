@@ -87,11 +87,11 @@ class RegistrationController extends Controller
                 'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit): array => [
                     'id' => $visit->id,
                     'number' => $visit->no_kunjungan,
-                    'patient' => $visit->pasien?->nama ?? '—',
-                    'medicalRecordNumber' => $visit->pasien?->no_rm ?? '—',
-                    'clinic' => $visit->poliklinik?->nama ?? '—',
-                    'doctor' => $visit->dokter?->nama ?? '—',
-                    'date' => $visit->tanggal?->format('d/m/Y') ?? '—',
+                    'patient' => $visit->pasien?->nama ?? 'Belum diisi',
+                    'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
+                    'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
+                    'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
+                    'date' => $visit->tanggal?->format('d/m/Y') ?? 'Belum diisi',
                     'status' => $visit->status,
                     'ticketUrl' => $visit->status !== 'batal' ? route('pendaftaran.cetak-antrian', $visit) : null,
                     'editUrl' => $visit->status === 'menunggu'
@@ -141,6 +141,13 @@ class RegistrationController extends Controller
             'dokter_id' => ['nullable', 'exists:nakes,id'],
             'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        $validated['riwayat_alergi'] = filled($validated['riwayat_alergi'] ?? null)
+            ? trim($validated['riwayat_alergi'])
+            : null;
+        $validated['catatan'] = filled($validated['catatan'] ?? null)
+            ? trim($validated['catatan'])
+            : null;
 
         $validated['dokter_id'] = $this->resolveScheduledDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], today()->toDateString());
 
@@ -233,6 +240,10 @@ class RegistrationController extends Controller
             'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $validated['catatan'] = filled($validated['catatan'] ?? null)
+            ? trim($validated['catatan'])
+            : null;
+
         $validated['dokter_id'] = $this->resolveScheduledDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], today()->toDateString());
         $pasien = Pasien::findOrFail($validated['pasien_id']);
 
@@ -297,11 +308,11 @@ class RegistrationController extends Controller
                     'medicalRecordNumber' => $patient->no_rm,
                     'name' => $patient->nama,
                     'gender' => $patient->jenis_kelamin,
-                    'birthDate' => $patient->tanggal_lahir?->format('d/m/Y') ?? '—',
+                    'birthDate' => $patient->tanggal_lahir?->format('d/m/Y') ?? 'Belum diisi',
                     'age' => $patient->umur,
                     'phone' => $patient->telepon,
                     'insurance' => $patient->kepesertaan ? (Kepesertaan::CATEGORIES[$patient->kepesertaan->kategori] ?? 'Internal') : 'Belum terverifikasi',
-                    'registeredAt' => $patient->created_at?->format('d/m/Y') ?? '—',
+                    'registeredAt' => $patient->created_at?->format('d/m/Y') ?? 'Belum diisi',
                 ])->values(),
                 'currentPage' => $pasien->currentPage(),
                 'lastPage' => $pasien->lastPage(),
@@ -355,8 +366,8 @@ class RegistrationController extends Controller
             'visits' => $kunjungan->map(fn (Kunjungan $visit): array => [
                 'id' => $visit->id,
                 'number' => $visit->no_kunjungan,
-                'patient' => $visit->pasien?->nama ?? '—',
-                'medicalRecordNumber' => $visit->pasien?->no_rm ?? '—',
+                'patient' => $visit->pasien?->nama ?? 'Belum diisi',
+                'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
                 'doctor' => $visit->dokter?->nama ?? 'Belum ditentukan',
                 'status' => $visit->status,
                 'actionUrl' => $role === 'perawat'
@@ -465,8 +476,8 @@ class RegistrationController extends Controller
                 'id' => $schedule->id,
                 'doctorId' => $schedule->dokter_id,
                 'clinicId' => $schedule->poliklinik_id,
-                'doctor' => $schedule->dokter?->nama ?? '—',
-                'clinic' => $schedule->poliklinik?->nama ?? '—',
+                'doctor' => $schedule->dokter?->nama ?? 'Belum diisi',
+                'clinic' => $schedule->poliklinik?->nama ?? 'Belum diisi',
                 'day' => $schedule->hari,
                 'start' => substr($schedule->jam_mulai, 0, 5),
                 'end' => substr($schedule->jam_selesai, 0, 5),
@@ -618,9 +629,9 @@ class RegistrationController extends Controller
                 'queueNumber' => $antrian,
                 'visitNumber' => $kunjungan->no_kunjungan,
                 'date' => now()->locale('id')->isoFormat('dddd, D MMMM Y HH:mm'),
-                'patient' => $kunjungan->pasien?->nama ?? '—',
-                'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? '—',
-                'clinic' => $kunjungan->poliklinik?->nama ?? '—',
+                'patient' => $kunjungan->pasien?->nama ?? 'Belum diisi',
+                'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? 'Belum diisi',
+                'clinic' => $kunjungan->poliklinik?->nama ?? 'Belum diisi',
                 'doctor' => $kunjungan->dokter?->nama ?? 'Belum ditentukan',
             ],
             'backUrl' => route('pendaftaran.laporan-kunjungan'),
@@ -640,8 +651,8 @@ class RegistrationController extends Controller
             'visit' => [
                 'id' => $kunjungan->id,
                 'patient' => [
-                    'name' => $kunjungan->pasien?->nama ?? '—',
-                    'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? '—',
+                    'name' => $kunjungan->pasien?->nama ?? 'Belum diisi',
+                    'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? 'Belum diisi',
                     'gender' => $kunjungan->pasien?->jenis_kelamin,
                     'age' => $kunjungan->pasien?->umur,
                 ],
@@ -652,7 +663,7 @@ class RegistrationController extends Controller
                 'insuranceId' => (string) ($kunjungan->asuransi_id ?? ''),
                 'paymentType' => $kunjungan->jenis_bayar,
                 'patientType' => $kunjungan->jenis_pasien,
-                'notes' => $kunjungan->catatan ?? '',
+                'notes' => $kunjungan->catatan,
             ],
             'clinics' => $data['clinics'],
             'insuranceProviders' => $data['insuranceProviders'],
@@ -673,6 +684,9 @@ class RegistrationController extends Controller
 
             'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
+        $validated['catatan'] = filled($validated['catatan'] ?? null)
+            ? trim($validated['catatan'])
+            : null;
         $validated['dokter_id'] = $this->resolveScheduledDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], $kunjungan->tanggal->toDateString());
         DB::transaction(function () use ($kunjungan, $validated, $request): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();

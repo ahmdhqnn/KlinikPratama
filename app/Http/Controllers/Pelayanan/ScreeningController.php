@@ -51,9 +51,9 @@ class ScreeningController extends Controller
             'visits' => $kunjungan->map(fn (Kunjungan $visit): array => [
                 'id' => $visit->id,
                 'number' => $visit->no_kunjungan,
-                'patient' => $visit->pasien?->nama ?? '—',
-                'medicalRecordNumber' => $visit->pasien?->no_rm ?? '—',
-                'clinic' => $visit->poliklinik?->nama ?? '—',
+                'patient' => $visit->pasien?->nama ?? 'Belum diisi',
+                'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
+                'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
                 'hasScreening' => $visit->screening !== null,
                 'screeningUrl' => route('pelayanan.screening.show', $visit),
             ])->values(),
@@ -78,6 +78,10 @@ class ScreeningController extends Controller
             'riwayat_penyakit_keluarga', 'skala_nyeri', 'lokasi_nyeri_gigi', 'pemicu_nyeri_gigi',
             'durasi_keluhan_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi', 'catatan_medis_gigi',
         ];
+        $screeningValues = array_combine(
+            $screeningFields,
+            array_map(fn (string $field): mixed => $kunjungan->screening?->getAttribute($field), $screeningFields),
+        );
 
         return Inertia::render('pelayanan/screening/show', [
             'visit' => [
@@ -86,19 +90,16 @@ class ScreeningController extends Controller
                 'status' => $kunjungan->status,
                 'patient' => [
                     'name' => $kunjungan->pasien?->nama ?? 'Pasien',
-                    'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? '—',
+                    'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? 'Belum diisi',
                     'gender' => $kunjungan->pasien?->jenis_kelamin,
                     'age' => $kunjungan->pasien?->umur,
                     'bloodType' => $kunjungan->pasien?->golongan_darah,
                     'allergyHistory' => $kunjungan->pasien?->riwayat_alergi,
                 ],
-                'clinic' => $kunjungan->poliklinik?->nama ?? '—',
+                'clinic' => $kunjungan->poliklinik?->nama ?? 'Belum diisi',
                 'clinicType' => $kunjungan->poliklinik?->jenis,
                 'doctor' => $kunjungan->dokter?->nama ?? 'Belum ditentukan',
-                'screening' => array_combine(
-                    $screeningFields,
-                    array_map(fn (string $field): mixed => $kunjungan->screening?->getAttribute($field), $screeningFields),
-                ),
+                'screening' => $screeningValues,
                 'triage' => $kunjungan->screening?->kesimpulan_triase,
                 'priority' => $kunjungan->screening?->prioritas_layanan,
             ],
@@ -114,7 +115,7 @@ class ScreeningController extends Controller
     {
         abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Skrining tidak dapat diubah setelah pelayanan dimulai.');
 
-        $kunjungan->loadMissing('poliklinik');
+        $kunjungan->loadMissing(['poliklinik', 'pasien']);
         $isDental = $kunjungan->poliklinik?->jenis === 'gigi';
         abort_unless(in_array($kunjungan->poliklinik?->jenis, ['umum', 'gigi'], true), 404);
 
@@ -145,10 +146,10 @@ class ScreeningController extends Controller
             'riwayat_penyakit_keluarga' => ['nullable', 'string', 'max:5000'],
             'lokasi_nyeri_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:255'],
             'pemicu_nyeri_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'array'],
-            'pemicu_nyeri_gigi.*' => ['in:dingin,manis,mengunyah,panas,spontan,lainnya'],
+            'pemicu_nyeri_gigi.*' => ['in:dingin,manis,mengunyah,panas,spontan,lainnya,tidak_ada'],
             'durasi_keluhan_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:255'],
             'risiko_medis_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'array'],
-            'risiko_medis_gigi.*' => ['in:hipertensi,diabetes,penyakit_jantung,gangguan_pembekuan,antikoagulan,lainnya'],
+            'risiko_medis_gigi.*' => ['in:hipertensi,diabetes,penyakit_jantung,gangguan_pembekuan,antikoagulan,lainnya,tidak_ada'],
             'riwayat_infeksi_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'array'],
             'riwayat_infeksi_gigi.*' => ['in:hepatitis,hiv,infeksi_lain,tidak_ada'],
             'catatan_medis_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:5000'],
@@ -162,8 +163,23 @@ class ScreeningController extends Controller
             'risiko_jatuh_visual' => ['required', 'in:rendah,sedang,tinggi'],
         ]);
 
-        if (in_array('tidak_ada', $data['riwayat_infeksi_gigi'] ?? [], true) && count($data['riwayat_infeksi_gigi'] ?? []) > 1) {
-            return back()->withErrors(['riwayat_infeksi_gigi' => 'Pilihan Tidak ada tidak dapat digabung dengan riwayat infeksi lain.'])->withInput();
+        foreach (['pemicu_nyeri_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi'] as $field) {
+            if (in_array('tidak_ada', $data[$field] ?? [], true) && count($data[$field] ?? []) > 1) {
+                return back()->withErrors([$field => 'Pilihan Tidak ada tidak dapat digabung dengan pilihan lain.'])->withInput();
+            }
+        }
+
+        foreach ([
+            'keluhan', 'riwayat_penyakit', 'penyakit_nama', 'penyakit_keterangan',
+            'riwayat_alergi', 'alergi_jenis', 'alergi_reaksi', 'riwayat_penyakit_keluarga',
+            'lokasi_nyeri_gigi', 'durasi_keluhan_gigi', 'catatan_medis_gigi',
+        ] as $field) {
+            if (array_key_exists($field, $data)) {
+                $data[$field] = filled($data[$field]) ? trim($data[$field]) : null;
+            }
+        }
+        foreach (['pemicu_nyeri_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi'] as $field) {
+            $data[$field] = $isDental && filled($data[$field] ?? null) ? $data[$field] : null;
         }
 
         $data['kunjungan_id'] = $kunjungan->id;

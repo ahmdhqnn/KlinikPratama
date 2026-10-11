@@ -84,7 +84,7 @@ class TindakanController extends Controller
                 'bhp' => $tindakan->bhp->map(fn (TindakanBhp $item): array => [
                     'id' => $item->id,
                     'medicine' => $item->obat?->nama ?? 'Item dihapus',
-                    'unit' => $item->obat?->satuan_kecil ?? '—',
+                    'unit' => $item->obat?->satuan_kecil ?? 'Belum diisi',
                     'quantity' => (float) $item->jumlah,
                 ])->values(),
             ],

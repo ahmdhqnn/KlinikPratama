@@ -83,7 +83,7 @@ class LaboratoriumController extends Controller
                 'supplies' => $laboratorium->bhp->map(fn (LabBhp $supply): array => [
                     'id' => $supply->id,
                     'medicine' => $supply->obat?->nama ?? 'Item dihapus',
-                    'unit' => $supply->obat?->satuan_kecil ?? '—',
+                    'unit' => $supply->obat?->satuan_kecil ?? 'Belum diisi',
                     'quantity' => (float) $supply->jumlah,
                 ])->values(),
             ],

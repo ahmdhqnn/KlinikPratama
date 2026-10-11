@@ -66,7 +66,7 @@ export default function CashierPayment({ visit, billing, components, subtotal, p
                 </div>
 
                 <Card><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5 sm:p-6">
-                    <div><p className="text-xs font-semibold uppercase tracking-wider text-neutral-700">{visit.number} · {visit.payer.toUpperCase()}</p><h3 className="mt-1 text-xl font-semibold text-neutral-950">{visit.patient.name}</h3><p className="mt-1 text-sm text-neutral-500">No. RM {visit.patient.medicalRecordNumber} · {visit.clinic} · Dokter {visit.doctor ?? '—'}</p></div>
+                    <div><p className="text-xs font-semibold uppercase tracking-wider text-neutral-700">{visit.number} · {visit.payer.toUpperCase()}</p><h3 className="mt-1 text-xl font-semibold text-neutral-950">{visit.patient.name}</h3><p className="mt-1 text-sm text-neutral-500">No. RM {visit.patient.medicalRecordNumber} · {visit.clinic} · Dokter {visit.doctor ?? 'Belum diisi'}</p></div>
                     {visit.patient.allergies && <div className="max-w-md rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><strong>Catatan alergi:</strong> {visit.patient.allergies}</div>}
                 </CardContent></Card>
 

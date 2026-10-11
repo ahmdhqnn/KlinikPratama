@@ -52,6 +52,26 @@ class SpecialtyScreeningTest extends TestCase
         );
     }
 
+    public function test_nurse_returns_to_accessible_dashboard_from_screened_visit_detail(): void
+    {
+        $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        $clinic = Poliklinik::create(['kode' => 'UMUM-BACK', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $patient = Pasien::create(['no_rm' => 'RM-UMUM-BACK', 'nama' => 'Pasien Umum']);
+        $visit = $this->makeVisit('KNJ-UMUM-BACK', $patient, $clinic);
+
+        $this->actingAs($nurse)->post(route('pelayanan.kunjungan.screening.store', $visit), [
+            'nyeri_dada' => 'tidak', 'kondisi_psikiatri' => 'normal', 'nadi_teraba' => 'teraba',
+            'kejang' => 'tidak', 'pola_pernapasan' => 'normal', 'kesadaran' => 'sadar', 'risiko_jatuh_visual' => 'rendah',
+        ])->assertRedirect(route('pelayanan.kunjungan.show', $visit));
+
+        $this->get(route('pelayanan.kunjungan.show', $visit))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pelayanan/kunjungan/show')
+                ->where('backUrl', route('perawat.dashboard'))
+            );
+        $this->get(route('perawat.dashboard'))->assertOk();
+    }
+
     public function test_general_screening_keeps_general_history_and_ignores_dental_fields(): void
     {
         $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
@@ -72,6 +92,46 @@ class SpecialtyScreeningTest extends TestCase
         $this->assertSame(22.86, $screening->imt);
         $this->assertNull($screening->lokasi_nyeri_gigi);
         $this->assertNull($screening->pemicu_nyeri_gigi);
+    }
+
+    public function test_unanswered_optional_dental_screening_fields_remain_empty(): void
+    {
+        $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        $clinic = Poliklinik::create(['kode' => 'GIGI-DEF', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $patient = Pasien::create(['no_rm' => 'RM-GIGI-DEF', 'nama' => 'Pasien Gigi']);
+        $visit = $this->makeVisit('KNJ-GIGI-DEF', $patient, $clinic);
+
+        $this->actingAs($nurse)->get(route('pelayanan.screening.show', $visit))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visit.screening.keluhan', null)
+                ->where('visit.screening.riwayat_penyakit', null)
+                ->where('visit.screening.riwayat_alergi', null)
+                ->where('visit.screening.riwayat_penyakit_keluarga', null)
+                ->where('visit.screening.pemicu_nyeri_gigi', null)
+                ->where('visit.screening.nyeri_dada', null)
+            );
+
+        $this->actingAs($nurse)->post(route('pelayanan.kunjungan.screening.store', $visit), [
+            'nyeri_dada' => 'tidak', 'kondisi_psikiatri' => 'normal', 'nadi_teraba' => 'teraba',
+            'kejang' => 'tidak', 'pola_pernapasan' => 'normal', 'kesadaran' => 'sadar', 'risiko_jatuh_visual' => 'rendah',
+        ])->assertRedirect();
+
+        $screening = Screening::where('kunjungan_id', $visit->id)->firstOrFail();
+        $this->assertNull($screening->keluhan);
+        $this->assertNull($screening->riwayat_penyakit);
+        $this->assertNull($screening->riwayat_alergi);
+        $this->assertNull($screening->riwayat_penyakit_keluarga);
+        $this->assertNull($screening->pemicu_nyeri_gigi);
+        $this->assertNull($screening->risiko_medis_gigi);
+        $this->assertNull($screening->riwayat_infeksi_gigi);
+        $this->assertNull($screening->catatan_medis_gigi);
+
+        $this->actingAs($nurse)->get(route('pelayanan.pasien.rekam-medis', $patient))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visits.0.screening.medicalHistory', 'Belum dicatat')
+                ->where('visits.0.screening.allergyHistory', 'Belum dicatat')
+                ->where('visits.0.screening.dentalPainTriggers', [])
+            );
     }
 
     public function test_dental_screening_rejects_conflicting_none_infection_selection(): void
