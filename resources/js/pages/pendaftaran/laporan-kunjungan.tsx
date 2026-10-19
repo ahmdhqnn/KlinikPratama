@@ -124,7 +124,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                             <TableCell><StatusBadge status={visit.status} /></TableCell>
                                             <TableCell>
                                                 <div className="flex items-center justify-end gap-1.5">
-                                                    {visit.ticketUrl && <Button asChild aria-label="Cetak nomor antrean" size="icon" variant="ghost"><a href={visit.ticketUrl} rel="noreferrer" target="_blank"><Ticket className="size-4" /></a></Button>}
+                                                    {visit.ticketUrl && <Button asChild aria-label="Cetak nomor antrean" size="icon" variant="ghost"><a href={visit.ticketUrl}><Ticket className="size-4" /></a></Button>}
                                                     {visit.editUrl && <Button asChild aria-label="Edit kunjungan" size="icon" variant="ghost"><a href={visit.editUrl}><Pencil className="size-4" /></a></Button>}
                                                     {visit.cancelUrl && <Button aria-label="Batalkan kunjungan" onClick={() => {
                                                         confirmAction('Batalkan kunjungan ini?', () => { router.post(visit.cancelUrl as string); }, 'Batalkan');

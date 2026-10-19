@@ -21,7 +21,7 @@ class PasienExport implements FromCollection, WithHeadings, WithMapping, WithSty
         return [
             'No. RM', 'NIK', 'Nama', 'Tanggal Lahir', 'Jenis Kelamin',
             'Golongan Darah', 'Alamat', 'Telepon', 'Pekerjaan', 'Agama',
-            'Kategori Peserta', 'NIP', 'Unit Kerja', 'Cost Center',
+            'Kategori Peserta', 'Jenis Peserta Lainnya', 'NIP', 'Unit Kerja',
         ];
     }
 
@@ -39,9 +39,9 @@ class PasienExport implements FromCollection, WithHeadings, WithMapping, WithSty
             $pasien->pekerjaan,
             $pasien->agama,
             $pasien->kepesertaan?->kategori,
+            $pasien->kepesertaan?->jenis_lainnya,
             $pasien->kepesertaan?->nip,
             $pasien->kepesertaan?->unit_kerja,
-            $pasien->kepesertaan?->cost_center,
         ]);
     }
 

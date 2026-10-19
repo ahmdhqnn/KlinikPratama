@@ -13,12 +13,10 @@ class Alkes extends Model
 
     protected $fillable = [
         'kode', 'nama', 'satuan', 'stok', 'stok_minimum',
-        'harga_beli', 'harga_jual', 'is_active',
+        'is_active',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
-        'harga_beli' => 'decimal:2',
-        'harga_jual' => 'decimal:2',
     ];
 }

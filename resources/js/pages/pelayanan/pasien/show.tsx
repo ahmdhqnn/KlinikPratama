@@ -15,7 +15,6 @@ interface Visit {
     clinic: string;
     doctor: string;
     status: string;
-    billId: number | null;
 }
 
 interface Patient {
@@ -37,9 +36,7 @@ interface Patient {
     rw: string | null;
     village: string | null;
     district: string | null;
-    insurance: string;
-    insuranceType: string | null;
-    insuranceNumber: string | null;
+    membership: string;
     allergies: string | null;
     visits: Visit[];
 };
@@ -71,17 +68,17 @@ export default function PatientDetail({ patient, permissions }: { patient: Patie
                             <Info label="Golongan darah" value={patient.bloodType} />
                             <Info label="Nomor telepon" value={patient.phone} />
                             <Info label="Alamat" value={patient.address} />
-                            <Info label="RT / RW" value={patient.rt || patient.rw ? `${patient.rt || '—'} / ${patient.rw || '—'}` : null} />
+                            <Info label="RT / RW" value={patient.rt || patient.rw ? `${patient.rt || 'Belum diisi'} / ${patient.rw || 'Belum diisi'}` : null} />
                             <Info label="Kelurahan/desa" value={patient.village} />
                             <Info label="Kecamatan" value={patient.district} />
-                            <Info label="Kategori kepesertaan" value={patient.insurance} />
-                            {patient.allergies && <div className="rounded-xl border border-red-200 bg-red-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-red-700">Riwayat alergi</p><p className="mt-1 text-sm font-medium text-red-900">{patient.allergies}</p></div>}
+                            <Info label="Kategori kepesertaan" value={patient.membership} />
+                            {patient.allergies && <div className={`rounded-xl border p-4 ${patient.allergies.trim().toLocaleLowerCase().startsWith('tidak ada') ? 'border-neutral-200 bg-neutral-50' : 'border-red-200 bg-red-50'}`}><p className={`text-xs font-semibold uppercase tracking-wide ${patient.allergies.trim().toLocaleLowerCase().startsWith('tidak ada') ? 'text-neutral-600' : 'text-red-700'}`}>Riwayat alergi</p><p className={`mt-1 text-sm font-medium ${patient.allergies.trim().toLocaleLowerCase().startsWith('tidak ada') ? 'text-neutral-900' : 'text-red-900'}`}>{patient.allergies}</p></div>}
                         </CardContent>
                     </Card>
                     <Card className="overflow-hidden">
                         <CardHeader className="border-b border-neutral-100"><CardTitle>Riwayat kunjungan</CardTitle><CardDescription>Menampilkan hingga 20 kunjungan terakhir pasien.</CardDescription></CardHeader>
                         <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[720px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Poli</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead></tr></TableHeader><TableBody>
-                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={visit.url}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? '—'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada riwayat kunjungan." /></TableCell></TableRow>}
+                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={visit.url}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? 'Belum diisi'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada riwayat kunjungan." /></TableCell></TableRow>}
                         </TableBody></Table></div></CardContent>
                     </Card>
                 </div>
@@ -91,5 +88,5 @@ export default function PatientDetail({ patient, permissions }: { patient: Patie
 }
 
 function Info({ label, value }: { label: string; value: string | null }) {
-    return <div><p className="text-xs font-medium text-neutral-500">{label}</p><p className="mt-1 whitespace-pre-wrap text-sm text-neutral-900">{value || '—'}</p></div>;
+    return <div><p className="text-xs font-medium text-neutral-500">{label}</p><p className="mt-1 whitespace-pre-wrap text-sm text-neutral-900">{value || 'Belum diisi'}</p></div>;
 }

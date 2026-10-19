@@ -2,14 +2,6 @@
 window.csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
 // Global helpers
-window.formatRupiah = (amount) => {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 0,
-    }).format(amount);
-};
-
 window.formatNumber = (num) => {
     return new Intl.NumberFormat('id-ID').format(num);
 };

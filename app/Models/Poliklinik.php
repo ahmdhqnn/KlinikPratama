@@ -47,9 +47,4 @@ class Poliklinik extends Model
     {
         return $this->hasMany(Kunjungan::class);
     }
-
-    public function biayaPendaftaran(): HasMany
-    {
-        return $this->hasMany(BiayaPendaftaran::class);
-    }
 }

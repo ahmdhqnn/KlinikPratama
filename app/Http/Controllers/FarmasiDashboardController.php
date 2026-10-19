@@ -42,9 +42,9 @@ class FarmasiDashboardController extends Controller
             'recentVisits' => $recentVisits->map(fn (Kunjungan $visit): array => [
                 'id' => $visit->id,
                 'number' => $visit->no_kunjungan,
-                'patient' => $visit->pasien?->nama ?? '—',
-                'medicalRecordNumber' => $visit->pasien?->no_rm ?? '—',
-                'clinic' => $visit->poliklinik?->nama ?? '—',
+                'patient' => $visit->pasien?->nama ?? 'Belum diisi',
+                'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
+                'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
                 'status' => $visit->farmasi?->status === 'diproses' ? 'diproses' : 'farmasi',
                 'actionUrl' => route('pelayanan.farmasi.show', $visit),
                 'actionLabel' => $visit->farmasi?->status === 'diproses' ? 'Lanjutkan' : 'Proses resep',

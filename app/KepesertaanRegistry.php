@@ -16,12 +16,12 @@ class KepesertaanRegistry
     {
         $data = Validator::make($input, [
             'nama' => ['required', 'string', 'max:255'],
-            'nik' => ['nullable', 'required_without:nip', 'string', 'digits:16', Rule::unique('kepesertaan', 'nik')->ignore($member)],
+            'nik' => ['nullable', 'required_without:nip', 'digits:16', Rule::unique('kepesertaan', 'nik')->ignore($member)],
             'nip' => ['nullable', 'required_without:nik', 'string', 'regex:/^[0-9]{8,30}$/', Rule::unique('kepesertaan', 'nip')->ignore($member)],
             'kategori' => ['required', Rule::in(array_keys(Kepesertaan::CATEGORIES))],
+            'jenis_lainnya' => ['nullable', 'required_if:kategori,lainnya', Rule::in(array_keys(Kepesertaan::OTHER_TYPES))],
             'status_kepegawaian' => ['required', Rule::in(['aktif', 'pensiun', 'nonaktif'])],
             'unit_kerja' => ['required', 'string', 'max:200'],
-            'cost_center' => ['required', 'string', 'max:100'],
             'tempat_lahir' => ['required', 'string', 'max:100'],
             'tanggal_lahir' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'jenis_kelamin' => ['required', Rule::in(['L', 'P'])],
@@ -32,42 +32,51 @@ class KepesertaanRegistry
             'rw' => ['required', 'string', 'max:5'],
             'kelurahan' => ['required', 'string', 'max:100'],
             'kecamatan' => ['required', 'string', 'max:100'],
-            'pegawai_penanggung_id' => ['nullable', 'required_if:kategori,keluarga', 'integer', 'exists:kepesertaan,id'],
-            'hubungan_keluarga' => ['nullable', 'required_if:kategori,keluarga', Rule::in(['suami', 'istri', 'anak'])],
+            'pegawai_penanggung_id' => ['nullable', 'integer', 'exists:kepesertaan,id'],
+            'hubungan_keluarga' => ['nullable', Rule::in(['suami', 'istri', 'anak'])],
             'hak_layanan' => ['required', 'boolean'],
-            'berlaku_mulai' => ['required', 'date_format:Y-m-d'],
-            'berlaku_sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:berlaku_mulai', 'required_if:kategori,tamu,khusus'],
             'referensi_bukti' => ['required', 'string', 'max:255'],
         ], [
             'nik.string' => 'NIK harus disimpan sebagai teks di Excel agar seluruh digit tetap utuh.',
             'nip.string' => 'NIP harus disimpan sebagai teks di Excel agar seluruh digit tetap utuh.',
         ])->validate();
 
-        if ($data['kategori'] === 'khusus' && $actor->role !== 'admin') {
+        $isFamily = $data['kategori'] === 'lainnya' && $data['jenis_lainnya'] === 'keluarga';
+        $isSpecial = $data['kategori'] === 'lainnya' && $data['jenis_lainnya'] === 'khusus';
+        if ($data['kategori'] === 'asn' && empty($data['nip'])) {
+            throw ValidationException::withMessages(['nip' => 'Peserta ASN wajib memiliki NIP.']);
+        }
+        if ($data['kategori'] === 'asn') {
+            $data['jenis_lainnya'] = null;
+        }
+        if ($isFamily && (empty($data['pegawai_penanggung_id']) || empty($data['hubungan_keluarga']))) {
+            throw ValidationException::withMessages(['pegawai_penanggung_id' => 'Pilih ASN terkait dan hubungan keluarga untuk kepesertaan keluarga.']);
+        }
+        if ($isSpecial && $actor->role !== 'admin') {
             throw ValidationException::withMessages(['kategori' => 'Status pasien khusus hanya dapat ditetapkan oleh admin.']);
         }
-        if ($data['kategori'] === 'khusus' && (! $data['nik'] || (! $member && ! $data['hak_layanan']))) {
+        if ($isSpecial && (empty($data['nik']) || (! $member && ! $data['hak_layanan']))) {
             throw ValidationException::withMessages(['kategori' => 'Pemberian status khusus baru memerlukan NIK terverifikasi dan hak layanan aktif.']);
         }
 
         if ($data['status_kepegawaian'] !== 'nonaktif'
-            && (($data['kategori'] === 'pensiunan') !== ($data['status_kepegawaian'] === 'pensiun'))) {
+            && ((($data['jenis_lainnya'] ?? null) === 'pensiunan') !== ($data['status_kepegawaian'] === 'pensiun'))) {
             throw ValidationException::withMessages(['status_kepegawaian' => 'Gunakan status pensiun untuk pensiunan dan aktif untuk kategori lain.']);
         }
         if ($data['hak_layanan'] && $data['status_kepegawaian'] === 'nonaktif') {
             throw ValidationException::withMessages(['hak_layanan' => 'Peserta nonaktif tidak dapat diberikan hak layanan.']);
         }
-        if ($data['kategori'] !== 'keluarga') {
+        if (! $isFamily) {
             $data['pegawai_penanggung_id'] = null;
             $data['hubungan_keluarga'] = null;
         } else {
             $sponsor = Kepesertaan::whereKey($data['pegawai_penanggung_id'])->lockForUpdate()->firstOrFail();
-            if ($sponsor->id === $member?->id || ! in_array($sponsor->kategori, ['pegawai_pusat', 'kontrak', 'pensiunan'], true)) {
-                throw ValidationException::withMessages(['pegawai_penanggung_id' => 'Pilih pegawai atau pensiunan sebagai penanggung keluarga.']);
+            if ($sponsor->id === $member?->id || $sponsor->kategori !== 'asn') {
+                throw ValidationException::withMessages(['pegawai_penanggung_id' => 'Pilih ASN terkait keluarga yang tercatat pada direktori.']);
             }
         }
-        if ($member && $data['kategori'] === 'keluarga' && Kepesertaan::where('pegawai_penanggung_id', $member->id)->exists()) {
-            throw ValidationException::withMessages(['kategori' => 'Peserta yang menjadi penanggung keluarga tidak dapat diubah menjadi keluarga.']);
+        if ($member && $data['kategori'] !== 'asn' && Kepesertaan::where('pegawai_penanggung_id', $member->id)->exists()) {
+            throw ValidationException::withMessages(['kategori' => 'ASN yang terkait dengan anggota keluarga harus tetap berkategori ASN.']);
         }
         if ($member && $member->nik !== ($data['nik'] ?? null) && Pasien::withTrashed()->where('kepesertaan_id', $member->id)->exists()) {
             throw ValidationException::withMessages(['nik' => 'NIK peserta yang sudah terhubung dengan pasien tidak dapat diganti.']);

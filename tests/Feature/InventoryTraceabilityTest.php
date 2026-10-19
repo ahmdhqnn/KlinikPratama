@@ -19,15 +19,15 @@ class InventoryTraceabilityTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_issue_uses_fefo_actual_batch_cost_and_excludes_expiry_and_quarantine(): void
+    public function test_issue_uses_fefo_and_excludes_expiry_and_quarantine(): void
     {
         [$actor, $medicine, $depot, $visit] = $this->context();
         $inventory = app(PersediaanRecorder::class);
-        $later = $inventory->receive($medicine->id, $this->receipt($depot, 'LATER', 5, 150, today()->addYear()->toDateString()), $actor);
-        $early = $inventory->receive($medicine->id, $this->receipt($depot, 'EARLY', 2, 100, today()->addMonth()->toDateString()), $actor);
-        $expired = $inventory->receive($medicine->id, $this->receipt($depot, 'EXPIRED', 3, 100, today()->addYear()->toDateString()), $actor);
+        $later = $inventory->receive($medicine->id, $this->receipt($depot, 'LATER', 5, today()->addYear()->toDateString()), $actor);
+        $early = $inventory->receive($medicine->id, $this->receipt($depot, 'EARLY', 2, today()->addMonth()->toDateString()), $actor);
+        $expired = $inventory->receive($medicine->id, $this->receipt($depot, 'EXPIRED', 3, today()->addYear()->toDateString()), $actor);
         $expired->update(['expired_at' => today()]);
-        $quarantine = $inventory->receive($medicine->id, $this->receipt($depot, 'QUARANTINE', 4, 100, today()->addYear()->toDateString()), $actor);
+        $quarantine = $inventory->receive($medicine->id, $this->receipt($depot, 'QUARANTINE', 4, today()->addYear()->toDateString()), $actor);
         $quarantine->update(['status' => 'karantina']);
         $inventory->issue($medicine->id, 4, $actor, $visit, 'Farmasi', 1);
         $this->assertSame('0.00', $early->fresh()->stok);
@@ -35,7 +35,7 @@ class InventoryTraceabilityTest extends TestCase
         $this->assertSame('3.00', $expired->fresh()->stok);
         $this->assertSame('4.00', $quarantine->fresh()->stok);
         $this->assertEquals(10, $medicine->fresh()->stok);
-        $this->assertDatabaseHas('stok_mutasi', ['batch_id' => $early->id, 'jenis' => 'keluar', 'jumlah' => 2, 'harga' => 100, 'actor_id' => $actor->id, 'cost_center' => 'CC-TEST']);
+        $this->assertDatabaseHas('stok_mutasi', ['batch_id' => $early->id, 'jenis' => 'keluar', 'jumlah' => 2, 'actor_id' => $actor->id]);
         try {
             $inventory->issue($medicine->id, 4, $actor, $visit, 'Farmasi', 1);
             $this->fail('Expired stock must not fulfil a prescription.');
@@ -50,12 +50,11 @@ class InventoryTraceabilityTest extends TestCase
     {
         [$actor, $medicine, $depot, $visit] = $this->context();
         $inventory = app(PersediaanRecorder::class);
-        $batch = $inventory->receive($medicine->id, $this->receipt($depot, 'B-01', 5, 100, today()->addYear()->toDateString()), $actor);
+        $batch = $inventory->receive($medicine->id, $this->receipt($depot, 'B-01', 5, today()->addYear()->toDateString()), $actor);
         $inventory->issue($medicine->id, 3, $actor, $visit, 'Farmasi', 1);
         $out = StokMutasi::where('jenis', 'keluar')->firstOrFail();
-        $visit->update(['cost_center' => 'CC-NEW']);
         $inventory->returnDispensing($out, 2, 'Retur diperiksa oleh petugas', $actor);
-        $this->assertDatabaseHas('stok_mutasi', ['mutasi_asal_id' => $out->id, 'jenis' => 'retur', 'cost_center' => 'CC-TEST']);
+        $this->assertDatabaseHas('stok_mutasi', ['mutasi_asal_id' => $out->id, 'jenis' => 'retur']);
         $this->assertEquals(4, $medicine->fresh()->stok);
         $returned = ObatBatch::where('sumber', 'retur')->firstOrFail();
         $this->assertSame('karantina', $returned->status);
@@ -66,7 +65,7 @@ class InventoryTraceabilityTest extends TestCase
             $this->assertArrayHasKey('jumlah', $exception->errors());
         }
         $this->assertEquals(4, $medicine->fresh()->stok);
-        $inventory->reconcile($returned, $this->receipt($depot, 'B-01', 1, 100, today()->addYear()->toDateString()), $actor);
+        $inventory->reconcile($returned, $this->receipt($depot, 'B-01', 1, today()->addYear()->toDateString()), $actor);
         $this->assertSame('1.00', $returned->fresh()->stok);
         $this->assertEquals(3, $medicine->batches()->usable()->sum('stok'));
         $this->assertEquals(4, $medicine->fresh()->stok);
@@ -77,7 +76,7 @@ class InventoryTraceabilityTest extends TestCase
         [$actor, $medicine, $depot] = $this->context();
         $other = DepoObat::create(['kode' => 'DEP-OTHER', 'nama' => 'Gudang', 'is_active' => true]);
         $inventory = app(PersediaanRecorder::class);
-        $batch = $inventory->receive($medicine->id, [...$this->receipt($depot, 'HIBAH-01', 8, 0, today()->addYear()->toDateString()), 'sumber' => 'hibah'], $actor);
+        $batch = $inventory->receive($medicine->id, [...$this->receipt($depot, 'HIBAH-01', 8, today()->addYear()->toDateString()), 'sumber' => 'hibah'], $actor);
         $inventory->transfer($batch, ['depo_id' => $other->id, 'jumlah' => 3, 'alasan' => 'Pindah gudang fisik'], $actor);
         $this->assertEquals(8, $medicine->fresh()->stok);
         $inventory->adjust($batch, ['jenis' => 'opname', 'jumlah' => 4, 'alasan' => 'Selisih hitung fisik'], $actor);
@@ -96,13 +95,13 @@ class InventoryTraceabilityTest extends TestCase
         $depot = DepoObat::create(['kode' => 'DEP-TEST', 'nama' => 'Apotek', 'is_active' => true]);
         $clinic = Poliklinik::create(['kode' => 'P-TEST', 'nama' => 'Umum', 'jenis' => 'umum', 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-TEST', 'nama' => 'Test']);
-        $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-TEST', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => 'farmasi', 'cost_center' => 'CC-TEST']);
+        $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-TEST', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => 'farmasi']);
 
         return [$actor, $medicine, $depot, $visit];
     }
 
-    private function receipt(DepoObat $depot, string $batch, int $quantity, int $cost, string $expiry): array
+    private function receipt(DepoObat $depot, string $batch, int $quantity, string $expiry): array
     {
-        return ['depo_id' => $depot->id, 'nomor_batch' => $batch, 'jumlah' => $quantity, 'harga_beli' => $cost, 'expired_at' => $expiry, 'sumber' => 'pengadaan', 'referensi' => 'Sumber persediaan uji'];
+        return ['depo_id' => $depot->id, 'nomor_batch' => $batch, 'jumlah' => $quantity, 'expired_at' => $expiry, 'sumber' => 'distribusi', 'referensi' => 'Sumber persediaan uji'];
     }
 }

@@ -10,6 +10,7 @@ use App\Models\Pasien;
 use App\Models\Poliklinik;
 use App\Models\Resep;
 use App\Models\ResepObat;
+use App\Models\Screening;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -27,21 +28,21 @@ class FarmasiInertiaTest extends TestCase
         $processingPatient = Pasien::create(['no_rm' => 'RM-DASH-FAR-2', 'nama' => 'Pasien Diproses']);
         $waitingVisit = Kunjungan::create([
             'no_kunjungan' => 'KNJ-DASH-FAR-1', 'pasien_id' => $waitingPatient->id, 'poliklinik_id' => $clinic->id,
-            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama', 'jenis_bayar' => 'umum',
+            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama',
         ]);
         $processingVisit = Kunjungan::create([
             'no_kunjungan' => 'KNJ-DASH-FAR-2', 'pasien_id' => $processingPatient->id, 'poliklinik_id' => $clinic->id,
-            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama', 'jenis_bayar' => 'umum',
+            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama',
         ]);
         Farmasi::create(['kunjungan_id' => $processingVisit->id, 'status' => 'diproses']);
         $lowStockMedicine = Obat::create([
             'kode' => 'OBT-DASH-LOW', 'nama' => 'Obat stok rendah', 'satuan_kecil' => 'tablet', 'stok' => 8,
-            'stok_minimum' => 10, 'harga_jual' => 1000, 'jenis' => 'obat', 'is_active' => true,
+            'stok_minimum' => 10, 'jenis' => 'obat', 'is_active' => true,
         ]);
         ObatBatch::factory()->create(['obat_id' => $lowStockMedicine->id, 'status' => 'karantina', 'stok' => 8]);
         $availableMedicine = Obat::create([
             'kode' => 'OBT-DASH-OK', 'nama' => 'Obat stok cukup', 'satuan_kecil' => 'tablet', 'stok' => 10,
-            'stok_minimum' => 5, 'harga_jual' => 1000, 'jenis' => 'obat', 'is_active' => true,
+            'stok_minimum' => 5, 'jenis' => 'obat', 'is_active' => true,
         ]);
         ObatBatch::factory()->create(['obat_id' => $availableMedicine->id, 'stok' => 10]);
 
@@ -80,14 +81,12 @@ class FarmasiInertiaTest extends TestCase
             'tanggal' => today(),
             'status' => 'farmasi',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ]);
         $medicine = Obat::create([
             'kode' => 'OBT-001',
             'nama' => 'Paracetamol',
             'satuan_kecil' => 'tablet',
             'stok' => 8,
-            'harga_jual' => 1000,
             'is_active' => true,
         ]);
         ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => $medicine->stok]);
@@ -207,6 +206,79 @@ class FarmasiInertiaTest extends TestCase
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'farmasi']);
     }
 
+    public function test_pharmacist_can_finish_dispensing_without_saving_a_draft_first(): void
+    {
+        $pharmacist = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
+        $clinic = Poliklinik::create(['kode' => 'DIRECT-FAR', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $patient = Pasien::create([
+            'no_rm' => 'RM-DIRECT-FAR',
+            'nama' => 'Pasien Tanpa Alergi',
+            'riwayat_alergi' => 'Tidak ada riwayat alergi',
+        ]);
+        $visit = Kunjungan::create([
+            'no_kunjungan' => 'KNJ-DIRECT-FAR', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id,
+            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama',
+        ]);
+        Screening::create(['kunjungan_id' => $visit->id, 'riwayat_alergi' => 'Alergi udang']);
+        $medicine = Obat::create([
+            'kode' => 'OBT-DIRECT-FAR', 'nama' => 'Obat Dispensing Langsung', 'satuan_kecil' => 'tablet',
+            'stok' => 5, 'jenis' => 'obat', 'is_active' => true,
+        ]);
+        ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 5]);
+        $prescription = Resep::create([
+            'no_resep' => 'RSP-DIRECT-FAR', 'kunjungan_id' => $visit->id, 'status' => 'menunggu',
+        ]);
+        $prescriptionItem = ResepObat::create([
+            'resep_id' => $prescription->id, 'obat_id' => $medicine->id, 'nama_obat' => $medicine->nama,
+            'jumlah' => 3, 'satuan' => 'tablet', 'aturan_pakai' => '3 x 1', 'jenis' => 'jadi', 'stok_dikurangi' => false,
+        ]);
+
+        $this->actingAs($pharmacist)->get(route('pelayanan.farmasi.show', $visit))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visit.patient.allergies', 'Tidak ada riwayat alergi')
+                ->where('visit.patient.screeningAllergies', 'Alergi udang')
+                ->where('visit.pharmacy', null)
+            );
+
+        $dispensingData = [
+            'items' => [[
+                'resep_obat_id' => $prescriptionItem->id,
+                'obat_id' => $medicine->id,
+                'jumlah_diberikan' => 4,
+                'aturan_pakai' => '3 x 1',
+            ]],
+        ];
+        $this->post(route('pelayanan.farmasi.selesai', $visit), $dispensingData)
+            ->assertSessionHasErrors('items.0.jumlah_diberikan');
+        $this->assertDatabaseMissing('farmasi', ['kunjungan_id' => $visit->id]);
+        $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'stok' => 5]);
+
+        $dispensingData['items'][0]['jumlah_diberikan'] = 3;
+        $this->post(route('pelayanan.farmasi.selesai', $visit), $dispensingData)
+            ->assertRedirect(route('pelayanan.farmasi.index'));
+
+        $this->assertDatabaseHas('farmasi', [
+            'kunjungan_id' => $visit->id,
+            'resep_id' => $prescription->id,
+            'status' => 'selesai',
+        ]);
+        $this->assertDatabaseHas('farmasi_item', [
+            'resep_obat_id' => $prescriptionItem->id,
+            'obat_id' => $medicine->id,
+            'jumlah_diberikan' => 3,
+        ]);
+        $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'stok' => 2]);
+        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'selesai']);
+        $this->assertDatabaseHas('clinical_audit_events', [
+            'kunjungan_id' => $visit->id,
+            'action' => 'pharmacy.dispensed',
+        ]);
+        $this->assertDatabaseMissing('clinical_audit_events', [
+            'kunjungan_id' => $visit->id,
+            'action' => 'pharmacy.draft_saved',
+        ]);
+    }
+
     public function test_partial_dispensing_only_deducts_the_actual_quantity_with_follow_up_notes(): void
     {
         $pharmacist = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
@@ -224,7 +296,6 @@ class FarmasiInertiaTest extends TestCase
             'nama' => 'Obat Uji',
             'satuan_kecil' => 'tablet',
             'stok' => 10,
-            'harga_jual' => 1000,
             'is_active' => true,
         ]);
         ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => $medicine->stok]);
@@ -248,6 +319,12 @@ class FarmasiInertiaTest extends TestCase
             'items' => [['resep_obat_id' => $item->id, 'obat_id' => $medicine->id, 'jumlah_diberikan' => 1]],
             'catatan' => 'Dua tablet belum diambil; pasien akan kembali setelah konfirmasi dokter.',
         ])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('farmasi_item', [
+            'farmasi_id' => Farmasi::where('kunjungan_id', $visit->id)->value('id'),
+            'resep_obat_id' => $item->id,
+            'aturan_pakai' => null,
+            'catatan' => null,
+        ]);
 
         $this->post(route('pelayanan.farmasi.selesai', $visit))->assertRedirect(route('pelayanan.farmasi.index'));
         $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'stok' => 9]);

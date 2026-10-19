@@ -14,9 +14,8 @@ class Kunjungan extends Model
 
     protected $fillable = [
         'no_kunjungan', 'pasien_id', 'poliklinik_id', 'dokter_id',
-        'asuransi_id', 'tanggal', 'status', 'jenis_pasien',
-        'jenis_bayar', 'catatan', 'hak_layanan_snapshot', 'verified_by', 'verified_at',
-        'cost_center', 'unit_kerja', 'kategori_peserta',
+        'tanggal', 'status', 'jenis_pasien', 'catatan', 'hak_layanan_snapshot', 'verified_by', 'verified_at',
+        'unit_kerja', 'kategori_peserta',
     ];
 
     protected $casts = ['tanggal' => 'date', 'hak_layanan_snapshot' => 'array', 'verified_at' => 'datetime'];
@@ -34,11 +33,6 @@ class Kunjungan extends Model
     public function dokter(): BelongsTo
     {
         return $this->belongsTo(Nakes::class, 'dokter_id');
-    }
-
-    public function asuransi(): BelongsTo
-    {
-        return $this->belongsTo(Asuransi::class);
     }
 
     public function screening(): HasOne
@@ -69,11 +63,6 @@ class Kunjungan extends Model
     public function farmasi(): HasOne
     {
         return $this->hasOne(Farmasi::class);
-    }
-
-    public function tagihan(): HasOne
-    {
-        return $this->hasOne(Tagihan::class);
     }
 
     public function suratMedis(): HasMany

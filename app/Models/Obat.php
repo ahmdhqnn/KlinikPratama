@@ -14,14 +14,12 @@ class Obat extends Model
 
     protected $fillable = [
         'kode', 'kode_kfa', 'nama', 'satuan_besar', 'satuan_kecil',
-        'konversi_satuan', 'harga_beli', 'harga_jual', 'indikasi',
+        'konversi_satuan', 'indikasi',
         'kandungan', 'stok', 'stok_minimum', 'jenis', 'is_active',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
-        'harga_beli' => 'decimal:2',
-        'harga_jual' => 'decimal:2',
     ];
 
     public function stokObat(): HasMany
@@ -37,11 +35,6 @@ class Obat extends Model
     public function tindakanBhp(): HasMany
     {
         return $this->hasMany(TindakanBhp::class);
-    }
-
-    public function asuransiHarga(): HasMany
-    {
-        return $this->hasMany(AsuransiHarga::class);
     }
 
     public function stokMutasi(): HasMany

@@ -1,6 +1,7 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { returnToPreviousScreen } from '@/lib/navigation';
 
 interface PrintItem {
     name: string;
@@ -46,7 +47,7 @@ export default function Cetak({ document }: Props) {
             <Head title={`${titles[document.kind]} · ${document.patient.name}`} />
             <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-8 print:max-w-none print:p-0">
                 <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-                    <Button asChild variant="secondary"><Link href={document.backUrl}><ArrowLeft className="size-4" />{document.backLabel}</Link></Button>
+                    <Button onClick={() => returnToPreviousScreen(document.backUrl)} type="button" variant="secondary"><ArrowLeft className="size-4" />{document.backLabel}</Button>
                     <Button onClick={() => window.print()}><Printer className="size-4" />Cetak dokumen</Button>
                 </div>
 
@@ -68,8 +69,8 @@ export default function Cetak({ document }: Props) {
                     <section className="mt-7 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
                         <p><span className="inline-block w-24 text-neutral-600">Nama</span>: <strong>{document.patient.name}</strong></p>
                         <p><span className="inline-block w-24 text-neutral-600">No. RM</span>: {document.patient.medicalRecordNumber}</p>
-                        <p><span className="inline-block w-24 text-neutral-600">Jenis kelamin</span>: {document.patient.gender === 'L' ? 'Laki-laki' : document.patient.gender === 'P' ? 'Perempuan' : '—'}</p>
-                        <p><span className="inline-block w-24 text-neutral-600">Umur</span>: {document.patient.age === null ? '—' : `${document.patient.age} tahun`}</p>
+                        <p><span className="inline-block w-24 text-neutral-600">Jenis kelamin</span>: {document.patient.gender === 'L' ? 'Laki-laki' : document.patient.gender === 'P' ? 'Perempuan' : 'Belum diisi'}</p>
+                        <p><span className="inline-block w-24 text-neutral-600">Umur</span>: {document.patient.age === null ? 'Belum diisi' : `${document.patient.age} tahun`}</p>
                         <p><span className="inline-block w-24 text-neutral-600">Poliklinik</span>: {document.clinicName}</p>
                         <p><span className="inline-block w-24 text-neutral-600">No. kunjungan</span>: {document.visitNumber}</p>
                         {document.patient.address && <p className="sm:col-span-2"><span className="inline-block w-24 text-neutral-600">Alamat</span>: {document.patient.address}</p>}
@@ -83,7 +84,7 @@ export default function Cetak({ document }: Props) {
 
                     {document.kind === 'rujukan_internal' && <section className="mt-8 space-y-4 text-sm">
                         <p><strong>Rujukan dari:</strong> {document.fromClinic ?? document.clinicName}</p>
-                        <p><strong>Rujukan ke:</strong> {document.toClinic ?? '—'}</p>
+                        <p><strong>Rujukan ke:</strong> {document.toClinic ?? 'Belum diisi'}</p>
                         {document.content && <p className="whitespace-pre-wrap leading-6">{document.content}</p>}
                         {document.notes && <p><strong>Catatan klinis:</strong> {document.notes}</p>}
                     </section>}

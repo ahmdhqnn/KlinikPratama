@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\ClinicalAuditRecorder;
+use App\Exports\KepesertaanTemplateExport;
 use App\HakLayananVerifier;
 use App\Imports\KepesertaanImport;
 use App\KepesertaanRegistry;
@@ -28,23 +29,21 @@ class KepesertaanController extends Controller
             ->latest('created_at')->latest('id')->paginate(20)->withQueryString()
             ->through(fn (Kepesertaan $member): array => [
                 'id' => $member->id, 'nama' => $member->nama, 'nik' => $member->nik, 'nip' => $member->nip,
-                'kategori' => $member->kategori, 'status_kepegawaian' => $member->status_kepegawaian,
-                'unit_kerja' => $member->unit_kerja, 'cost_center' => $member->cost_center,
+                'kategori' => $member->categoryKey(), 'jenis_lainnya' => $member->otherTypeKey(), 'status_kepegawaian' => $member->status_kepegawaian,
+                'unit_kerja' => $member->unit_kerja, 'pegawai_penanggung_id' => $member->pegawai_penanggung_id,
+                'hubungan_keluarga' => $member->hubungan_keluarga, 'referensi_bukti' => $member->referensi_bukti,
                 'tempat_lahir' => $member->tempat_lahir, 'tanggal_lahir' => $member->tanggal_lahir?->toDateString(),
                 'jenis_kelamin' => $member->jenis_kelamin, 'agama' => $member->agama, 'golongan_darah' => $member->golongan_darah,
                 'alamat' => $member->alamat, 'rt' => $member->rt, 'rw' => $member->rw,
                 'kelurahan' => $member->kelurahan, 'kecamatan' => $member->kecamatan,
-                'hak_layanan' => $member->hak_layanan, 'berlaku_mulai' => $member->berlaku_mulai?->toDateString(),
-                'berlaku_sampai' => $member->berlaku_sampai?->toDateString(), 'reason' => $verifier->reason($member, today()->toDateString()),
+                'hak_layanan' => $member->hak_layanan, 'reason' => $verifier->reason($member),
                 'detail_url' => route('kepesertaan.show', $member),
             ]);
 
         return Inertia::render('kepesertaan/index', [
-            'members' => $this->pageData($members), 'search' => $filters['search'] ?? '', 'categories' => $request->user()->role === 'admin'
-                ? Kepesertaan::CATEGORIES
-                : array_diff_key(Kepesertaan::CATEGORIES, ['khusus' => true]),
-            'sponsors' => Kepesertaan::whereIn('kategori', ['pegawai_pusat', 'kontrak', 'pensiunan'])->orderBy('nama')->get(['id', 'nama', 'nip']),
-            'today' => today()->toDateString(),
+            'members' => $this->pageData($members), 'search' => $filters['search'] ?? '', 'categories' => Kepesertaan::CATEGORIES,
+            'otherTypes' => Kepesertaan::OTHER_TYPES, 'canAssignSpecial' => $request->user()->role === 'admin',
+            'sponsors' => Kepesertaan::where('kategori', 'asn')->orderBy('nama')->get(['id', 'nama', 'nip']),
             'urls' => ['index' => route('kepesertaan.index'), 'import' => route('kepesertaan.import'), 'template' => route('kepesertaan.template')],
         ]);
     }
@@ -56,8 +55,8 @@ class KepesertaanController extends Controller
             ->where('nama', 'like', "%{$data['q']}%")->orWhere('nip', 'like', "%{$data['q']}%")->orWhere('nik', 'like', "%{$data['q']}%"))
             ->latest('created_at')->latest('id')->limit(15)->get()->map(fn (Kepesertaan $member): array => [
                 'id' => $member->id, 'name' => $member->nama, 'nik' => $member->nik, 'nip' => $member->nip,
-                'category' => Kepesertaan::CATEGORIES[$member->kategori], 'unit' => $member->unit_kerja,
-                'costCenter' => $member->cost_center, 'reason' => $verifier->reason($member, today()->toDateString()),
+                'category' => $member->membershipLabel(), 'unit' => $member->unit_kerja,
+                'reason' => $verifier->reason($member),
                 'tempatLahir' => $member->tempat_lahir, 'tanggalLahir' => $member->tanggal_lahir?->toDateString(),
                 'jenisKelamin' => $member->jenis_kelamin, 'agama' => $member->agama, 'golonganDarah' => $member->golongan_darah,
                 'alamat' => $member->alamat, 'rt' => $member->rt, 'rw' => $member->rw,
@@ -95,17 +94,16 @@ class KepesertaanController extends Controller
         return Inertia::render('kepesertaan/show', [
             'member' => [
                 'id' => $kepesertaan->id, 'nama' => $kepesertaan->nama, 'nik' => $kepesertaan->nik, 'nip' => $kepesertaan->nip,
-                'kategori' => Kepesertaan::CATEGORIES[$kepesertaan->kategori], 'status' => $kepesertaan->status_kepegawaian,
-                'unitKerja' => $kepesertaan->unit_kerja, 'costCenter' => $kepesertaan->cost_center,
+                'kategori' => $kepesertaan->categoryLabel(), 'jenisLainnya' => $kepesertaan->otherTypeLabel(), 'status' => $kepesertaan->status_kepegawaian,
+                'unitKerja' => $kepesertaan->unit_kerja,
                 'tempatLahir' => $kepesertaan->tempat_lahir, 'tanggalLahir' => $kepesertaan->tanggal_lahir?->isoFormat('D MMMM Y'),
-                'jenisKelamin' => ['L' => 'Laki-laki', 'P' => 'Perempuan'][$kepesertaan->jenis_kelamin] ?? '—',
+                'jenisKelamin' => ['L' => 'Laki-laki', 'P' => 'Perempuan'][$kepesertaan->jenis_kelamin] ?? 'Belum diisi',
                 'agama' => $kepesertaan->agama, 'golonganDarah' => $kepesertaan->golongan_darah,
                 'alamat' => $kepesertaan->alamat, 'rt' => $kepesertaan->rt, 'rw' => $kepesertaan->rw,
                 'kelurahan' => $kepesertaan->kelurahan, 'kecamatan' => $kepesertaan->kecamatan,
-                'penanggung' => $kepesertaan->penanggung ? $kepesertaan->penanggung->nama.' · '.($kepesertaan->penanggung->nip ?? '—') : null,
+                'penanggung' => $kepesertaan->penanggung ? $kepesertaan->penanggung->nama.' · '.($kepesertaan->penanggung->nip ?? 'Belum diisi') : null,
                 'hubunganKeluarga' => $kepesertaan->hubungan_keluarga,
-                'hakLayanan' => $kepesertaan->hak_layanan, 'berlakuMulai' => $kepesertaan->berlaku_mulai?->isoFormat('D MMMM Y'),
-                'berlakuSampai' => $kepesertaan->berlaku_sampai?->isoFormat('D MMMM Y'),
+                'hakLayanan' => $kepesertaan->hak_layanan,
                 'referensiBukti' => $kepesertaan->referensi_bukti, 'verifiedAt' => $kepesertaan->verified_at?->isoFormat('D MMMM Y HH:mm'),
             ],
             'urls' => ['index' => route('kepesertaan.index')],
@@ -133,6 +131,6 @@ class KepesertaanController extends Controller
 
     public function template(): BinaryFileResponse
     {
-        return response()->download(resource_path('templates/contoh-kepesertaan-internal.xlsx'));
+        return Excel::download(new KepesertaanTemplateExport, 'template-kepesertaan-internal.xlsx');
     }
 }

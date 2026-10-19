@@ -6,7 +6,6 @@ use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
-use App\Models\Tagihan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -27,25 +26,13 @@ class LaporanInertiaTest extends TestCase
         ]);
         $clinic = Poliklinik::create(['kode' => 'UMUM', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-000001', 'nama' => 'Pasien Laporan']);
-        $visit = Kunjungan::create([
+        Kunjungan::create([
             'no_kunjungan' => 'KNJ-20261007-0001',
             'pasien_id' => $patient->id,
             'poliklinik_id' => $clinic->id,
             'tanggal' => today(),
             'status' => 'selesai',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
-        ]);
-        $invoice = Tagihan::create([
-            'no_tagihan' => 'TGH-20261007-0001',
-            'kunjungan_id' => $visit->id,
-            'subtotal' => 30000,
-            'diskon' => 5000,
-            'total' => 25000,
-            'bayar' => 25000,
-            'kembalian' => 0,
-            'metode_bayar' => 'tunai',
-            'status' => 'lunas',
         ]);
         Obat::create([
             'kode' => 'OBT-001',
@@ -54,8 +41,6 @@ class LaporanInertiaTest extends TestCase
             'satuan_kecil' => 'tablet',
             'stok' => 4,
             'stok_minimum' => 5,
-            'harga_beli' => 1000,
-            'harga_jual' => 1500,
             'is_active' => true,
         ]);
 
@@ -68,8 +53,8 @@ class LaporanInertiaTest extends TestCase
             ->where('visits.data.0.patient', 'Pasien Laporan')
         );
 
-        $this->get(route('laporan.pendapatan'))->assertStatus(410);
-        $this->get(route('laporan.utilisasi'))->assertInertia(fn (Assert $page) => $page->component('laporan/utilisasi')->where('report.stats.visits', 1)->where('report.stats.medicineCost', 0));
+        $this->get('/laporan/pendapatan')->assertNotFound();
+        $this->get('/laporan/utilisasi')->assertNotFound();
 
         $this->get(route('laporan.stok', ['jenis' => 'obat', 'stok_rendah' => 1]))
             ->assertInertia(fn (Assert $page) => $page

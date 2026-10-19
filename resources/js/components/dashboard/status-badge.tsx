@@ -5,17 +5,17 @@ const labels: Record<string, string> = {
     screening: 'Skrining',
     pemeriksaan: 'Pemeriksaan',
     farmasi: 'Farmasi',
-    kasir: 'Kasir',
+    kasir: 'Perlu penyelesaian',
     selesai: 'Selesai',
     batal: 'Dibatalkan',
 };
 
-const variants: Record<string, 'waiting' | 'screening' | 'examination' | 'pharmacy' | 'cashier' | 'complete' | 'cancelled' | 'default'> = {
+const variants: Record<string, 'waiting' | 'screening' | 'examination' | 'pharmacy' | 'complete' | 'cancelled' | 'default'> = {
     menunggu: 'waiting',
     screening: 'screening',
     pemeriksaan: 'examination',
     farmasi: 'pharmacy',
-    kasir: 'cashier',
+    kasir: 'waiting',
     selesai: 'complete',
     batal: 'cancelled',
 };

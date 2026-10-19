@@ -21,7 +21,7 @@ interface Visit {
     patient: string;
     clinic: string;
     doctor: string | null;
-    payer: string;
+    unit: string;
     status: string;
 }
 
@@ -56,7 +56,7 @@ export default function VisitReport({ filters, clinics, stats, visits, exportUrl
                     <div className="flex gap-3 sm:mt-7"><Button type="submit">Terapkan filter</Button><Button asChild variant="secondary"><a href={exportUrl}><Download className="size-4" />Export Excel</a></Button></div>
                 </form></CardContent></Card>
                 <div className="grid gap-4 md:grid-cols-3"><StatCard description="Dalam rentang tanggal terpilih" icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan" value={stats.total} /><StatCard description="Kunjungan telah diselesaikan" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Kunjungan selesai" value={stats.completed} /><StatCard description="Hak layanan tercatat saat pendaftaran" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Hak terverifikasi" value={stats.verified} /></div>
-                <Card className="overflow-hidden"><div className="overflow-x-auto"><Table className="min-w-[1050px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>No. RM</TableHead><TableHead>Nama pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Cost center</TableHead><TableHead>Status</TableHead></tr></TableHeader><TableBody>{visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}><TableCell className="font-mono text-xs font-semibold">{visit.number}</TableCell><TableCell>{visit.date ?? '—'}</TableCell><TableCell className="font-mono">{visit.medicalRecordNumber}</TableCell><TableCell className="font-medium text-neutral-900">{visit.patient}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor ?? '—'}</TableCell><TableCell className="uppercase">{visit.payer}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell></TableRow>) : <TableRow><TableCell colSpan={8}><Empty size="compact" title="Tidak ada data kunjungan pada filter ini." /></TableCell></TableRow>}</TableBody></Table></div><Pagination pagination={visits} /></Card>
+                <Card className="overflow-hidden"><div className="overflow-x-auto"><Table className="min-w-[1050px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>No. RM</TableHead><TableHead>Nama pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Unit kerja</TableHead><TableHead>Status</TableHead></tr></TableHeader><TableBody>{visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}><TableCell className="font-mono text-xs font-semibold">{visit.number}</TableCell><TableCell>{visit.date ?? 'Belum diisi'}</TableCell><TableCell className="font-mono">{visit.medicalRecordNumber}</TableCell><TableCell className="font-medium text-neutral-900">{visit.patient}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor ?? 'Belum diisi'}</TableCell><TableCell>{visit.unit}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell></TableRow>) : <TableRow><TableCell colSpan={8}><Empty size="compact" title="Tidak ada data kunjungan pada filter ini." /></TableCell></TableRow>}</TableBody></Table></div><Pagination pagination={visits} /></Card>
             </div>
         </>
     );

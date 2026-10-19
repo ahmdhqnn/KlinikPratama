@@ -44,14 +44,4 @@ class Nakes extends Model
     {
         return $this->hasMany(Farmasi::class, 'petugas_id');
     }
-
-    public function tagihan(): HasMany
-    {
-        return $this->hasMany(Tagihan::class, 'kasir_id');
-    }
-
-    public function biayaPendaftaran(): HasMany
-    {
-        return $this->hasMany(BiayaPendaftaran::class, 'dokter_id');
-    }
 }

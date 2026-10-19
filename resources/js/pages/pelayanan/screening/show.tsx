@@ -104,23 +104,23 @@ export default function ScreeningForm({ visit, staff }: Props) {
         spo2: getValue(visit, 'spo2'),
         respirasi: getValue(visit, 'respirasi'),
         riwayat_penyakit: getValue(visit, 'riwayat_penyakit'),
-        riwayat_alergi: getValue(visit, 'riwayat_alergi', visit.patient.allergyHistory ?? ''),
-        risiko_jatuh: getValue(visit, 'risiko_jatuh', 'rendah'),
-        risiko_nyeri: getValue(visit, 'risiko_nyeri', '0 - Tidak Nyeri'),
-        skrining_gizi: getValue(visit, 'skrining_gizi', 'normal'),
+        riwayat_alergi: getValue(visit, 'riwayat_alergi'),
+        risiko_jatuh: getValue(visit, 'risiko_jatuh'),
+        risiko_nyeri: getValue(visit, 'risiko_nyeri'),
+        skrining_gizi: getValue(visit, 'skrining_gizi'),
         alergi_jenis: getValue(visit, 'alergi_jenis'),
         alergi_reaksi: getValue(visit, 'alergi_reaksi'),
         penyakit_nama: getValue(visit, 'penyakit_nama'),
         penyakit_keterangan: getValue(visit, 'penyakit_keterangan'),
-        nyeri_dada: getValue(visit, 'nyeri_dada', 'tidak'),
-        kondisi_psikiatri: getValue(visit, 'kondisi_psikiatri', 'normal'),
-        nadi_teraba: getValue(visit, 'nadi_teraba', 'teraba'),
-        kejang: getValue(visit, 'kejang', 'tidak'),
-        pola_pernapasan: getValue(visit, 'pola_pernapasan', 'normal'),
-        kesadaran: getValue(visit, 'kesadaran', 'sadar'),
-        risiko_jatuh_visual: getValue(visit, 'risiko_jatuh_visual', 'rendah'),
+        nyeri_dada: getValue(visit, 'nyeri_dada'),
+        kondisi_psikiatri: getValue(visit, 'kondisi_psikiatri'),
+        nadi_teraba: getValue(visit, 'nadi_teraba'),
+        kejang: getValue(visit, 'kejang'),
+        pola_pernapasan: getValue(visit, 'pola_pernapasan'),
+        kesadaran: getValue(visit, 'kesadaran'),
+        risiko_jatuh_visual: getValue(visit, 'risiko_jatuh_visual'),
         riwayat_penyakit_keluarga: getValue(visit, 'riwayat_penyakit_keluarga'),
-        skala_nyeri: getValue(visit, 'skala_nyeri', '0'),
+        skala_nyeri: getValue(visit, 'skala_nyeri'),
         lokasi_nyeri_gigi: getValue(visit, 'lokasi_nyeri_gigi'),
         pemicu_nyeri_gigi: getListValue(visit, 'pemicu_nyeri_gigi'),
         durasi_keluhan_gigi: getValue(visit, 'durasi_keluhan_gigi'),
@@ -162,7 +162,7 @@ export default function ScreeningForm({ visit, staff }: Props) {
                             <span className="flex size-11 items-center justify-center rounded-full bg-neutral-50 text-neutral-700"><UserRound className="size-5" /></span>
                             <div>
                                 <h3 className="font-semibold text-neutral-950">{visit.patient.name}</h3>
-                                <p className="mt-0.5 text-sm text-neutral-500">{visit.patient.medicalRecordNumber} · {visit.patient.gender === 'L' ? 'Laki-laki' : visit.patient.gender === 'P' ? 'Perempuan' : '—'}{visit.patient.age !== null ? ` · ${visit.patient.age} tahun` : ''} · Gol. darah {visit.patient.bloodType ?? '—'}</p>
+                                <p className="mt-0.5 text-sm text-neutral-500">{visit.patient.medicalRecordNumber} · {visit.patient.gender === 'L' ? 'Laki-laki' : visit.patient.gender === 'P' ? 'Perempuan' : 'Belum diketahui'}{visit.patient.age !== null ? ` · ${visit.patient.age} tahun` : ''} · Gol. darah {visit.patient.bloodType ?? 'Belum diketahui'}</p>
                                 <p className="mt-1 text-xs text-neutral-500">Dokter: {visit.doctor}</p>
                             </div>
                         </div>
@@ -212,8 +212,8 @@ export default function ScreeningForm({ visit, staff }: Props) {
                             <section className="space-y-4">
                                 <div><h3 className="text-sm font-semibold text-neutral-900">Asesmen {visit.clinicType === 'gigi' ? 'poli gigi' : 'poli umum'}</h3><p className="mt-1 text-xs text-neutral-500">{visit.clinicType === 'gigi' ? 'Fokus keluhan orofasial dan faktor risiko sebelum tindakan.' : 'Riwayat kesehatan umum, faktor keluarga, alergi, dan risiko jatuh.'}</p></div>
                                 <div className="grid gap-4 md:grid-cols-2">
-                                    <TextField form={form} name="riwayat_penyakit" label="Riwayat penyakit kronis" placeholder="Hipertensi, diabetes, asma, dan lainnya" onChange={updateField} multiline />
-                                    <TextField form={form} name="riwayat_alergi" label="Riwayat alergi" placeholder="Obat, makanan, cuaca, dan lainnya" onChange={updateField} multiline />
+                                    <TextField form={form} name="riwayat_penyakit" label="Riwayat penyakit kronis" placeholder="Contoh: tidak ada riwayat penyakit; hipertensi, diabetes, asma, dan lainnya" onChange={updateField} multiline />
+                                    <TextField form={form} name="riwayat_alergi" label="Riwayat alergi" placeholder="Contoh: tidak ada riwayat alergi; obat, makanan, cuaca, dan lainnya" onChange={updateField} multiline />
                                     {visit.clinicType === 'umum' && <SelectField form={form} name="risiko_jatuh" label="Skrining risiko jatuh" options={[['rendah', 'Risiko rendah'], ['sedang', 'Risiko sedang'], ['tinggi', 'Risiko tinggi']]} onChange={updateField} />}
                                     <SelectField form={form} name="skala_nyeri" label="Skala nyeri (0–10)" options={Array.from({ length: 11 }, (_, score): [string, string] => [String(score), score === 0 ? '0 · Tidak nyeri' : `${score} · ${score <= 3 ? 'Ringan' : score <= 6 ? 'Sedang' : 'Berat'}`])} onChange={updateField} />
                                     {visit.clinicType === 'umum' && <SelectField form={form} name="skrining_gizi" label="Skrining status gizi" options={[
@@ -231,12 +231,10 @@ export default function ScreeningForm({ visit, staff }: Props) {
                                         <TextField form={form} name="lokasi_nyeri_gigi" label="Lokasi nyeri gigi / gusi" placeholder="Contoh: gigi geraham kiri bawah" onChange={updateField} />
                                         <TextField form={form} name="durasi_keluhan_gigi" label="Durasi keluhan" placeholder="Sejak kapan dan berapa lama" onChange={updateField} />
                                     </div>
-                                    <CheckboxGroup error={form.errors.pemicu_nyeri_gigi} label="Pemicu nyeri" name="pemicu_nyeri_gigi" options={ [['dingin', 'Dingin'], ['manis', 'Manis'], ['mengunyah', 'Saat mengunyah'], ['panas', 'Panas'], ['spontan', 'Muncul spontan'], ['lainnya', 'Lainnya']] } selected={form.data.pemicu_nyeri_gigi} onChange={(values) => form.setData('pemicu_nyeri_gigi', values)} />
-                                    <CheckboxGroup error={form.errors.risiko_medis_gigi} label="Riwayat medis yang memengaruhi tindakan" name="risiko_medis_gigi" options={ [['hipertensi', 'Hipertensi'], ['diabetes', 'Diabetes melitus'], ['penyakit_jantung', 'Penyakit jantung'], ['gangguan_pembekuan', 'Gangguan pembekuan darah'], ['antikoagulan', 'Mengonsumsi antikoagulan'], ['lainnya', 'Lainnya']] } selected={form.data.risiko_medis_gigi} onChange={(values) => form.setData('risiko_medis_gigi', values)} />
+                                    <CheckboxGroup error={form.errors.pemicu_nyeri_gigi} label="Pemicu nyeri" name="pemicu_nyeri_gigi" options={ [['dingin', 'Dingin'], ['manis', 'Manis'], ['mengunyah', 'Saat mengunyah'], ['panas', 'Panas'], ['spontan', 'Muncul spontan'], ['lainnya', 'Lainnya'], ['tidak_ada', 'Tidak ada pemicu']] } selected={form.data.pemicu_nyeri_gigi} onChange={(values) => form.setData('pemicu_nyeri_gigi', selectExclusiveNone(values, form.data.pemicu_nyeri_gigi))} />
+                                    <CheckboxGroup error={form.errors.risiko_medis_gigi} label="Riwayat medis yang memengaruhi tindakan" name="risiko_medis_gigi" options={ [['hipertensi', 'Hipertensi'], ['diabetes', 'Diabetes melitus'], ['penyakit_jantung', 'Penyakit jantung'], ['gangguan_pembekuan', 'Gangguan pembekuan darah'], ['antikoagulan', 'Mengonsumsi antikoagulan'], ['lainnya', 'Lainnya'], ['tidak_ada', 'Tidak ada riwayat yang diketahui']] } selected={form.data.risiko_medis_gigi} onChange={(values) => form.setData('risiko_medis_gigi', selectExclusiveNone(values, form.data.risiko_medis_gigi))} />
                                     <CheckboxGroup error={form.errors.riwayat_infeksi_gigi} label="Riwayat infeksi" name="riwayat_infeksi_gigi" options={ [['hepatitis', 'Hepatitis'], ['hiv', 'HIV'], ['infeksi_lain', 'Infeksi lain'], ['tidak_ada', 'Tidak ada riwayat yang diketahui']] } selected={form.data.riwayat_infeksi_gigi} onChange={(values) => {
-                                        const wasNoneSelected = form.data.riwayat_infeksi_gigi.includes('tidak_ada');
-                                        const isNoneSelected = values.includes('tidak_ada');
-                                        form.setData('riwayat_infeksi_gigi', isNoneSelected && !wasNoneSelected ? ['tidak_ada'] : values.filter((value) => value !== 'tidak_ada'));
+                                        form.setData('riwayat_infeksi_gigi', selectExclusiveNone(values, form.data.riwayat_infeksi_gigi));
                                     }} />
                                     <Field error={form.errors.catatan_medis_gigi} htmlFor="catatan_medis_gigi" label="Catatan tambahan medis gigi"><Textarea id="catatan_medis_gigi" onChange={(event) => updateField('catatan_medis_gigi', event.target.value)} placeholder="Informasi tambahan yang disampaikan pasien" value={form.data.catatan_medis_gigi} /></Field>
                                     <p className="text-xs text-neutral-500">Informasi ini membantu dokter gigi menilai kewaspadaan klinis; keputusan tindakan tetap oleh dokter.</p>
@@ -275,9 +273,16 @@ function getValue(visit: Visit, key: ScreeningScalarField, fallback = ''): strin
     return value === null || value === undefined || Array.isArray(value) ? fallback : String(value);
 }
 
-function getListValue(visit: Visit, key: keyof ScreeningValues): string[] {
+function getListValue(visit: Visit, key: keyof ScreeningValues, fallback: string[] = []): string[] {
     const value = visit.screening[key];
-    return Array.isArray(value) ? value.map(String) : [];
+    return Array.isArray(value) && value.length > 0 ? value.map(String) : fallback;
+}
+
+function selectExclusiveNone(values: string[], previousValues: string[]): string[] {
+    const wasNoneSelected = previousValues.includes('tidak_ada');
+    const isNoneSelected = values.includes('tidak_ada');
+
+    return isNoneSelected && !wasNoneSelected ? ['tidak_ada'] : values.filter((value) => value !== 'tidak_ada');
 }
 
 function CheckboxGroup({
@@ -377,6 +382,7 @@ function SelectField({
     return (
         <Field error={form.errors[name]} htmlFor={name} label={label} required={required}>
             <Select id={name} onChange={(event) => onChange(name, event.target.value)} required={required} value={form.data[name]}>
+                <option disabled={required} value="">Pilih {label.toLowerCase()}</option>
                 {options.map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}
             </Select>
         </Field>

@@ -44,7 +44,7 @@ class KepesertaanImport implements ToCollection, WithHeadingRow, WithMultipleShe
             if (! collect($data)->contains(fn ($value) => $value !== null && $value !== '')) {
                 continue;
             }
-            foreach (['nama', 'nik', 'nip', 'kategori', 'status_kepegawaian', 'unit_kerja', 'cost_center', 'nip_penanggung', 'hubungan_keluarga', 'hak_layanan', 'berlaku_mulai', 'berlaku_sampai', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'agama', 'golongan_darah', 'alamat', 'rt', 'rw', 'kelurahan', 'kecamatan'] as $header) {
+            foreach (['nama', 'nik', 'nip', 'kategori', 'jenis_lainnya', 'status_kepegawaian', 'unit_kerja', 'nip_penanggung', 'hubungan_keluarga', 'hak_layanan', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'agama', 'golongan_darah', 'alamat', 'rt', 'rw', 'kelurahan', 'kecamatan'] as $header) {
                 if (! array_key_exists($header, $data)) {
                     $this->fail($offset, "Kolom {$header} tidak ditemukan. Gunakan template tanpa mengubah nama kolom.");
                 }
@@ -74,7 +74,6 @@ class KepesertaanImport implements ToCollection, WithHeadingRow, WithMultipleShe
             if ($data['nip']) {
                 $seenNip[$data['nip']] = $offset + 2;
             }
-            $data['berlaku_sampai'] = $data['berlaku_sampai'] ?: null;
             $data['hubungan_keluarga'] = ($data['hubungan_keluarga'] ?? '') ?: null;
             $data['referensi_bukti'] = $this->reference;
             $pending[] = ['offset' => $offset, 'data' => $data];
@@ -83,7 +82,7 @@ class KepesertaanImport implements ToCollection, WithHeadingRow, WithMultipleShe
             throw ValidationException::withMessages(['file' => 'Berkas tidak berisi data peserta. Gunakan template yang tersedia.']);
         }
 
-        usort($pending, fn (array $a, array $b): int => ($a['data']['kategori'] === 'keluarga' ? 1 : 0) <=> ($b['data']['kategori'] === 'keluarga' ? 1 : 0));
+        usort($pending, fn (array $a, array $b): int => ($a['data']['jenis_lainnya'] === 'keluarga' ? 1 : 0) <=> ($b['data']['jenis_lainnya'] === 'keluarga' ? 1 : 0));
         foreach ($pending as $line) {
             $data = $line['data'];
             $byNik = $data['nik'] ? Kepesertaan::where('nik', $data['nik'])->lockForUpdate()->first() : null;

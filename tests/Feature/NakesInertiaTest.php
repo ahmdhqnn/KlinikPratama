@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Nakes;
+use App\Models\Poliklinik;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -29,6 +30,7 @@ class NakesInertiaTest extends TestCase
             'jabatan' => 'kasir',
             'is_active' => true,
         ]);
+        $clinic = Poliklinik::create(['kode' => 'UMUM', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
 
         $this->actingAs($admin)->get(route('master.nakes.index', ['search' => 'SDM-002', 'kategori' => 'non_medis']))
             ->assertInertia(fn (Assert $page) => $page
@@ -45,6 +47,7 @@ class NakesInertiaTest extends TestCase
                 'jenis_kelamin' => 'P',
                 'kategori' => 'medis',
                 'jabatan' => 'dokter',
+                'poliklinik_id' => $clinic->id,
                 'no_sip' => 'SIP-001',
                 'no_str' => 'STR-001',
                 'telepon' => '08123456789',
@@ -58,6 +61,7 @@ class NakesInertiaTest extends TestCase
             'jenis_kelamin' => 'P',
             'kategori' => 'medis',
             'jabatan' => 'dokter',
+            'poliklinik_id' => $clinic->id,
             'no_sip' => 'SIP-001',
             'no_str' => 'STR-001',
             'telepon' => '08123456789',
@@ -71,6 +75,7 @@ class NakesInertiaTest extends TestCase
         $account = User::query()->where('email', 'dokter-uji@klinik.test')->firstOrFail();
         $this->assertSame($account->id, $staff->user_id);
         $this->assertSame('dokter', $account->role);
+        $this->assertDatabaseCount('jadwal_dokter', 5);
         $this->assertTrue(Hash::check('secret-password', $account->password));
 
         $this->put(route('master.nakes.update', $staff), [

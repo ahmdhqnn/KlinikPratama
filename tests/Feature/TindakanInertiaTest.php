@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ClinicalTerminology;
 use App\Models\Obat;
 use App\Models\Tindakan;
 use App\Models\User;
@@ -12,6 +13,22 @@ use Tests\TestCase;
 class TindakanInertiaTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_master_treatment_can_search_procedure_catalog_and_keep_manual_entry_available(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        ClinicalTerminology::create([
+            'code_system' => 'icd9cm_procedure', 'release' => '2010', 'code' => '93.960',
+            'display' => 'Terapi contoh', 'code_type' => 'procedure', 'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)->get(route('master.tindakan.terminologi', ['q' => '93960']))
+            ->assertOk()->assertJsonFragment(['code' => '93.960', 'display' => 'Terapi contoh']);
+        $this->post(route('master.tindakan.store'), [
+            'kode' => 'TDK-UAT', 'kode_icd9' => '93.960', 'nama' => 'Terapi contoh', 'kategori' => 'medis', 'is_active' => true,
+        ])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('tindakan', ['kode' => 'TDK-UAT', 'kode_icd9' => '93.960']);
+    }
 
     public function test_admin_can_manage_treatments_and_their_supplies_from_inertia_pages(): void
     {
@@ -28,10 +45,6 @@ class TindakanInertiaTest extends TestCase
             'kode_icd9' => '86.59',
             'nama' => 'Penjahitan luka',
             'kategori' => 'medis',
-            'tarif' => 150000,
-            'tarif_dokter' => 75000,
-            'tarif_asisten' => 25000,
-            'tarif_klinik' => 50000,
             'is_active' => true,
         ]);
         $medicine = Obat::create(['jenis' => 'bhp',
@@ -47,7 +60,7 @@ class TindakanInertiaTest extends TestCase
                 ->component('master/tindakan/index')
                 ->has('treatments.data', 1)
                 ->where('treatments.data.0.name', 'Penjahitan luka')
-                ->where('treatments.data.0.doctorTariff', 75000)
+                ->where('treatments.data.0.icd9Code', '86.59')
             );
 
         $this->put(route('master.tindakan.update', $treatment), [
@@ -56,10 +69,6 @@ class TindakanInertiaTest extends TestCase
             'nama' => 'Penjahitan luka sederhana',
             'kategori' => 'medis',
             'poliklinik_id' => null,
-            'tarif' => 160000,
-            'tarif_dokter' => 80000,
-            'tarif_asisten' => 30000,
-            'tarif_klinik' => 50000,
             'is_active' => true,
         ])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('tindakan', ['id' => $treatment->id, 'nama' => 'Penjahitan luka sederhana']);

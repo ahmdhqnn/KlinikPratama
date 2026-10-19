@@ -85,7 +85,7 @@ class OdontogramFlowTest extends TestCase
 
         $treatment = Tindakan::create([
             'kode' => 'TDK-GIGI-UAT', 'nama' => 'Restorasi gigi', 'kategori' => 'medis',
-            'poliklinik_id' => $clinic->id, 'tarif' => 50000, 'is_active' => true,
+            'poliklinik_id' => $clinic->id, 'is_active' => true,
         ]);
         $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), [
             'tindakan_id' => $treatment->id, 'jumlah' => 1, 'tooth_fdis' => ['46', '36'],

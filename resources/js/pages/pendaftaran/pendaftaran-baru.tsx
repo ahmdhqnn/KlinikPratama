@@ -40,16 +40,16 @@ interface PatientForm extends VisitFormValues {
 
 interface Props {
     clinics: Option[];
-    insuranceProviders: Option[];
     today: string;
+    doctorsUrl: string;
 }
 
-export default function NewPatientRegistration({ clinics, insuranceProviders, today }: Props) {
+export default function NewPatientRegistration({ clinics, today, doctorsUrl }: Props) {
     const [registrationType, setRegistrationType] = useState<'directory' | 'manual'>('directory');
     const form = useForm<PatientForm>({
         registration_type: 'directory', kepesertaan_id: '', nama: '', nik: '', nip: '', unit_kerja: '', tempat_lahir: '', tanggal_lahir: '', jenis_kelamin: '', golongan_darah: '',
         agama: '', nama_ibu: '', telepon: '', alamat: '', rt: '', rw: '', kelurahan: '', kecamatan: '',
-        riwayat_alergi: '', poliklinik_id: '', dokter_id: '', asuransi_id: '', no_asuransi: '', jenis_bayar: 'internal', catatan: '',
+        riwayat_alergi: '', poliklinik_id: '', dokter_id: '', catatan: '',
     });
 
     function updateField(field: keyof PatientForm, value: string) {
@@ -92,6 +92,7 @@ export default function NewPatientRegistration({ clinics, insuranceProviders, to
                         <MembershipIdentityFields
                             value={form.data.kepesertaan_id}
                             error={form.errors.kepesertaan_id}
+                            onClear={() => form.setData('kepesertaan_id', '')}
                             identity={{
                                 name: form.data.nama, nik: form.data.nik || null, nip: form.data.nip || null, unit: form.data.unit_kerja,
                                 tempatLahir: form.data.tempat_lahir || null, tanggalLahir: form.data.tanggal_lahir || null,
@@ -131,10 +132,9 @@ export default function NewPatientRegistration({ clinics, insuranceProviders, to
                         <VisitFields
                             clinics={clinics}
                             today={today}
+                            doctorsUrl={doctorsUrl}
                             errors={form.errors}
-                            insuranceProviders={insuranceProviders}
-                            onChange={(field, value) => updateField(field, value)}
-                            showInsuranceNumber
+                            onChange={(fields) => form.setData((data) => ({ ...data, ...fields }))}
                             values={form.data}
                         />
                     </CardContent>

@@ -13,11 +13,10 @@ class Laboratorium extends Model
 
     protected $table = 'laboratorium';
 
-    protected $fillable = ['kode', 'nama', 'poliklinik_id', 'tarif', 'deskripsi', 'is_active'];
+    protected $fillable = ['kode', 'nama', 'poliklinik_id', 'deskripsi', 'is_active'];
 
     protected $casts = [
         'is_active' => 'boolean',
-        'tarif' => 'decimal:2',
     ];
 
     public function poliklinik(): BelongsTo
@@ -38,10 +37,5 @@ class Laboratorium extends Model
     public function hasil(): HasMany
     {
         return $this->hasMany(LabHasil::class);
-    }
-
-    public function paketItems(): HasMany
-    {
-        return $this->hasMany(PaketTindakanItem::class);
     }
 }

@@ -1,5 +1,5 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ArrowLeft, Check, ChevronDown, ChevronUp, Printer, Save, TriangleAlert } from 'lucide-react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { ArrowLeft, Check, ChevronDown, ChevronUp, CircleCheck, CircleHelp, Printer, Save, TriangleAlert } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ interface Visit {
     number: string;
     status: string;
     prescriptionNumber: string | null;
-    patient: { id: number; name: string; medicalRecordNumber: string; allergies: string | null };
+    patient: { id: number; name: string; medicalRecordNumber: string; allergies: string | null; screeningAllergies: string | null; examinationAllergies: string | null };
     doctor: string | null;
     pharmacy: { status: string; notes: string | null; items: { prescriptionItemId: number | null; medicineId: number | null; dispensedQuantity: number; instructions: string | null; notes: string | null }[] } | null;
     prescriptionItems: PrescriptionItem[];
@@ -72,7 +72,9 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
     }
 
     function finishDispensing() {
-        confirmAction('Selesaikan penyerahan obat? Stok akan berkurang dari batch layak pakai sesuai jumlah yang diserahkan.', () => { router.post(`/pelayanan/farmasi/${visit.id}/selesai`); }, 'Lanjutkan');
+        confirmAction('Selesaikan penyerahan obat? Perubahan form akan disimpan bersama proses ini dan stok akan berkurang dari batch layak pakai sesuai jumlah yang diserahkan.', () => {
+            form.post(`/pelayanan/farmasi/${visit.id}/selesai`, { preserveScroll: true });
+        }, 'Lanjutkan');
     }
 
     function printLabel() {
@@ -92,13 +94,32 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
     const alreadyComplete = visit.pharmacy?.status === 'selesai' || visit.status !== 'farmasi';
     const dispensedMedicineCount = new Set(visit.allocations.map((allocation) => allocation.medicine)).size;
     const firstAllocation = visit.allocations[0];
+    const allergyStatus = getAllergyStatus([
+        visit.patient.examinationAllergies,
+        visit.patient.screeningAllergies,
+        visit.patient.allergies,
+    ]);
 
     return (
         <>
             <Head title={`Dispensing ${visit.patient.name}`} />
             <div className="space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-neutral-700">Dispensing farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{visit.patient.name}</h2><p className="mt-1 text-sm text-neutral-500">{visit.patient.medicalRecordNumber} · Kunjungan {visit.number}</p></div><Button asChild variant="secondary"><Link href="/pelayanan/farmasi"><ArrowLeft className="size-4" />Kembali ke antrean</Link></Button></div>
-                <Card><CardContent className="flex flex-col items-center gap-4 p-5 text-center sm:p-6"><div><p className="text-xs font-medium uppercase tracking-wide text-neutral-700">Nomor resep</p><p className="mt-1 break-all font-mono text-lg font-semibold text-neutral-950">{visit.prescriptionNumber ?? '—'}</p><p className="mt-1 text-sm text-neutral-500">Dokter peresep: {visit.doctor ?? 'Belum ditentukan'}</p></div><div className="flex flex-wrap items-center justify-center gap-2"><StatusBadge status={alreadyComplete ? 'selesai' : 'farmasi'} />{visit.patient.allergies && <div className="flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900"><TriangleAlert className="size-4 shrink-0" /><span><strong>Alergi:</strong> {visit.patient.allergies}</span></div>}</div></CardContent></Card>
+                <Card className="overflow-hidden">
+                    <CardHeader className="border-b border-neutral-100">
+                        <CardTitle>Detail resep</CardTitle>
+                        <CardDescription>Informasi resep dan status alergi pasien.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_minmax(15rem,1.4fr)] lg:items-center">
+                        <div><p className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Nomor resep</p><p className="mt-1 break-all font-mono text-lg font-semibold text-neutral-950">{visit.prescriptionNumber ?? 'Belum diisi'}</p></div>
+                        <div><p className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Dokter peresep</p><p className="mt-1 text-sm font-medium text-neutral-900">{visit.doctor ?? 'Belum ditentukan'}</p></div>
+                        <div><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-600">Status</p><StatusBadge status={alreadyComplete ? 'selesai' : 'farmasi'} /></div>
+                        <div className={allergyStatus.state === 'reported' ? 'flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900' : 'flex items-start gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm text-neutral-700'}>
+                            {allergyStatus.state === 'reported' ? <TriangleAlert className="mt-0.5 size-4 shrink-0" /> : allergyStatus.state === 'none' ? <CircleCheck className="mt-0.5 size-4 shrink-0 text-neutral-500" /> : <CircleHelp className="mt-0.5 size-4 shrink-0 text-neutral-500" />}
+                            <span><strong>Status alergi:</strong> {allergyStatus.label}</span>
+                        </div>
+                    </CardContent>
+                </Card>
                 <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><CardTitle>Verifikasi dan penyiapan obat</CardTitle><CardDescription>Periksa jumlah dan aturan pakai. Stok keluar saat obat diserahkan. Catat alasan dan tindak lanjut jika resep belum terpenuhi seluruhnya.</CardDescription></CardHeader>
                     <form onSubmit={saveDispensing}><CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[980px]"><TableHeader><tr><TableHead>Obat</TableHead><TableHead>Permintaan resep</TableHead><TableHead>Stok layak pakai</TableHead><TableHead>Jumlah diserahkan</TableHead><TableHead>Aturan pakai</TableHead><TableHead>Etiket</TableHead></tr></TableHeader><TableBody>
                         {visit.prescriptionItems.length ? visit.prescriptionItems.map((item, index) => {
@@ -116,7 +137,7 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
                         }) : <TableRow><TableCell colSpan={6}><Empty size="compact" title="Tidak ada item resep untuk disiapkan." /></TableCell></TableRow>}
                     </TableBody></Table></div></CardContent>
                     <div className="space-y-4 border-t border-neutral-100 p-5 sm:p-6"><Field error={form.errors.catatan} htmlFor="catatan-farmasi" label="Catatan tambahan farmasi"><Input disabled={alreadyComplete} id="catatan-farmasi" onChange={(event) => form.setData('catatan', event.target.value)} placeholder="Informasi dispensing atau penyimpanan" value={form.data.catatan} /></Field>{form.errors.items && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{form.errors.items}</p>}
-                        {form.isDirty && <p role="status" className="text-sm text-muted-foreground">Simpan perubahan draf sebelum menyerahkan obat.</p>}<div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><p className="text-xs text-neutral-500">Resep luar dicatat pada resep dan tidak dimasukkan dalam stok dispensing klinik.</p><div className="flex flex-wrap justify-end gap-2"><Button asChild variant="secondary"><Link href="/pelayanan/farmasi">Batalkan</Link></Button><Button disabled={form.processing || alreadyComplete} type="submit" variant="secondary"><Save className="size-4" />Simpan draf</Button><Button disabled={form.processing || form.isDirty || alreadyComplete || !visit.pharmacy || visit.pharmacy.status !== 'diproses'} onClick={finishDispensing} type="button"><Check className="size-4" />Serahkan obat & selesaikan</Button></div></div>
+                        {form.isDirty && <p role="status" className="text-sm text-muted-foreground">Perubahan akan disimpan bersama proses penyerahan obat.</p>}<div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><p className="text-xs text-neutral-500">Resep luar dicatat pada resep dan tidak dimasukkan dalam stok dispensing klinik.</p><div className="flex flex-wrap justify-end gap-2"><Button asChild variant="secondary"><Link href="/pelayanan/farmasi">Batalkan</Link></Button><Button disabled={form.processing || alreadyComplete} type="submit" variant="secondary"><Save className="size-4" />Simpan draf</Button><Button disabled={form.processing || alreadyComplete} onClick={finishDispensing} type="button"><Check className="size-4" />Serahkan obat & selesaikan</Button></div></div>
                     </div></form>
                 </Card>
                 {visit.allocations.length > 0 && (
@@ -172,4 +193,25 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
 
 function escapeHtml(value: string) {
     return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
+}
+
+function getAllergyStatus(values: Array<string | null>): { label: string; state: 'reported' | 'none' | 'unknown' } {
+    const allergies = values.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
+    const reportedAllergies = allergies.filter((allergy) => !isNoAllergyReport(allergy) && allergy.toLocaleLowerCase('id-ID') !== 'belum dicatat');
+
+    if (reportedAllergies.length > 0) {
+        return { label: [...new Set(reportedAllergies)].join(' · '), state: 'reported' };
+    }
+
+    if (allergies.some(isNoAllergyReport)) {
+        return { label: 'Tidak ada riwayat alergi', state: 'none' };
+    }
+
+    return { label: 'Belum dicatat', state: 'unknown' };
+}
+
+function isNoAllergyReport(value: string): boolean {
+    const normalizedValue = value.toLocaleLowerCase('id-ID').replace(/[.!]+$/, '').trim();
+
+    return ['tidak ada riwayat alergi', 'tidak ada alergi', 'nihil', 'tidak ada'].includes(normalizedValue);
 }

@@ -310,6 +310,10 @@
     color: var(--color-red-700);
 }
 
+body {
+    background-color: var(--clinic-canvas);
+}
+
 [x-cloak] {
     display: none !important;
 }

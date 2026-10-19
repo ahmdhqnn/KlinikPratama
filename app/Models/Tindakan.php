@@ -15,15 +15,11 @@ class Tindakan extends Model
 
     protected $fillable = [
         'kode', 'kode_icd9', 'nama', 'kategori', 'poliklinik_id',
-        'tarif', 'tarif_dokter', 'tarif_asisten', 'tarif_klinik', 'is_active',
+        'is_active',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
-        'tarif' => 'decimal:2',
-        'tarif_dokter' => 'decimal:2',
-        'tarif_asisten' => 'decimal:2',
-        'tarif_klinik' => 'decimal:2',
     ];
 
     public function poliklinik(): BelongsTo
@@ -39,11 +35,6 @@ class Tindakan extends Model
     public function kunjungan(): HasMany
     {
         return $this->hasMany(TindakanKunjungan::class);
-    }
-
-    public function paketItems(): HasMany
-    {
-        return $this->hasMany(PaketTindakanItem::class);
     }
 
     public function informedConsent(): HasMany

@@ -20,7 +20,7 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping, WithStyle
     {
         return [
             'Kode', 'Kode KFA', 'Nama', 'Satuan Besar', 'Satuan Kecil',
-            'Konversi', 'Biaya per Satuan Stok', 'Stok Fisik', 'Stok Minimum',
+            'Konversi', 'Stok Fisik', 'Stok Minimum',
             'Jenis', 'Indikasi', 'Kandungan',
         ];
     }
@@ -34,7 +34,6 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping, WithStyle
             $obat->satuan_besar,
             $obat->satuan_kecil,
             $obat->konversi_satuan,
-            $obat->harga_beli,
             $obat->stok,
             $obat->stok_minimum,
             $obat->jenis,

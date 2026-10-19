@@ -25,9 +25,4 @@ class DepoObat extends Model
     {
         return $this->hasMany(StokObat::class, 'depo_id');
     }
-
-    public function purchaseOrders(): HasMany
-    {
-        return $this->hasMany(PurchaseOrder::class, 'depo_id');
-    }
 }

@@ -45,7 +45,7 @@ export default function ClinicalTerminologyShow({ catalog, codes, search: initia
                         <Button asChild className="mb-4" size="sm" variant="secondary"><Link href="/master/terminologi-klinis"><ArrowLeft className="size-4" />Kembali ke katalog</Link></Button>
                         <p className="text-sm font-medium text-neutral-700">Detail katalog terminologi</p>
                         <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{catalog.label}</h2>
-                        <p className="mt-1 text-sm text-neutral-500">Rilis {catalog.release} · {new Intl.NumberFormat('id-ID').format(catalog.count)} kode · Impor terakhir {catalog.importedAt ?? '—'}</p>
+                        <p className="mt-1 text-sm text-neutral-500">Rilis {catalog.release} · {new Intl.NumberFormat('id-ID').format(catalog.count)} kode · Impor terakhir {catalog.importedAt ?? 'Belum diisi'}</p>
                     </div>
                     <Button onClick={removeCatalog} variant="destructive"><Trash2 className="size-4" />Hapus katalog</Button>
                 </div>
@@ -62,7 +62,7 @@ export default function ClinicalTerminologyShow({ catalog, codes, search: initia
                         <div className="overflow-x-auto">
                             <Table className="min-w-[760px]">
                                 <TableHeader><tr><TableHead>Kode</TableHead><TableHead>Uraian</TableHead><TableHead>Jenis</TableHead><TableHead>Status</TableHead></tr></TableHeader>
-                                <TableBody>{codes.data.length ? codes.data.map((code) => <TableRow key={code.code}><TableCell className="font-mono text-xs font-semibold text-neutral-900">{code.code}</TableCell><TableCell className="max-w-3xl whitespace-normal">{code.display}</TableCell><TableCell className="capitalize">{code.type ?? '—'}</TableCell><TableCell><Badge variant={code.active ? 'complete' : 'default'}>{code.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell></TableRow>) : <TableRow><TableCell colSpan={4}><Empty description="Coba kata kunci lain atau periksa katalog terpilih." size="compact" title="Kode tidak ditemukan" /></TableCell></TableRow>}</TableBody>
+                                <TableBody>{codes.data.length ? codes.data.map((code) => <TableRow key={code.code}><TableCell className="font-mono text-xs font-semibold text-neutral-900">{code.code}</TableCell><TableCell className="max-w-3xl whitespace-normal">{code.display}</TableCell><TableCell className="capitalize">{code.type ?? 'Belum diisi'}</TableCell><TableCell><Badge variant={code.active ? 'complete' : 'default'}>{code.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell></TableRow>) : <TableRow><TableCell colSpan={4}><Empty description="Coba kata kunci lain atau periksa katalog terpilih." size="compact" title="Kode tidak ditemukan" /></TableCell></TableRow>}</TableBody>
                             </Table>
                         </div>
                         <Pagination pagination={codes} />

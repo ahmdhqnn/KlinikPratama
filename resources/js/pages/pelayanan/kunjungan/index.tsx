@@ -21,10 +21,8 @@ interface Visit {
     gender: string | null;
     clinic: string;
     doctor: string | null;
-    paymentType: string;
-    funding: string;
+    eligibility: string;
     status: string;
-    billId: number | null;
 }
 
 interface Option {
@@ -65,8 +63,8 @@ export default function VisitsIndex({ visits, filters: initialFilters, clinics }
                     <Button className="xl:mt-7" type="submit"><Search className="size-4" />Filter</Button>
                 </form></CardContent></Card>
                 <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><ClipboardList className="size-5" /></span><div><CardTitle>Jadwal kunjungan</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(visits.total)} data ditemukan.</CardDescription></div></div></CardHeader>
-                    <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[1050px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Pembiayaan</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></tr></TableHeader><TableBody>
-                        {visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={`/pelayanan/kunjungan/${visit.id}`}>{visit.number}</Link></TableCell><TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="font-mono text-xs text-neutral-500">{visit.medicalRecordNumber} · {visit.gender ?? '—'}</p></TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor ?? 'Belum ditentukan'}</TableCell><TableCell className="text-neutral-600">{visit.funding}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell><TableCell><div className="flex justify-end gap-2"><Button asChild size="sm" variant="secondary"><Link href={`/pelayanan/kunjungan/${visit.id}`}>Detail</Link></Button>{visit.status === 'menunggu' && <Button onClick={() => cancelVisit(visit.id)} size="sm" variant="ghost">Batalkan</Button>}</div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada kunjungan pada filter yang dipilih." /></TableCell></TableRow>}
+                    <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[1050px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Hak layanan</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></tr></TableHeader><TableBody>
+                        {visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={`/pelayanan/kunjungan/${visit.id}`}>{visit.number}</Link></TableCell><TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="font-mono text-xs text-neutral-500">{visit.medicalRecordNumber} · {visit.gender ?? 'Belum diisi'}</p></TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor ?? 'Belum ditentukan'}</TableCell><TableCell className="text-neutral-600">{visit.eligibility}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell><TableCell><div className="flex justify-end gap-2"><Button asChild size="sm" variant="secondary"><Link href={`/pelayanan/kunjungan/${visit.id}`}>Detail</Link></Button>{visit.status === 'menunggu' && <Button onClick={() => cancelVisit(visit.id)} size="sm" variant="ghost">Batalkan</Button>}</div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada kunjungan pada filter yang dipilih." /></TableCell></TableRow>}
                     </TableBody></Table></div><Pagination pagination={visits} /></CardContent>
                 </Card>
             </div>

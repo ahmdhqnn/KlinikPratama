@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
+use App\Models\ClinicalTerminology;
 use App\Models\Obat;
 use App\Models\Poliklinik;
 use App\Models\Tindakan;
 use App\Models\TindakanBhp;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -43,10 +45,6 @@ class TindakanController extends Controller
                     'category' => $treatment->kategori,
                     'clinicId' => $treatment->poliklinik_id,
                     'clinic' => $treatment->poliklinik?->nama,
-                    'tariff' => (float) $treatment->tarif,
-                    'doctorTariff' => (float) $treatment->tarif_dokter,
-                    'assistantTariff' => (float) $treatment->tarif_asisten,
-                    'clinicTariff' => (float) $treatment->tarif_klinik,
                     'active' => $treatment->is_active,
                 ])->values(),
                 'currentPage' => $tindakan->currentPage(),
@@ -67,7 +65,27 @@ class TindakanController extends Controller
                 ['value' => 'medis', 'label' => 'Medis'],
                 ['value' => 'lab', 'label' => 'Laboratorium'],
             ],
+            'procedureCatalogAvailable' => ClinicalTerminology::query()->where('code_system', 'icd9cm_procedure')->where('code_type', 'procedure')->where('is_active', true)->exists(),
         ]);
+    }
+
+    public function searchTerminology(Request $request): JsonResponse
+    {
+        $data = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']]);
+        $search = trim($data['q']);
+        $normalizedCode = preg_match('/^\d{3,5}$/', $search) === 1
+            ? substr($search, 0, 2).'.'.substr($search, 2)
+            : $search;
+
+        $codes = ClinicalTerminology::query()
+            ->where('code_system', 'icd9cm_procedure')
+            ->where('code_type', 'procedure')
+            ->where('is_active', true)
+            ->where(fn ($query) => $query->where('code', 'like', '%'.addcslashes($normalizedCode, '\\%_').'%')
+                ->orWhere('display', 'like', '%'.addcslashes($search, '\\%_').'%'))
+            ->orderBy('code')->limit(20)->get(['code', 'display', 'release']);
+
+        return response()->json($codes);
     }
 
     public function show(Tindakan $tindakan): Response
@@ -84,7 +102,7 @@ class TindakanController extends Controller
                 'bhp' => $tindakan->bhp->map(fn (TindakanBhp $item): array => [
                     'id' => $item->id,
                     'medicine' => $item->obat?->nama ?? 'Item dihapus',
-                    'unit' => $item->obat?->satuan_kecil ?? '—',
+                    'unit' => $item->obat?->satuan_kecil ?? 'Belum diisi',
                     'quantity' => (float) $item->jumlah,
                 ])->values(),
             ],
@@ -101,22 +119,14 @@ class TindakanController extends Controller
     {
         $data = $request->validate([
             'kode' => ['required', 'string', 'max:30', 'unique:tindakan,kode'],
-            'kode_icd9' => ['nullable', 'string', 'max:20'],
+            'kode_icd9' => ['nullable', 'string', 'max:20', 'regex:/^\d{2}(?:\.\d{1,3})?$/'],
             'nama' => ['required', 'string', 'max:200'],
             'kategori' => ['required', 'in:medis,lab'],
             'poliklinik_id' => ['nullable', 'exists:poliklinik,id'],
-            'tarif' => ['sometimes', 'numeric', 'min:0'],
-            'tarif_dokter' => ['sometimes', 'numeric', 'min:0'],
-            'tarif_asisten' => ['sometimes', 'numeric', 'min:0'],
-            'tarif_klinik' => ['sometimes', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
-        $data['tarif'] = 0;
-        $data['tarif_dokter'] = 0;
-        $data['tarif_asisten'] = 0;
-        $data['tarif_klinik'] = 0;
         Tindakan::create($data);
 
         return back()->with('success', 'Tindakan berhasil ditambahkan.');
@@ -126,22 +136,14 @@ class TindakanController extends Controller
     {
         $data = $request->validate([
             'kode' => ['required', 'string', 'max:30', "unique:tindakan,kode,{$tindakan->id}"],
-            'kode_icd9' => ['nullable', 'string', 'max:20'],
+            'kode_icd9' => ['nullable', 'string', 'max:20', 'regex:/^\d{2}(?:\.\d{1,3})?$/'],
             'nama' => ['required', 'string', 'max:200'],
             'kategori' => ['required', 'in:medis,lab'],
             'poliklinik_id' => ['nullable', 'exists:poliklinik,id'],
-            'tarif' => ['sometimes', 'numeric', 'min:0'],
-            'tarif_dokter' => ['sometimes', 'numeric', 'min:0'],
-            'tarif_asisten' => ['sometimes', 'numeric', 'min:0'],
-            'tarif_klinik' => ['sometimes', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
-        $data['tarif'] = 0;
-        $data['tarif_dokter'] = 0;
-        $data['tarif_asisten'] = 0;
-        $data['tarif_klinik'] = 0;
         $tindakan->update($data);
 
         return back()->with('success', 'Tindakan berhasil diperbarui.');

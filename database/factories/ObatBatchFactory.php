@@ -10,7 +10,7 @@ class ObatBatchFactory extends Factory
     {
         return [
             'nomor_batch' => 'BATCH-'.fake()->unique()->bothify('????####'),
-            'expired_at' => today()->addYear(), 'stok' => 10, 'harga_beli' => 1000,
+            'expired_at' => today()->addYear(), 'stok' => 10,
             'status' => 'tersedia', 'sumber' => 'pengadaan', 'referensi' => 'Fixture penerimaan',
         ];
     }

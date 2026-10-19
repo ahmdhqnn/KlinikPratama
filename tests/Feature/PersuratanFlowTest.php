@@ -118,7 +118,6 @@ class PersuratanFlowTest extends TestCase
             'tanggal' => today(),
             'status' => 'pemeriksaan',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ]);
 
         return [$user, $doctor, $visit, $origin, $target, $patient];

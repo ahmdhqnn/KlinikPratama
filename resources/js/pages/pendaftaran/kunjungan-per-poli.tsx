@@ -24,6 +24,7 @@ interface Visit {
     patient: string;
     medicalRecordNumber: string;
     doctor: string;
+    date: string;
     status: string;
     actionUrl: string;
     actionLabel: string;
@@ -38,6 +39,7 @@ interface Props {
     stats: { total: number; waiting: number; screening: number; examination: number };
     access: { manageVisits: boolean; monitorClinicalFlow: boolean };
     visits: Visit[];
+    recentVisits: Visit[];
 }
 
 const statusOptions = [
@@ -45,7 +47,7 @@ const statusOptions = [
     ['farmasi', 'Farmasi'], ['selesai', 'Selesai'], ['batal', 'Dibatalkan'],
 ];
 
-export default function ClinicVisits({ filters: initialFilters, clinics, stats, access, visits }: Props) {
+export default function ClinicVisits({ filters: initialFilters, clinics, stats, access, visits, recentVisits }: Props) {
     const [filters, setFilters] = useState(initialFilters);
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
@@ -112,10 +114,37 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                                 <Button asChild size="sm" variant="secondary"><Link href={visit.actionUrl}><Eye className="size-4" />{visit.actionLabel}</Link></Button>
                                                 {access.manageVisits && visit.editUrl && <Button asChild aria-label={`Perbarui kunjungan ${visit.number}`} size="icon" variant="ghost"><Link href={visit.editUrl}><Pencil className="size-4" /></Link></Button>}
                                                 {access.manageVisits && visit.cancelUrl && <Button aria-label={`Batalkan kunjungan ${visit.number}`} onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} untuk ${visit.patient}?`, () => { router.post(visit.cancelUrl as string, {}, { preserveScroll: true }); }, 'Batalkan')} size="icon" type="button" variant="ghost"><Ban className="size-4 text-red-600" /></Button>}
-                                                {visit.ticketUrl && <Button asChild aria-label={`Cetak antrean ${visit.number}`} size="icon" variant="ghost"><a href={visit.ticketUrl} rel="noreferrer" target="_blank"><Printer className="size-4" /></a></Button>}
+                                                {visit.ticketUrl && <Button asChild aria-label={`Cetak antrean ${visit.number}`} size="icon" variant="ghost"><a href={visit.ticketUrl}><Printer className="size-4" /></a></Button>}
                                             </div></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty description={clinics.length ? 'Coba sesuaikan filter tanggal untuk melihat kunjungan.' : 'Aktifkan poliklinik agar daftar kunjungan dapat ditampilkan.'} size="compact" title={clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'} /></TableCell></TableRow>}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="overflow-hidden">
+                    <CardHeader className="border-b border-neutral-100">
+                        <div className="flex items-start gap-3">
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Clock3 className="size-5" /></span>
+                            <div><CardTitle>Kunjungan terbaru</CardTitle><CardDescription className="mt-1">Sepuluh kunjungan paling baru di poliklinik ini, termasuk tanggal sebelumnya.</CardDescription></div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <Table className="min-w-[860px]">
+                                <TableHeader><tr><TableHead>Tanggal</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></tr></TableHeader>
+                                <TableBody>
+                                    {recentVisits.length > 0 ? recentVisits.map((visit) => (
+                                        <TableRow key={visit.id}>
+                                            <TableCell className="text-neutral-600">{visit.date}</TableCell>
+                                            <TableCell className="font-mono text-xs text-neutral-600">{visit.number}</TableCell>
+                                            <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
+                                            <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
+                                            <TableCell><StatusBadge status={visit.status} /></TableCell>
+                                            <TableCell><div className="flex justify-end gap-2"><Button asChild size="sm" variant="secondary"><Link href={visit.actionUrl}><Eye className="size-4" />{visit.actionLabel}</Link></Button>{visit.ticketUrl && <Button asChild aria-label={`Cetak antrean ${visit.number}`} size="icon" variant="ghost"><a href={visit.ticketUrl}><Printer className="size-4" /></a></Button>}</div></TableCell>
+                                        </TableRow>
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty description="Belum ada kunjungan terbaru untuk poliklinik ini." size="compact" title="Belum ada data kunjungan." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

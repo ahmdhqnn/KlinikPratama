@@ -31,13 +31,13 @@ interface PatientResult {
 
 interface Props {
     clinics: Option[];
-    insuranceProviders: Option[];
     today: string;
+    doctorsUrl: string;
 }
 
-export default function ExistingPatientRegistration({ clinics, insuranceProviders, today }: Props) {
+export default function ExistingPatientRegistration({ clinics, today, doctorsUrl }: Props) {
     const form = useForm<PatientForm>({
-        pasien_id: '', poliklinik_id: '', dokter_id: '', asuransi_id: '', no_asuransi: '', jenis_bayar: 'internal', catatan: '',
+        pasien_id: '', poliklinik_id: '', dokter_id: '', catatan: '',
     });
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<PatientResult[]>([]);
@@ -149,7 +149,7 @@ export default function ExistingPatientRegistration({ clinics, insuranceProvider
                                         <Button className="h-auto w-full justify-between rounded-none px-4 py-3 text-left font-normal hover:bg-neutral-50/60 hover:text-neutral-900 focus-visible:bg-neutral-50/60" onClick={() => selectPatient(patient)} type="button" variant="ghost">
                                             <span className="min-w-0">
                                                 <span className="block truncate text-sm font-semibold text-neutral-900">{patient.nama}</span>
-                                                <span className="mt-0.5 block text-xs text-neutral-500">{patient.no_rm} · {patient.jenis_kelamin === 'L' ? 'Laki-laki' : patient.jenis_kelamin === 'P' ? 'Perempuan' : '—'}</span>
+                                                <span className="mt-0.5 block text-xs text-neutral-500">{patient.no_rm} · {patient.jenis_kelamin === 'L' ? 'Laki-laki' : patient.jenis_kelamin === 'P' ? 'Perempuan' : 'Belum diisi'}</span>
                                             </span>
                                             <span className="shrink-0 text-xs font-medium text-neutral-700">Pilih pasien <span aria-hidden="true">→</span></span>
                                         </Button>
@@ -171,7 +171,7 @@ export default function ExistingPatientRegistration({ clinics, insuranceProvider
                                         <div>
                                             <p className="text-xs font-medium uppercase tracking-wide text-neutral-700">Pasien terpilih</p>
                                             <p className="mt-0.5 font-semibold text-neutral-950">{selectedPatient.nama}</p>
-                                            <p className="mt-0.5 text-sm text-neutral-600">{selectedPatient.no_rm} · {selectedPatient.jenis_kelamin === 'L' ? 'Laki-laki' : selectedPatient.jenis_kelamin === 'P' ? 'Perempuan' : '—'}</p>
+                                            <p className="mt-0.5 text-sm text-neutral-600">{selectedPatient.no_rm} · {selectedPatient.jenis_kelamin === 'L' ? 'Laki-laki' : selectedPatient.jenis_kelamin === 'P' ? 'Perempuan' : 'Belum diisi'}</p>
                                             <p className="mt-1 text-xs text-neutral-500">Telepon: {selectedPatient.telepon || 'Belum tersedia'}</p>
                                         </div>
                                     </div>
@@ -194,9 +194,9 @@ export default function ExistingPatientRegistration({ clinics, insuranceProvider
                             <VisitFields
                                 clinics={clinics}
                                 today={today}
+                                doctorsUrl={doctorsUrl}
                                 errors={form.errors}
-                                insuranceProviders={insuranceProviders}
-                                onChange={(field, value) => form.setData(field, value)}
+                                onChange={(fields) => form.setData((data) => ({ ...data, ...fields }))}
                                 values={form.data}
                             />
                         </CardContent>

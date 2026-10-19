@@ -17,18 +17,12 @@ class Pasien extends Model
         'no_rm', 'nama', 'nik', 'kepesertaan_id', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin',
         'golongan_darah', 'alamat', 'rt', 'rw', 'kelurahan', 'kecamatan',
         'telepon', 'pekerjaan', 'agama', 'status_perkawinan', 'nama_wali',
-        'nama_ibu', 'telepon_wali',
-        'asuransi_id', 'no_asuransi', 'riwayat_alergi',
+        'nama_ibu', 'telepon_wali', 'riwayat_alergi',
     ];
 
     protected $casts = [
         'tanggal_lahir' => 'date',
     ];
-
-    public function asuransi(): BelongsTo
-    {
-        return $this->belongsTo(Asuransi::class);
-    }
 
     public function kepesertaan(): BelongsTo
     {

@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\JadwalPraktikResolver;
 use App\Models\Diagnosa;
-use App\Models\JadwalDokter;
 use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\Pasien;
@@ -15,6 +15,8 @@ use Inertia\Response;
 
 class DokterDashboardController extends Controller
 {
+    public function __construct(private JadwalPraktikResolver $schedule) {}
+
     public function index(): Response
     {
         $dokterId = $this->dokterId();
@@ -31,12 +33,7 @@ class DokterDashboardController extends Controller
             ->where('status', 'pemeriksaan')->count();
         $selesaiHariIni = (clone $base)->whereDate('tanggal', $today)
             ->whereIn('status', ['farmasi', 'kasir', 'selesai'])->count();
-        $jadwalHariIni = JadwalDokter::with('poliklinik')
-            ->where('dokter_id', $dokterId)
-            ->where('hari', strtolower($this->hariIndonesia($today->dayOfWeek)))
-            ->where('is_active', true)
-            ->orderBy('jam_mulai')
-            ->get();
+        $jadwalHariIni = $this->schedule->doctorSchedule($dokterId, $today);
 
         $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik'])
             ->whereDate('tanggal', $today)
@@ -50,12 +47,7 @@ class DokterDashboardController extends Controller
                 'waitingExaminations' => $menungguPemeriksaan,
                 'completedToday' => $selesaiHariIni,
             ],
-            'schedule' => $jadwalHariIni->map(fn (JadwalDokter $schedule): array => [
-                'id' => $schedule->id,
-                'clinic' => $schedule->poliklinik->nama,
-                'start' => substr($schedule->jam_mulai, 0, 5),
-                'end' => substr($schedule->jam_selesai, 0, 5),
-            ])->values(),
+            'schedule' => $jadwalHariIni,
             'recentVisits' => $kunjunganTerkini->map(fn (Kunjungan $visit): array => [
                 'id' => $visit->id,
                 'number' => $visit->no_kunjungan,
@@ -232,11 +224,6 @@ class DokterDashboardController extends Controller
         return $dokterId;
     }
 
-    private function hariIndonesia(int $day): string
-    {
-        return ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'][$day];
-    }
-
     /**
      * @return array<int, int>
      */
@@ -244,13 +231,6 @@ class DokterDashboardController extends Controller
     {
         $visitDate = Carbon::parse($date);
 
-        return JadwalDokter::query()
-            ->where('dokter_id', $doctorId)
-            ->where('hari', strtolower($this->hariIndonesia($visitDate->dayOfWeek)))
-            ->where('is_active', true)
-            ->where(fn (Builder $query) => $query->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', $visitDate->toDateString()))
-            ->where(fn (Builder $query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', $visitDate->toDateString()))
-            ->whereHas('dokter', fn (Builder $query) => $query->where('is_active', true)->where('jabatan', 'dokter'))
-            ->pluck('poliklinik_id')->unique()->values()->all();
+        return $this->schedule->doctorSchedule($doctorId, $visitDate)->pluck('id')->all();
     }
 }

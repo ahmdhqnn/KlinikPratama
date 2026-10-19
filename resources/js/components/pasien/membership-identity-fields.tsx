@@ -23,10 +23,11 @@ interface Props {
     value: string;
     identity: MemberIdentity;
     error?: string;
+    onClear: () => void;
     onSelect: (member: MemberOption) => void;
 }
 
-export function MembershipIdentityFields({ value, identity, error, onSelect }: Props) {
+export function MembershipIdentityFields({ value, identity, error, onClear, onSelect }: Props) {
     const readOnlyField = (id: string, label: string, fieldValue: string | null | undefined) => (
         <Field htmlFor={id} label={label}>
             <Input id={id} readOnly value={fieldValue ?? ''} placeholder="Belum tersedia di direktori" />
@@ -35,7 +36,7 @@ export function MembershipIdentityFields({ value, identity, error, onSelect }: P
 
     return (
         <div className="space-y-5">
-            <MembershipPicker value={value} label={identity.name} error={error} onSelect={onSelect} />
+            <MembershipPicker value={value} label={identity.name} error={error} onClear={onClear} onSelect={onSelect} />
             {value && (
                 <div className="space-y-5 rounded-xl border border-neutral-200 bg-neutral-50/70 p-4">
                     <section className="space-y-3">

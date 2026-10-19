@@ -30,8 +30,6 @@ class ObatInertiaTest extends TestCase
             'satuan_besar' => 'strip',
             'satuan_kecil' => 'tablet',
             'konversi_satuan' => 10,
-            'harga_beli' => 5000,
-            'harga_jual' => 7000,
             'stok' => 10,
             'stok_minimum' => 5,
             'jenis' => 'obat',
@@ -64,8 +62,6 @@ class ObatInertiaTest extends TestCase
             'satuan_besar' => 'strip',
             'satuan_kecil' => 'tablet',
             'konversi_satuan' => 10,
-            'harga_beli' => 5000,
-            'harga_jual' => 7500,
             'indikasi' => 'Pereda nyeri',
             'kandungan' => 'Paracetamol',
             'stok_minimum' => 6,
@@ -75,7 +71,7 @@ class ObatInertiaTest extends TestCase
 
         $this->post(route('master.obat.tambah-stok', $medicine), [
             'jumlah' => 3,
-            'depo_id' => $depot->id, 'nomor_batch' => 'TEST-01', 'expired_at' => today()->addYear()->toDateString(), 'harga_beli' => 5000, 'sumber' => 'pengadaan', 'referensi' => 'Penerimaan tambahan',
+            'depo_id' => $depot->id, 'nomor_batch' => 'TEST-01', 'expired_at' => today()->addYear()->toDateString(), 'sumber' => 'distribusi', 'referensi' => 'Penerimaan tambahan',
         ])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'nama' => 'Paracetamol 500 mg tablet', 'stok' => 13]);
         $this->assertDatabaseHas('stok_mutasi', [
@@ -107,8 +103,6 @@ class ObatInertiaTest extends TestCase
             'kode' => 'OBT-002',
             'nama' => 'Ibuprofen',
             'konversi_satuan' => 1,
-            'harga_beli' => 8000,
-            'harga_jual' => 10000,
             'stok' => 0,
             'stok_minimum' => 4,
             'jenis' => 'obat',

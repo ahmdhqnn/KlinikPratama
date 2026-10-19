@@ -19,7 +19,7 @@ class PersediaanRecorder
             $this->assertBalance($medicine);
             $batch = $medicine->batches()->create([
                 'depo_id' => $data['depo_id'], 'nomor_batch' => $data['nomor_batch'],
-                'expired_at' => $data['expired_at'], 'harga_beli' => $data['harga_beli'],
+                'expired_at' => $data['expired_at'],
                 'stok' => 0, 'status' => 'tersedia', 'sumber' => $data['sumber'], 'referensi' => $data['referensi'],
             ]);
             $this->change($medicine, $batch, (float) $data['jumlah'], 'masuk', $actor, $data['referensi'], $referenceType, $referenceId);
@@ -77,7 +77,7 @@ class PersediaanRecorder
             }
             $verified = $medicine->batches()->create([
                 'depo_id' => $data['depo_id'], 'nomor_batch' => $data['nomor_batch'], 'expired_at' => $data['expired_at'],
-                'harga_beli' => $batch->harga_beli, 'stok' => 0, 'status' => 'tersedia',
+                'stok' => 0, 'status' => 'tersedia',
                 'sumber' => 'verifikasi', 'referensi' => $data['referensi'],
             ]);
             $this->change($medicine, $batch, -(float) $data['jumlah'], 'verifikasi_keluar', $actor, $data['referensi'], 'VerifikasiBatch', $batch->id);
@@ -96,7 +96,7 @@ class PersediaanRecorder
             }
             $target = $medicine->batches()->create([
                 'depo_id' => $data['depo_id'], 'nomor_batch' => $batch->nomor_batch, 'expired_at' => $batch->expired_at,
-                'harga_beli' => $batch->harga_beli, 'stok' => 0, 'status' => $batch->status,
+                'stok' => 0, 'status' => $batch->status,
                 'sumber' => 'mutasi', 'referensi' => $data['alasan'],
             ]);
             $this->change($medicine, $batch, -(float) $data['jumlah'], 'mutasi_keluar', $actor, $data['alasan'], 'MutasiDepo', $batch->id);
@@ -116,12 +116,12 @@ class PersediaanRecorder
             }
             $batch = $medicine->batches()->create([
                 'depo_id' => $original->depo_id, 'nomor_batch' => $original->batch->nomor_batch,
-                'expired_at' => $original->batch->expired_at, 'harga_beli' => $original->harga,
+                'expired_at' => $original->batch->expired_at,
                 'stok' => 0, 'status' => 'karantina', 'sumber' => 'retur', 'referensi' => $reason,
             ]);
             $visit = Kunjungan::findOrFail($original->kunjungan_id);
             $movement = $this->change($medicine, $batch, $quantity, 'retur', $actor, $reason, 'FarmasiRetur', $original->referensi_id, $visit, $original->farmasi_item_id);
-            $movement->update(['mutasi_asal_id' => $original->id, 'cost_center' => $original->cost_center]);
+            $movement->update(['mutasi_asal_id' => $original->id]);
         });
     }
 
@@ -145,10 +145,10 @@ class PersediaanRecorder
 
         return StokMutasi::create([
             'obat_id' => $medicine->id, 'batch_id' => $batch->id, 'depo_id' => $batch->depo_id,
-            'jenis' => $type, 'jumlah' => abs($delta), 'harga' => $batch->harga_beli,
+            'jenis' => $type, 'jumlah' => abs($delta),
             'stok_sebelum' => $before, 'stok_sesudah' => $medicine->stok,
             'batch_stok_sebelum' => $batchBefore, 'batch_stok_sesudah' => $batch->stok,
-            'actor_id' => $actor->id, 'kunjungan_id' => $visit?->id, 'cost_center' => $visit?->cost_center,
+            'actor_id' => $actor->id, 'kunjungan_id' => $visit?->id,
             'farmasi_item_id' => $pharmacyItemId, 'referensi_type' => $referenceType, 'referensi_id' => $referenceId,
             'keterangan' => $reason,
         ]);

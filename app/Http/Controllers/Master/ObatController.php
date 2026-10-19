@@ -47,8 +47,6 @@ class ObatController extends Controller
                     'largeUnit' => $medicine->satuan_besar,
                     'smallUnit' => $medicine->satuan_kecil,
                     'unitConversion' => (float) $medicine->konversi_satuan,
-                    'purchasePrice' => (float) $medicine->harga_beli,
-                    'sellingPrice' => (float) $medicine->harga_jual,
                     'stock' => (float) $medicine->stok,
                     'minimumStock' => (float) $medicine->stok_minimum,
                     'indication' => $medicine->indikasi,
@@ -82,8 +80,6 @@ class ObatController extends Controller
             'satuan_besar' => ['nullable', 'string', 'max:50'],
             'satuan_kecil' => ['nullable', 'string', 'max:50'],
             'konversi_satuan' => ['required', 'numeric', 'min:1'],
-            'harga_beli' => ['required', 'numeric', 'min:0'],
-            'harga_jual' => ['sometimes', 'numeric', 'min:0'],
             'indikasi' => ['nullable', 'string'],
             'kandungan' => ['nullable', 'string'],
             'stok' => ['sometimes', 'integer', 'in:0'],
@@ -93,7 +89,6 @@ class ObatController extends Controller
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
-        $data['harga_jual'] = 0;
         Obat::create($data);
 
         return back()->with('success', 'Obat berhasil ditambahkan.');
@@ -108,8 +103,6 @@ class ObatController extends Controller
             'satuan_besar' => ['nullable', 'string', 'max:50'],
             'satuan_kecil' => ['nullable', 'string', 'max:50'],
             'konversi_satuan' => ['required', 'numeric', 'min:1'],
-            'harga_beli' => ['required', 'numeric', 'min:0'],
-            'harga_jual' => ['sometimes', 'numeric', 'min:0'],
             'indikasi' => ['nullable', 'string'],
             'kandungan' => ['nullable', 'string'],
             'stok_minimum' => ['required', 'integer', 'min:0'],
@@ -118,7 +111,6 @@ class ObatController extends Controller
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
-        $data['harga_jual'] = 0;
         $obat->update($data);
 
         return back()->with('success', 'Obat berhasil diperbarui.');

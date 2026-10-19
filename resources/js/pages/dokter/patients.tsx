@@ -65,7 +65,7 @@ export default function DoctorPatients({ search, patients }: Props) {
                                         <TableRow key={patient.id}>
                                             <TableCell className="font-mono text-xs font-medium text-neutral-700">{patient.medicalRecordNumber}</TableCell>
                                             <TableCell className="font-medium text-neutral-900">{patient.name}</TableCell>
-                                            <TableCell className="text-neutral-600">{patient.gender ?? '—'}</TableCell>
+                                            <TableCell className="text-neutral-600">{patient.gender ?? 'Belum diisi'}</TableCell>
                                             <TableCell className="text-right tabular-nums text-neutral-600">{new Intl.NumberFormat('id-ID').format(patient.visitCount)}</TableCell>
                                             <TableCell className="text-right"><Button asChild size="sm" variant="secondary"><a href={patient.recordUrl}>Lihat RME</a></Button></TableCell>
                                         </TableRow>

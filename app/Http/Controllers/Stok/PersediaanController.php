@@ -46,7 +46,7 @@ class PersediaanController extends Controller
             ]);
 
         return Inertia::render('stok/persediaan/show', [
-            'medicine' => ['id' => $obat->id, 'name' => $obat->nama, 'code' => $obat->kode, 'stock' => (float) $obat->stok, 'unit' => $obat->satuan_kecil, 'purchasePrice' => (float) $obat->harga_beli],
+            'medicine' => ['id' => $obat->id, 'name' => $obat->nama, 'code' => $obat->kode, 'stock' => (float) $obat->stok, 'unit' => $obat->satuan_kecil],
             'batches' => $obat->batches->map(fn (ObatBatch $batch): array => [
                 'id' => $batch->id, 'number' => $batch->nomor_batch, 'expiry' => $batch->expired_at?->toDateString(),
                 'stock' => (float) $batch->stok, 'status' => $batch->status, 'source' => $batch->sumber,
@@ -62,8 +62,8 @@ class PersediaanController extends Controller
     public function receive(Request $request, Obat $obat, PersediaanRecorder $inventory): RedirectResponse
     {
         $data = $request->validate([
-            ...$this->batchRules(), 'harga_beli' => ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
-            'sumber' => ['required', 'in:pengadaan,hibah'],
+            ...$this->batchRules(),
+            'sumber' => ['required', 'in:distribusi,hibah,saldo_awal,lainnya'],
         ]);
         $inventory->receive($obat->id, $data, $request->user());
 
