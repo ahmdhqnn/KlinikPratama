@@ -13,18 +13,18 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Empty } from '@/components/ui/empty';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
-import { formatNumber, formatCurrency } from '@/lib/format';
+import { formatNumber } from '@/lib/format';
 
 interface Batch { id: number; number: string; expiry: string | null; stock: number; status: string; source: string; depot: string | null; reference: string; expired: boolean; nearExpiry: boolean }
 interface Movement { id: number; date: string; type: string; batch: string | null; quantity: number; before: number; after: number; actor: string | null; reason: string | null; canReturn: boolean }
-interface Props { medicine: { id: number; name: string; code: string; stock: number; unit: string; purchasePrice: number }; batches: Batch[]; movements: PaginationData & { data: Movement[] }; depots: { id: number; nama: string }[]; today: string }
+interface Props { medicine: { id: number; name: string; code: string; stock: number; unit: string }; batches: Batch[]; movements: PaginationData & { data: Movement[] }; depots: { id: number; nama: string }[]; today: string }
 type Action = 'receive' | 'reconcile' | 'adjust' | 'transfer' | 'return';
-const titles: Record<Action, string> = { receive: 'Penerimaan pengadaan / hibah', reconcile: 'Verifikasi batch fisik', adjust: 'Stok opname / rusak / pemusnahan', transfer: 'Mutasi antar depo', return: 'Retur penyerahan obat' };
+const titles: Record<Action, string> = { receive: 'Penerimaan batch', reconcile: 'Verifikasi batch fisik', adjust: 'Stok opname / rusak / pemusnahan', transfer: 'Mutasi antar depo', return: 'Retur penyerahan obat' };
 
 export default function StockCard({ medicine, batches, movements, depots }: Props) {
     const [action, setAction] = useState<Action | null>(null);
     const [id, setId] = useState<number | null>(null);
-    const initialData = { depo_id: '', nomor_batch: '', expired_at: '', jumlah: '', harga_beli: String(medicine.purchasePrice), sumber: 'pengadaan', referensi: '', jenis: 'opname', alasan: '' };
+    const initialData = { depo_id: '', nomor_batch: '', expired_at: '', jumlah: '', sumber: 'distribusi', referensi: '', jenis: 'opname', alasan: '' };
     const form = useForm(initialData);
     const errors = form.errors as Record<string, string | undefined>;
     function open(next: Action, target?: number) { form.setData(initialData); form.setDefaults(initialData); form.clearErrors(); setId(target ?? null); setAction(next); }
@@ -43,7 +43,7 @@ export default function StockCard({ medicine, batches, movements, depots }: Prop
         <Field label={action === 'adjust' && form.data.jenis === 'opname' ? 'Saldo batch hasil hitung fisik' : 'Jumlah'} htmlFor="stock-quantity" error={errors.jumlah} required><Input id="stock-quantity" type="number" min={action === 'return' ? 1 : action === 'adjust' ? 0 : 0.01} step={action === 'return' ? '1' : '0.01'} value={form.data.jumlah} onChange={(event) => form.setData('jumlah', event.target.value)} required /></Field>
         {['receive', 'reconcile', 'transfer'].includes(action ?? '') && <Field label="Depo tujuan" htmlFor="stock-depot" error={errors.depo_id} required><Select id="stock-depot" value={form.data.depo_id} onChange={(event) => form.setData('depo_id', event.target.value)} required><option value="">Pilih depo</option>{depots.map((depot) => <option key={depot.id} value={depot.id}>{depot.nama}</option>)}</Select></Field>}
         {['receive', 'reconcile'].includes(action ?? '') && <><Field label="Nomor batch fisik" htmlFor="stock-batch" error={errors.nomor_batch} required><Input id="stock-batch" value={form.data.nomor_batch} onChange={(event) => form.setData('nomor_batch', event.target.value)} required /></Field><Field label="Tanggal kedaluwarsa" htmlFor="stock-expiry" error={errors.expired_at} required><DatePicker id="stock-expiry" value={form.data.expired_at} onChange={(event) => form.setData('expired_at', event.target.value)} required /></Field><Field label="Referensi penerimaan / bukti verifikasi" htmlFor="stock-reference" error={errors.referensi} required><Input id="stock-reference" value={form.data.referensi} onChange={(event) => form.setData('referensi', event.target.value)} required /></Field></>}
-        {action === 'receive' && <><Field label="Sumber penerimaan" htmlFor="stock-source"><Select id="stock-source" value={form.data.sumber} onChange={(event) => form.setData('sumber', event.target.value)}><option value="pengadaan">Pengadaan anggaran instansi</option><option value="hibah">Hibah</option></Select></Field><Field label="Biaya per satuan stok (Rp)" htmlFor="stock-cost" error={errors.harga_beli} required><Input id="stock-cost" type="number" min="0" step="0.01" value={form.data.harga_beli} onChange={(event) => form.setData('harga_beli', event.target.value)} required /><p className="text-xs text-neutral-500">Nilai inventaris dan pemakaian anggaran; {formatCurrency(Number(form.data.harga_beli || 0))} per {medicine.unit}.</p></Field></>}
+        {action === 'receive' && <Field label="Sumber penerimaan" htmlFor="stock-source"><Select id="stock-source" value={form.data.sumber} onChange={(event) => form.setData('sumber', event.target.value)}><option value="distribusi">Distribusi instansi</option><option value="hibah">Hibah</option><option value="saldo_awal">Saldo awal</option><option value="lainnya">Lainnya</option></Select></Field>}
         {['adjust', 'transfer', 'return'].includes(action ?? '') && <Field label="Alasan / bukti pencatatan" htmlFor="stock-reason" error={errors.alasan} required><Textarea id="stock-reason" value={form.data.alasan} onChange={(event) => form.setData('alasan', event.target.value)} required /></Field>}
         {errors.items && <p className="text-sm text-red-700" role="alert">{errors.items}</p>}
         <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setAction(null)}>Batal</Button><Button disabled={form.processing} type="submit">{form.processing ? 'Menyimpan…' : 'Simpan pencatatan'}</Button></div>

@@ -16,7 +16,7 @@ export default function Inventory({ medicines, filters }: { medicines: Paginatio
     const [search, setSearch] = useState(filters.search ?? '');
     const [type, setType] = useState(filters.jenis ?? '');
     return <><Head title="Persediaan Obat & BHP" /><div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Farmasi & logistik medis</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Persediaan obat & BHP</h2><p className="mt-1 text-sm text-neutral-500">Kelola batch, kedaluwarsa, penerimaan, dan stok opname. Stok layak pakai mengecualikan batch karantina dan kedaluwarsa.</p></div><Button asChild variant="secondary"><Link href="/stok/purchase-order">Pengadaan</Link></Button></div>
+        <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Farmasi & logistik medis</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Persediaan obat & BHP</h2><p className="mt-1 text-sm text-neutral-500">Kelola batch, kedaluwarsa, penerimaan, dan stok opname. Stok layak pakai mengecualikan batch karantina dan kedaluwarsa.</p></div></div>
         <Card className="overflow-hidden">
             <CardHeader className="border-b border-neutral-100">
                 <div className="flex items-start gap-3">

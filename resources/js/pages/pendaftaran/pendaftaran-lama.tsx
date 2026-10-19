@@ -31,13 +31,13 @@ interface PatientResult {
 
 interface Props {
     clinics: Option[];
-    insuranceProviders: Option[];
     today: string;
+    doctorsUrl: string;
 }
 
-export default function ExistingPatientRegistration({ clinics, insuranceProviders, today }: Props) {
+export default function ExistingPatientRegistration({ clinics, today, doctorsUrl }: Props) {
     const form = useForm<PatientForm>({
-        pasien_id: '', poliklinik_id: '', dokter_id: '', asuransi_id: '', no_asuransi: '', jenis_bayar: 'internal', catatan: '',
+        pasien_id: '', poliklinik_id: '', dokter_id: '', catatan: '',
     });
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<PatientResult[]>([]);
@@ -194,9 +194,9 @@ export default function ExistingPatientRegistration({ clinics, insuranceProvider
                             <VisitFields
                                 clinics={clinics}
                                 today={today}
+                                doctorsUrl={doctorsUrl}
                                 errors={form.errors}
-                                insuranceProviders={insuranceProviders}
-                                onChange={(field, value) => form.setData(field, value)}
+                                onChange={(fields) => form.setData((data) => ({ ...data, ...fields }))}
                                 values={form.data}
                             />
                         </CardContent>

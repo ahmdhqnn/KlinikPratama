@@ -15,7 +15,6 @@ interface Visit {
     clinic: string;
     doctor: string;
     status: string;
-    billId: number | null;
 }
 
 interface Patient {
@@ -37,9 +36,7 @@ interface Patient {
     rw: string | null;
     village: string | null;
     district: string | null;
-    insurance: string;
-    insuranceType: string | null;
-    insuranceNumber: string | null;
+    membership: string;
     allergies: string | null;
     visits: Visit[];
 };
@@ -74,7 +71,7 @@ export default function PatientDetail({ patient, permissions }: { patient: Patie
                             <Info label="RT / RW" value={patient.rt || patient.rw ? `${patient.rt || 'Belum diisi'} / ${patient.rw || 'Belum diisi'}` : null} />
                             <Info label="Kelurahan/desa" value={patient.village} />
                             <Info label="Kecamatan" value={patient.district} />
-                            <Info label="Kategori kepesertaan" value={patient.insurance} />
+                            <Info label="Kategori kepesertaan" value={patient.membership} />
                             {patient.allergies && <div className={`rounded-xl border p-4 ${patient.allergies.trim().toLocaleLowerCase().startsWith('tidak ada') ? 'border-neutral-200 bg-neutral-50' : 'border-red-200 bg-red-50'}`}><p className={`text-xs font-semibold uppercase tracking-wide ${patient.allergies.trim().toLocaleLowerCase().startsWith('tidak ada') ? 'text-neutral-600' : 'text-red-700'}`}>Riwayat alergi</p><p className={`mt-1 text-sm font-medium ${patient.allergies.trim().toLocaleLowerCase().startsWith('tidak ada') ? 'text-neutral-900' : 'text-red-900'}`}>{patient.allergies}</p></div>}
                         </CardContent>
                     </Card>

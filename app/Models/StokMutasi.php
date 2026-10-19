@@ -16,17 +16,15 @@ class StokMutasi extends Model
         'referensi_type',
         'referensi_id',
         'jumlah',
-        'harga',
         'stok_sebelum',
         'stok_sesudah',
         'keterangan',
         'batch_id', 'actor_id', 'kunjungan_id', 'farmasi_item_id', 'mutasi_asal_id',
-        'cost_center', 'batch_stok_sebelum', 'batch_stok_sesudah',
+        'batch_stok_sebelum', 'batch_stok_sesudah',
     ];
 
     protected $casts = [
         'jumlah' => 'decimal:2',
-        'harga' => 'decimal:2',
         'stok_sebelum' => 'decimal:2',
         'stok_sesudah' => 'decimal:2',
     ];

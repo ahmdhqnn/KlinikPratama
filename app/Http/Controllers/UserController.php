@@ -239,7 +239,6 @@ class UserController extends Controller
             'dokter' => 'DR',
             'perawat' => 'PRW',
             'farmasi' => 'FAR',
-            'kasir' => 'KSR',
             'pendaftaran' => 'REG',
             default => 'NKS',
         };

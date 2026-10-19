@@ -27,8 +27,6 @@ class AlkesInertiaTest extends TestCase
             'satuan' => 'box',
             'stok' => 20,
             'stok_minimum' => 5,
-            'harga_beli' => 25000,
-            'harga_jual' => 30000,
             'is_active' => true,
         ]);
 
@@ -46,12 +44,10 @@ class AlkesInertiaTest extends TestCase
             'satuan' => 'box',
             'stok' => 18,
             'stok_minimum' => 5,
-            'harga_beli' => 25000,
-            'harga_jual' => 30000,
             'is_active' => true,
         ])->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('alkes', ['id' => $item->id, 'nama' => 'Sarung Tangan Medis', 'stok' => 18, 'harga_jual' => 0]);
-        $this->post(route('master.alkes.store'), ['kode' => 'ALK-002', 'nama' => 'Alat pemeriksaan', 'stok' => 1, 'stok_minimum' => 0, 'harga_beli' => 25000, 'is_active' => true])->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('alkes', ['kode' => 'ALK-002', 'harga_jual' => 0]);
+        $this->assertDatabaseHas('alkes', ['id' => $item->id, 'nama' => 'Sarung Tangan Medis', 'stok' => 18]);
+        $this->post(route('master.alkes.store'), ['kode' => 'ALK-002', 'nama' => 'Alat pemeriksaan', 'stok' => 1, 'stok_minimum' => 0, 'is_active' => true])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('alkes', ['kode' => 'ALK-002']);
     }
 }

@@ -27,7 +27,6 @@ class LaboratoriumInertiaTest extends TestCase
         $laboratory = Laboratorium::create([
             'kode' => 'LAB-001',
             'nama' => 'Darah lengkap',
-            'tarif' => 125000,
             'deskripsi' => 'Pemeriksaan hematologi',
             'is_active' => true,
         ]);
@@ -45,21 +44,19 @@ class LaboratoriumInertiaTest extends TestCase
                 ->component('master/laboratorium/index')
                 ->has('laboratories.data', 1)
                 ->where('laboratories.data.0.name', 'Darah lengkap')
-                ->where('laboratories.data.0.tariff', 125000)
             );
 
         $this->put(route('master.laboratorium.update', $laboratory), [
             'kode' => 'LAB-001',
             'nama' => 'Darah lengkap rutin',
             'poliklinik_id' => null,
-            'tarif' => 130000,
             'deskripsi' => 'Pemeriksaan hematologi rutin',
             'is_active' => true,
         ])->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('laboratorium', ['id' => $laboratory->id, 'tarif' => 0]);
+        $this->assertDatabaseHas('laboratorium', ['id' => $laboratory->id, 'nama' => 'Darah lengkap rutin']);
         $this->post(route('master.laboratorium.store'), ['kode' => 'LAB-002', 'nama' => 'Pemeriksaan internal', 'is_active' => true])->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('laboratorium', ['kode' => 'LAB-002', 'tarif' => 0]);
+        $this->assertDatabaseHas('laboratorium', ['kode' => 'LAB-002', 'nama' => 'Pemeriksaan internal']);
 
         $this->post(route('master.laboratorium.indikator.store', $laboratory), [
             'nama' => 'Hemoglobin',

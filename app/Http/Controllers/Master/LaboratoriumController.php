@@ -38,7 +38,6 @@ class LaboratoriumController extends Controller
                     'name' => $laboratory->nama,
                     'clinicId' => $laboratory->poliklinik_id,
                     'clinic' => $laboratory->poliklinik?->nama,
-                    'tariff' => (float) $laboratory->tarif,
                     'description' => $laboratory->deskripsi,
                     'active' => $laboratory->is_active,
                 ])->values(),
@@ -70,7 +69,6 @@ class LaboratoriumController extends Controller
                 'code' => $laboratorium->kode,
                 'name' => $laboratorium->nama,
                 'clinic' => $laboratorium->poliklinik?->nama ?? 'Umum',
-                'tariff' => (float) $laboratorium->tarif,
                 'indicators' => $laboratorium->indikator->map(fn (LabIndikator $indicator): array => [
                     'id' => $indicator->id,
                     'name' => $indicator->nama,
@@ -107,7 +105,6 @@ class LaboratoriumController extends Controller
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
-        $data['tarif'] = 0;
         Laboratorium::create($data);
 
         return back()->with('success', 'Pemeriksaan lab berhasil ditambahkan.');
@@ -124,7 +121,6 @@ class LaboratoriumController extends Controller
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
-        $data['tarif'] = 0;
         $laboratorium->update($data);
 
         return back()->with('success', 'Pemeriksaan lab berhasil diperbarui.');

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\JadwalDokter;
 use App\Models\Kepesertaan;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
@@ -74,9 +75,12 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
 
     public function test_registration_accepts_only_active_general_and_dental_clinics(): void
     {
+        $this->travelTo('2026-10-16 09:00:00');
         $registration = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
         Poliklinik::create(['kode' => 'PU', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
         $dental = Poliklinik::create(['kode' => 'PG', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $doctor = Nakes::create(['kode' => 'DR-GIGI', 'nama' => 'Dokter Gigi Uji', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
+        JadwalDokter::create(['dokter_id' => $doctor->id, 'poliklinik_id' => $dental->id, 'hari' => 'jumat', 'berlaku_mulai' => '2026-10-16', 'jam_mulai' => '08:00', 'jam_selesai' => '16:00', 'is_active' => true]);
         $other = Poliklinik::create(['kode' => 'KIA', 'nama' => 'Poli KIA', 'jenis' => 'kia', 'is_active' => true]);
         $inactive = Poliklinik::create(['kode' => 'PG-LAMA', 'nama' => 'Poli Gigi Lama', 'jenis' => 'gigi', 'is_active' => false]);
         $patient = Pasien::create(['no_rm' => 'RM-POLI-1', 'nama' => 'Pasien Uji']);
@@ -93,7 +97,6 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
             $this->post(route('pendaftaran.store-pasien-lama'), [
                 'pasien_id' => $patient->id,
                 'poliklinik_id' => $disallowedClinic->id,
-                'jenis_bayar' => 'umum',
             ])->assertSessionHasErrors('poliklinik_id');
         }
 
@@ -102,7 +105,6 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
         $this->post(route('pendaftaran.store-pasien-lama'), [
             'pasien_id' => $patient->id,
             'poliklinik_id' => $dental->id,
-            'jenis_bayar' => 'umum',
         ])->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('kunjungan', ['pasien_id' => $patient->id, 'poliklinik_id' => $dental->id]);
@@ -119,7 +121,6 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
             'poliklinik_id' => $other->id,
             'tanggal' => today()->toDateString(),
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ])->assertSessionHasErrors('poliklinik_id');
 
         $this->assertDatabaseCount('kunjungan', 0);

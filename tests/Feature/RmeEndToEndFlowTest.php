@@ -59,8 +59,6 @@ class RmeEndToEndFlowTest extends TestCase
             'satuan_besar' => 'Box',
             'satuan_kecil' => 'Tablet',
             'konversi_satuan' => 10,
-            'harga_beli' => 1000,
-            'harga_jual' => 2000,
             'stok' => 100,
             'stok_minimum' => 10,
             'jenis' => 'obat',
@@ -73,15 +71,11 @@ class RmeEndToEndFlowTest extends TestCase
             'nama' => 'Konsultasi & Pemeriksaan Dokter',
             'kategori' => 'medis',
             'poliklinik_id' => $poli->id,
-            'tarif' => 50000,
-            'tarif_dokter' => 35000,
-            'tarif_asisten' => 5000,
-            'tarif_klinik' => 10000,
             'is_active' => true,
         ]);
 
         $supply = Obat::create(['kode' => 'BHP-E2E', 'nama' => 'Kasa', 'satuan_kecil' => 'lembar', 'jenis' => 'bhp', 'stok' => 5, 'is_active' => true]);
-        ObatBatch::factory()->create(['obat_id' => $supply->id, 'stok' => 5, 'harga_beli' => 50]);
+        ObatBatch::factory()->create(['obat_id' => $supply->id, 'stok' => 5]);
         $tindakan->bhp()->create(['obat_id' => $supply->id, 'jumlah' => 2]);
 
         // 2. Registrasi Pasien Baru
@@ -104,7 +98,6 @@ class RmeEndToEndFlowTest extends TestCase
             'dokter_id' => $doctor->id,
             'tanggal' => today()->toDateString(),
             'jenis_pasien' => 'baru',
-            'jenis_bayar' => 'umum',
         ]);
         $resKunjungan->assertRedirect();
         $kunjungan = Kunjungan::where('pasien_id', $pasien->id)->first();
@@ -197,9 +190,6 @@ class RmeEndToEndFlowTest extends TestCase
         $obat->refresh();
         $this->assertEquals(90, $obat->stok);
 
-        $this->assertDatabaseCount('tagihan', 0);
-        $this->assertSame('internal', $kunjungan->jenis_bayar);
-        $this->assertSame($member->cost_center, $kunjungan->cost_center);
         $this->post('/pelayanan/farmasi/'.$kunjungan->id.'/selesai')->assertRedirect();
         $this->assertEquals(90, $obat->fresh()->stok);
         $this->assertDatabaseCount('stok_mutasi', 2);

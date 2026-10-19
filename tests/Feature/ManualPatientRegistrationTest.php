@@ -61,6 +61,23 @@ class ManualPatientRegistrationTest extends TestCase
         $this->assertDatabaseCount('kunjungan', 0);
     }
 
+    public function test_manual_patient_registration_requires_nik_to_have_exactly_sixteen_digits_when_provided(): void
+    {
+        $registrationUser = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
+
+        foreach (['123456789012345', '12345678901234567', '123456789012345a'] as $nik) {
+            $this->actingAs($registrationUser)->from(route('pendaftaran.pendaftaran-baru'))
+                ->post(route('pendaftaran.store-pasien-baru'), [
+                    'registration_type' => 'manual',
+                    'nama' => 'Pasien Uji',
+                    'nik' => $nik,
+                ])
+                ->assertSessionHasErrors('nik');
+        }
+
+        $this->assertDatabaseCount('pasien', 0);
+    }
+
     public function test_admin_manual_registration_uses_the_same_patient_identity_fields_and_can_verify_special_access(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
@@ -82,9 +99,6 @@ class ManualPatientRegistrationTest extends TestCase
             'kecamatan' => 'Menteng',
             'grant_special_access' => true,
             'special_unit_kerja' => 'Unit Protokol',
-            'special_cost_center' => 'CC-ADM-01',
-            'special_valid_from' => today()->toDateString(),
-            'special_valid_until' => today()->addMonth()->toDateString(),
             'special_reference' => 'Surat tugas ST-001',
         ];
 
@@ -97,19 +111,19 @@ class ManualPatientRegistrationTest extends TestCase
         $this->assertSame('Siti Aminah', $patient->nama_ibu);
         $this->assertSame('004', $patient->rt);
         $this->assertNull($patient->riwayat_alergi);
-        $this->assertSame('khusus', $membership->kategori);
+        $this->assertSame('lainnya', $membership->kategori);
+        $this->assertSame('khusus', $membership->jenis_lainnya);
         $this->assertSame($admin->id, $membership->verified_by);
-        $this->assertSame('CC-ADM-01', $membership->cost_center);
-        $this->assertNull(app(HakLayananVerifier::class)->reason($membership, today()->toDateString()));
+        $this->assertNull(app(HakLayananVerifier::class)->reason($membership));
         $this->assertDatabaseCount('kunjungan', 0);
 
         $this->actingAs($admin)->put(route('kepesertaan.update', $membership), [
             'nama' => $membership->nama,
             'nik' => $membership->nik,
-            'kategori' => 'khusus',
+            'kategori' => 'lainnya',
+            'jenis_lainnya' => 'khusus',
             'status_kepegawaian' => 'nonaktif',
             'unit_kerja' => $membership->unit_kerja,
-            'cost_center' => $membership->cost_center,
             'tempat_lahir' => $membership->tempat_lahir,
             'tanggal_lahir' => $membership->tanggal_lahir->toDateString(),
             'jenis_kelamin' => $membership->jenis_kelamin,
@@ -121,12 +135,10 @@ class ManualPatientRegistrationTest extends TestCase
             'kelurahan' => $membership->kelurahan,
             'kecamatan' => $membership->kecamatan,
             'hak_layanan' => false,
-            'berlaku_mulai' => $membership->berlaku_mulai->toDateString(),
-            'berlaku_sampai' => $membership->berlaku_sampai->toDateString(),
             'referensi_bukti' => $membership->referensi_bukti,
         ])->assertSessionHasNoErrors();
 
-        $this->assertNotNull(app(HakLayananVerifier::class)->reason($membership->fresh(), today()->toDateString()));
+        $this->assertNotNull(app(HakLayananVerifier::class)->reason($membership->fresh()));
     }
 
     public function test_registration_staff_cannot_grant_special_internal_service_access(): void
@@ -157,8 +169,7 @@ class ManualPatientRegistrationTest extends TestCase
             'tanggal_lahir' => '1990-05-20', 'jenis_kelamin' => 'P', 'golongan_darah' => 'O',
             'agama' => 'Islam', 'alamat' => 'Jl. Merdeka', 'rt' => '004', 'rw' => '002',
             'kelurahan' => 'Citarum', 'kecamatan' => 'Bandung Wetan', 'unit_kerja' => 'Unit Protokol',
-            'cost_center' => 'CC-ADM-10', 'berlaku_mulai' => today()->toDateString(),
-            'berlaku_sampai' => today()->addMonth()->toDateString(), 'referensi_bukti' => 'Surat tugas ST-010',
+            'referensi_bukti' => 'Surat tugas ST-010',
             'hak_layanan' => true,
         ];
 
@@ -169,11 +180,11 @@ class ManualPatientRegistrationTest extends TestCase
 
         $patient->refresh();
         $membership = Kepesertaan::findOrFail($patient->kepesertaan_id);
-        $this->assertSame('khusus', $membership->kategori);
+        $this->assertSame('lainnya', $membership->kategori);
+        $this->assertSame('khusus', $membership->jenis_lainnya);
         $this->assertSame($admin->id, $membership->verified_by);
-        $this->assertSame('CC-ADM-10', $membership->cost_center);
         $this->assertSame('004', $patient->rt);
-        $this->assertNull(app(HakLayananVerifier::class)->reason($membership, today()->toDateString()));
+        $this->assertNull(app(HakLayananVerifier::class)->reason($membership));
         $this->assertDatabaseHas('clinical_audit_events', [
             'action' => 'patient.special_access_verified', 'patient_id' => $patient->id,
         ]);

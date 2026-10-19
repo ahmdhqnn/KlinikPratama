@@ -33,7 +33,7 @@ class DoctorExaminationFlowTest extends TestCase
         $visit = Kunjungan::create([
             'no_kunjungan' => 'KNJ-UMUM-DEF', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id,
             'dokter_id' => $doctor->id, 'tanggal' => today(), 'status' => 'pemeriksaan',
-            'jenis_pasien' => 'lama', 'jenis_bayar' => 'umum',
+            'jenis_pasien' => 'lama',
         ]);
 
         $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))
@@ -111,7 +111,6 @@ class DoctorExaminationFlowTest extends TestCase
             'tanggal' => today(),
             'status' => 'pemeriksaan',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ]);
         $otherVisit = Kunjungan::create([
             'no_kunjungan' => 'KNJ-002',
@@ -121,14 +120,12 @@ class DoctorExaminationFlowTest extends TestCase
             'tanggal' => today(),
             'status' => 'pemeriksaan',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ]);
         $obat = Obat::create([
             'kode' => 'OBT-001',
             'nama' => 'Paracetamol',
             'satuan_kecil' => 'tablet',
             'stok' => 10,
-            'harga_jual' => 1000,
             'is_active' => true,
         ]);
         $examination = Pemeriksaan::create(['kunjungan_id' => $visit->id]);
@@ -334,7 +331,6 @@ class DoctorExaminationFlowTest extends TestCase
             'tanggal' => '2026-10-09',
             'status' => 'pemeriksaan',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'internal',
         ]);
         $examination = Pemeriksaan::create(['kunjungan_id' => $visit->id, 'status' => 'draft']);
         Screening::create(['kunjungan_id' => $visit->id, 'keluhan' => 'Nyeri gigi saat mengunyah']);

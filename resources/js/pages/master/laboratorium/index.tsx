@@ -15,9 +15,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 
-interface Laboratory { id: number; code: string; name: string; clinicId: number | null; clinic: string | null; tariff: number; description: string | null; active: boolean }
+interface Laboratory { id: number; code: string; name: string; clinicId: number | null; clinic: string | null; description: string | null; active: boolean }
 interface Props { laboratories: PaginationData & { data: Laboratory[] }; filters: { search: string }; clinics: { id: number; name: string }[] }
-const emptyForm = { kode: '', nama: '', poliklinik_id: '', tarif: '0', deskripsi: '', is_active: true };
+const emptyForm = { kode: '', nama: '', poliklinik_id: '', deskripsi: '', is_active: true };
 
 export default function LaboratoryIndex({ laboratories, filters, clinics }: Props) {
     const [search, setSearch] = useState(filters.search);
@@ -26,7 +26,7 @@ export default function LaboratoryIndex({ laboratories, filters, clinics }: Prop
     const form = useForm(emptyForm);
     function filter(event: FormEvent<HTMLFormElement>) { event.preventDefault(); router.get('/master/laboratorium', { search }, { preserveState: true, preserveScroll: true, replace: true }); }
     function create() { setEditing(null); form.clearErrors(); form.setData({ ...emptyForm }); setOpen(true); }
-    function edit(item: Laboratory) { setEditing(item); form.clearErrors(); form.setData({ kode: item.code, nama: item.name, poliklinik_id: String(item.clinicId ?? ''), tarif: String(item.tariff), deskripsi: item.description ?? '', is_active: item.active }); setOpen(true); }
+    function edit(item: Laboratory) { setEditing(item); form.clearErrors(); form.setData({ kode: item.code, nama: item.name, poliklinik_id: String(item.clinicId ?? ''), deskripsi: item.description ?? '', is_active: item.active }); setOpen(true); }
     function save(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const options = { preserveScroll: true, onSuccess: () => setOpen(false) }; if (editing) { form.put(`/master/laboratorium/${editing.id}`, options); } else { form.post('/master/laboratorium', options); } }
     function remove(item: Laboratory) { confirmAction(`Hapus pemeriksaan ${item.name}?`, () => { router.delete(`/master/laboratorium/${item.id}`, { preserveScroll: true }); }, 'Hapus'); }
 

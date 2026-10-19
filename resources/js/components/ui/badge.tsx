@@ -12,7 +12,6 @@ const badgeVariants = cva(
                 screening: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200',
                 examination: 'bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-200',
                 pharmacy: 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200',
-                cashier: 'bg-pink-50 text-pink-700 ring-1 ring-inset ring-pink-200',
                 complete: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200',
                 cancelled: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200',
             },

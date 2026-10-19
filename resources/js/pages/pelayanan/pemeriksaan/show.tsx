@@ -25,7 +25,7 @@ import { optionalAnswers } from '@/lib/optional-answers';
 
 interface Option { id: number; name: string; }
 interface Diagnosis { id: number; code: string; codeSystem?: string; name: string; type: string; }
-interface Treatment { id: number; name: string; code: string | null; codeSystem: string | null; codeRelease: string | null; quantity: number; tariff: number; toothFdi: string | null; note: string | null; }
+interface Treatment { id: number; name: string; code: string | null; codeSystem: string | null; codeRelease: string | null; quantity: number; toothFdi: string | null; note: string | null; }
 interface ProcedureSuggestion { id: number; code: string; display: string; release: string; }
 interface DentalFinding { toothFdi: string; surface: string; findingCode: string; notes: string | null; }
 interface PrescriptionItem { id: number; name: string; type: string; quantity: number; unit: string | null; instructions: string | null; external: boolean; }
@@ -60,7 +60,6 @@ interface Visit {
     number: string;
     status: string;
     canClaim: boolean;
-    paymentType: string;
     doctorId: number | null;
     clinicId: number;
     clinicType: string | null;
@@ -79,7 +78,7 @@ interface Visit {
 interface Props {
     visit: Visit;
     doctors: Option[];
-    treatments: (Option & { tariff: number })[];
+    treatments: Option[];
     medicines: (Option & { stock: number; unit: string | null })[];
     clinics: Option[];
     diagnosisCodeSystems: Array<{ value: string; label: string }>;
@@ -866,10 +865,6 @@ export default function ExaminationDetail({ visit, doctors, treatments, medicine
             </Dialog>
         </>
     );
-}
-
-function formatCurrency(amount: number) {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
 }
 
 function renderPrescriptionItems(items: PrescriptionItem[], editable: boolean, onDelete: (url: string, confirmation: string) => void) {

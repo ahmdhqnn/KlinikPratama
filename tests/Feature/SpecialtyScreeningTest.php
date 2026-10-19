@@ -200,7 +200,6 @@ class SpecialtyScreeningTest extends TestCase
             'tanggal' => today(),
             'status' => 'menunggu',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ]);
     }
 }

@@ -18,8 +18,6 @@ class ObatImport implements ToModel, WithHeadingRow, WithValidation
             'satuan_besar' => $row['satuan_besar'] ?? null,
             'satuan_kecil' => $row['satuan_kecil'] ?? null,
             'konversi_satuan' => $row['konversi_satuan'] ?? 1,
-            'harga_beli' => $row['harga_beli'] ?? 0,
-            'harga_jual' => 0,
             'indikasi' => $row['indikasi'] ?? null,
             'kandungan' => $row['kandungan'] ?? null,
             'stok' => 0,

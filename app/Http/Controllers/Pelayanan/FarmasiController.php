@@ -262,7 +262,7 @@ class FarmasiController extends Controller
         }
 
         return redirect()->route('pelayanan.farmasi.index')
-            ->with('success', 'Obat telah diserahkan. Kunjungan selesai tanpa pembayaran pasien.');
+            ->with('success', 'Obat telah diserahkan dan kunjungan selesai.');
     }
 
     /**

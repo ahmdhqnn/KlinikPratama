@@ -20,7 +20,7 @@ class PatientRegistrationService
 
         $rules = [
             'nama' => ['required', 'string', 'max:255'],
-            'nik' => ['nullable', 'string', 'max:16'],
+            'nik' => ['nullable', 'digits:16'],
             'tempat_lahir' => ['nullable', 'string', 'max:100'],
             'tanggal_lahir' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
             'jenis_kelamin' => ['nullable', 'in:L,P'],
@@ -36,17 +36,11 @@ class PatientRegistrationService
             'riwayat_alergi' => ['nullable', 'string', 'max:2000'],
             'grant_special_access' => ['sometimes', 'boolean'],
             'special_unit_kerja' => ['nullable', 'string', 'max:200'],
-            'special_cost_center' => ['nullable', 'string', 'max:100'],
-            'special_valid_from' => ['nullable', 'date_format:Y-m-d'],
-            'special_valid_until' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:special_valid_from'],
             'special_reference' => ['nullable', 'string', 'max:255'],
         ];
 
         if ($allowSpecialAccess && $request->boolean('grant_special_access')) {
             $rules['special_unit_kerja'] = ['required', 'string', 'max:200'];
-            $rules['special_cost_center'] = ['required', 'string', 'max:100'];
-            $rules['special_valid_from'] = ['required', 'date_format:Y-m-d'];
-            $rules['special_valid_until'] = ['required', 'date_format:Y-m-d', 'after_or_equal:special_valid_from'];
             $rules['special_reference'] = ['required', 'string', 'max:255'];
         }
 
@@ -89,14 +83,13 @@ class PatientRegistrationService
 
                 $membership = app(KepesertaanRegistry::class)->save([
                     'nama' => $data['nama'], 'nik' => $data['nik'], 'nip' => null,
-                    'kategori' => 'khusus', 'status_kepegawaian' => 'aktif',
-                    'unit_kerja' => $data['special_unit_kerja'], 'cost_center' => $data['special_cost_center'],
+                    'kategori' => 'lainnya', 'jenis_lainnya' => 'khusus', 'status_kepegawaian' => 'aktif',
+                    'unit_kerja' => $data['special_unit_kerja'],
                     'tempat_lahir' => $data['tempat_lahir'], 'tanggal_lahir' => $data['tanggal_lahir'],
                     'jenis_kelamin' => $data['jenis_kelamin'], 'agama' => $data['agama'],
                     'golongan_darah' => $data['golongan_darah'] ?? null, 'alamat' => $data['alamat'],
                     'rt' => $data['rt'], 'rw' => $data['rw'], 'kelurahan' => $data['kelurahan'],
                     'kecamatan' => $data['kecamatan'], 'hak_layanan' => true,
-                    'berlaku_mulai' => $data['special_valid_from'], 'berlaku_sampai' => $data['special_valid_until'],
                     'referensi_bukti' => $data['special_reference'],
                 ], $actor);
             }
@@ -109,7 +102,7 @@ class PatientRegistrationService
                 'agama' => $data['agama'] ?? null, 'alamat' => $data['alamat'] ?? null, 'rt' => $data['rt'] ?? null,
                 'rw' => $data['rw'] ?? null, 'kelurahan' => $data['kelurahan'] ?? null, 'kecamatan' => $data['kecamatan'] ?? null,
                 'nama_ibu' => $data['nama_ibu'] ?? null, 'telepon' => $data['telepon'] ?? null,
-                'riwayat_alergi' => $data['riwayat_alergi'] ?? null, 'asuransi_id' => null, 'no_asuransi' => null,
+                'riwayat_alergi' => $data['riwayat_alergi'] ?? null,
             ]);
         });
     }

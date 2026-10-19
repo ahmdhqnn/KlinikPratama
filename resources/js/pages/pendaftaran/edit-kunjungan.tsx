@@ -10,13 +10,12 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
 interface Clinic { id: number; name: string }
-interface Insurance { id: number; name: string }
 interface Doctor { id: number; name: string }
-interface Visit { id: number; patient: { name: string; medicalRecordNumber: string; gender: string | null; age: number | null }; clinicId: string; doctorId: string; doctor: Doctor | null; date: string; insuranceId: string; paymentType: string; patientType: string; notes: string }
-interface Props { visit: Visit; clinics: Clinic[]; insuranceProviders: Insurance[]; day: string; doctorsUrl: string; updateUrl: string; cancelUrl: string }
+interface Visit { id: number; patient: { name: string; medicalRecordNumber: string; gender: string | null; age: number | null }; clinicId: string; doctorId: string; doctor: Doctor | null; date: string; patientType: string; notes: string }
+interface Props { visit: Visit; clinics: Clinic[]; day: string; doctorsUrl: string; updateUrl: string; cancelUrl: string }
 
-export default function EditRegistrationVisit({ visit, clinics, insuranceProviders, day, doctorsUrl, updateUrl, cancelUrl }: Props) {
-    const form = useForm({ poliklinik_id: visit.clinicId, dokter_id: visit.doctorId, asuransi_id: visit.insuranceId, jenis_bayar: visit.paymentType, catatan: visit.notes });
+export default function EditRegistrationVisit({ visit, clinics, day, doctorsUrl, updateUrl, cancelUrl }: Props) {
+    const form = useForm({ poliklinik_id: visit.clinicId, dokter_id: visit.doctorId, catatan: visit.notes });
     const [doctors, setDoctors] = useState<Doctor[]>(visit.doctor ? [visit.doctor] : []);
     const [loadingDoctors, setLoadingDoctors] = useState(false);
     const [doctorLoadError, setDoctorLoadError] = useState<string | null>(null);

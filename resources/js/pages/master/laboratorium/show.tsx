@@ -13,7 +13,7 @@ import { confirmAction } from '@/components/ui/confirm-dialog';
 interface Indicator { id: number; name: string; unit: string | null; referenceMin: string | null; referenceMax: string | null; format: string; choices: string[] }
 interface Supply { id: number; medicine: string; unit: string; quantity: number }
 interface Props {
-    laboratory: { id: number; code: string; name: string; clinic: string; tariff: number; indicators: Indicator[]; supplies: Supply[] };
+    laboratory: { id: number; code: string; name: string; clinic: string; indicators: Indicator[]; supplies: Supply[] };
     medicines: { id: number; name: string; stock: number; unit: string | null }[];
 }
 

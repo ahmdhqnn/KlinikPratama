@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
+use App\JadwalPraktikResolver;
 use App\Models\Nakes;
+use App\Models\Poliklinik;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -74,10 +76,11 @@ class NakesController extends Controller
                 ['value' => 'apotek', 'label' => 'Apoteker'],
                 ['value' => 'pendaftaran', 'label' => 'Petugas pendaftaran'],
             ],
+            'clinics' => Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama'])->map(fn (Poliklinik $clinic): array => ['id' => $clinic->id, 'name' => $clinic->nama])->values(),
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, JadwalPraktikResolver $schedule): RedirectResponse
     {
         $requiresLogin = $request->boolean('buat_akun');
         $data = $request->validate([
@@ -86,6 +89,7 @@ class NakesController extends Controller
             'jenis_kelamin' => ['nullable', 'in:L,P'],
             'kategori' => ['required', 'in:medis,non_medis'],
             'jabatan' => ['required', Rule::in(['dokter', 'perawat', 'bidan', 'farmasi', 'apotek', 'pendaftaran', 'lab', 'petugas_lab'])],
+            'poliklinik_id' => ['required_if:jabatan,dokter', 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'no_sip' => ['nullable', 'string', 'max:100'],
             'no_str' => ['nullable', 'string', 'max:100'],
             'telepon' => ['nullable', 'string', 'max:20'],
@@ -95,7 +99,7 @@ class NakesController extends Controller
             'password' => [Rule::requiredIf($requiresLogin), 'nullable', 'min:6'],
         ]);
 
-        DB::transaction(function () use ($data, $request): void {
+        DB::transaction(function () use ($data, $request, $schedule): void {
             $userId = null;
             if ($request->boolean('buat_akun')) {
                 $user = User::create([
@@ -108,7 +112,7 @@ class NakesController extends Controller
                 $userId = $user->id;
             }
 
-            Nakes::create([
+            $staffMember = Nakes::create([
                 'kode' => $data['kode'],
                 'nama' => $data['nama'],
                 'jenis_kelamin' => $data['jenis_kelamin'],
@@ -120,6 +124,9 @@ class NakesController extends Controller
                 'user_id' => $userId,
                 'is_active' => $request->boolean('is_active'),
             ]);
+            if ($staffMember->jabatan === 'dokter' && $staffMember->is_active) {
+                $schedule->applyAsnTemplate($staffMember->id, (int) $data['poliklinik_id'], today()->toDateString());
+            }
         });
 
         return back()->with('success', 'Data nakes berhasil ditambahkan.');

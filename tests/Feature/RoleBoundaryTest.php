@@ -23,7 +23,7 @@ class RoleBoundaryTest extends TestCase
 
         $this->actingAs($pharmacist)
             ->get(route('dashboard'))
-            ->assertRedirect(route('pelayanan.farmasi.index'));
+            ->assertRedirect(route('farmasi.dashboard'));
         $this->actingAs($pharmacist)
             ->get(route('master.nakes.index'))
             ->assertForbidden();

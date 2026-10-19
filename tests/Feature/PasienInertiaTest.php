@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Asuransi;
 use App\Models\Kepesertaan;
 use App\Models\Pasien;
 use App\Models\User;
@@ -14,6 +13,30 @@ class PasienInertiaTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_legacy_membership_categories_are_rendered_without_breaking_patient_directory(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $member = Kepesertaan::factory()->create(['kategori' => 'kontrak', 'jenis_lainnya' => null]);
+        Pasien::create([
+            'no_rm' => 'RM-LEGACY-001', 'nama' => $member->nama,
+            'nik' => $member->nik, 'kepesertaan_id' => $member->id,
+        ]);
+
+        $this->actingAs($admin)->get(route('pelayanan.pasien.index', ['kategori' => 'lainnya']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pelayanan/pasien/index')
+                ->where('patients.total', 1)
+                ->where('patients.data.0.membership', 'Lainnya · Staf non-ASN')
+            );
+
+        $this->get(route('kepesertaan.show', $member))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('kepesertaan/show')
+                ->where('member.kategori', 'Lainnya')
+                ->where('member.jenisLainnya', 'Staf non-ASN')
+            );
+    }
+
     public function test_patient_list_filters_are_combined_and_crud_pages_use_inertia(): void
     {
         $admin = User::create([
@@ -23,29 +46,30 @@ class PasienInertiaTest extends TestCase
             'role' => 'admin',
             'is_active' => true,
         ]);
-        $insurance = Asuransi::create(['kode' => 'BPJS-X', 'nama' => 'BPJS Kesehatan', 'jenis' => 'bpjs', 'is_active' => true]);
-        $otherInsurance = Asuransi::create(['kode' => 'ASR-X', 'nama' => 'Asuransi Lain', 'jenis' => 'perusahaan', 'is_active' => true]);
         $member = Kepesertaan::factory()->create(['nama' => 'Siti Sehat', 'nik' => '3201234567890001']);
-        $patient = Pasien::create(['no_rm' => 'RM-000001', 'nama' => 'Siti Sehat', 'asuransi_id' => $insurance->id, 'kepesertaan_id' => $member->id, 'nik' => $member->nik]);
-        Pasien::create(['no_rm' => 'RM-000002', 'nama' => 'Siti Sehat Duplikat', 'asuransi_id' => $otherInsurance->id]);
+        $patient = Pasien::create(['no_rm' => 'RM-000001', 'nama' => 'Siti Sehat', 'kepesertaan_id' => $member->id, 'nik' => $member->nik]);
+        $this->assertSame($member->id, $patient->kepesertaan->id);
+        Pasien::create(['no_rm' => 'RM-000002', 'nama' => 'Siti Sehat Duplikat']);
 
         $this->actingAs($admin)
-            ->get(route('pelayanan.pasien.index', ['search' => 'Siti Sehat', 'kategori' => 'pegawai_pusat']))
+            ->get(route('pelayanan.pasien.index', ['search' => 'Siti Sehat', 'kategori' => 'asn']))
             ->assertInertia(fn (Assert $page) => $page
                 ->component('pelayanan/pasien/index')
                 ->where('patients.total', 1)
                 ->where('patients.data.0.name', 'Siti Sehat')
-                ->where('filters.kategori', 'pegawai_pusat')
+                ->where('patients.data.0.membership', 'ASN')
+                ->where('filters.kategori', 'asn')
             );
 
         $this->get(route('pelayanan.pasien.create'))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/pasien/form')
-            ->has('insuranceProviders', 2)
+            ->missing('insuranceProviders')
         );
 
         $this->get(route('pelayanan.pasien.show', $patient))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/pasien/show')
             ->where('patient.name', 'Siti Sehat')
+            ->where('patient.membership', 'ASN')
             ->has('patient.visits', 0)
         );
 
@@ -60,7 +84,6 @@ class PasienInertiaTest extends TestCase
             'kepesertaan_id' => $member->id,
             'nama' => 'Siti Sehat Utama',
             'nik' => '3201234567890001',
-            'asuransi_id' => $insurance->id,
         ])->assertRedirect(route('pelayanan.pasien.show', $patient));
 
         $this->assertDatabaseHas('pasien', ['id' => $patient->id, 'nama' => 'Siti Sehat']);

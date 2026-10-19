@@ -161,7 +161,6 @@ class PemeriksaanController extends Controller
                 'id' => $kunjungan->id,
                 'number' => $kunjungan->no_kunjungan,
                 'status' => $kunjungan->status,
-                'paymentType' => 'internal',
                 'doctorId' => $kunjungan->dokter_id,
                 'canClaim' => auth()->user()->role === 'dokter' && $kunjungan->dokter_id === null,
                 'clinicId' => $kunjungan->poliklinik_id,
@@ -255,7 +254,6 @@ class PemeriksaanController extends Controller
                     'codeSystem' => is_array($item) ? ($item['code_system'] ?? null) : $item->code_system,
                     'codeRelease' => is_array($item) ? ($item['code_release'] ?? null) : $item->code_release,
                     'quantity' => is_array($item) ? $item['quantity'] : $item->jumlah,
-                    'tariff' => is_array($item) ? 0 : (float) $item->tarif,
                     'toothFdi' => is_array($item) ? ($item['tooth_fdi'] ?? null) : $item->tooth_fdi,
                     'note' => is_array($item) ? ($item['note'] ?? null) : $item->catatan,
                 ])->values(),
@@ -305,7 +303,6 @@ class PemeriksaanController extends Controller
             'treatments' => $tindakanList->map(fn (Tindakan $treatment) => [
                 'id' => $treatment->id,
                 'name' => $treatment->nama,
-                'tariff' => (float) $treatment->tarif,
             ]),
             'medicines' => $obatList->map(fn (Obat $medicine) => [
                 'id' => $medicine->id,
@@ -615,8 +612,6 @@ class PemeriksaanController extends Controller
                     'code_release' => $terminology?->release,
                     'dokter_id' => $kunjungan->dokter_id,
                     'jumlah' => $data['jumlah'],
-                    'tarif' => 0,
-                    'tarif_dokter' => 0,
                     'tooth_fdi' => $toothFdi,
                     'catatan' => $data['catatan'],
                 ]);

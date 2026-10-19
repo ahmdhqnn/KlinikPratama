@@ -6,11 +6,9 @@ use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
 use App\ClinicDocumentNumber;
 use App\Exports\PasienExport;
-use App\Exports\PasienTemplateExport;
 use App\HakLayananVerifier;
 use App\Http\Controllers\Controller;
 use App\KepesertaanRegistry;
-use App\Models\Asuransi;
 use App\Models\Kepesertaan;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
@@ -36,12 +34,10 @@ class PasienController extends Controller
                 ->orWhere('no_rm', 'like', "%$s%")
                 ->orWhere('nik', 'like', "%$s%")
                 ->orWhere('telepon', 'like', "%$s%")))
-            ->when($request->kategori, fn ($q, $category) => $q->whereHas('kepesertaan', fn ($members) => $members->where('kategori', $category)))
+            ->when($request->kategori, fn ($q, $category) => $q->whereHas('kepesertaan', fn ($members) => $members->whereIn('kategori', Kepesertaan::persistedCategoryKeys($category))))
             ->latest('created_at')->latest('id')
             ->paginate(20)
             ->withQueryString();
-
-        $asuransiList = Asuransi::where('is_active', true)->orderBy('nama')->get();
 
         $auditRecorder->record($request, 'patient_directory.view');
 
@@ -60,8 +56,7 @@ class PasienController extends Controller
                     'age' => $patient->umur,
                     'phone' => $patient->telepon,
                     'address' => $patient->alamat,
-                    'insurance' => $patient->kepesertaan ? Kepesertaan::CATEGORIES[$patient->kepesertaan->kategori] : 'Belum terverifikasi',
-                    'insuranceType' => 'internal',
+                    'membership' => $patient->kepesertaan?->membershipLabel() ?? 'Belum terverifikasi',
                     'canVerify' => $request->user()->role === 'admin' && ! $patient->kepesertaan_id,
                     'verificationUrl' => route('pelayanan.pasien.verify-special-access', $patient),
                     'verificationData' => $request->user()->role === 'admin' && ! $patient->kepesertaan_id ? [
@@ -90,15 +85,8 @@ class PasienController extends Controller
 
     public function create(): Response
     {
-        $asuransiList = Asuransi::where('is_active', true)->orderBy('nama')->get();
-
         return Inertia::render('pelayanan/pasien/form', [
             'today' => today()->toDateString(),
-            'insuranceProviders' => $asuransiList->map(fn (Asuransi $insurance) => [
-                'id' => $insurance->id,
-                'name' => $insurance->nama,
-                'type' => $insurance->jenis,
-            ]),
         ]);
     }
 
@@ -133,7 +121,7 @@ class PasienController extends Controller
         $data['no_rm'] = app(ClinicDocumentNumber::class)->next('pasien', 'RM-', 6, 'pasien', 'no_rm');
 
         $pasien = DB::transaction(function () use ($data): Pasien {
-            $member = app(HakLayananVerifier::class)->member((int) $data['kepesertaan_id'], today()->toDateString());
+            $member = app(HakLayananVerifier::class)->member((int) $data['kepesertaan_id']);
             if (! $member->tanggal_lahir || ! $member->jenis_kelamin) {
                 throw ValidationException::withMessages(['kepesertaan_id' => 'Lengkapi tanggal lahir dan jenis kelamin pada direktori kepesertaan sebelum pendaftaran pasien baru.']);
             }
@@ -142,7 +130,7 @@ class PasienController extends Controller
                 throw ValidationException::withMessages(['kepesertaan_id' => 'Peserta sudah memiliki data pasien. Gunakan pasien terdaftar.']);
             }
 
-            return Pasien::create([...$data, ...$this->identityFromMembership($member), 'asuransi_id' => null, 'no_asuransi' => null]);
+            return Pasien::create([...$data, ...$this->identityFromMembership($member)]);
         });
 
         return redirect()->route('pelayanan.pasien.show', $pasien)
@@ -165,9 +153,6 @@ class PasienController extends Controller
             'kelurahan' => ['required', 'string', 'max:100'],
             'kecamatan' => ['required', 'string', 'max:100'],
             'unit_kerja' => ['required', 'string', 'max:200'],
-            'cost_center' => ['required', 'string', 'max:100'],
-            'berlaku_mulai' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
-            'berlaku_sampai' => ['required', 'date_format:Y-m-d', 'after_or_equal:berlaku_mulai'],
             'referensi_bukti' => ['required', 'string', 'max:255'],
             'hak_layanan' => ['required', 'accepted'],
         ]);
@@ -190,7 +175,8 @@ class PasienController extends Controller
             $membership = $registry->save([
                 ...$data,
                 'nip' => null,
-                'kategori' => 'khusus',
+                'kategori' => 'lainnya',
+                'jenis_lainnya' => 'khusus',
                 'status_kepegawaian' => 'aktif',
                 'hak_layanan' => true,
                 'pegawai_penanggung_id' => null,
@@ -214,21 +200,19 @@ class PasienController extends Controller
             $auditRecorder->record($request, 'patient.special_access_verified', $patient->id, metadata: [
                 'membership_id' => $membership->id,
                 'reference' => $membership->referensi_bukti,
-                'valid_from' => $membership->berlaku_mulai->toDateString(),
-                'valid_until' => $membership->berlaku_sampai?->toDateString(),
             ]);
         });
 
-        return back()->with('success', 'Hak layanan khusus pasien berhasil diverifikasi dan diaktifkan sesuai masa berlaku.');
+        return back()->with('success', 'Hak layanan khusus pasien berhasil diverifikasi dan diaktifkan.');
     }
 
     public function show(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder): Response
     {
         $this->authorizeDoctorPatient($pasien);
         $auditRecorder->record($request, 'patient_profile.view', $pasien->id);
-        $pasien->load(['asuransi', 'kepesertaan', 'kunjungan' => fn ($q) => $q
+        $pasien->load(['kepesertaan', 'kunjungan' => fn ($q) => $q
             ->when(auth()->user()->role === 'dokter', fn ($visits) => $visits->where('dokter_id', auth()->user()->nakes?->id ?? 0))
-            ->with(['poliklinik', 'dokter', 'tagihan'])->latest()->limit(20)]);
+            ->with(['poliklinik', 'dokter'])->latest()->limit(20)]);
 
         return Inertia::render('pelayanan/pasien/show', [
             'permissions' => [
@@ -255,9 +239,7 @@ class PasienController extends Controller
                 'memberNip' => $pasien->kepesertaan?->nip,
                 'phone' => $pasien->telepon,
                 'address' => $pasien->kepesertaan?->alamat ?? $pasien->alamat,
-                'insurance' => $pasien->kepesertaan ? Kepesertaan::CATEGORIES[$pasien->kepesertaan->kategori] : 'Belum terverifikasi',
-                'insuranceType' => $pasien->asuransi?->jenis,
-                'insuranceNumber' => null,
+                'membership' => $pasien->kepesertaan?->membershipLabel() ?? 'Belum terverifikasi',
                 'allergies' => in_array(auth()->user()->role, ['dokter', 'perawat'], true)
                     ? ($pasien->riwayat_alergi ?: 'Belum dicatat')
                     : null,
@@ -271,7 +253,6 @@ class PasienController extends Controller
                     'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
                     'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'status' => $visit->status,
-                    'billId' => null,
                 ]),
             ],
         ]);
@@ -280,7 +261,6 @@ class PasienController extends Controller
     public function edit(Pasien $pasien): Response
     {
         $pasien->load('kepesertaan');
-        $asuransiList = Asuransi::where('is_active', true)->orderBy('nama')->get();
 
         return Inertia::render('pelayanan/pasien/form', [
             'patient' => [
@@ -300,17 +280,10 @@ class PasienController extends Controller
                 'memberNip' => $pasien->kepesertaan?->nip,
                 'phone' => $pasien->telepon,
                 'address' => $pasien->kepesertaan?->alamat ?? $pasien->alamat,
-                'insuranceId' => null,
                 'membershipId' => $pasien->kepesertaan_id,
-                'insuranceNumber' => null,
                 'allergyHistory' => $pasien->riwayat_alergi,
             ],
             'today' => today()->toDateString(),
-            'insuranceProviders' => $asuransiList->map(fn (Asuransi $insurance) => [
-                'id' => $insurance->id,
-                'name' => $insurance->nama,
-                'type' => $insurance->jenis,
-            ]),
         ]);
     }
 
@@ -339,7 +312,7 @@ class PasienController extends Controller
             if (! $member->tanggal_lahir || ! $member->jenis_kelamin) {
                 throw ValidationException::withMessages(['kepesertaan_id' => 'Lengkapi tanggal lahir dan jenis kelamin pada direktori kepesertaan sebelum memperbarui data pasien.']);
             }
-            $patient->update([...$data, ...$this->identityFromMembership($member), 'asuransi_id' => null, 'no_asuransi' => null]);
+            $patient->update([...$data, ...$this->identityFromMembership($member)]);
         });
 
         return redirect()->route('pelayanan.pasien.show', $pasien)->with('success', 'Data pasien berhasil diperbarui.');
@@ -627,15 +600,5 @@ class PasienController extends Controller
         $auditRecorder->record($request, 'patient_directory.export');
 
         return Excel::download(new PasienExport, 'data-pasien-'.date('Y-m-d').'.xlsx');
-    }
-
-    public function import(Request $request): RedirectResponse
-    {
-        throw ValidationException::withMessages(['file' => 'Impor sumber kepegawaian melalui menu Kepesertaan, lalu daftarkan peserta terverifikasi sebagai pasien.']);
-    }
-
-    public function template(): BinaryFileResponse
-    {
-        return Excel::download(new PasienTemplateExport, 'template-import-pasien.xlsx');
     }
 }

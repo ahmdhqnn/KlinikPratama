@@ -12,12 +12,10 @@ class TindakanKunjungan extends Model
     protected $fillable = [
         'kunjungan_id', 'tindakan_id', 'nama_tindakan_manual', 'dokter_id',
         'nama_tindakan', 'kode_icd9cm', 'code_system', 'code_release',
-        'jumlah', 'tarif', 'tarif_dokter', 'tooth_fdi', 'catatan', 'bhp_consumed_at',
+        'jumlah', 'tooth_fdi', 'catatan', 'bhp_consumed_at',
     ];
 
     protected $casts = [
-        'tarif' => 'decimal:2',
-        'tarif_dokter' => 'decimal:2',
     ];
 
     public function kunjungan(): BelongsTo

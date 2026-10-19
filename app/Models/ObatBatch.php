@@ -13,9 +13,9 @@ class ObatBatch extends Model
 
     protected $table = 'obat_batch';
 
-    protected $fillable = ['obat_id', 'depo_id', 'nomor_batch', 'expired_at', 'stok', 'harga_beli', 'status', 'sumber', 'referensi'];
+    protected $fillable = ['obat_id', 'depo_id', 'nomor_batch', 'expired_at', 'stok', 'status', 'sumber', 'referensi'];
 
-    protected $casts = ['expired_at' => 'date', 'stok' => 'decimal:2', 'harga_beli' => 'decimal:2'];
+    protected $casts = ['expired_at' => 'date', 'stok' => 'decimal:2'];
 
     public function obat(): BelongsTo
     {

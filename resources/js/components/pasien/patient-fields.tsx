@@ -19,20 +19,11 @@ export interface PatientFormData {
     kecamatan: string;
     telepon: string;
     alamat: string;
-    asuransi_id: string;
-    no_asuransi: string;
-}
-
-interface InsuranceProvider {
-    id: number;
-    name: string;
-    type: string;
 }
 
 interface Props {
     data: PatientFormData;
     errors: Partial<Record<keyof PatientFormData, string>>;
-    insuranceProviders: InsuranceProvider[];
     onChange: (field: keyof PatientFormData, value: string) => void;
     showPhone?: boolean;
 }
@@ -43,6 +34,7 @@ export function PatientFields({ data, errors, onChange, showPhone = true }: Prop
             <MembershipIdentityFields
                 value={data.kepesertaan_id}
                 error={errors.kepesertaan_id}
+                onClear={() => onChange('kepesertaan_id', '')}
                 identity={{
                     name: data.nama, nik: data.nik || null, nip: data.nip || null, unit: data.unit_kerja,
                     tempatLahir: data.tempat_lahir || null, tanggalLahir: data.tanggal_lahir || null,

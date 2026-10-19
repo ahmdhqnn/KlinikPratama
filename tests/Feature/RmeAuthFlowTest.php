@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Nakes;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -42,6 +43,24 @@ class RmeAuthFlowTest extends TestCase
 
         $response->assertRedirect('/');
         $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_doctor_login_opens_dashboard_with_practice_calendar(): void
+    {
+        $user = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        Nakes::create([
+            'kode' => 'DOK-LOGIN', 'nama' => 'dr. Login Uji', 'kategori' => 'medis',
+            'jabatan' => 'dokter', 'user_id' => $user->id, 'is_active' => true,
+        ]);
+
+        $this->post('/login', ['email' => $user->email, 'password' => 'password'])
+            ->assertRedirect(route('dokter.dashboard'));
+
+        $this->get(route('dokter.dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('dokter/dashboard')
+                ->has('schedule')
+            );
     }
 
     public function test_authenticated_admin_can_view_dashboard(): void

@@ -28,21 +28,21 @@ class FarmasiInertiaTest extends TestCase
         $processingPatient = Pasien::create(['no_rm' => 'RM-DASH-FAR-2', 'nama' => 'Pasien Diproses']);
         $waitingVisit = Kunjungan::create([
             'no_kunjungan' => 'KNJ-DASH-FAR-1', 'pasien_id' => $waitingPatient->id, 'poliklinik_id' => $clinic->id,
-            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama', 'jenis_bayar' => 'umum',
+            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama',
         ]);
         $processingVisit = Kunjungan::create([
             'no_kunjungan' => 'KNJ-DASH-FAR-2', 'pasien_id' => $processingPatient->id, 'poliklinik_id' => $clinic->id,
-            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama', 'jenis_bayar' => 'umum',
+            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama',
         ]);
         Farmasi::create(['kunjungan_id' => $processingVisit->id, 'status' => 'diproses']);
         $lowStockMedicine = Obat::create([
             'kode' => 'OBT-DASH-LOW', 'nama' => 'Obat stok rendah', 'satuan_kecil' => 'tablet', 'stok' => 8,
-            'stok_minimum' => 10, 'harga_jual' => 1000, 'jenis' => 'obat', 'is_active' => true,
+            'stok_minimum' => 10, 'jenis' => 'obat', 'is_active' => true,
         ]);
         ObatBatch::factory()->create(['obat_id' => $lowStockMedicine->id, 'status' => 'karantina', 'stok' => 8]);
         $availableMedicine = Obat::create([
             'kode' => 'OBT-DASH-OK', 'nama' => 'Obat stok cukup', 'satuan_kecil' => 'tablet', 'stok' => 10,
-            'stok_minimum' => 5, 'harga_jual' => 1000, 'jenis' => 'obat', 'is_active' => true,
+            'stok_minimum' => 5, 'jenis' => 'obat', 'is_active' => true,
         ]);
         ObatBatch::factory()->create(['obat_id' => $availableMedicine->id, 'stok' => 10]);
 
@@ -81,14 +81,12 @@ class FarmasiInertiaTest extends TestCase
             'tanggal' => today(),
             'status' => 'farmasi',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ]);
         $medicine = Obat::create([
             'kode' => 'OBT-001',
             'nama' => 'Paracetamol',
             'satuan_kecil' => 'tablet',
             'stok' => 8,
-            'harga_jual' => 1000,
             'is_active' => true,
         ]);
         ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => $medicine->stok]);
@@ -219,12 +217,12 @@ class FarmasiInertiaTest extends TestCase
         ]);
         $visit = Kunjungan::create([
             'no_kunjungan' => 'KNJ-DIRECT-FAR', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id,
-            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama', 'jenis_bayar' => 'umum',
+            'tanggal' => today(), 'status' => 'farmasi', 'jenis_pasien' => 'lama',
         ]);
         Screening::create(['kunjungan_id' => $visit->id, 'riwayat_alergi' => 'Alergi udang']);
         $medicine = Obat::create([
             'kode' => 'OBT-DIRECT-FAR', 'nama' => 'Obat Dispensing Langsung', 'satuan_kecil' => 'tablet',
-            'stok' => 5, 'harga_jual' => 1000, 'jenis' => 'obat', 'is_active' => true,
+            'stok' => 5, 'jenis' => 'obat', 'is_active' => true,
         ]);
         ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 5]);
         $prescription = Resep::create([
@@ -298,7 +296,6 @@ class FarmasiInertiaTest extends TestCase
             'nama' => 'Obat Uji',
             'satuan_kecil' => 'tablet',
             'stok' => 10,
-            'harga_jual' => 1000,
             'is_active' => true,
         ]);
         ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => $medicine->stok]);

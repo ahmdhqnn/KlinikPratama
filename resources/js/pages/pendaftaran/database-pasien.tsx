@@ -18,7 +18,7 @@ interface Patient {
     birthDate: string;
     age: number | null;
     phone: string | null;
-    insurance: string;
+    membership: string;
     registeredAt: string;
 }
 
@@ -69,7 +69,7 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[980px]">
-                                <TableHeader><tr><TableHead>No. RM</TableHead><TableHead>Nama</TableHead><TableHead>JK</TableHead><TableHead>Tanggal lahir</TableHead><TableHead>Telepon</TableHead><TableHead>Asuransi</TableHead><TableHead>Terdaftar</TableHead></tr></TableHeader>
+                                <TableHeader><tr><TableHead>No. RM</TableHead><TableHead>Nama</TableHead><TableHead>JK</TableHead><TableHead>Tanggal lahir</TableHead><TableHead>Telepon</TableHead><TableHead>Kepesertaan</TableHead><TableHead>Terdaftar</TableHead></tr></TableHeader>
                                 <TableBody>
                                     {patients.data.length > 0 ? patients.data.map((patient) => (
                                         <TableRow key={patient.id}>
@@ -78,7 +78,7 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                                             <TableCell className="text-neutral-600">{patient.gender === 'L' ? 'Laki-laki' : patient.gender === 'P' ? 'Perempuan' : 'Belum diisi'}</TableCell>
                                             <TableCell className="whitespace-nowrap text-neutral-600">{patient.birthDate}{patient.age !== null && <span className="ml-1 text-xs text-neutral-400">({patient.age} th)</span>}</TableCell>
                                             <TableCell className="text-neutral-600">{patient.phone || 'Belum diisi'}</TableCell>
-                                            <TableCell className="text-neutral-600">{patient.insurance}</TableCell>
+                                            <TableCell className="text-neutral-600">{patient.membership}</TableCell>
                                             <TableCell className="whitespace-nowrap text-neutral-500">{patient.registeredAt}</TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada data pasien yang cocok." /></TableCell></TableRow>}

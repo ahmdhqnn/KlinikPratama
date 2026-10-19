@@ -19,6 +19,7 @@ class KunjunganInertiaTest extends TestCase
 
     public function test_visit_list_form_detail_and_queue_use_inertia(): void
     {
+        $this->travelTo('2026-10-16 09:00:00');
         $admin = User::create([
             'name' => 'Administrator',
             'email' => 'admin-visit@klinik.test',
@@ -27,6 +28,8 @@ class KunjunganInertiaTest extends TestCase
             'is_active' => true,
         ]);
         $clinic = Poliklinik::create(['kode' => 'UMUM', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $doctor = Nakes::create(['kode' => 'DR-UJI', 'nama' => 'Dokter Uji', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
+        JadwalDokter::create(['dokter_id' => $doctor->id, 'poliklinik_id' => $clinic->id, 'hari' => 'jumat', 'berlaku_mulai' => '2026-10-16', 'jam_mulai' => '08:00', 'jam_selesai' => '16:00', 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-000001', 'nama' => 'Pasien Uji']);
         $member = Kepesertaan::factory()->create(['nama' => $patient->nama]);
         $patient->update(['kepesertaan_id' => $member->id, 'nik' => $member->nik]);
@@ -37,7 +40,6 @@ class KunjunganInertiaTest extends TestCase
             'tanggal' => today(),
             'status' => 'menunggu',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ]);
 
         $this->actingAs($admin)->get(route('pelayanan.kunjungan.index'))->assertInertia(fn (Assert $page) => $page
@@ -73,10 +75,9 @@ class KunjunganInertiaTest extends TestCase
             'poliklinik_id' => $clinic->id,
             'tanggal' => today()->toDateString(),
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'internal',
         ])->assertRedirect(route('pelayanan.kunjungan.show', $visit));
 
-        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'jenis_bayar' => 'internal']);
+        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'jenis_pasien' => 'lama']);
 
         $visit->update(['status' => 'selesai']);
 
@@ -88,12 +89,11 @@ class KunjunganInertiaTest extends TestCase
             'poliklinik_id' => $clinic->id,
             'tanggal' => today()->toDateString(),
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ])->assertUnprocessable();
         $this->post(route('pelayanan.kunjungan.batal', $visit))->assertUnprocessable();
         $this->delete(route('pelayanan.kunjungan.destroy', $visit))->assertUnprocessable();
 
-        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'selesai', 'jenis_bayar' => 'internal']);
+        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'selesai']);
     }
 
     public function test_visit_form_lists_only_clinic_doctors_scheduled_for_the_selected_date_and_server_rejects_others(): void

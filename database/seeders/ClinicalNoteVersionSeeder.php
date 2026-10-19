@@ -42,7 +42,6 @@ class ClinicalNoteVersionSeeder extends Seeder
                     'tanggal' => today(),
                     'status' => 'pemeriksaan',
                     'jenis_pasien' => 'baru',
-                    'jenis_bayar' => 'umum',
                 ]
             );
             $examination = Pemeriksaan::firstOrCreate(

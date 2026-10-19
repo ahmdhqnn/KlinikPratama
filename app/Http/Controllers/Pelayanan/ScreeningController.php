@@ -64,7 +64,7 @@ class ScreeningController extends Controller
     {
         abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Skrining tidak dapat diubah setelah pelayanan dimulai.');
 
-        $kunjungan->load(['pasien.asuransi', 'poliklinik', 'dokter', 'screening']);
+        $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'screening']);
         abort_unless(in_array($kunjungan->poliklinik?->jenis, ['umum', 'gigi'], true), 404);
         $auditRecorder->record($request, 'screening.view', $kunjungan->pasien_id, $kunjungan->id);
         $petugasList = Nakes::whereIn('jabatan', ['perawat', 'bidan'])->where('is_active', true)->orderBy('nama')->get();

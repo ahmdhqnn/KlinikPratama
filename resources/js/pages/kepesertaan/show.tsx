@@ -5,12 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 
 interface Member {
-    id: number; nama: string; nik: string | null; nip: string | null; kategori: string; status: string;
-    unitKerja: string; costCenter: string; tempatLahir: string | null; tanggalLahir: string | null;
+    id: number; nama: string; nik: string | null; nip: string | null; kategori: string; jenisLainnya: string | null; status: string;
+    unitKerja: string; tempatLahir: string | null; tanggalLahir: string | null;
     jenisKelamin: string; agama: string | null; golonganDarah: string | null; alamat: string | null;
     rt: string | null; rw: string | null; kelurahan: string | null; kecamatan: string | null;
     penanggung: string | null; hubunganKeluarga: string | null; hakLayanan: boolean;
-    berlakuMulai: string | null; berlakuSampai: string | null; referensiBukti: string; verifiedAt: string | null;
+    referensiBukti: string; verifiedAt: string | null;
 }
 
 export default function MembershipDetail({ member, urls }: { member: Member; urls: { index: string } }) {
@@ -25,10 +25,9 @@ export default function MembershipDetail({ member, urls }: { member: Member; url
             ['Kelurahan/desa', member.kelurahan], ['Kecamatan', member.kecamatan],
         ] },
         { title: 'Kepegawaian dan hak layanan', entries: [
-            ['Kategori peserta', member.kategori], ['Status kepegawaian', member.status], ['Unit kerja', member.unitKerja],
-            ['Cost center', member.costCenter], ['Pegawai penanggung', member.penanggung], ['Hubungan keluarga', member.hubunganKeluarga],
-            ['Hak layanan', member.hakLayanan ? 'Berhak' : 'Tidak berhak'], ['Masa berlaku mulai', member.berlakuMulai],
-            ['Masa berlaku sampai', member.berlakuSampai ?? 'Tanpa batas akhir'], ['Referensi bukti', member.referensiBukti],
+            ['Kategori peserta', member.kategori], ['Jenis lainnya', member.jenisLainnya], ['Status', member.status], ['Unit kerja', member.unitKerja],
+            ['ASN terkait keluarga', member.penanggung], ['Hubungan keluarga', member.hubunganKeluarga],
+            ['Hak layanan', member.hakLayanan ? 'Berhak' : 'Tidak berhak'], ['Referensi bukti', member.referensiBukti],
             ['Diverifikasi pada', member.verifiedAt],
         ] },
     ];
@@ -42,7 +41,7 @@ export default function MembershipDetail({ member, urls }: { member: Member; url
                     <Button asChild variant="secondary"><Link href={urls.index}><ArrowLeft className="size-4" />Kembali ke daftar</Link></Button>
                 </div>
                 <Card>
-                    <CardHeader><div className="flex items-start justify-between gap-4"><div><CardTitle>{member.nama}</CardTitle><CardDescription className="mt-1">{member.unitKerja} · {member.costCenter}</CardDescription></div><Badge variant={member.hakLayanan ? 'complete' : 'cancelled'}><ShieldCheck className="size-3.5" />{member.hakLayanan ? 'Hak layanan tersedia' : 'Hak layanan tidak aktif'}</Badge></div></CardHeader>
+                    <CardHeader><div className="flex items-start justify-between gap-4"><div><CardTitle>{member.nama}</CardTitle><CardDescription className="mt-1">{member.unitKerja} · {member.kategori}{member.jenisLainnya ? ` / ${member.jenisLainnya}` : ''}</CardDescription></div><Badge variant={member.hakLayanan ? 'complete' : 'cancelled'}><ShieldCheck className="size-3.5" />{member.hakLayanan ? 'Hak layanan tersedia' : 'Hak layanan tidak aktif'}</Badge></div></CardHeader>
                     <CardContent className="space-y-7">
                         {groups.map((group) => <section className="space-y-3" key={group.title}><h3 className="text-sm font-semibold text-neutral-950">{group.title}</h3><dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">{group.entries.map(([label, value]) => <div className="min-w-0" key={label}><dt className="text-xs font-medium uppercase tracking-wide text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm text-neutral-900">{value || 'Belum diisi'}</dd></div>)}</dl></section>)}
                     </CardContent>

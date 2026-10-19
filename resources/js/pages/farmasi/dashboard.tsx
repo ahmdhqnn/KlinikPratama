@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { Boxes, CheckCircle2, ClipboardList, PackageSearch, Pill, ShoppingBag, Timer } from 'lucide-react';
+import { Boxes, CheckCircle2, ClipboardList, PackageSearch, Pill, Timer } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { VisitTable, type DashboardVisit } from '@/components/dashboard/visit-table';
@@ -32,12 +32,11 @@ export default function PharmacyDashboard({ stats, recentVisits }: Props) {
                 <Card>
                     <CardHeader>
                         <CardTitle>Akses cepat</CardTitle>
-                        <CardDescription>Buka antrean resep, kartu persediaan, dan proses pengadaan.</CardDescription>
+                        <CardDescription>Buka antrean resep dan pantau persediaan obat per batch.</CardDescription>
                     </CardHeader>
-                    <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <CardContent className="grid gap-3 sm:grid-cols-2">
                         <QuickLink href="/pelayanan/farmasi" icon={<Pill className="size-4" />} label="Antrean farmasi" />
                         <QuickLink href="/stok/persediaan" icon={<Boxes className="size-4" />} label="Persediaan & batch" />
-                        <QuickLink href="/stok/purchase-order" icon={<ShoppingBag className="size-4" />} label="Pengadaan" />
                     </CardContent>
                 </Card>
 

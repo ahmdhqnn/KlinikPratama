@@ -33,7 +33,7 @@ class KunjunganExport implements FromQuery, WithHeadings, WithMapping, WithStyle
     {
         return [
             'No. Kunjungan', 'Tanggal', 'No. RM', 'Nama Pasien', 'Poliklinik',
-            'Dokter', 'Kategori Peserta', 'Unit Kerja', 'Cost Center', 'Status', 'Verifikasi Hak Layanan',
+            'Dokter', 'Kategori Peserta', 'Unit Kerja', 'Status', 'Verifikasi Hak Layanan',
         ];
     }
 
@@ -48,7 +48,6 @@ class KunjunganExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             $kunjungan->dokter?->nama ?? '-',
             $kunjungan->kategori_peserta ?? 'Historis',
             $kunjungan->unit_kerja,
-            $kunjungan->cost_center,
             ucfirst($kunjungan->status),
             $kunjungan->verified_at?->format('d/m/Y H:i'),
         ]);

@@ -65,7 +65,6 @@ class RegistrationRoleTest extends TestCase
             'tanggal' => today(),
             'status' => 'menunggu',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ]);
 
         $this->actingAs($user)->get(route('pendaftaran.edit-kunjungan', $visit))
@@ -141,7 +140,6 @@ class RegistrationRoleTest extends TestCase
             'tanggal' => today(),
             'status' => 'menunggu',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ]);
 
         $this->actingAs($user)->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
@@ -237,6 +235,7 @@ class RegistrationRoleTest extends TestCase
 
     public function test_new_patient_registration_saves_identity_and_creates_a_new_visit(): void
     {
+        $this->travelTo('2026-10-16 09:00:00');
         $user = User::create([
             'name' => 'Petugas Pendaftaran',
             'email' => 'pendaftaran@klinik.test',
@@ -250,6 +249,8 @@ class RegistrationRoleTest extends TestCase
             'jenis' => 'umum',
             'is_active' => true,
         ]);
+        $doctor = Nakes::create(['kode' => 'DR-REG', 'nama' => 'Dokter Pendaftaran', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
+        JadwalDokter::create(['dokter_id' => $doctor->id, 'poliklinik_id' => $poliklinik->id, 'hari' => 'jumat', 'berlaku_mulai' => '2026-10-16', 'jam_mulai' => '08:00', 'jam_selesai' => '16:00', 'is_active' => true]);
 
         $member = Kepesertaan::factory()->create([
             'nama' => 'Siti Pasien', 'nik' => '3201234567890001', 'tempat_lahir' => 'Bandung',
@@ -265,7 +266,6 @@ class RegistrationRoleTest extends TestCase
             'nama_ibu' => 'Ibu Siti',
             'telepon' => '081234567890',
             'poliklinik_id' => $poliklinik->id,
-            'jenis_bayar' => 'umum',
         ]);
 
         $pasien = Pasien::firstOrFail();
@@ -281,7 +281,6 @@ class RegistrationRoleTest extends TestCase
             'pasien_id' => $pasien->id,
             'poliklinik_id' => $poliklinik->id,
             'jenis_pasien' => 'baru',
-            'jenis_bayar' => 'internal',
             'status' => 'menunggu',
         ]);
         $kunjungan = Kunjungan::where('pasien_id', $pasien->id)->firstOrFail();
@@ -336,12 +335,12 @@ class RegistrationRoleTest extends TestCase
         $this->get(route('pendaftaran.pendaftaran-lama'))->assertInertia(fn (Assert $page) => $page
             ->component('pendaftaran/pendaftaran-lama')
             ->has('clinics')
-            ->has('insuranceProviders')
+            ->missing('insuranceProviders')
         );
         $this->get(route('pendaftaran.pendaftaran-baru'))->assertInertia(fn (Assert $page) => $page
             ->component('pendaftaran/pendaftaran-baru')
             ->has('clinics')
-            ->has('insuranceProviders')
+            ->missing('insuranceProviders')
             ->where('today', today()->toDateString())
         );
         $this->get(route('pendaftaran.database-pasien'))->assertInertia(fn (Assert $page) => $page
@@ -358,6 +357,50 @@ class RegistrationRoleTest extends TestCase
             ->has('days', 7)
             ->has('schedules', 0)
         );
+    }
+
+    public function test_admin_can_access_the_same_registration_pages_and_enhanced_patient_directory(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $this->actingAs($admin)->get(route('pendaftaran.dashboard'))->assertOk();
+        $this->get(route('pendaftaran.pendaftaran-baru'))->assertOk();
+        $this->get(route('pendaftaran.pendaftaran-lama'))->assertOk();
+        $this->get(route('pelayanan.pasien.index'))->assertOk();
+        $this->get(route('kepesertaan.index'))->assertOk();
+    }
+
+    public function test_clinic_visit_monitoring_shows_today_and_latest_visits_from_previous_dates(): void
+    {
+        $this->travelTo('2026-10-19 09:00:00');
+        $user = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
+        $clinic = Poliklinik::create([
+            'kode' => 'RECENT-UMUM',
+            'nama' => 'Poli Umum',
+            'jenis' => 'umum',
+            'is_active' => true,
+        ]);
+        $patientToday = Pasien::create(['no_rm' => 'RM-RECENT-01', 'nama' => 'Pasien Hari Ini']);
+        $patientPrevious = Pasien::create(['no_rm' => 'RM-RECENT-02', 'nama' => 'Pasien Sebelumnya']);
+
+        Kunjungan::create([
+            'no_kunjungan' => 'KNJ-RECENT-01', 'pasien_id' => $patientToday->id, 'poliklinik_id' => $clinic->id,
+            'tanggal' => '2026-10-19', 'status' => 'menunggu', 'jenis_pasien' => 'lama',
+        ]);
+        Kunjungan::create([
+            'no_kunjungan' => 'KNJ-RECENT-02', 'pasien_id' => $patientPrevious->id, 'poliklinik_id' => $clinic->id,
+            'tanggal' => '2026-10-18', 'status' => 'selesai', 'jenis_pasien' => 'lama',
+        ]);
+
+        $this->actingAs($user)->get(route('pendaftaran.kunjungan-per-poli', ['poliklinik_id' => $clinic->id]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pendaftaran/kunjungan-per-poli')
+                ->has('visits', 1)
+                ->where('visits.0.patient', 'Pasien Hari Ini')
+                ->has('recentVisits', 2)
+                ->where('recentVisits.0.patient', 'Pasien Hari Ini')
+                ->where('recentVisits.1.patient', 'Pasien Sebelumnya')
+                ->where('recentVisits.1.date', '18/10/2026')
+            );
     }
 
     public function test_nurse_monitoring_pages_do_not_offer_registration_only_actions(): void
@@ -377,7 +420,6 @@ class RegistrationRoleTest extends TestCase
             'tanggal' => today(),
             'status' => 'menunggu',
             'jenis_pasien' => 'lama',
-            'jenis_bayar' => 'umum',
         ]);
         $doctor = Nakes::create(['kode' => 'MON-DR', 'nama' => 'Dokter Pantau', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
         $schedule = JadwalDokter::create([
@@ -447,7 +489,6 @@ class RegistrationRoleTest extends TestCase
         $response = $this->actingAs($user)->post(route('pendaftaran.store-pasien-lama'), [
             'pasien_id' => $pasien->id,
             'poliklinik_id' => $poliklinik->id,
-            'jenis_bayar' => 'umum',
         ]);
 
         $response->assertRedirect(route('pendaftaran.laporan-kunjungan'));
@@ -460,6 +501,7 @@ class RegistrationRoleTest extends TestCase
 
     public function test_future_practice_schedules_keep_their_validity_period_and_reject_overlaps(): void
     {
+        $this->travelTo('2026-10-16 09:00:00');
         $registrationUser = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
         $clinic = Poliklinik::create(['kode' => 'UMUM', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
         $doctor = Nakes::create(['kode' => 'DR-10', 'nama' => 'Dokter Jadwal', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);

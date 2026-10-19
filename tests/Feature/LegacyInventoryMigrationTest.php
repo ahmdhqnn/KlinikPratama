@@ -19,10 +19,12 @@ class LegacyInventoryMigrationTest extends TestCase
     public function test_upgrade_restores_only_unfinished_reservations_and_quarantines_unknown_batches(): void
     {
         $this->freezeTime();
+        $cleanupMigration = require database_path('migrations/2026_10_16_075052_remove_retired_billing_procurement_and_price_schema.php');
+        $cleanupMigration->down();
         $migration = require database_path('migrations/2026_10_08_152825_add_batch_inventory_traceability.php');
         $migration->down();
 
-        $medicine = Obat::create(['kode' => 'LEGACY-TEST', 'nama' => 'Saldo lama', 'stok' => 6, 'harga_beli' => 125]);
+        $medicine = Obat::create(['kode' => 'LEGACY-TEST', 'nama' => 'Saldo lama', 'stok' => 6]);
         $patient = Pasien::create(['no_rm' => 'RM-LEGACY', 'nama' => 'Pasien historis']);
         $clinic = Poliklinik::create(['kode' => 'LEGACY', 'nama' => 'Poli Umum', 'jenis' => 'umum']);
         $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-LEGACY', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => 'farmasi']);
@@ -31,7 +33,7 @@ class LegacyInventoryMigrationTest extends TestCase
         $external = ResepObat::create(['resep_id' => $pending->id, 'nama_obat' => 'Resep luar', 'jumlah' => 3, 'is_resep_luar' => true, 'stok_dikurangi' => true]);
         $completed = Resep::create(['no_resep' => 'RSP-COMPLETED', 'kunjungan_id' => $visit->id, 'status' => 'selesai']);
         $dispensed = ResepObat::create(['resep_id' => $completed->id, 'obat_id' => $medicine->id, 'nama_obat' => $medicine->nama, 'jumlah' => 2, 'stok_dikurangi' => true]);
-        $historical = StokMutasi::create(['obat_id' => $medicine->id, 'jenis' => 'keluar', 'referensi_type' => 'Farmasi', 'referensi_id' => 1, 'jumlah' => 2, 'harga' => 125, 'stok_sebelum' => 8, 'stok_sesudah' => 6, 'keterangan' => 'Catatan penyerahan historis']);
+        $historical = StokMutasi::create(['obat_id' => $medicine->id, 'jenis' => 'keluar', 'referensi_type' => 'Farmasi', 'referensi_id' => 1, 'jumlah' => 2, 'stok_sebelum' => 8, 'stok_sesudah' => 6, 'keterangan' => 'Catatan penyerahan historis']);
 
         $migration->up();
 
