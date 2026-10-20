@@ -1,3 +1,4 @@
+import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, Search, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -53,10 +54,10 @@ export default function ClinicalTerminologyShow({ catalog, codes, search: initia
                     <CardHeader className="border-b border-neutral-100">
                         <CardTitle>Daftar kode</CardTitle>
                         <CardDescription>Kode dan uraian asli dari sistem terminologi terpilih.</CardDescription>
-                        <form className="grid gap-3 pt-3 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={applySearch}>
+                        <FilterPanel><form className="grid gap-3  sm:grid-cols-2 lg:grid-cols-4" onSubmit={applySearch}>
                             <Input aria-label="Cari kode atau uraian" onChange={(event) => setSearch(event.target.value)} placeholder="Cari kode atau uraian…" value={search} />
                             <Button type="submit"><Search className="size-4" />Cari</Button>
-                        </form>
+                        </form></FilterPanel>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">

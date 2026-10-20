@@ -1,3 +1,4 @@
+import { DatePicker } from '@/components/ui/date-picker';
 import { useEffect, useRef, useState } from 'react';
 import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
@@ -6,15 +7,18 @@ import { Textarea } from '@/components/ui/textarea';
 interface Option {
     id: number;
     name: string;
+    type?: string;
 }
 
 export interface VisitFormValues {
+    tanggal: string;
     poliklinik_id: string;
     dokter_id: string;
     catatan: string;
 }
 
 interface Props {
+    existingVisit?: { clinicId: string; date: string };
     clinics: Option[];
     today: string;
     doctorsUrl: string;
@@ -30,7 +34,13 @@ interface ScheduledDoctor {
     poliklinik_nama: string;
 }
 
-export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChange }: Props) {
+export function VisitFields({ existingVisit, clinics, today, doctorsUrl, values, errors, onChange }: Props) {
+    const isDental = clinics.find((clinic) => String(clinic.id) === values.poliklinik_id)?.type === 'gigi';
+    const tomorrow = new Date(`${today}T12:00:00`);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextDay = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    const keepsSameDayAppointment = existingVisit?.clinicId === values.poliklinik_id && existingVisit.date === today;
+    const minimumDate = isDental && !keepsSameDayAppointment ? nextDay : today;
     const [doctors, setDoctors] = useState<ScheduledDoctor[]>([]);
     const [loadingDoctors, setLoadingDoctors] = useState(true);
     const [doctorLoadError, setDoctorLoadError] = useState(false);
@@ -39,11 +49,18 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
     useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
     useEffect(() => {
+        if (!values.tanggal) {
+            setDoctors([]);
+            setLoadingDoctors(false);
+            setDoctorLoadError(false);
+            return;
+        }
+
         const abortController = new AbortController();
         setLoadingDoctors(true);
         setDoctorLoadError(false);
 
-        fetch(`${doctorsUrl}?tanggal=${encodeURIComponent(today)}`, {
+        fetch(`${doctorsUrl}?tanggal=${encodeURIComponent(values.tanggal || today)}`, {
             headers: { Accept: 'application/json' },
             signal: abortController.signal,
         })
@@ -70,7 +87,7 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
             });
 
         return () => abortController.abort();
-    }, [doctorsUrl, today]);
+    }, [doctorsUrl, today, values.tanggal]);
 
     const clinicDoctors = doctors.filter((doctor) => doctor.poliklinik_id.toString() === values.poliklinik_id);
 
@@ -96,6 +113,10 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
     function selectDoctor(value: string) {
         if (!values.poliklinik_id && value) {
             const [clinicId, doctorId] = value.split(':');
+            if (clinics.find((clinic) => String(clinic.id) === clinicId)?.type === 'gigi' && values.tanggal < nextDay) {
+                onChange({ poliklinik_id: clinicId, dokter_id: '', tanggal: nextDay });
+                return;
+            }
             onChange({ poliklinik_id: clinicId, dokter_id: doctorId });
 
             return;
@@ -109,21 +130,27 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
             <div className="grid gap-4 md:grid-cols-2">
                 <Field error={errors.poliklinik_id} htmlFor="poliklinik_id" label="Poliklinik tujuan" required>
                     <Select aria-describedby={errors.poliklinik_id ? 'poliklinik_id-error' : undefined} id="poliklinik_id" onChange={(event) => {
-                        onChange({ poliklinik_id: event.target.value, dokter_id: '' });
+                        const dental = clinics.find((clinic) => String(clinic.id) === event.target.value)?.type === 'gigi';
+                        const minimum = dental ? nextDay : today;
+                        onChange({ poliklinik_id: event.target.value, dokter_id: '', tanggal: values.tanggal >= minimum ? values.tanggal : minimum });
                     }} required value={values.poliklinik_id}>
                         <option value="">Pilih poliklinik</option>
                         {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                     </Select>
                 </Field>
-                <Field error={doctorLoadError ? 'Jadwal dokter gagal dimuat. Silakan muat ulang halaman.' : errors.dokter_id} htmlFor="dokter_id" label="Dokter">
-                    <Select aria-describedby={(errors.dokter_id || doctorLoadError) ? 'dokter_id-error' : undefined} disabled={loadingDoctors || doctorLoadError || displayedDoctors.length === 0} id="dokter_id" onChange={(event) => selectDoctor(event.target.value)} value={selectedDoctor}>
-                        <option value="">{loadingDoctors ? 'Memuat dokter…' : doctorLoadError ? 'Jadwal dokter tidak tersedia' : displayedDoctors.length ? 'Pilih dokter (opsional)' : 'Tidak ada dokter terjadwal'}</option>
+                <Field error={doctorLoadError ? 'Jadwal dokter gagal dimuat. Silakan muat ulang halaman.' : errors.dokter_id} htmlFor="dokter_id" label="Dokter terjadwal" required>
+                    <Select aria-describedby={(errors.dokter_id || doctorLoadError) ? 'dokter_id-error' : undefined} disabled={loadingDoctors || doctorLoadError || displayedDoctors.length === 0} id="dokter_id" required onChange={(event) => selectDoctor(event.target.value)} value={selectedDoctor}>
+                        <option value="">{loadingDoctors ? 'Memuat dokter…' : doctorLoadError ? 'Jadwal dokter tidak tersedia' : displayedDoctors.length ? 'Pilih dokter' : 'Tidak ada dokter terjadwal'}</option>
                         {displayedDoctors.map((doctor) => (
                             <option key={`${doctor.poliklinik_id}:${doctor.id}`} value={values.poliklinik_id ? doctor.id : `${doctor.poliklinik_id}:${doctor.id}`}>
                                 {doctor.nama}{values.poliklinik_id ? '' : ` · ${doctor.poliklinik_nama}`}
                             </option>
                         ))}
                     </Select>
+                </Field>
+                <Field error={errors.tanggal} htmlFor="reservation-date" label={isDental ? 'Tanggal janji Poli Gigi' : 'Tanggal kunjungan'} required>
+                    <DatePicker id="reservation-date" min={minimumDate} required value={values.tanggal} onChange={(event) => onChange({ tanggal: event.target.value, dokter_id: '' })} />
+                    <p className="text-xs text-neutral-500">{isDental ? 'Reservasi terlebih dahulu sesuai jadwal dokter. Skrining dan pemeriksaan tersedia pada tanggal kunjungan.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
                 </Field>
                 <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Fasilitas klinik internal</p><p className="mt-1 text-xs text-neutral-500">Hak layanan diverifikasi saat pendaftaran. Layanan, obat, dan BHP dicatat untuk kebutuhan pelayanan dan persediaan.</p></div>
             </div>

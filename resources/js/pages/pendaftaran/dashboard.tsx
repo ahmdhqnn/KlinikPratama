@@ -1,3 +1,4 @@
+import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
 import { Head } from '@inertiajs/react';
 import { ArrowUpRight, CalendarCheck2, ClipboardList, UserRoundPlus, UsersRound } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -5,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface Props {
+    followUp: FollowUpData;
     stats: {
         visitsToday: number;
         newPatientsToday: number;
@@ -13,7 +15,7 @@ interface Props {
     };
 }
 
-export default function RegistrationDashboard({ stats }: Props) {
+export default function RegistrationDashboard({ stats, followUp }: Props) {
     return (
         <>
             <Head title="Dashboard Pendaftaran" />
@@ -35,6 +37,7 @@ export default function RegistrationDashboard({ stats }: Props) {
                     <StatCard description="Menunggu pemeriksaan awal perawat" icon={<UsersRound className="size-5" />} iconClassName="bg-amber-50 text-amber-700" label="Menunggu skrining" value={stats.waitingScreening} />
                     <StatCard description="Skrining atau pemeriksaan berlangsung" icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Sedang dilayani" value={stats.inProgress} />
                 </section>
+                <FollowUp data={followUp} />
 
                 <Card>
                     <CardHeader>
@@ -43,8 +46,8 @@ export default function RegistrationDashboard({ stats }: Props) {
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {[
-                            { href: '/pendaftaran/pendaftaran-baru', label: 'Pendaftaran pasien baru', detail: 'Buat data pasien dan kunjungan.' },
-                            { href: '/pendaftaran/pendaftaran-lama', label: 'Pendaftaran pasien lama', detail: 'Daftarkan kunjungan pasien terdaftar.' },
+                            { href: '/pendaftaran/pendaftaran-baru', label: 'Pendaftaran pasien', detail: 'Buat data pasien dan kunjungan.' },
+                            { href: '/pendaftaran/pendaftaran-baru?tab=registered', label: 'Pasien terdaftar', detail: 'Daftarkan kunjungan pasien terdaftar.' },
                             { href: '/pendaftaran/laporan-kunjungan', label: 'Laporan kunjungan', detail: 'Cari dan tinjau kunjungan pasien.' },
                         ].map((item) => (
                             <a className="group rounded-xl border border-neutral-200 p-4 transition-colors hover:border-neutral-200 hover:bg-neutral-50/50" href={item.href} key={item.href}>

@@ -20,7 +20,7 @@ class AlkesController extends Controller
                     ->orWhere('kode', 'like', "%{$search}%");
             }))
             ->orderBy('nama')
-            ->paginate(20)
+            ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('master/alkes/index', [

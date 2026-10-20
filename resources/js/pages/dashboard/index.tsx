@@ -1,3 +1,4 @@
+import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
 import { Head } from '@inertiajs/react';
 import {
     ArrowUpRight,
@@ -14,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Empty } from '@/components/ui/empty';
 
 interface DashboardProps {
+    followUp: FollowUpData;
     stats: {
         totalPatients: number;
         visitsToday: number;
@@ -30,6 +32,7 @@ const statusLabels: Record<string, string> = {
     screening: 'Skrining',
     pemeriksaan: 'Pemeriksaan',
     farmasi: 'Farmasi',
+    kasir: 'Perlu penyelesaian',
     selesai: 'Selesai',
     batal: 'Dibatalkan',
 };
@@ -74,7 +77,7 @@ function StatCard({
     );
 }
 
-export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRegister }: DashboardProps) {
+export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRegister, followUp }: DashboardProps) {
     const peakVisits = Math.max(1, ...visitsByDay.map((day) => day.jumlah));
 
     return (
@@ -105,7 +108,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                     />
                     <StatCard
                         accent="bg-neutral-900 text-neutral-50"
-                        detail="Kunjungan aktif hari ini"
+                        detail="Seluruh kunjungan tercatat hari ini"
                         icon={<CalendarCheck2 className="size-5" />}
                         label="Kunjungan hari ini"
                         value={formatNumber(stats.visitsToday)}
@@ -125,6 +128,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                         value={formatNumber(stats.prescriptionsToday)}
                     />
                 </section>
+                <FollowUp data={followUp} />
 
                 <section className="grid gap-6 xl:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.7fr)]">
                     <Card>

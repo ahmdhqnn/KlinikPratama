@@ -45,6 +45,15 @@ class RmeEndToEndFlowTest extends TestCase
 
         $depo = DepoObat::create(['kode' => 'APT', 'nama' => 'Apotek Utama', 'is_active' => true]);
         $poli = Poliklinik::create(['kode' => 'PU', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'depo_obat_id' => $depo->id, 'is_active' => true]);
+        Nakes::create([
+            'kode' => 'PRW-E2E',
+            'nama' => $nurse->name,
+            'kategori' => 'medis',
+            'jabatan' => 'perawat',
+            'poliklinik_id' => $poli->id,
+            'user_id' => $nurse->id,
+            'is_active' => true,
+        ]);
         JadwalDokter::create([
             'dokter_id' => $doctor->id,
             'poliklinik_id' => $poli->id,

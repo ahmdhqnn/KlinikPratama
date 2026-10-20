@@ -1,3 +1,4 @@
+import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
 import { Activity, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -38,16 +39,12 @@ export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Diagnosis terbanyak</h2>
                     <p className="mt-1 text-sm text-neutral-500">Ringkasan diagnosis dari kunjungan yang ditangani selama periode terpilih.</p>
                 </div>
-                <Card>
-                    <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start" onSubmit={applyFilters}>
-                            <Field htmlFor="doctor-diagnoses-period" label="Periode diagnosis" required>
-                                <DateRangePicker id="doctor-diagnoses-period" from={dates.dari} onChange={(range) => setDates({ dari: range.from, sampai: range.to })} required to={dates.sampai} />
+                <FilterPanel><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
+                            <Field htmlFor="doctor-diagnoses-period" label="Periode diagnosis">
+                                <DateRangePicker id="doctor-diagnoses-period" from={dates.dari} onChange={(range) => setDates({ dari: range.from, sampai: range.to })} to={dates.sampai} />
                             </Field>
-                            <Button className="sm:mt-7" type="submit"><Search className="size-4" />Tampilkan</Button>
-                        </form>
-                    </CardContent>
-                </Card>
+                            <Button type="submit"><Search className="size-4" />Tampilkan</Button>
+                        </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
@@ -58,14 +55,14 @@ export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[620px]">
-                                <TableHeader><tr><TableHead className="w-24">Peringkat</TableHead><TableHead>ICD-10</TableHead><TableHead>Diagnosis</TableHead><TableHead className="text-right">Jumlah kasus</TableHead></tr></TableHeader>
+                                <TableHeader><tr><TableHead className="w-24">Peringkat</TableHead><TableHead>ICD-10</TableHead><TableHead>Diagnosis</TableHead><TableHead className="text-center">Jumlah kasus</TableHead></tr></TableHeader>
                                 <TableBody>
                                     {diagnoses.data.length > 0 ? diagnoses.data.map((diagnosis, index) => (
                                         <TableRow key={`${diagnosis.code}-${diagnosis.name}`}>
                                             <TableCell><span className="flex size-8 items-center justify-center rounded-lg bg-neutral-100 text-xs font-semibold text-neutral-600">{(diagnoses.from ?? 1) + index}</span></TableCell>
                                             <TableCell className="font-mono text-xs font-semibold text-neutral-700">{diagnosis.code}</TableCell>
                                             <TableCell className="font-medium text-neutral-800">{diagnosis.name}</TableCell>
-                                            <TableCell className="text-right font-semibold tabular-nums text-neutral-900">{new Intl.NumberFormat('id-ID').format(diagnosis.count)}</TableCell>
+                                            <TableCell className="text-center font-semibold tabular-nums text-neutral-900">{new Intl.NumberFormat('id-ID').format(diagnosis.count)}</TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={4}><Empty size="compact" title="Belum ada diagnosis pada periode ini." /></TableCell></TableRow>}
                                 </TableBody>

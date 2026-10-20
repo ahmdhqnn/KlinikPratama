@@ -44,15 +44,15 @@ export default function DoctorStock({ medicines }: Props) {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[680px]">
-                                <TableHeader><tr><TableHead>Kode</TableHead><TableHead>Nama obat</TableHead><TableHead>Satuan</TableHead><TableHead className="text-right">Stok tersedia</TableHead><TableHead className="text-right">Stok minimum</TableHead></tr></TableHeader>
+                                <TableHeader><tr><TableHead>Kode</TableHead><TableHead>Nama obat</TableHead><TableHead>Satuan</TableHead><TableHead className="text-center">Stok tersedia</TableHead><TableHead className="text-center">Stok minimum</TableHead></tr></TableHeader>
                                 <TableBody>
                                     {medicines.data.length > 0 ? medicines.data.map((medicine) => (
                                         <TableRow key={medicine.id}>
                                             <TableCell className="font-mono text-xs text-neutral-500">{medicine.code}</TableCell>
                                             <TableCell className="font-medium text-neutral-900">{medicine.name}</TableCell>
                                             <TableCell className="text-neutral-600">{medicine.unit}</TableCell>
-                                            <TableCell className="text-right"><Badge variant={medicine.isLow ? 'cancelled' : 'complete'}>{formatStock(medicine.stock)}</Badge></TableCell>
-                                            <TableCell className="text-right tabular-nums text-neutral-600">{formatStock(medicine.minimumStock)}</TableCell>
+                                            <TableCell className="text-center"><Badge variant={medicine.isLow ? 'cancelled' : 'complete'}>{formatStock(medicine.stock)}</Badge></TableCell>
+                                            <TableCell className="text-center tabular-nums text-neutral-600">{formatStock(medicine.minimumStock)}</TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada data obat aktif." /></TableCell></TableRow>}
                                 </TableBody>

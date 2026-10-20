@@ -19,26 +19,42 @@ use Inertia\Response;
 
 class PersuratanController extends Controller
 {
+    public function __construct(private \App\DoctorAccessService $doctorAccess) {}
+
     public function index(Request $request): Response
     {
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $search = $filters['search'] ?? '';
         $user = $request->user();
         $isAdmin = $user->role === 'admin';
         $doctorId = $isAdmin ? null : $this->doctorId($user);
 
         $letters = SuratMedis::query()
+            ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
+                ->where('nomor_surat', 'like', "%{$search}%")
+                ->orWhereHas('kunjungan.pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
             ->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'dokter'])
             ->when(! $isAdmin, fn (Builder $query) => $query->whereHas('kunjungan', fn (Builder $visit) => $visit->where('dokter_id', $doctorId)))
-            ->latest('id')->limit(100)->get();
+            ->latest('id')->paginate(10, ['*'], 'letters_page')->withQueryString();
         $referrals = RujukanInternal::query()
+            ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
+                ->where('nomor_surat', 'like', "%{$search}%")
+                ->orWhereHas('kunjungan.pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
             ->with(['kunjungan.pasien', 'kunjungan.dokter', 'dariPoli', 'kePoli'])
             ->when(! $isAdmin, fn (Builder $query) => $query->whereHas('kunjungan', fn (Builder $visit) => $visit->where('dokter_id', $doctorId)))
-            ->latest('id')->limit(100)->get();
+            ->latest('id')->paginate(10, ['*'], 'referrals_page')->withQueryString();
+        $templates = CorrespondenceTemplate::query()
+            ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
+                ->where('nama', 'like', "%{$search}%")->orWhere('kode', 'like', "%{$search}%")))
+            ->withCount(['suratMedis', 'rujukanInternal'])
+            ->when(! $isAdmin, fn (Builder $query) => $query->where('is_active', true))
+            ->orderBy('nama')->paginate(10, ['*'], 'templates_page')->withQueryString();
 
         return Inertia::render('persuratan/index', [
             'isAdmin' => $isAdmin,
-            'templates' => CorrespondenceTemplate::query()->withCount(['suratMedis', 'rujukanInternal'])
-                ->when(! $isAdmin, fn (Builder $query) => $query->where('is_active', true))
-                ->orderBy('nama')->get()->map(fn (CorrespondenceTemplate $template): array => [
+            'filters' => ['search' => $search],
+            'templates' => [
+                'data' => $templates->getCollection()->map(fn (CorrespondenceTemplate $template): array => [
                     'id' => $template->id,
                     'code' => $template->kode,
                     'name' => $template->nama,
@@ -50,29 +66,43 @@ class PersuratanController extends Controller
                     'active' => $template->is_active,
                     'inUse' => $template->surat_medis_count + $template->rujukan_internal_count > 0,
                 ])->values(),
-            'letters' => $letters->map(fn (SuratMedis $letter): array => [
-                'id' => $letter->id,
-                'type' => $letter->jenis,
-                'number' => $letter->nomor_surat,
-                'date' => $letter->tanggal?->format('d/m/Y'),
-                'patient' => $letter->kunjungan?->pasien?->nama ?? 'Belum diisi',
-                'visitNumber' => $letter->kunjungan?->no_kunjungan ?? 'Belum diisi',
-                'clinic' => $letter->kunjungan?->poliklinik?->nama ?? 'Belum diisi',
-                'doctor' => $letter->dokter?->nama ?? 'Belum diisi',
-                'printUrl' => route('persuratan.surat.cetak', $letter),
-            ])->values(),
-            'referrals' => $referrals->map(fn (RujukanInternal $referral): array => [
-                'id' => $referral->id,
-                'number' => $referral->nomor_surat,
-                'date' => $referral->kunjungan?->tanggal?->format('d/m/Y'),
-                'patient' => $referral->kunjungan?->pasien?->nama ?? 'Belum diisi',
-                'visitNumber' => $referral->kunjungan?->no_kunjungan ?? 'Belum diisi',
-                'fromClinic' => $referral->dariPoli?->nama ?? 'Belum diisi',
-                'toClinic' => $referral->kePoli?->nama ?? 'Belum diisi',
-                'doctor' => $referral->kunjungan?->dokter?->nama ?? 'Belum diisi',
-                'status' => $referral->status,
-                'printUrl' => route('persuratan.rujukan.cetak', $referral),
-            ])->values(),
+                'currentPage' => $templates->currentPage(), 'lastPage' => $templates->lastPage(),
+                'from' => $templates->firstItem(), 'to' => $templates->lastItem(), 'total' => $templates->total(),
+                'previousUrl' => $templates->previousPageUrl(), 'nextUrl' => $templates->nextPageUrl(),
+            ],
+            'letters' => [
+                'data' => $letters->getCollection()->map(fn (SuratMedis $letter): array => [
+                    'id' => $letter->id,
+                    'type' => $letter->jenis,
+                    'number' => $letter->nomor_surat,
+                    'date' => $letter->tanggal?->format('d/m/Y'),
+                    'patient' => $letter->kunjungan?->pasien?->nama ?? 'Belum diisi',
+                    'visitNumber' => $letter->kunjungan?->no_kunjungan ?? 'Belum diisi',
+                    'clinic' => $letter->kunjungan?->poliklinik?->nama ?? 'Belum diisi',
+                    'doctor' => $letter->dokter?->nama ?? 'Belum diisi',
+                    'printUrl' => route('persuratan.surat.cetak', $letter),
+                ])->values(),
+                'currentPage' => $letters->currentPage(), 'lastPage' => $letters->lastPage(),
+                'from' => $letters->firstItem(), 'to' => $letters->lastItem(), 'total' => $letters->total(),
+                'previousUrl' => $letters->previousPageUrl(), 'nextUrl' => $letters->nextPageUrl(),
+            ],
+            'referrals' => [
+                'data' => $referrals->getCollection()->map(fn (RujukanInternal $referral): array => [
+                    'id' => $referral->id,
+                    'number' => $referral->nomor_surat,
+                    'date' => $referral->kunjungan?->tanggal?->format('d/m/Y'),
+                    'patient' => $referral->kunjungan?->pasien?->nama ?? 'Belum diisi',
+                    'visitNumber' => $referral->kunjungan?->no_kunjungan ?? 'Belum diisi',
+                    'fromClinic' => $referral->dariPoli?->nama ?? 'Belum diisi',
+                    'toClinic' => $referral->kePoli?->nama ?? 'Belum diisi',
+                    'doctor' => $referral->kunjungan?->dokter?->nama ?? 'Belum diisi',
+                    'status' => $referral->status,
+                    'printUrl' => route('persuratan.rujukan.cetak', $referral),
+                ])->values(),
+                'currentPage' => $referrals->currentPage(), 'lastPage' => $referrals->lastPage(),
+                'from' => $referrals->firstItem(), 'to' => $referrals->lastItem(), 'total' => $referrals->total(),
+                'previousUrl' => $referrals->previousPageUrl(), 'nextUrl' => $referrals->nextPageUrl(),
+            ],
         ]);
     }
 
@@ -245,9 +275,7 @@ class PersuratanController extends Controller
 
     private function doctorId(User $user): int
     {
-        abort_unless($user->role === 'dokter' && $user->nakes?->id, 403);
-
-        return (int) $user->nakes->id;
+        return $this->doctorAccess->doctorId($user);
     }
 
     private function authorizeTemplateManagement(User $user): void

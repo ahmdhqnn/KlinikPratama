@@ -15,7 +15,7 @@ class Nakes extends Model
 
     protected $fillable = [
         'kode', 'nama', 'jenis_kelamin', 'kategori', 'jabatan',
-        'no_sip', 'no_str', 'telepon', 'user_id', 'is_active',
+        'poliklinik_id', 'no_sip', 'no_str', 'telepon', 'user_id', 'is_active',
     ];
 
     protected $casts = ['is_active' => 'boolean'];
@@ -23,6 +23,11 @@ class Nakes extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function poliklinik(): BelongsTo
+    {
+        return $this->belongsTo(Poliklinik::class);
     }
 
     public function kunjungan(): HasMany

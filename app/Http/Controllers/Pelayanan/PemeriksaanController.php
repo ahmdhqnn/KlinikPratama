@@ -5,13 +5,13 @@ namespace App\Http\Controllers\Pelayanan;
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
 use App\CorrespondenceService;
+use App\DoctorAccessService;
 use App\Http\Controllers\Controller;
 use App\Models\ClinicalTerminology;
 use App\Models\CorrespondenceTemplate;
 use App\Models\Diagnosa;
 use App\Models\Farmasi;
 use App\Models\Icd10;
-use App\Models\JadwalDokter;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Obat;
@@ -34,23 +34,22 @@ use Inertia\Response;
 
 class PemeriksaanController extends Controller
 {
+    public function __construct(private DoctorAccessService $doctorAccess) {}
+
     public function index(Request $request): Response
     {
-        $filters = $request->validate(['tanggal' => ['nullable', 'date_format:Y-m-d']]);
+        $filters = (new \App\VisitQueryService)->filters($request);
         $doctorId = auth()->user()->role === 'dokter' ? $this->currentDoctorId() : null;
-        $date = $filters['tanggal'] ?? today()->toDateString();
-        $scheduledClinicIds = $doctorId ? $this->scheduledClinicIds($doctorId, $date) : [];
-        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan.diagnosa'])
-            ->when($request->search, fn ($q, $s) => $q->whereHas('pasien', fn ($pq) => $pq->where('nama', 'like', "%$s%")->orWhere('no_rm', 'like', "%$s%")))
-            ->whereDate('tanggal', $date)
+        $date = $filters['tanggal'] ?? '';
+        $claimDate = $date ?: today()->toDateString();
+        $kunjungan = $this->doctorAccess->visibleVisits($request->user(), $claimDate)
+            ->with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan.diagnosa'])
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->whereHas('pasien', fn ($patients) => $patients
+                ->where(fn ($names) => $names->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
+            ->when($date, fn ($query) => $query->whereDate('tanggal', $date))
             ->whereIn('status', ['pemeriksaan', 'farmasi', 'kasir', 'selesai'])
-            ->when($doctorId, fn ($q) => $q->where(fn ($assigned) => $assigned
-                ->where('dokter_id', $doctorId)
-                ->orWhere(fn ($unassigned) => $unassigned->whereNull('dokter_id')
-                    ->where('status', 'pemeriksaan')
-                    ->whereIn('poliklinik_id', $scheduledClinicIds))))
             ->orderByDesc('created_at')
-            ->paginate(20)
+            ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('pelayanan/pemeriksaan/index', [
@@ -58,6 +57,7 @@ class PemeriksaanController extends Controller
                 'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit) => [
                     'id' => $visit->id,
                     'number' => $visit->no_kunjungan,
+                    'date' => $visit->tanggal?->format('d/m/Y'),
                     'patient' => $visit->pasien?->nama ?? 'Belum diisi',
                     'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
                     'gender' => $visit->pasien?->jenis_kelamin,
@@ -336,6 +336,7 @@ class PemeriksaanController extends Controller
 
         DB::transaction(function () use ($request, $kunjungan, $auditRecorder, $doctorId): void {
             $lockedVisit = Kunjungan::query()->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            app(\App\VisitSchedulingService::class)->ensureServiceDate($lockedVisit);
             abort_unless($lockedVisit->status === 'pemeriksaan', 422, 'Kunjungan belum berada pada tahap pemeriksaan dokter.');
 
             if ($lockedVisit->dokter_id === $doctorId) {
@@ -502,7 +503,7 @@ class PemeriksaanController extends Controller
                     'jumlah' => $data['jumlah'],
                     'satuan' => $data['satuan'] ?? $obat?->satuan_kecil,
                     'aturan_pakai' => $data['aturan_pakai'],
-                    'catatan' => $data['catatan'],
+                    'catatan' => $data['catatan'] ?? null,
                     'jenis' => $data['jenis'],
                     'is_resep_luar' => $isResepLuar,
                     'stok_dikurangi' => false,
@@ -613,7 +614,7 @@ class PemeriksaanController extends Controller
                     'dokter_id' => $kunjungan->dokter_id,
                     'jumlah' => $data['jumlah'],
                     'tooth_fdi' => $toothFdi,
-                    'catatan' => $data['catatan'],
+                    'catatan' => $data['catatan'] ?? null,
                 ]);
             }
 
@@ -735,7 +736,7 @@ class PemeriksaanController extends Controller
                 'surat_template_id' => $template?->id,
                 'nomor_surat' => $number,
                 'konten_surat' => $content,
-                'catatan' => $data['catatan'],
+                'catatan' => $data['catatan'] ?? null,
                 'status' => 'menunggu',
             ]);
 
@@ -1069,10 +1070,7 @@ class PemeriksaanController extends Controller
 
     private function currentDoctorId(): int
     {
-        $doctorId = auth()->user()->nakes?->id;
-        abort_unless($doctorId, 403, 'Akun dokter belum terhubung dengan data tenaga kesehatan.');
-
-        return $doctorId;
+        return $this->doctorAccess->doctorId(auth()->user());
     }
 
     /**
@@ -1080,16 +1078,7 @@ class PemeriksaanController extends Controller
      */
     private function scheduledClinicIds(int $doctorId, string $date): array
     {
-        $visitDate = Carbon::parse($date);
-
-        return JadwalDokter::query()
-            ->where('dokter_id', $doctorId)
-            ->where('hari', strtolower($visitDate->locale('id')->dayName))
-            ->where('is_active', true)
-            ->where(fn ($query) => $query->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', $visitDate->toDateString()))
-            ->where(fn ($query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', $visitDate->toDateString()))
-            ->whereHas('dokter', fn ($query) => $query->where('is_active', true)->where('jabatan', 'dokter'))
-            ->pluck('poliklinik_id')->unique()->values()->all();
+        return $this->doctorAccess->scheduledClinicIds($doctorId, $date);
     }
 
     private function isDoctorScheduledForVisit(int $doctorId, Kunjungan $kunjungan): bool
@@ -1112,6 +1101,7 @@ class PemeriksaanController extends Controller
 
     private function authorizeMutableVisit(Kunjungan $kunjungan): void
     {
+        app(\App\VisitSchedulingService::class)->ensureServiceDate($kunjungan);
         $this->authorizeVisit($kunjungan);
 
         if (auth()->user()->role === 'dokter') {

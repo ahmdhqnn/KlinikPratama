@@ -1,3 +1,4 @@
+import { RegisteredPatientForm } from '@/components/pendaftaran/registered-patient-form';
 import { MembershipIdentityFields } from '@/components/pasien/membership-identity-fields';
 import { ManualPatientFields } from '@/components/pasien/manual-patient-fields';
 import { Head, Link, useForm } from '@inertiajs/react';
@@ -15,6 +16,7 @@ import { useState } from 'react';
 interface Option {
     id: number;
     name: string;
+    type?: string;
 }
 interface PatientForm extends VisitFormValues {
     registration_type: 'directory' | 'manual';
@@ -42,14 +44,15 @@ interface Props {
     clinics: Option[];
     today: string;
     doctorsUrl: string;
+    initialTab: 'manual' | 'directory' | 'registered';
 }
 
-export default function NewPatientRegistration({ clinics, today, doctorsUrl }: Props) {
-    const [registrationType, setRegistrationType] = useState<'directory' | 'manual'>('directory');
+export default function NewPatientRegistration({ clinics, today, doctorsUrl, initialTab }: Props) {
+    const [registrationType, setRegistrationType] = useState<'directory' | 'manual' | 'registered'>(initialTab);
     const form = useForm<PatientForm>({
         registration_type: 'directory', kepesertaan_id: '', nama: '', nik: '', nip: '', unit_kerja: '', tempat_lahir: '', tanggal_lahir: '', jenis_kelamin: '', golongan_darah: '',
         agama: '', nama_ibu: '', telepon: '', alamat: '', rt: '', rw: '', kelurahan: '', kecamatan: '',
-        riwayat_alergi: '', poliklinik_id: '', dokter_id: '', catatan: '',
+        riwayat_alergi: '', poliklinik_id: clinics.find((clinic) => clinic.type === 'umum')?.id.toString() ?? '', dokter_id: '', tanggal: today, catatan: '',
     });
 
     function updateField(field: keyof PatientForm, value: string) {
@@ -58,29 +61,32 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl }: P
 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        form.setData('registration_type', registrationType);
+        form.transform((data) => ({ ...data, registration_type: registrationType === 'directory' ? 'directory' : 'manual' }));
         form.post('/pendaftaran/pendaftaran-baru');
     }
 
     return (
         <>
-            <Head title="Pendaftaran Pasien Baru" />
-            <form className="mx-auto max-w-5xl space-y-6" onSubmit={submit}>
+            <Head title="Pendaftaran Pasien" />
+            <div className="mx-auto max-w-5xl space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>
                         <p className="text-sm font-medium text-neutral-700">Pendaftaran pasien</p>
-                        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Daftarkan pasien</h2>
-                        <p className="mt-1 text-sm text-neutral-500">Pilih direktori kepesertaan atau input manual jika data belum tersedia.</p>
+                        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pendaftaran pasien</h2>
+                        <p className="mt-1 text-sm text-neutral-500">Daftarkan pasien dan tentukan tujuan kunjungan.</p>
                     </div>
                     <Button asChild variant="secondary"><Link href="/pendaftaran"><ArrowLeft className="size-4" />Kembali ke dashboard</Link></Button>
                 </div>
 
-                <Tabs className="space-y-5" onValueChange={(value) => { const next = value as 'directory' | 'manual'; setRegistrationType(next); form.setData('registration_type', next); }} value={registrationType}>
-                <TabsList aria-label="Metode pendaftaran pasien">
-                    <TabsTrigger value="directory">Dari kepesertaan</TabsTrigger>
-                    <TabsTrigger value="manual">Pendaftaran manual</TabsTrigger>
-                </TabsList>
-                <TabsContent className="space-y-6" value="directory">
+                <Tabs className="space-y-5" onValueChange={(value) => setRegistrationType(value as typeof registrationType)} value={registrationType}>
+                    <TabsList aria-label="Pendaftaran pasien" className="h-auto flex-wrap">
+                        <TabsTrigger value="manual">Pendaftaran Baru</TabsTrigger>
+                        <TabsTrigger value="registered">Pasien Terdaftar</TabsTrigger>
+                        <TabsTrigger value="directory">Dari Kepesertaan</TabsTrigger>
+                    </TabsList>
+                    {registrationType === 'registered' && <TabsContent value="registered"><RegisteredPatientForm clinics={clinics} today={today} doctorsUrl={doctorsUrl} /></TabsContent>}
+                    {registrationType !== 'registered' && <form className="space-y-6" onSubmit={submit}>
+                {registrationType === 'directory' && <TabsContent className="space-y-6" value="directory">
                 <Card>
                     <CardHeader>
                         <div className="flex items-start gap-3">
@@ -121,6 +127,13 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl }: P
                     </CardContent>
                 </Card>
 
+                </TabsContent>}
+                {registrationType === 'manual' && <TabsContent className="space-y-6" value="manual">
+                    <Card>
+                        <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Identitas pasien</CardTitle><CardDescription className="mt-1">Kunjungan dapat langsung didaftarkan. Admin akan memverifikasi data untuk kepesertaan.</CardDescription></div></div></CardHeader>
+                        <CardContent><ManualPatientFields errors={form.errors} onChange={(field, value) => updateField(field, value)} value={form.data} /></CardContent>
+                    </Card>
+                </TabsContent>}
                 <Card>
                     <CardHeader>
                         <div className="flex items-start gap-3">
@@ -139,20 +152,14 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl }: P
                         />
                     </CardContent>
                 </Card>
-                </TabsContent>
-                <TabsContent className="space-y-6" value="manual">
-                    <Card>
-                        <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Data pasien manual</CardTitle><CardDescription className="mt-1">Pasien mendapat nomor rekam medis. Pendaftaran ini tidak mengaktifkan hak layanan internal; tautkan ke kepesertaan yang sudah diverifikasi sebelum membuka kunjungan.</CardDescription></div></div></CardHeader>
-                        <CardContent><ManualPatientFields errors={form.errors} onChange={(field, value) => updateField(field, value)} value={form.data} /></CardContent>
-                    </Card>
-                </TabsContent>
-                </Tabs>
 
                 <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
                     <Button asChild variant="secondary"><Link href="/pendaftaran">Batal</Link></Button>
-                    <Button disabled={form.processing} type="submit"><UserRoundPlus className="size-4" />{form.processing ? 'Mendaftarkan…' : registrationType === 'manual' ? 'Simpan data pasien' : 'Daftarkan dan buat kunjungan'}</Button>
+                    <Button disabled={form.processing} type="submit"><UserRoundPlus className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan dan buat kunjungan'}</Button>
                 </div>
-            </form>
+                    </form>}
+                </Tabs>
+            </div>
         </>
     );
 }

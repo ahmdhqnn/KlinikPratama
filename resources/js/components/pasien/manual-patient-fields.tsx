@@ -7,6 +7,7 @@ import { DateOfBirthPicker } from '@/components/ui/date-picker';
 export interface ManualPatientIdentity {
     nama: string;
     nik: string;
+    nip: string;
     tempat_lahir: string;
     tanggal_lahir: string;
     jenis_kelamin: string;
@@ -34,7 +35,10 @@ export function ManualPatientFields({ value, errors, onChange }: Props) {
             <div className="grid gap-4 md:grid-cols-2">
                 <Field error={errors.nama} htmlFor="manual-nama" label="Nama lengkap" required><Input autoComplete="name" id="manual-nama" maxLength={255} onChange={(event) => onChange('nama', event.target.value)} required value={value.nama} /></Field>
                 <Field error={errors.nik} htmlFor="manual-nik" label="NIK (16 digit)"><Input autoComplete="off" id="manual-nik" inputMode="numeric" maxLength={16} onChange={(event) => onChange('nik', event.target.value.replace(/\D/g, ''))} value={value.nik} /></Field>
-                <Field error={errors.tempat_lahir} htmlFor="manual-tempat-lahir" label="Tempat lahir"><Input id="manual-tempat-lahir" onChange={(event) => onChange('tempat_lahir', event.target.value)} value={value.tempat_lahir} /></Field>
+                <Field error={errors.nip} htmlFor="manual-nip" label="NIP">
+                <Input id="manual-nip" inputMode="numeric" maxLength={30} onChange={(event) => onChange('nip', event.target.value.replace(/\D/g, ''))} value={value.nip} />
+            </Field>
+            <Field error={errors.tempat_lahir} htmlFor="manual-tempat-lahir" label="Tempat lahir"><Input id="manual-tempat-lahir" onChange={(event) => onChange('tempat_lahir', event.target.value)} value={value.tempat_lahir} /></Field>
                 <Field error={errors.tanggal_lahir} htmlFor="manual-tanggal-lahir" label="Tanggal lahir"><DateOfBirthPicker id="manual-tanggal-lahir" value={value.tanggal_lahir} onChange={(event) => onChange('tanggal_lahir', event.target.value)} /></Field>
                 <Field error={errors.jenis_kelamin} htmlFor="manual-jenis-kelamin" label="Jenis kelamin"><Select id="manual-jenis-kelamin" onChange={(event) => onChange('jenis_kelamin', event.target.value)} value={value.jenis_kelamin}><option value="">Pilih jenis kelamin</option><option value="L">Laki-laki</option><option value="P">Perempuan</option></Select></Field>
                 <Field error={errors.golongan_darah} htmlFor="manual-golongan-darah" label="Golongan darah"><Select id="manual-golongan-darah" onChange={(event) => onChange('golongan_darah', event.target.value)} value={value.golongan_darah}><option value="">Tidak diketahui</option>{['A', 'B', 'AB', 'O'].map((type) => <option key={type} value={type}>{type}</option>)}</Select></Field>

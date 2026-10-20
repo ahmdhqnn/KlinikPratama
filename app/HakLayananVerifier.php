@@ -44,8 +44,28 @@ class HakLayananVerifier
         return $member;
     }
 
+    public function patientReason(Pasien $patient): ?string
+    {
+        return $patient->kepesertaan_id ? $this->patientReason($patient) : null;
+    }
+
     public function patient(Pasien $patient, Request $request): array
     {
+        if (! $patient->kepesertaan_id) {
+            return [
+                'unit_kerja' => null,
+                'kategori_peserta' => null,
+                'verified_by' => null,
+                'verified_at' => null,
+                'hak_layanan_snapshot' => [
+                    'kepesertaan_id' => null,
+                    'nik' => $patient->nik,
+                    'nip' => $patient->nip,
+                    'status' => 'pending_verification',
+                ],
+            ];
+        }
+
         $member = $this->member((int) $patient->kepesertaan_id, 'pasien_id');
         if ($member->nik && $member->nik !== $patient->nik) {
             throw ValidationException::withMessages(['pasien_id' => 'NIK pasien tidak sesuai direktori kepesertaan. Perbaiki tautan identitas terlebih dahulu.']);

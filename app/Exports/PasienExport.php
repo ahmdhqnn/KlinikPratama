@@ -38,9 +38,9 @@ class PasienExport implements FromCollection, WithHeadings, WithMapping, WithSty
             $pasien->telepon,
             $pasien->pekerjaan,
             $pasien->agama,
-            $pasien->kepesertaan?->kategori,
-            $pasien->kepesertaan?->jenis_lainnya,
-            $pasien->kepesertaan?->nip,
+            $pasien->kepesertaan?->categoryKey(),
+            $pasien->kepesertaan?->otherTypeKey(),
+            $pasien->nip ?? $pasien->kepesertaan?->nip,
             $pasien->kepesertaan?->unit_kerja,
         ]);
     }

@@ -1,3 +1,4 @@
+import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
 import { Head, Link } from '@inertiajs/react';
 import { Boxes, CheckCircle2, ClipboardList, PackageSearch, Pill, Timer } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -7,11 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface Props {
+    followUp: FollowUpData;
     stats: { waitingVisits: number; processingVisits: number; completedToday: number; lowStockMedicines: number };
     recentVisits: DashboardVisit[];
 }
 
-export default function PharmacyDashboard({ stats, recentVisits }: Props) {
+export default function PharmacyDashboard({ stats, recentVisits, followUp }: Props) {
     return (
         <>
             <Head title="Dashboard Farmasi" />
@@ -28,6 +30,7 @@ export default function PharmacyDashboard({ stats, recentVisits }: Props) {
                     <StatCard description="Resep yang diselesaikan hari ini" icon={<CheckCircle2 className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Selesai hari ini" value={stats.completedToday} />
                     <StatCard description="Stok layak pakai mencapai batas minimum" icon={<PackageSearch className="size-5" />} iconClassName={stats.lowStockMedicines > 0 ? 'bg-amber-50 text-amber-800' : 'bg-neutral-50 text-neutral-700'} label="Obat perlu perhatian" value={stats.lowStockMedicines} />
                 </section>
+                <FollowUp data={followUp} showUpcoming={false} />
 
                 <Card>
                     <CardHeader>

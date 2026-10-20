@@ -78,7 +78,7 @@ class ClinicalTerminologyController extends Controller
                 });
             })
             ->orderBy('code')
-            ->paginate(50)
+            ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('master/terminologi/show', [

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Farmasi;
 use App\Models\Kunjungan;
 use App\Models\Obat;
+use App\VisitOverviewService;
 use Illuminate\Database\Eloquent\Builder;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -33,6 +34,7 @@ class FarmasiDashboardController extends Controller
             ->get();
 
         return Inertia::render('farmasi/dashboard', [
+            'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()->where('status', 'farmasi')), 'href' => route('pelayanan.farmasi.index')],
             'stats' => [
                 'waitingVisits' => $waitingVisits,
                 'processingVisits' => $processingVisits,

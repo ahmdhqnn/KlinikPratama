@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Nakes;
+use App\Models\Poliklinik;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,14 +22,14 @@ class UserController extends Controller
             'role' => ['nullable', 'in:admin,dokter,perawat,farmasi,pendaftaran,manajemen'],
         ]);
 
-        $users = User::with('nakes')
+        $users = User::with('nakes.poliklinik')
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(function ($query) use ($search): void {
                 $query->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%");
             }))
             ->when($filters['role'] ?? null, fn ($query, string $role) => $query->where('role', $role))
             ->orderBy('name')
-            ->paginate(15)
+            ->paginate(10)
             ->withQueryString();
 
         $dokterList = Nakes::query()
@@ -50,6 +51,8 @@ class UserController extends Controller
                         'id' => $user->nakes->id,
                         'name' => $user->nakes->nama,
                         'code' => $user->nakes->kode,
+                        'clinicId' => $user->nakes->poliklinik_id,
+                        'clinic' => $user->nakes->poliklinik?->nama,
                     ] : null,
                     'isCurrentUser' => $user->is(auth()->user()),
                 ])->values(),
@@ -77,6 +80,10 @@ class UserController extends Controller
                 'code' => $doctor->kode,
                 'linked' => $doctor->user_id !== null,
             ])->values(),
+            'clinics' => Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama'])->map(fn (Poliklinik $clinic): array => [
+                'id' => $clinic->id,
+                'name' => $clinic->nama,
+            ])->values(),
         ]);
     }
 
@@ -88,6 +95,7 @@ class UserController extends Controller
             'password' => ['required', 'min:6'],
             'role' => ['required', 'in:admin,dokter,perawat,farmasi,pendaftaran,manajemen'],
             'is_active' => ['boolean'],
+            'poliklinik_id' => [Rule::requiredIf($request->input('role') === 'perawat'), 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'nakes_id' => [
                 Rule::requiredIf($request->input('role') === 'dokter'),
                 'nullable',
@@ -103,7 +111,7 @@ class UserController extends Controller
 
         DB::transaction(function () use ($data): void {
             $user = User::create($data);
-            $this->syncNakesProfile($user, $data['nakes_id'] ?? null);
+            $this->syncNakesProfile($user, $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null);
         });
 
         return back()->with('success', 'User berhasil ditambahkan.');
@@ -116,6 +124,7 @@ class UserController extends Controller
             'email' => ['required', 'email', "unique:users,email,{$user->id}"],
             'role' => ['required', 'in:admin,dokter,perawat,farmasi,pendaftaran,manajemen'],
             'is_active' => ['boolean'],
+            'poliklinik_id' => [Rule::requiredIf($request->input('role') === 'perawat'), 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'nakes_id' => [
                 Rule::requiredIf($request->input('role') === 'dokter'),
                 'nullable',
@@ -131,7 +140,7 @@ class UserController extends Controller
         $data['is_active'] = $request->boolean('is_active');
         DB::transaction(function () use ($data, $user): void {
             $user->update($data);
-            $this->syncNakesProfile($user->fresh(), $data['nakes_id'] ?? null);
+            $this->syncNakesProfile($user->fresh(), $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null);
         });
 
         return back()->with('success', 'User berhasil diperbarui.');
@@ -168,7 +177,7 @@ class UserController extends Controller
         return back()->with('success', 'Password user berhasil direset.');
     }
 
-    private function syncNakesProfile(User $user, ?int $nakesId = null): void
+    private function syncNakesProfile(User $user, ?int $nakesId = null, ?int $clinicId = null): void
     {
         $nakesRoles = ['dokter', 'perawat', 'farmasi', 'pendaftaran'];
 
@@ -204,6 +213,7 @@ class UserController extends Controller
                 'nama' => $user->name,
                 'jabatan' => $jabatan,
                 'kategori' => $kategori,
+                'poliklinik_id' => $user->role === 'perawat' ? $clinicId : null,
                 'is_active' => $user->is_active,
             ]);
 
@@ -217,6 +227,7 @@ class UserController extends Controller
                 'nama' => $user->name,
                 'jabatan' => $jabatan,
                 'kategori' => $kategori,
+                'poliklinik_id' => $user->role === 'perawat' ? $clinicId : null,
                 'is_active' => $user->is_active,
             ]);
 
@@ -228,6 +239,7 @@ class UserController extends Controller
             'nama' => $user->name,
             'kategori' => $kategori,
             'jabatan' => $jabatan,
+            'poliklinik_id' => $user->role === 'perawat' ? $clinicId : null,
             'user_id' => $user->id,
             'is_active' => $user->is_active,
         ]);

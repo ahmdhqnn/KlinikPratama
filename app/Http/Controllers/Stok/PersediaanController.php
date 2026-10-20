@@ -22,7 +22,7 @@ class PersediaanController extends Controller
         $medicines = Obat::withSum(['batches as usable_stock' => fn ($query) => $query->usable()], 'stok')
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query->where('nama', 'like', "%{$search}%")->orWhere('kode', 'like', "%{$search}%")))
             ->when($filters['jenis'] ?? null, fn ($query, string $type) => $query->where('jenis', $type))
-            ->orderBy('nama')->paginate(20)->withQueryString()
+            ->orderBy('nama')->paginate(10)->withQueryString()
             ->through(fn (Obat $medicine): array => [
                 'id' => $medicine->id, 'code' => $medicine->kode, 'name' => $medicine->nama,
                 'type' => $medicine->jenis, 'stock' => (float) $medicine->stok, 'usable' => (float) $medicine->usable_stock,
@@ -36,7 +36,7 @@ class PersediaanController extends Controller
     public function show(Obat $obat): Response
     {
         $obat->load('batches.depo');
-        $movements = $obat->stokMutasi()->with(['batch', 'actor'])->latest('id')->paginate(25)->withQueryString()
+        $movements = $obat->stokMutasi()->with(['batch', 'actor'])->latest('id')->paginate(10)->withQueryString()
             ->through(fn (StokMutasi $movement): array => [
                 'id' => $movement->id, 'date' => $movement->created_at->format('d/m/Y H:i'), 'type' => $movement->jenis,
                 'batch' => $movement->batch?->nomor_batch, 'quantity' => (float) $movement->jumlah,

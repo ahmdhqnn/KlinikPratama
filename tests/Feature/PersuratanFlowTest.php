@@ -29,9 +29,9 @@ class PersuratanFlowTest extends TestCase
         CorrespondenceTemplate::factory()->create(['is_active' => false]);
 
         $this->actingAs($admin)->get(route('persuratan.index'))->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('persuratan/index')->where('isAdmin', true)->has('templates', 2));
+            ->assertInertia(fn (Assert $page) => $page->component('persuratan/index')->where('isAdmin', true)->has('templates.data', 2));
         $this->actingAs($doctorUser)->get(route('persuratan.index'))->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('persuratan/index')->where('isAdmin', false)->has('templates', 1));
+            ->assertInertia(fn (Assert $page) => $page->component('persuratan/index')->where('isAdmin', false)->has('templates.data', 1));
         $this->post(route('persuratan.template.store'), $this->templatePayload())->assertForbidden();
         $this->actingAs($admin)->post(route('persuratan.template.store'), $this->templatePayload())
             ->assertSessionHasNoErrors();

@@ -22,9 +22,9 @@ export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowEle
 }
 
 export function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
-    return <th className={cn('px-5 py-3.5 text-left', className)} {...props} />;
+    return <th scope="col" className={cn('px-5 py-3.5 text-center align-middle', className)} {...props} />;
 }
 
 export function TableCell({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
-    return <td className={cn('px-5 py-4', className)} {...props} />;
+    return <td className={cn('px-5 py-4 text-center align-middle', className)} {...props} />;
 }

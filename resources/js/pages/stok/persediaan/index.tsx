@@ -1,3 +1,4 @@
+import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
 import { Package, Search } from 'lucide-react';
 import { useState } from 'react';
@@ -26,11 +27,11 @@ export default function Inventory({ medicines, filters }: { medicines: Paginatio
                         <CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(medicines.total)} item obat dan BHP tercatat.</CardDescription>
                     </div>
                 </div>
-                <form className="grid gap-3 pt-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-center" onSubmit={(event) => { event.preventDefault(); router.get('/stok/persediaan', { search, jenis: type }, { preserveState: true, replace: true }); }}>
+                <FilterPanel><form className="grid gap-3  sm:grid-cols-2 lg:grid-cols-4 sm:items-center" onSubmit={(event) => { event.preventDefault(); router.get('/stok/persediaan', { search, jenis: type }, { preserveState: true, replace: true }); }}>
                     <Input aria-label="Cari obat atau BHP" placeholder="Cari nama atau kode…" value={search} onChange={(event) => setSearch(event.target.value)} />
                     <Select className="w-full" aria-label="Jenis persediaan" value={type} onChange={(event) => setType(event.target.value)}><option value="">Obat & BHP</option><option value="obat">Obat</option><option value="bhp">BHP</option></Select>
                     <Button className="w-full sm:w-auto" type="submit" variant="secondary"><Search className="size-4" />Cari</Button>
-                </form>
+                </form></FilterPanel>
             </CardHeader>
             <CardContent className="p-0">
                 <div className="overflow-x-auto"><Table className="min-w-[800px]"><TableHeader><TableRow><TableHead>Item persediaan</TableHead><TableHead>Jenis</TableHead><TableHead>Total fisik</TableHead><TableHead>Layak pakai</TableHead><TableHead>Batas minimum</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader><TableBody>{medicines.data.length ? medicines.data.map((medicine) => <TableRow key={medicine.id}><TableCell><p className="font-medium">{medicine.name}</p><p className="font-mono text-xs text-neutral-500">{medicine.code}</p></TableCell><TableCell className="uppercase">{medicine.type}</TableCell><TableCell>{formatNumber(medicine.stock)} {medicine.unit}</TableCell><TableCell><Badge variant={medicine.usable <= medicine.minimum ? 'waiting' : 'complete'}>{formatNumber(medicine.usable)} {medicine.unit}</Badge></TableCell><TableCell>{formatNumber(medicine.minimum)} {medicine.unit}</TableCell><TableCell><Button asChild size="sm" variant="secondary"><Link href={medicine.url}>Batch & kartu stok</Link></Button></TableCell></TableRow>) : <TableRow><TableCell colSpan={6}><Empty title="Persediaan belum tersedia" size="compact" /></TableCell></TableRow>}</TableBody></Table></div>
