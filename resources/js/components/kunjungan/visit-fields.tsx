@@ -21,22 +21,70 @@ interface Option {
 }
 
 interface Props {
+    today: string;
+    existingVisit?: { clinicId: number | null; date: string };
     data: VisitFormData;
     errors: Partial<Record<keyof VisitFormData, string>>;
     clinics: Option[];
     doctorsUrl: string;
     patients?: (Option & { medicalRecordNumber: string })[];
+    patientSearchUrl?: string;
     selectedPatient?: Option & { medicalRecordNumber?: string };
     onChange: (field: keyof VisitFormData, value: string) => void;
 }
 
-export function VisitFields({ data, errors, clinics, doctorsUrl, patients, selectedPatient, onChange }: Props) {
+export function VisitFields({ today, existingVisit, data, errors, clinics, doctorsUrl, patients, patientSearchUrl, selectedPatient, onChange }: Props) {
+    const isDental = clinics.find((clinic) => String(clinic.id) === data.poliklinik_id)?.type === 'gigi';
+    const tomorrow = new Date(`${today}T12:00:00`);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextDay = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    const keepsSameDayAppointment = existingVisit?.date === today && String(existingVisit.clinicId) === data.poliklinik_id;
     const [doctors, setDoctors] = useState<Option[]>([]);
+    const [patientOptions, setPatientOptions] = useState(patients ?? []);
+    const [patientSearch, setPatientSearch] = useState('');
+    const [searchingPatients, setSearchingPatients] = useState(false);
+    const [patientSearchFailed, setPatientSearchFailed] = useState(false);
     const [loadingDoctors, setLoadingDoctors] = useState(false);
     const [doctorLoadError, setDoctorLoadError] = useState(false);
     const onChangeRef = useRef(onChange);
 
     useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
+    useEffect(() => {
+        if (!patients || !patientSearchUrl) return;
+
+        const query = patientSearch.trim();
+        if (query.length < 2) {
+            setPatientOptions(patients);
+            setSearchingPatients(false);
+            setPatientSearchFailed(false);
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => {
+            setSearchingPatients(true);
+            setPatientSearchFailed(false);
+            const params = new URLSearchParams({ q: query });
+            fetch(`${patientSearchUrl}?${params.toString()}`, { credentials: 'same-origin', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, signal: controller.signal })
+                .then(async (response) => {
+                    if (!response.ok) throw new Error('Pencarian pasien gagal.');
+                    return response.json() as Promise<(Option & { medicalRecordNumber: string })[]>;
+                })
+                .then(setPatientOptions)
+                .catch((error: unknown) => {
+                    if (error instanceof DOMException && error.name === 'AbortError') return;
+                    setPatientOptions([]);
+                    setPatientSearchFailed(true);
+                })
+                .finally(() => { if (!controller.signal.aborted) setSearchingPatients(false); });
+        }, 250);
+
+        return () => {
+            window.clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [patientSearch, patientSearchUrl, patients]);
 
     useEffect(() => {
         if (!data.poliklinik_id || !data.tanggal) {
@@ -55,7 +103,8 @@ export function VisitFields({ data, errors, clinics, doctorsUrl, patients, selec
             .then((availableDoctors) => {
                 const options = availableDoctors.map((doctor) => ({ id: doctor.id, name: doctor.nama }));
                 setDoctors(options);
-                if (data.dokter_id && !options.some((doctor) => String(doctor.id) === data.dokter_id)) onChangeRef.current('dokter_id', '');
+                if (options.length === 1 && !data.dokter_id) onChangeRef.current('dokter_id', String(options[0].id));
+                else if (data.dokter_id && !options.some((doctor) => String(doctor.id) === data.dokter_id)) onChangeRef.current('dokter_id', '');
             })
             .catch((error: unknown) => {
                 if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -69,13 +118,13 @@ export function VisitFields({ data, errors, clinics, doctorsUrl, patients, selec
 
     return (
         <div className="grid gap-4 md:grid-cols-2">
-            {patients && <Field error={errors.pasien_id} htmlFor="pasien_id" label="Pasien" required><Select id="pasien_id" onChange={(event) => onChange('pasien_id', event.target.value)} required value={data.pasien_id}><option value="">Pilih pasien</option>{patients.map((patient) => <option key={patient.id} value={patient.id}>{patient.medicalRecordNumber} · {patient.name}</option>)}</Select></Field>}
+            {patients && <><Field htmlFor="pasien-search" label="Cari pasien"><Input autoComplete="off" id="pasien-search" onChange={(event) => { setPatientSearch(event.target.value); onChange('pasien_id', ''); }} placeholder="Nama, NIK, atau nomor RM" value={patientSearch} />{patientSearchFailed && <p className="text-xs text-red-700">Pencarian gagal. Periksa koneksi lalu coba kembali.</p>}</Field><Field error={errors.pasien_id} htmlFor="pasien_id" label="Pasien" required><Select id="pasien_id" onChange={(event) => onChange('pasien_id', event.target.value)} required value={data.pasien_id}><option value="">{searchingPatients ? 'Mencari pasien…' : patientOptions.length ? 'Pilih pasien' : patientSearch.length >= 2 ? 'Tidak ada pasien ditemukan' : 'Ketik untuk mencari pasien'}</option>{patientOptions.map((patient) => <option key={patient.id} value={patient.id}>{patient.medicalRecordNumber} · {patient.name}</option>)}</Select><p className="text-xs text-neutral-500">{patientSearch.length < 2 ? 'Menampilkan 10 pasien terbaru. Ketik minimal 2 karakter untuk mencari.' : `${patientOptions.length} hasil teratas`}</p></Field></>}
             {selectedPatient && <Field error={errors.pasien_id} htmlFor="pasien_id" label="Pasien" required><Input aria-readonly="true" readOnly value={`${selectedPatient.medicalRecordNumber ?? ''} · ${selectedPatient.name}`} /><input name="pasien_id" type="hidden" value={selectedPatient.id} /></Field>}
-            <Field error={errors.poliklinik_id} htmlFor="poliklinik_id" label="Poliklinik tujuan" required><Select id="poliklinik_id" onChange={(event) => { onChange('poliklinik_id', event.target.value); onChange('dokter_id', ''); }} required value={data.poliklinik_id}><option value="">Pilih poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>
-            <Field error={doctorLoadError ? 'Jadwal dokter gagal dimuat; coba pilih poli kembali.' : errors.dokter_id} htmlFor="dokter_id" label="Dokter"><Select disabled={!data.poliklinik_id || loadingDoctors || doctorLoadError} id="dokter_id" onChange={(event) => onChange('dokter_id', event.target.value)} value={data.dokter_id}><option value="">{loadingDoctors ? 'Memuat dokter…' : doctors.length ? 'Tentukan nanti (opsional)' : 'Tidak ada dokter terjadwal'}</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}</Select></Field>
-            <Field error={errors.tanggal} htmlFor="tanggal" label="Tanggal kunjungan" required><DatePicker id="tanggal" onChange={(event) => onChange('tanggal', event.target.value)} required  value={data.tanggal} /></Field>
+            <Field error={errors.poliklinik_id} htmlFor="poliklinik_id" label="Poliklinik tujuan" required><Select id="poliklinik_id" onChange={(event) => { onChange('poliklinik_id', event.target.value); onChange('dokter_id', ''); onChange('tanggal', clinics.find((clinic) => String(clinic.id) === event.target.value)?.type === 'gigi' ? nextDay : today); }} required value={data.poliklinik_id}><option value="">Pilih poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>
+            <Field error={doctorLoadError ? 'Jadwal dokter gagal dimuat; coba pilih poli kembali.' : errors.dokter_id} htmlFor="dokter_id" label="Dokter" required><Select required disabled={!data.poliklinik_id || loadingDoctors || doctorLoadError} id="dokter_id" onChange={(event) => onChange('dokter_id', event.target.value)} value={data.dokter_id}><option value="">{loadingDoctors ? 'Memuat dokter…' : doctors.length ? 'Pilih dokter yang terjadwal' : 'Tidak ada dokter terjadwal'}</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}</Select></Field>
+            <Field error={errors.tanggal} htmlFor="tanggal" label={isDental ? 'Tanggal janji Poli Gigi' : 'Tanggal kunjungan'} required><DatePicker min={isDental && !keepsSameDayAppointment ? nextDay : today} id="tanggal" onChange={(event) => onChange('tanggal', event.target.value)} required  value={data.tanggal} /></Field>
             <Field error={errors.jenis_pasien} htmlFor="jenis_pasien" label="Jenis pasien" required><Select id="jenis_pasien" onChange={(event) => onChange('jenis_pasien', event.target.value)} required value={data.jenis_pasien}><option value="">Pilih jenis pasien</option><option value="baru">Pasien baru</option><option value="lama">Pasien lama</option></Select></Field>
-            <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Layanan klinik internal</p><p className="mt-1 text-xs text-neutral-500">Kunjungan hanya dapat didaftarkan setelah hak layanan peserta diverifikasi.</p></div>
+            <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2">{isDental && <p className="mb-2 text-sm font-medium">Poli Gigi melalui reservasi terlebih dahulu. Pilih tanggal setelah hari ini dan dokter yang terjadwal.</p>}<p className="text-sm font-medium">Layanan klinik internal</p><p className="mt-1 text-xs text-neutral-500">Kunjungan hanya dapat didaftarkan setelah hak layanan peserta diverifikasi.</p></div>
             <div className="md:col-span-2"><Field error={errors.catatan} htmlFor="catatan" label="Catatan kunjungan"><Textarea id="catatan" onChange={(event) => onChange('catatan', event.target.value)} placeholder="Catatan khusus atau rujukan awal" rows={3} value={data.catatan} /></Field></div>
         </div>
     );

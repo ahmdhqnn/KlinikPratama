@@ -3,31 +3,38 @@
 namespace App\Http\Controllers;
 
 use App\Models\Kunjungan;
+use App\PerawatClinicResolver;
+use App\VisitOverviewService;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PerawatDashboardController extends Controller
 {
-    public function __invoke(): Response
+    public function __invoke(Request $request, PerawatClinicResolver $perawatClinicResolver): Response
     {
         $today = today();
+        $clinicId = $perawatClinicResolver->clinicId($request->user());
 
         $stats = [
-            'menunggu_ttv' => Kunjungan::whereDate('tanggal', $today)->whereIn('status', ['menunggu', 'screening'])->count(),
-            'siap_dokter' => Kunjungan::whereDate('tanggal', $today)->where('status', 'pemeriksaan')->count(),
+            'menunggu_ttv' => Kunjungan::where('poliklinik_id', $clinicId)->whereDate('tanggal', $today)->whereIn('status', ['menunggu', 'screening'])->count(),
+            'siap_dokter' => Kunjungan::where('poliklinik_id', $clinicId)->whereDate('tanggal', $today)->where('status', 'pemeriksaan')->count(),
             'triase_darurat' => Kunjungan::whereDate('tanggal', $today)
+                ->where('poliklinik_id', $clinicId)
                 ->whereHas('screening', fn ($query) => $query->where('kesimpulan_triase', 'merah'))
                 ->count(),
         ];
 
         $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'screening'])
             ->whereDate('tanggal', $today)
+            ->where('poliklinik_id', $clinicId)
             ->whereIn('status', ['menunggu', 'screening', 'pemeriksaan'])
             ->oldest('created_at')
             ->limit(10)
             ->get();
 
         return Inertia::render('perawat/dashboard', [
+            'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()->where('poliklinik_id', $clinicId)), 'href' => route('pendaftaran.kunjungan-per-poli')],
             'stats' => $stats,
             'visits' => $kunjungan->map(fn (Kunjungan $visit): array => [
                 'id' => $visit->id,

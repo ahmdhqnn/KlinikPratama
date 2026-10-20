@@ -34,7 +34,7 @@ class ObatController extends Controller
             ->when($filters['jenis'] ?? null, fn ($query, string $type) => $query->where('jenis', $type))
             ->when(filter_var($filters['stok_rendah'] ?? false, FILTER_VALIDATE_BOOL), fn ($query) => $query->whereColumn('stok', '<=', 'stok_minimum'))
             ->orderBy('nama')
-            ->paginate(20)
+            ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('master/obat/index', [
@@ -127,7 +127,7 @@ class ObatController extends Controller
     {
         $mutasi = StokMutasi::where('obat_id', $obat->id)
             ->latest()
-            ->paginate(20)
+            ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('master/obat/stok', [

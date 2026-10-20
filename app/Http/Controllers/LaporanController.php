@@ -3,14 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\ClinicalAuditRecorder;
+use App\DateRangeFilter;
 use App\Exports\KunjunganExport;
 use App\Models\Kunjungan;
 use App\Models\LabHasil;
 use App\Models\Obat;
 use App\Models\Poliklinik;
+use App\VisitQueryService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -18,44 +19,17 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class LaporanController extends Controller
 {
-    private function period(Request $request): array
-    {
-        $data = $request->validate([
-            'dari' => ['nullable', 'date_format:Y-m-d'],
-            'sampai' => ['nullable', 'date_format:Y-m-d'],
-        ]);
-        $from = $data['dari'] ?? now()->startOfMonth()->toDateString();
-        $to = $data['sampai'] ?? today()->toDateString();
-        if ($from > $to) {
-            throw ValidationException::withMessages(['sampai' => 'Tanggal akhir harus sesudah atau sama dengan tanggal mulai.']);
-        }
-
-        return [$from, $to];
-    }
-
     public function kunjungan(Request $request): Response
     {
-        $filters = $request->validate([
-            'dari' => ['nullable', 'date'],
-            'sampai' => ['nullable', 'date', 'after_or_equal:dari'],
-            'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
-            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,farmasi,selesai,batal'],
-        ]);
-        $dari = $filters['dari'] ?? now()->startOfMonth()->toDateString();
-        $sampai = $filters['sampai'] ?? today()->toDateString();
+        $period = DateRangeFilter::fromRequest($request);
+        $visits = new VisitQueryService;
+        $filters = array_intersect_key($visits->filters($request), array_flip(['poliklinik_id', 'status']));
+        $dari = $period->from ?? '';
+        $sampai = $period->to ?? '';
+        $summary = $visits->filtered($filters, period: $period);
+        $kunjungan = (clone $summary)->with(['pasien', 'poliklinik', 'dokter'])
+            ->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
 
-        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'dokter'])
-            ->whereDate('tanggal', '>=', $dari)
-            ->whereDate('tanggal', '<=', $sampai)
-            ->when($filters['poliklinik_id'] ?? null, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId))
-            ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
-            ->orderBy('tanggal')
-            ->paginate(20)
-            ->withQueryString();
-
-        $summary = Kunjungan::whereDate('tanggal', '>=', $dari)->whereDate('tanggal', '<=', $sampai)
-            ->when($filters['poliklinik_id'] ?? null, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId))
-            ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status));
         $totalKunjungan = (clone $summary)->count();
         $totalCompleted = (clone $summary)->where('status', 'selesai')->count();
         $totalVerified = (clone $summary)->whereNotNull('verified_at')->count();
@@ -99,7 +73,7 @@ class LaporanController extends Controller
             ->when($filters['jenis'] ?? null, fn ($query, string $type) => $query->where('jenis', $type))
             ->when($request->boolean('stok_rendah'), fn ($query) => $query->whereRaw($stockCondition, [today()->toDateString()]))
             ->orderBy('nama')
-            ->paginate(20)
+            ->paginate(10)
             ->withQueryString();
 
         $totalItem = Obat::count();
@@ -123,18 +97,12 @@ class LaporanController extends Controller
 
     public function laboratorium(Request $request): Response
     {
-        $filters = $request->validate([
-            'dari' => ['nullable', 'date'],
-            'sampai' => ['nullable', 'date', 'after_or_equal:dari'],
-        ]);
-        $dari = $filters['dari'] ?? now()->startOfMonth()->toDateString();
-        $sampai = $filters['sampai'] ?? today()->toDateString();
-
-        $hasilLab = LabHasil::with(['laboratorium', 'kunjungan.pasien', 'petugas'])
-            ->whereDate('created_at', '>=', $dari)
-            ->whereDate('created_at', '<=', $sampai)
+        $period = DateRangeFilter::fromRequest($request);
+        $dari = $period->from ?? '';
+        $sampai = $period->to ?? '';
+        $hasilLab = $period->apply(LabHasil::with(['laboratorium', 'kunjungan.pasien', 'petugas']), 'created_at')
             ->latest()
-            ->paginate(20)
+            ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('laporan/laboratorium', [
@@ -153,8 +121,10 @@ class LaporanController extends Controller
 
     public function exportKunjungan(Request $request, ClinicalAuditRecorder $audit): BinaryFileResponse
     {
-        [$from, $to] = $this->period($request);
-        $filters = $request->validate(['poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'], 'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,farmasi,selesai,batal']]);
+        $period = DateRangeFilter::fromRequest($request);
+        $from = $period->from;
+        $to = $period->to;
+        $filters = array_intersect_key((new VisitQueryService)->filters($request), array_flip(['poliklinik_id', 'status']));
         $audit->record($request, 'visit_report.export', metadata: ['from' => $from, 'to' => $to, ...$filters]);
 
         return Excel::download(

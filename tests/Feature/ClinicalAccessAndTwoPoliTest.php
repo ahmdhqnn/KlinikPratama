@@ -27,7 +27,7 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
         $this->actingAs($admin)->get(route('pelayanan.pasien.rekam-medis', $patient))->assertForbidden();
         $this->assertDatabaseMissing('clinical_audit_events', ['action' => 'medical_record.view', 'patient_id' => $patient->id]);
         $this->get(route('pelayanan.pemeriksaan.index'))->assertForbidden();
-        $this->get(route('pelayanan.screening.index'))->assertForbidden();
+        $this->get(route('pelayanan.screening.index'))->assertOk();
         $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page
             ->component('dashboard/index')
             ->missing('recentVisits')
@@ -87,7 +87,7 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
 
         $member = Kepesertaan::factory()->create(['nama' => $patient->nama]);
         $patient->update(['kepesertaan_id' => $member->id, 'nik' => $member->nik]);
-        $this->actingAs($registration)->get(route('pendaftaran.pendaftaran-lama'))->assertInertia(fn (Assert $page) => $page
+        $this->actingAs($registration)->get(route('pendaftaran.pendaftaran-baru', ['tab' => 'registered']))->assertInertia(fn (Assert $page) => $page
             ->has('clinics', 2)
             ->where('clinics.0.name', 'Poli Gigi')
             ->where('clinics.1.name', 'Poli Umum')
@@ -105,6 +105,7 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
         $this->post(route('pendaftaran.store-pasien-lama'), [
             'pasien_id' => $patient->id,
             'poliklinik_id' => $dental->id,
+            'tanggal' => '2026-10-23',
         ])->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('kunjungan', ['pasien_id' => $patient->id, 'poliklinik_id' => $dental->id]);

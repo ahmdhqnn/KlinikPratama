@@ -67,6 +67,33 @@ class RegistrationRoleTest extends TestCase
             'jenis_pasien' => 'lama',
         ]);
 
+        $list = $this->actingAs($user)->get(route('pendaftaran.kunjungan-per-poli'));
+        $list->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.actionUrl', route('pendaftaran.kunjungan.show', $visit))
+            ->where('recentVisits.0.actionUrl', route('pendaftaran.kunjungan.show', $visit))
+        );
+        $detail = $this->get($list->inertiaProps('visits.data.0.actionUrl'));
+        $detail->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('pelayanan/kunjungan/show')
+            ->where('visit.number', $visit->no_kunjungan)
+            ->where('backUrl', route('pendaftaran.kunjungan-per-poli'))
+            ->where('permissions.editVisit', true)
+            ->where('permissions.viewRme', false)
+            ->where('permissions.processScreening', false)
+            ->where('links.edit', route('pendaftaran.edit-kunjungan', $visit))
+            ->where('links.patient', route('pendaftaran.database-pasien', ['search' => $patient->no_rm]))
+            ->where('links.medicalRecord', null)
+            ->where('links.screening', null)
+            ->where('visit.patient.allergies', null)
+            ->missing('visit.pemeriksaan')
+        );
+        $this->get($detail->inertiaProps('links.edit'))->assertOk();
+        $this->get($detail->inertiaProps('links.patient'))->assertOk();
+        $this->get($detail->inertiaProps('backUrl'))->assertOk();
+        $this->get(route('pelayanan.kunjungan.show', $visit))
+            ->assertRedirect(route('pendaftaran.kunjungan.show', $visit));
+        $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertForbidden();
+
         $this->actingAs($user)->get(route('pendaftaran.edit-kunjungan', $visit))
             ->assertInertia(fn (Assert $page) => $page
                 ->component('pendaftaran/edit-kunjungan')
@@ -89,6 +116,22 @@ class RegistrationRoleTest extends TestCase
             ->where('visits.data.0.editUrl', null)
             ->where('visits.data.0.cancelUrl', null)
         );
+        $this->get(route('pendaftaran.kunjungan.show', $visit))->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('permissions.editVisit', false)
+            ->where('links.edit', null)
+        );
+
+        $visit->update(['status' => 'batal']);
+        $this->get(route('pendaftaran.cetak-antrian', $visit))->assertUnprocessable();
+        $this->get(route('pendaftaran.kunjungan-per-poli'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.ticketUrl', null)
+        );
+        $this->get(route('pendaftaran.kunjungan.show', $visit))->assertOk();
+
+        foreach (['dokter', 'perawat', 'farmasi'] as $role) {
+            $staff = User::factory()->create(['role' => $role, 'is_active' => true]);
+            $this->actingAs($staff)->get(route('pendaftaran.kunjungan.show', $visit))->assertForbidden();
+        }
     }
 
     public function test_other_staff_role_cannot_open_registration_routes(): void
@@ -132,6 +175,15 @@ class RegistrationRoleTest extends TestCase
             'jenis' => 'umum',
             'is_active' => true,
         ]);
+        Nakes::create([
+            'kode' => 'NURSE-ROLE-1',
+            'nama' => $user->name,
+            'kategori' => 'medis',
+            'jabatan' => 'perawat',
+            'poliklinik_id' => $clinic->id,
+            'user_id' => $user->id,
+            'is_active' => true,
+        ]);
         $patient = Pasien::create(['no_rm' => 'RM-000010', 'nama' => 'Pasien Skrining']);
         $visit = Kunjungan::create([
             'no_kunjungan' => 'KNJ-0010',
@@ -153,7 +205,7 @@ class RegistrationRoleTest extends TestCase
         $this->actingAs($user)->get(route('pelayanan.screening.index'))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/screening/index')
             ->where('auth.user.role', 'perawat')
-            ->has('visits', 1)
+            ->has('visits.data', 1)
         );
         $this->actingAs($user)->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/screening/show')
@@ -210,13 +262,26 @@ class RegistrationRoleTest extends TestCase
             'role' => 'admin',
             'is_active' => true,
         ]);
+        $clinic = Poliklinik::create([
+            'kode' => 'USER-PRW-UMUM',
+            'nama' => 'Poli Umum',
+            'jenis' => 'umum',
+            'is_active' => true,
+        ]);
 
-        $response = $this->actingAs($admin)->post(route('users.store'), [
+        $accountData = [
             'name' => 'Perawat Baru',
             'email' => 'perawat-baru@klinik.test',
             'password' => 'password',
             'role' => 'perawat',
             'is_active' => '1',
+        ];
+        $this->actingAs($admin)->post(route('users.store'), $accountData)->assertSessionHasErrors('poliklinik_id');
+        $this->assertDatabaseMissing('users', ['email' => 'perawat-baru@klinik.test']);
+
+        $response = $this->actingAs($admin)->post(route('users.store'), [
+            ...$accountData,
+            'poliklinik_id' => $clinic->id,
         ]);
 
         $response->assertRedirect();
@@ -229,6 +294,7 @@ class RegistrationRoleTest extends TestCase
             'nama' => 'Perawat Baru',
             'jabatan' => 'perawat',
             'user_id' => User::where('email', 'perawat-baru@klinik.test')->value('id'),
+            'poliklinik_id' => $clinic->id,
             'is_active' => true,
         ]);
     }
@@ -304,10 +370,10 @@ class RegistrationRoleTest extends TestCase
             ->component('pendaftaran/kunjungan-per-poli')
             ->where('stats.total', 1)
             ->where('stats.waiting', 1)
-            ->where('visits.0.patient', 'Siti Pasien')
-            ->where('visits.0.actionLabel', 'Detail')
-            ->where('visits.0.editUrl', route('pendaftaran.edit-kunjungan', $kunjungan))
-            ->where('visits.0.cancelUrl', route('pendaftaran.batal-kunjungan', $kunjungan))
+            ->where('visits.data.0.patient', 'Siti Pasien')
+            ->where('visits.data.0.actionLabel', 'Detail')
+            ->where('visits.data.0.editUrl', route('pendaftaran.edit-kunjungan', $kunjungan))
+            ->where('visits.data.0.cancelUrl', route('pendaftaran.batal-kunjungan', $kunjungan))
         );
     }
 
@@ -325,18 +391,14 @@ class RegistrationRoleTest extends TestCase
             ->component('pendaftaran/laporan-top-diagnosa')
             ->where('summary.diagnosisCount', 0)
             ->where('summary.caseCount', 0)
-            ->has('diagnoses', 0)
+            ->has('diagnoses.data', 0)
         );
         $this->get(route('pendaftaran.laporan-kunjungan'))->assertInertia(fn (Assert $page) => $page
             ->component('pendaftaran/laporan-kunjungan')
             ->has('clinics')
             ->has('visits.data', 0)
         );
-        $this->get(route('pendaftaran.pendaftaran-lama'))->assertInertia(fn (Assert $page) => $page
-            ->component('pendaftaran/pendaftaran-lama')
-            ->has('clinics')
-            ->missing('insuranceProviders')
-        );
+        $this->get(route('pendaftaran.pendaftaran-lama'))->assertRedirect(route('pendaftaran.pendaftaran-baru', ['tab' => 'registered']));
         $this->get(route('pendaftaran.pendaftaran-baru'))->assertInertia(fn (Assert $page) => $page
             ->component('pendaftaran/pendaftaran-baru')
             ->has('clinics')
@@ -350,12 +412,12 @@ class RegistrationRoleTest extends TestCase
         $this->get(route('pendaftaran.kunjungan-per-poli'))->assertInertia(fn (Assert $page) => $page
             ->component('pendaftaran/kunjungan-per-poli')
             ->has('stats.total')
-            ->has('visits', 0)
+            ->has('visits.data', 0)
         );
         $this->get(route('pendaftaran.jadwal-praktik'))->assertInertia(fn (Assert $page) => $page
             ->component('pendaftaran/jadwal-praktik')
             ->has('days', 7)
-            ->has('schedules', 0)
+            ->has('schedules.data', 0)
         );
     }
 
@@ -364,12 +426,12 @@ class RegistrationRoleTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $this->actingAs($admin)->get(route('pendaftaran.dashboard'))->assertOk();
         $this->get(route('pendaftaran.pendaftaran-baru'))->assertOk();
-        $this->get(route('pendaftaran.pendaftaran-lama'))->assertOk();
+        $this->get(route('pendaftaran.pendaftaran-lama'))->assertRedirect(route('pendaftaran.pendaftaran-baru', ['tab' => 'registered']));
         $this->get(route('pelayanan.pasien.index'))->assertOk();
         $this->get(route('kepesertaan.index'))->assertOk();
     }
 
-    public function test_clinic_visit_monitoring_shows_today_and_latest_visits_from_previous_dates(): void
+    public function test_clinic_visit_monitoring_separates_all_history_from_today(): void
     {
         $this->travelTo('2026-10-19 09:00:00');
         $user = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
@@ -394,12 +456,12 @@ class RegistrationRoleTest extends TestCase
         $this->actingAs($user)->get(route('pendaftaran.kunjungan-per-poli', ['poliklinik_id' => $clinic->id]))
             ->assertInertia(fn (Assert $page) => $page
                 ->component('pendaftaran/kunjungan-per-poli')
-                ->has('visits', 1)
-                ->where('visits.0.patient', 'Pasien Hari Ini')
-                ->has('recentVisits', 2)
+                ->has('visits.data', 2)
+                ->where('visits.data.0.patient', 'Pasien Hari Ini')
+                ->has('recentVisits', 1)
                 ->where('recentVisits.0.patient', 'Pasien Hari Ini')
-                ->where('recentVisits.1.patient', 'Pasien Sebelumnya')
-                ->where('recentVisits.1.date', '18/10/2026')
+                ->where('visits.data.1.patient', 'Pasien Sebelumnya')
+                ->where('visits.data.1.date', '18/10/2026')
             );
     }
 
@@ -410,6 +472,15 @@ class RegistrationRoleTest extends TestCase
             'kode' => 'MON-UMUM',
             'nama' => 'Poli Umum',
             'jenis' => 'umum',
+            'is_active' => true,
+        ]);
+        Nakes::create([
+            'kode' => 'NURSE-MON-1',
+            'nama' => $nurse->name,
+            'kategori' => 'medis',
+            'jabatan' => 'perawat',
+            'poliklinik_id' => $clinic->id,
+            'user_id' => $nurse->id,
             'is_active' => true,
         ]);
         $patient = Pasien::create(['no_rm' => 'RM-MON-001', 'nama' => 'Pasien Pantau']);
@@ -432,16 +503,16 @@ class RegistrationRoleTest extends TestCase
 
         $this->actingAs($nurse)->get(route('pendaftaran.kunjungan-per-poli', ['poliklinik_id' => $clinic->id]))
             ->assertInertia(fn (Assert $page) => $page
-                ->where('visits.0.ticketUrl', null)
-                ->where('visits.0.actionLabel', 'Skrining')
-                ->where('visits.0.actionUrl', route('pelayanan.screening.show', Kunjungan::firstOrFail()))
-                ->where('visits.0.editUrl', null)
-                ->where('visits.0.cancelUrl', null)
+                ->where('visits.data.0.ticketUrl', null)
+                ->where('visits.data.0.actionLabel', 'Skrining')
+                ->where('visits.data.0.actionUrl', route('pelayanan.screening.show', Kunjungan::firstOrFail()))
+                ->where('visits.data.0.editUrl', null)
+                ->where('visits.data.0.cancelUrl', null)
             );
         $this->get(route('pendaftaran.jadwal-praktik'))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('canManage', false)
-                ->has('schedules', 1)
+                ->has('schedules.data', 1)
             );
         $this->post(route('pendaftaran.store-jadwal-praktik'))->assertForbidden();
         $this->put(route('pendaftaran.update-jadwal-praktik', $schedule))->assertForbidden();
@@ -566,8 +637,8 @@ class RegistrationRoleTest extends TestCase
 
         $schedule = JadwalDokter::where('dokter_id', $doctor->id)->firstOrFail();
         $this->get(route('pendaftaran.jadwal-praktik'))->assertInertia(fn (Assert $page) => $page
-            ->where('schedules.0.doctorId', $doctor->id)
-            ->where('schedules.0.updateUrl', route('pendaftaran.update-jadwal-praktik', $schedule))
+            ->where('schedules.data.0.doctorId', $doctor->id)
+            ->where('schedules.data.0.updateUrl', route('pendaftaran.update-jadwal-praktik', $schedule))
         );
 
         $this->put(route('pendaftaran.update-jadwal-praktik', $schedule), [
@@ -622,8 +693,8 @@ class RegistrationRoleTest extends TestCase
                 ->component('pendaftaran/laporan-top-diagnosa')
                 ->where('summary.diagnosisCount', 1)
                 ->where('summary.caseCount', 1)
-                ->where('diagnoses.0.code', 'R50.9')
-                ->where('diagnoses.0.percentage', 100)
+                ->where('diagnoses.data.0.code', 'R50.9')
+                ->where('diagnoses.data.0.percentage', 100)
             );
     }
 }

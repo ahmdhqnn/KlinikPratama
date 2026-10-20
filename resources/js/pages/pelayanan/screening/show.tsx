@@ -77,6 +77,8 @@ interface Staff {
 interface Props {
     visit: Visit;
     staff: Staff[];
+    canSelectStaff: boolean;
+    currentStaff: string | null;
 }
 
 const triageFields: Array<{ name: ScreeningScalarField; label: string; options: Array<[string, string]> }> = [
@@ -89,7 +91,7 @@ const triageFields: Array<{ name: ScreeningScalarField; label: string; options: 
     { name: 'risiko_jatuh_visual', label: 'Risiko jatuh visual', options: [['rendah', 'Rendah'], ['sedang', 'Sedang'], ['tinggi', 'Tinggi']] },
 ];
 
-export default function ScreeningForm({ visit, staff }: Props) {
+export default function ScreeningForm({ visit, staff, canSelectStaff, currentStaff }: Props) {
     const [mode, setMode] = useState<'simple' | 'complete'>('complete');
     const form = useForm<ScreeningValues>({
         petugas_id: getValue(visit, 'petugas_id'),
@@ -251,11 +253,13 @@ export default function ScreeningForm({ visit, staff }: Props) {
                             </div>
                         </section>
 
-                        <Field error={form.errors.petugas_id} htmlFor="petugas_id" label="Petugas skrining">
-                            <Select id="petugas_id" onChange={(event) => updateField('petugas_id', event.target.value)} value={form.data.petugas_id}>
-                                <option value="">Pilih petugas (opsional)</option>{staff.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.position}</option>)}
-                            </Select>
-                        </Field>
+                        {canSelectStaff
+                            ? <Field error={form.errors.petugas_id} htmlFor="petugas_id" label="Petugas skrining">
+                                <Select id="petugas_id" onChange={(event) => updateField('petugas_id', event.target.value)} value={form.data.petugas_id}>
+                                    <option value="">Pilih petugas (opsional)</option>{staff.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.position}</option>)}
+                                </Select>
+                            </Field>
+                            : <Field htmlFor="current-staff" label="Petugas skrining"><Input id="current-staff" readOnly value={currentStaff ?? 'Mengikuti akun perawat yang masuk'} /></Field>}
                     </CardContent>
                 </Card>
 

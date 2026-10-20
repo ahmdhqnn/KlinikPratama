@@ -20,7 +20,7 @@ class DepoObatController extends Controller
                     ->orWhere('kode', 'like', "%{$search}%");
             }))
             ->orderBy('kode')
-            ->paginate(15)
+            ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('master/depo-obat/index', [

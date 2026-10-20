@@ -26,7 +26,7 @@ class KepesertaanController extends Controller
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
         $members = Kepesertaan::with('penanggung')->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query
             ->where('nama', 'like', "%{$search}%")->orWhere('nik', 'like', "%{$search}%")->orWhere('nip', 'like', "%{$search}%")->orWhere('unit_kerja', 'like', "%{$search}%")))
-            ->latest('created_at')->latest('id')->paginate(20)->withQueryString()
+            ->latest('created_at')->latest('id')->paginate(10)->withQueryString()
             ->through(fn (Kepesertaan $member): array => [
                 'id' => $member->id, 'nama' => $member->nama, 'nik' => $member->nik, 'nip' => $member->nip,
                 'kategori' => $member->categoryKey(), 'jenis_lainnya' => $member->otherTypeKey(), 'status_kepegawaian' => $member->status_kepegawaian,
@@ -42,7 +42,7 @@ class KepesertaanController extends Controller
 
         return Inertia::render('kepesertaan/index', [
             'members' => $this->pageData($members), 'search' => $filters['search'] ?? '', 'categories' => Kepesertaan::CATEGORIES,
-            'otherTypes' => Kepesertaan::OTHER_TYPES, 'canAssignSpecial' => $request->user()->role === 'admin',
+            'otherTypes' => Kepesertaan::OTHER_TYPES,
             'sponsors' => Kepesertaan::where('kategori', 'asn')->orderBy('nama')->get(['id', 'nama', 'nip']),
             'urls' => ['index' => route('kepesertaan.index'), 'import' => route('kepesertaan.import'), 'template' => route('kepesertaan.template')],
         ]);
@@ -53,7 +53,7 @@ class KepesertaanController extends Controller
         $data = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']]);
         $members = Kepesertaan::with('penanggung')->where(fn ($query) => $query
             ->where('nama', 'like', "%{$data['q']}%")->orWhere('nip', 'like', "%{$data['q']}%")->orWhere('nik', 'like', "%{$data['q']}%"))
-            ->latest('created_at')->latest('id')->limit(15)->get()->map(fn (Kepesertaan $member): array => [
+            ->latest('created_at')->latest('id')->limit(10)->get()->map(fn (Kepesertaan $member): array => [
                 'id' => $member->id, 'name' => $member->nama, 'nik' => $member->nik, 'nip' => $member->nip,
                 'category' => $member->membershipLabel(), 'unit' => $member->unit_kerja,
                 'reason' => $verifier->reason($member),

@@ -32,7 +32,7 @@ class Kepesertaan extends Model
     public const OTHER_TYPES = [
         'keluarga' => 'Keluarga ASN', 'magang' => 'Magang', 'staf' => 'Staf non-ASN',
         'pensiunan' => 'Pensiunan', 'tamu' => 'Tamu instansi',
-        'khusus' => 'Khusus (verifikasi admin)', 'lainnya' => 'Lainnya',
+        'lainnya' => 'Lainnya',
     ];
 
     private const LEGACY_CATEGORY_ALIASES = [
@@ -42,7 +42,7 @@ class Kepesertaan extends Model
 
     private const LEGACY_OTHER_TYPE_ALIASES = [
         'kontrak' => 'staf', 'pensiunan' => 'pensiunan', 'keluarga' => 'keluarga',
-        'tamu' => 'tamu', 'khusus' => 'khusus',
+        'tamu' => 'tamu', 'khusus' => 'lainnya',
     ];
 
     public function categoryKey(): string
@@ -64,7 +64,7 @@ class Kepesertaan extends Model
 
     public function otherTypeKey(): ?string
     {
-        return $this->jenis_lainnya ?? self::LEGACY_OTHER_TYPE_ALIASES[$this->kategori] ?? null;
+        return $this->jenis_lainnya === 'khusus' ? 'lainnya' : ($this->jenis_lainnya ?? self::LEGACY_OTHER_TYPE_ALIASES[$this->kategori] ?? null);
     }
 
     public function categoryLabel(): string
@@ -89,7 +89,7 @@ class Kepesertaan extends Model
     {
         $otherType = $this->otherTypeLabel();
 
-        return $this->categoryLabel().($otherType ? ' · '.$otherType : '');
+        return $this->categoryLabel().($otherType && $otherType !== $this->categoryLabel() ? ' · '.$otherType : '');
     }
 
     public function penanggung(): BelongsTo

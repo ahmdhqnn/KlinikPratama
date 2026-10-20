@@ -22,7 +22,7 @@ class PoliklinikController extends Controller
                     ->orWhere('kode', 'like', "%{$search}%");
             }))
             ->orderBy('kode')
-            ->paginate(15)
+            ->paginate(10)
             ->withQueryString();
 
         $depoList = DepoObat::where('is_active', true)->orderBy('nama')->get();

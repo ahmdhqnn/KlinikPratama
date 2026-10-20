@@ -69,6 +69,7 @@ class JadwalPraktikResolver
         $day = $date->toDateString();
         $entries = $this->isHoliday($day) ? collect() : JadwalDokter::query()
             ->with('poliklinik:id,nama')
+            ->whereHas('poliklinik', fn ($query) => $query->registrable())
             ->where('dokter_id', $doctorId)
             ->where('hari', strtolower($date->locale('id')->dayName))
             ->where('is_active', true)
@@ -81,10 +82,10 @@ class JadwalPraktikResolver
             ]]);
 
         $exceptions = DB::table('jadwal_khusus_dokter')->where('dokter_id', $doctorId)->whereDate('tanggal', $day)->get();
-        $clinics = Poliklinik::whereIn('id', $exceptions->pluck('poliklinik_id'))->pluck('nama', 'id');
+        $clinics = Poliklinik::registrable()->whereIn('id', $exceptions->pluck('poliklinik_id'))->pluck('nama', 'id');
         foreach ($exceptions as $exception) {
             $entries->forget($exception->poliklinik_id);
-            if ($exception->is_active) {
+            if ($exception->is_active && $clinics->has($exception->poliklinik_id)) {
                 $entries->put($exception->poliklinik_id, [
                     'id' => (int) $exception->poliklinik_id, 'clinic' => $clinics[$exception->poliklinik_id] ?? 'Poliklinik',
                     'start' => substr($exception->jam_mulai, 0, 5), 'end' => substr($exception->jam_selesai, 0, 5),

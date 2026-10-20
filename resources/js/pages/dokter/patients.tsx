@@ -1,3 +1,4 @@
+import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
 import { Search, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -42,11 +43,11 @@ export default function DoctorPatients({ search, patients }: Props) {
                 </div>
                 <Card>
                     <CardContent className="p-5 sm:p-6">
-                        <form className="flex flex-col gap-3 sm:flex-row" onSubmit={applySearch}>
+                        <FilterPanel><form className="flex flex-col gap-3 sm:flex-row" onSubmit={applySearch}>
                             <Label className="sr-only" htmlFor="patient-search">Cari pasien</Label>
                             <Input id="patient-search" onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, nomor rekam medis, atau NIK" value={query} />
                             <Button className="sm:min-w-32" type="submit"><Search className="size-4" />Cari pasien</Button>
-                        </form>
+                        </form></FilterPanel>
                     </CardContent>
                 </Card>
                 <Card className="overflow-hidden">
@@ -59,15 +60,15 @@ export default function DoctorPatients({ search, patients }: Props) {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[680px]">
-                                <TableHeader><tr><TableHead>No. rekam medis</TableHead><TableHead>Nama</TableHead><TableHead>Jenis kelamin</TableHead><TableHead className="text-right">Kunjungan</TableHead><TableHead className="text-right">Rekam medis</TableHead></tr></TableHeader>
+                                <TableHeader><tr><TableHead>No. rekam medis</TableHead><TableHead>Nama</TableHead><TableHead>Jenis kelamin</TableHead><TableHead className="text-center">Kunjungan</TableHead><TableHead className="text-center">Rekam medis</TableHead></tr></TableHeader>
                                 <TableBody>
                                     {patients.data.length > 0 ? patients.data.map((patient) => (
                                         <TableRow key={patient.id}>
                                             <TableCell className="font-mono text-xs font-medium text-neutral-700">{patient.medicalRecordNumber}</TableCell>
                                             <TableCell className="font-medium text-neutral-900">{patient.name}</TableCell>
                                             <TableCell className="text-neutral-600">{patient.gender ?? 'Belum diisi'}</TableCell>
-                                            <TableCell className="text-right tabular-nums text-neutral-600">{new Intl.NumberFormat('id-ID').format(patient.visitCount)}</TableCell>
-                                            <TableCell className="text-right"><Button asChild size="sm" variant="secondary"><a href={patient.recordUrl}>Lihat RME</a></Button></TableCell>
+                                            <TableCell className="text-center tabular-nums text-neutral-600">{new Intl.NumberFormat('id-ID').format(patient.visitCount)}</TableCell>
+                                            <TableCell className="text-center"><Button asChild size="sm" variant="secondary"><a href={patient.recordUrl}>Lihat RME</a></Button></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada pasien yang cocok dengan pencarian." /></TableCell></TableRow>}
                                 </TableBody>

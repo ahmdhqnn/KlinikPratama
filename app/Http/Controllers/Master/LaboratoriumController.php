@@ -25,7 +25,7 @@ class LaboratoriumController extends Controller
                     ->orWhere('kode', 'like', "%{$search}%");
             }))
             ->orderBy('kode')
-            ->paginate(15)
+            ->paginate(10)
             ->withQueryString();
 
         $clinics = Poliklinik::where('is_active', true)->orderBy('nama')->get();

@@ -1,3 +1,4 @@
+import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, router, useForm } from '@inertiajs/react';
 import { Pencil, Plus, Printer, Save, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -12,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { confirmAction } from '@/components/ui/confirm-dialog';
+import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 
 interface Template {
     id: number;
@@ -42,10 +44,11 @@ interface DocumentRow {
 }
 
 interface Props {
+    filters: { search: string };
     isAdmin: boolean;
-    templates: Template[];
-    letters: DocumentRow[];
-    referrals: DocumentRow[];
+    templates: PaginationData & { data: Template[] };
+    letters: PaginationData & { data: DocumentRow[] };
+    referrals: PaginationData & { data: DocumentRow[] };
 }
 
 const documentTypes = [
@@ -61,7 +64,11 @@ const emptyTemplate = {
     nomor_berikutnya: '1', isi: '', is_active: true,
 };
 
-export default function Persuratan({ isAdmin, templates, letters, referrals }: Props) {
+export default function Persuratan({ filters, isAdmin, templates: templatePagination, letters: letterPagination, referrals: referralPagination }: Props) {
+    const [search, setSearch] = useState(filters.search);
+    const templates = templatePagination.data;
+    const letters = letterPagination.data;
+    const referrals = referralPagination.data;
     const [editingId, setEditingId] = useState<number | null>(null);
     const [activeTab, setActiveTab] = useState('dokumen');
     const form = useForm(emptyTemplate);
@@ -112,7 +119,8 @@ export default function Persuratan({ isAdmin, templates, letters, referrals }: P
                     <p className="mt-1 text-sm text-neutral-500">Kelola template, penomoran surat, dan cetak dokumen dari kunjungan.</p>
                 </div>
 
-                <Tabs className="space-y-5" onValueChange={setActiveTab} value={activeTab}>
+                <FilterPanel><form className="flex flex-col gap-3 sm:flex-row" onSubmit={(event) => { event.preventDefault(); router.get('/persuratan', { search }, { preserveState: true, preserveScroll: true, replace: true }); }}><Input aria-label="Cari surat atau template" placeholder="Nama pasien, nomor RM, nomor surat, atau template" value={search} onChange={(event) => setSearch(event.target.value)} /><Button type="submit" variant="secondary">Terapkan filter</Button></form></FilterPanel>
+            <Tabs className="space-y-5" onValueChange={setActiveTab} value={activeTab}>
                     <TabsList aria-label="Bagian persuratan">
                         <TabsTrigger value="dokumen">Dokumen diterbitkan</TabsTrigger>
                         {isAdmin && <TabsTrigger value="template">Template & penomoran</TabsTrigger>}
@@ -121,19 +129,21 @@ export default function Persuratan({ isAdmin, templates, letters, referrals }: P
                         <Card>
                             <CardHeader><CardTitle>Surat medis</CardTitle><CardDescription>Surat yang terkait dengan kunjungan pasien.</CardDescription></CardHeader>
                             <CardContent className="overflow-x-auto">
-                                <Table><TableHeader><tr><TableHead>Nomor / tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Jenis</TableHead><TableHead>Poli / dokter</TableHead><TableHead className="text-right">Aksi</TableHead></tr></TableHeader>
-                                    <TableBody>{letters.length ? letters.map((letter) => <TableRow key={letter.id}><TableCell><span className="font-mono text-sm">{letter.number ?? 'Belum diisi'}</span><p className="mt-1 text-xs text-neutral-500">{letter.date ?? 'Belum diisi'}</p></TableCell><TableCell><span className="font-medium">{letter.patient}</span><p className="text-xs text-neutral-500">{letter.visitNumber}</p></TableCell><TableCell><Badge variant="examination">{documentTypes.find(([value]) => value === letter.type)?.[1] ?? letter.type}</Badge></TableCell><TableCell>{letter.clinic}<p className="text-xs text-neutral-500">{letter.doctor}</p></TableCell><TableCell className="text-right"><Button asChild size="sm" variant="secondary"><a href={letter.printUrl}><Printer className="size-4" />Cetak</a></Button></TableCell></TableRow>) : <TableRow><TableCell colSpan={5}><Empty size="compact" title="Belum ada surat medis." /></TableCell></TableRow>}</TableBody>
+                                <Table><TableHeader><tr><TableHead>Nomor / tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Jenis</TableHead><TableHead>Poli / dokter</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                                    <TableBody>{letters.length ? letters.map((letter) => <TableRow key={letter.id}><TableCell><span className="font-mono text-sm">{letter.number ?? 'Belum diisi'}</span><p className="mt-1 text-xs text-neutral-500">{letter.date ?? 'Belum diisi'}</p></TableCell><TableCell><span className="font-medium">{letter.patient}</span><p className="text-xs text-neutral-500">{letter.visitNumber}</p></TableCell><TableCell><Badge variant="examination">{documentTypes.find(([value]) => value === letter.type)?.[1] ?? letter.type}</Badge></TableCell><TableCell>{letter.clinic}<p className="text-xs text-neutral-500">{letter.doctor}</p></TableCell><TableCell className="text-center"><Button asChild size="sm" variant="secondary"><a href={letter.printUrl}><Printer className="size-4" />Cetak</a></Button></TableCell></TableRow>) : <TableRow><TableCell colSpan={5}><Empty size="compact" title="Belum ada surat medis." /></TableCell></TableRow>}</TableBody>
                                 </Table>
                             </CardContent>
+                            <Pagination pagination={letterPagination} />
                         </Card>
 
                         <Card>
                             <CardHeader><CardTitle>Rujukan internal</CardTitle><CardDescription>Rujukan antarpoliklinik yang telah diterbitkan.</CardDescription></CardHeader>
                             <CardContent className="overflow-x-auto">
-                                <Table><TableHeader><tr><TableHead>Nomor / tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Tujuan</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></tr></TableHeader>
-                                    <TableBody>{referrals.length ? referrals.map((referral) => <TableRow key={referral.id}><TableCell><span className="font-mono text-sm">{referral.number ?? 'Belum diisi'}</span><p className="mt-1 text-xs text-neutral-500">{referral.date ?? 'Belum diisi'}</p></TableCell><TableCell><span className="font-medium">{referral.patient}</span><p className="text-xs text-neutral-500">{referral.visitNumber}</p></TableCell><TableCell>{referral.fromClinic} → {referral.toClinic}<p className="text-xs text-neutral-500">{referral.doctor}</p></TableCell><TableCell><Badge variant={referral.status === 'selesai' ? 'complete' : 'waiting'}>{referral.status}</Badge></TableCell><TableCell className="text-right"><Button asChild size="sm" variant="secondary"><a href={referral.printUrl}><Printer className="size-4" />Cetak</a></Button></TableCell></TableRow>) : <TableRow><TableCell colSpan={5}><Empty size="compact" title="Belum ada rujukan internal." /></TableCell></TableRow>}</TableBody>
+                                <Table><TableHeader><tr><TableHead>Nomor / tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Tujuan</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                                    <TableBody>{referrals.length ? referrals.map((referral) => <TableRow key={referral.id}><TableCell><span className="font-mono text-sm">{referral.number ?? 'Belum diisi'}</span><p className="mt-1 text-xs text-neutral-500">{referral.date ?? 'Belum diisi'}</p></TableCell><TableCell><span className="font-medium">{referral.patient}</span><p className="text-xs text-neutral-500">{referral.visitNumber}</p></TableCell><TableCell>{referral.fromClinic} → {referral.toClinic}<p className="text-xs text-neutral-500">{referral.doctor}</p></TableCell><TableCell><Badge variant={referral.status === 'selesai' ? 'complete' : 'waiting'}>{referral.status}</Badge></TableCell><TableCell className="text-center"><Button asChild size="sm" variant="secondary"><a href={referral.printUrl}><Printer className="size-4" />Cetak</a></Button></TableCell></TableRow>) : <TableRow><TableCell colSpan={5}><Empty size="compact" title="Belum ada rujukan internal." /></TableCell></TableRow>}</TableBody>
                                 </Table>
                             </CardContent>
+                            <Pagination pagination={referralPagination} />
                         </Card>
                     </TabsContent>
 
@@ -159,12 +169,13 @@ export default function Persuratan({ isAdmin, templates, letters, referrals }: P
                         </Card>
 
                         <Card>
-                            <CardHeader><CardTitle>Template tersedia</CardTitle><CardDescription>{templates.length} template surat dan penomoran.</CardDescription></CardHeader>
+                            <CardHeader><CardTitle>Template tersedia</CardTitle><CardDescription>{templatePagination.total} template surat dan penomoran.</CardDescription></CardHeader>
                             <CardContent className="overflow-x-auto">
-                                <Table><TableHeader><tr><TableHead>Kode / nama</TableHead><TableHead>Jenis</TableHead><TableHead>Format</TableHead><TableHead>Nomor berikutnya</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></tr></TableHeader>
-                                    <TableBody>{templates.length ? templates.map((template) => <TableRow key={template.id}><TableCell><span className="font-mono text-xs">{template.code}</span><p className="font-medium">{template.name}</p></TableCell><TableCell>{documentTypes.find(([value]) => value === template.type)?.[1] ?? template.type}</TableCell><TableCell className="font-mono text-xs">{template.numberFormat}</TableCell><TableCell>{template.nextNumber}</TableCell><TableCell><Badge variant={template.active ? 'complete' : 'cancelled'}>{template.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell><TableCell className="text-right"><div className="inline-flex gap-1"><Button aria-label={`Ubah ${template.name}`} onClick={() => startEdit(template)} size="sm" type="button" variant="ghost"><Pencil className="size-4" /></Button><Button aria-label={`Hapus ${template.name}`} disabled={template.inUse} onClick={() => removeTemplate(template)} size="sm" title={template.inUse ? 'Template sudah digunakan; nonaktifkan jika tidak dipakai lagi.' : undefined} type="button" variant="ghost"><Trash2 className="size-4 text-red-600" /></Button></div></TableCell></TableRow>) : <TableRow><TableCell colSpan={6}><Empty size="compact" title="Belum ada template persuratan." /></TableCell></TableRow>}</TableBody>
+                                <Table><TableHeader><tr><TableHead>Kode / nama</TableHead><TableHead>Jenis</TableHead><TableHead>Format</TableHead><TableHead>Nomor berikutnya</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                                    <TableBody>{templates.length ? templates.map((template) => <TableRow key={template.id}><TableCell><span className="font-mono text-xs">{template.code}</span><p className="font-medium">{template.name}</p></TableCell><TableCell>{documentTypes.find(([value]) => value === template.type)?.[1] ?? template.type}</TableCell><TableCell className="font-mono text-xs">{template.numberFormat}</TableCell><TableCell>{template.nextNumber}</TableCell><TableCell><Badge variant={template.active ? 'complete' : 'cancelled'}>{template.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell><TableCell className="text-center"><div className="inline-flex flex-wrap items-center justify-center gap-2"><Button aria-label={`Ubah ${template.name}`} onClick={() => startEdit(template)} size="sm" type="button" variant="secondary"><Pencil className="size-4" />Edit</Button><Button aria-label={`Hapus ${template.name}`} disabled={template.inUse} onClick={() => removeTemplate(template)} size="sm" title={template.inUse ? 'Template sudah digunakan; nonaktifkan jika tidak dipakai lagi.' : undefined} type="button" variant="destructive"><Trash2 className="size-4" />Hapus</Button></div></TableCell></TableRow>) : <TableRow><TableCell colSpan={6}><Empty size="compact" title="Belum ada template persuratan." /></TableCell></TableRow>}</TableBody>
                                 </Table>
                             </CardContent>
+                            <Pagination pagination={templatePagination} />
                         </Card>
                     </TabsContent>}
                 </Tabs>

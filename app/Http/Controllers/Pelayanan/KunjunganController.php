@@ -10,6 +10,8 @@ use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
+use App\PerawatClinicResolver;
+use App\VisitQueryService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,27 +25,32 @@ use Inertia\Response;
 
 class KunjunganController extends Controller
 {
-    public function __construct(private JadwalPraktikResolver $schedule) {}
+    public function __construct(private JadwalPraktikResolver $schedule, private PerawatClinicResolver $perawatClinicResolver, private \App\VisitSchedulingService $scheduling) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request, VisitQueryService $visits): Response
     {
-        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'dokter'])
-            ->when($request->search, fn ($q, $s) => $q->whereHas('pasien', fn ($pq) => $pq->where('nama', 'like', "%$s%")->orWhere('no_rm', 'like', "%$s%")))
-            ->when($request->tanggal, fn ($q, $t) => $q->whereDate('tanggal', $t))
-            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
-            ->when($request->poliklinik_id, fn ($q, $p) => $q->where('poliklinik_id', $p))
-            ->whereDate('tanggal', $request->tanggal ?? today())
+        $assignedClinicId = $request->user()->role === 'perawat'
+            ? $this->perawatClinicResolver->clinicId($request->user())
+            : null;
+        $filters = $visits->filters($request);
+        $kunjungan = $visits->filtered($filters, $assignedClinicId)
+            ->with(['pasien', 'poliklinik', 'dokter'])
             ->latest('created_at')->latest('id')
-            ->paginate(20)
+            ->paginate(10)
             ->withQueryString();
 
-        $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
+        $poliklinikList = $assignedClinicId
+            ? Poliklinik::registrable()->whereKey($assignedClinicId)->orderBy('nama')->get()
+            : Poliklinik::registrable()->orderBy('nama')->get();
 
         return Inertia::render('pelayanan/kunjungan/index', [
+            'canSelectClinic' => $assignedClinicId === null,
+            'canManageVisits' => in_array($request->user()->role, ['admin', 'pendaftaran'], true),
             'visits' => [
                 'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit) => [
                     'id' => $visit->id,
                     'number' => $visit->no_kunjungan,
+                    'date' => $visit->tanggal?->format('d/m/Y'),
                     'patient' => $visit->pasien?->nama ?? 'Belum diisi',
                     'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
                     'gender' => $visit->pasien?->jenis_kelamin,
@@ -51,6 +58,7 @@ class KunjunganController extends Controller
                     'doctor' => $visit->dokter?->nama,
                     'eligibility' => $visit->verified_at ? 'Terverifikasi' : 'Belum diverifikasi',
                     'status' => $visit->status,
+                    'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                 ])->values(),
                 'currentPage' => $kunjungan->currentPage(),
                 'lastPage' => $kunjungan->lastPage(),
@@ -63,11 +71,11 @@ class KunjunganController extends Controller
             ],
             'filters' => [
                 'search' => $request->string('search')->toString(),
-                'date' => $request->input('tanggal', today()->toDateString()),
+                'date' => $filters['tanggal'] ?? '',
                 'status' => $request->string('status')->toString(),
-                'clinicId' => $request->string('poliklinik_id')->toString(),
+                'clinicId' => $assignedClinicId ? (string) $assignedClinicId : $request->string('poliklinik_id')->toString(),
             ],
-            'clinics' => $poliklinikList->map(fn (Poliklinik $clinic) => ['id' => $clinic->id, 'name' => $clinic->nama]),
+            'clinics' => $poliklinikList->map(fn (Poliklinik $clinic) => ['id' => $clinic->id, 'name' => $clinic->nama, 'type' => $clinic->jenis]),
         ]);
     }
 
@@ -77,19 +85,29 @@ class KunjunganController extends Controller
             ->whereDate('tanggal', today())
             ->whereNotIn('status', ['selesai', 'batal'])
             ->latest('created_at')->latest('id')
-            ->get();
+            ->paginate(10)->withQueryString();
 
-        $visits = $kunjungan->map(fn (Kunjungan $visit) => [
+        $visits = $kunjungan->getCollection()->map(fn (Kunjungan $visit) => [
             'id' => $visit->id,
             'number' => $visit->no_kunjungan,
             'patient' => $visit->pasien?->nama ?? 'Belum diisi',
             'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
             'doctor' => $visit->dokter?->nama,
             'status' => $visit->status,
+            'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
         ]);
 
         return Inertia::render('pelayanan/kunjungan/antrian', [
-            'visits' => $visits,
+            'visits' => [
+                'data' => $visits,
+                'currentPage' => $kunjungan->currentPage(),
+                'lastPage' => $kunjungan->lastPage(),
+                'from' => $kunjungan->firstItem(),
+                'to' => $kunjungan->lastItem(),
+                'total' => $kunjungan->total(),
+                'previousUrl' => $kunjungan->previousPageUrl(),
+                'nextUrl' => $kunjungan->nextPageUrl(),
+            ],
             'today' => today()->locale('id')->isoFormat('dddd, D MMMM Y'),
         ]);
     }
@@ -99,7 +117,10 @@ class KunjunganController extends Controller
         $pasienId = $request->pasien_id;
         $pasien = $pasienId ? Pasien::find($pasienId) : null;
 
-        $pasienList = Pasien::latest('created_at')->latest('id')->get(['id', 'no_rm', 'nama', 'tanggal_lahir', 'jenis_kelamin']);
+        $pasienList = Pasien::latest('created_at')->latest('id')->limit($pasien ? 9 : 10)->get(['id', 'no_rm', 'nama', 'tanggal_lahir', 'jenis_kelamin']);
+        if ($pasien && ! $pasienList->contains('id', $pasien->id)) {
+            $pasienList->prepend($pasien);
+        }
         $poliklinikList = Poliklinik::registrable()->orderBy('nama')->get();
 
         return Inertia::render('pelayanan/kunjungan/form', [
@@ -107,8 +128,28 @@ class KunjunganController extends Controller
             'patients' => $pasienList->map(fn (Pasien $patient) => ['id' => $patient->id, 'name' => $patient->nama, 'medicalRecordNumber' => $patient->no_rm]),
             ...$this->formOptions($poliklinikList),
             'doctorsUrl' => route('pelayanan.dokter.by-poli'),
+            'patientSearchUrl' => route('pelayanan.kunjungan.pasien.search'),
             'today' => today()->toDateString(),
         ]);
+    }
+
+    public function searchPatients(Request $request): JsonResponse
+    {
+        $search = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']])['q'];
+        $patients = Pasien::query()
+            ->where(fn ($query) => $query
+                ->where('nama', 'like', "%{$search}%")
+                ->orWhere('no_rm', 'like', "%{$search}%")
+                ->orWhere('nik', 'like', "%{$search}%")->orWhere('nip', 'like', "%{$search}%"))
+            ->latest('created_at')->latest('id')->limit(10)
+            ->get(['id', 'no_rm', 'nama'])
+            ->map(fn (Pasien $patient): array => [
+                'id' => $patient->id,
+                'name' => $patient->nama,
+                'medicalRecordNumber' => $patient->no_rm,
+            ])->values();
+
+        return response()->json($patients);
     }
 
     public function store(Request $request): RedirectResponse
@@ -117,20 +158,21 @@ class KunjunganController extends Controller
             'pasien_id' => ['required', 'exists:pasien,id'],
             'poliklinik_id' => ['required', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'dokter_id' => ['nullable', Rule::exists('nakes', 'id')->where('jabatan', 'dokter')->where('is_active', true)->whereNull('deleted_at')],
-            'tanggal' => ['required', 'date'],
+            'tanggal' => ['required', 'date_format:Y-m-d'],
             'jenis_pasien' => ['required', 'in:baru,lama'],
             'catatan' => ['nullable', 'string'],
         ]);
         $data['catatan'] = filled($data['catatan'] ?? null)
             ? trim($data['catatan'])
             : null;
-        $data['dokter_id'] = $this->resolveScheduledDoctor($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
+        $data['dokter_id'] = $this->scheduling->resolveDoctor($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
 
         $data['no_kunjungan'] = Kunjungan::generateNomor();
         $data['status'] = 'menunggu';
 
         $kunjungan = DB::transaction(function () use ($data, $request): Kunjungan {
             $patient = Pasien::whereKey($data['pasien_id'])->lockForUpdate()->firstOrFail();
+            $this->scheduling->ensureNoDuplicate($patient->id, (int) $data['poliklinik_id'], $data['tanggal']);
 
             return Kunjungan::create([...$data, ...app(HakLayananVerifier::class)->patient($patient, $request)]);
         });
@@ -141,30 +183,51 @@ class KunjunganController extends Controller
 
     public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): Response
     {
+        if ($request->user()->role === 'perawat') {
+            abort_if((int) $kunjungan->poliklinik_id !== $this->perawatClinicResolver->clinicId($request->user()), 404);
+        }
         $auditRecorder->record($request, 'visit.view', $kunjungan->pasien_id, $kunjungan->id);
         $kunjungan->load([
-            'pasien', 'poliklinik', 'dokter', 'screening',
-            'pemeriksaan.diagnosa', 'resep.resepObat.obat',
-            'tindakanKunjungan.tindakan', 'farmasi',
-            'suratMedis', 'labHasil.laboratorium', 'rujukanInternal',
+            'pasien', 'poliklinik', 'dokter', 'screening:id,kunjungan_id',
+            'pemeriksaan:id,kunjungan_id,status', 'farmasi:id,kunjungan_id,status',
         ]);
 
+        $role = $request->user()->role;
+        $isRegistrationPage = $request->routeIs('pendaftaran.kunjungan.show');
+        $canEdit = in_array($role, ['admin', 'pendaftaran'], true) && $kunjungan->status === 'menunggu';
+        $canScreen = $role === 'perawat' && ! $kunjungan->tanggal->isFuture()
+            && in_array($kunjungan->status, ['menunggu', 'screening'], true);
+
         return Inertia::render('pelayanan/kunjungan/show', [
-            'backUrl' => match (auth()->user()->role) {
+            'backUrl' => $isRegistrationPage ? route('pendaftaran.kunjungan-per-poli') : match ($role) {
                 'perawat' => route('perawat.dashboard'),
-                'pendaftaran' => route('pendaftaran.dashboard'),
                 default => route('pelayanan.kunjungan.index'),
             },
             'permissions' => [
-                'editVisit' => auth()->user()->role === 'admin' && $kunjungan->status === 'menunggu',
-                'viewRme' => auth()->user()->role === 'perawat',
-                'processScreening' => auth()->user()->role === 'perawat',
+                'editVisit' => $canEdit,
+                'viewRme' => $role === 'perawat',
+                'processScreening' => $canScreen,
+            ],
+            'links' => [
+                'edit' => $canEdit
+                    ? route($isRegistrationPage ? 'pendaftaran.edit-kunjungan' : 'pelayanan.kunjungan.edit', $kunjungan)
+                    : null,
+                'patient' => $kunjungan->pasien
+                    ? ($role === 'pendaftaran'
+                        ? route('pendaftaran.database-pasien', ['search' => $kunjungan->pasien->no_rm])
+                        : route('pelayanan.pasien.show', $kunjungan->pasien))
+                    : null,
+                'screening' => $canScreen ? route('pelayanan.screening.show', $kunjungan) : null,
+                'medicalRecord' => $role === 'perawat' && $kunjungan->pasien
+                    ? route('pelayanan.pasien.rekam-medis', $kunjungan->pasien)
+                    : null,
             ],
             'visit' => [
                 'id' => $kunjungan->id,
                 'number' => $kunjungan->no_kunjungan,
                 'date' => $kunjungan->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
                 'status' => $kunjungan->status,
+                'isReservation' => $kunjungan->tanggal->isFuture() && $kunjungan->status === 'menunggu',
                 'clinic' => $kunjungan->poliklinik?->nama ?? 'Belum diisi',
                 'doctor' => $kunjungan->dokter?->nama,
                 'eligibility' => $kunjungan->hak_layanan_snapshot,
@@ -224,18 +287,20 @@ class KunjunganController extends Controller
         $data = $request->validate([
             'poliklinik_id' => ['required', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'dokter_id' => ['nullable', Rule::exists('nakes', 'id')->where('jabatan', 'dokter')->where('is_active', true)->whereNull('deleted_at')],
-            'tanggal' => ['required', 'date'],
+            'tanggal' => ['required', 'date_format:Y-m-d'],
             'jenis_pasien' => ['required', 'in:baru,lama'],
             'catatan' => ['nullable', 'string'],
         ]);
         $data['catatan'] = filled($data['catatan'] ?? null)
             ? trim($data['catatan'])
             : null;
-        $data['dokter_id'] = $this->resolveScheduledDoctor($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
+        $data['dokter_id'] = $this->scheduling->resolveDoctor($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal'], $kunjungan);
 
         DB::transaction(function () use ($kunjungan, $data, $request): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             abort_unless($lockedVisit->status === 'menunggu', 422, 'Kunjungan yang sudah dilayani tidak dapat diubah dari pendaftaran.');
+            Pasien::whereKey($lockedVisit->pasien_id)->lockForUpdate()->firstOrFail();
+            $this->scheduling->ensureNoDuplicate($lockedVisit->pasien_id, (int) $data['poliklinik_id'], $data['tanggal'], $lockedVisit->id);
             $lockedVisit->update([...$data, ...app(HakLayananVerifier::class)->patient($lockedVisit->pasien, $request)]);
         });
 
@@ -282,7 +347,7 @@ class KunjunganController extends Controller
     private function formOptions(Collection $poliklinikList): array
     {
         return [
-            'clinics' => $poliklinikList->map(fn (Poliklinik $clinic) => ['id' => $clinic->id, 'name' => $clinic->nama]),
+            'clinics' => $poliklinikList->map(fn (Poliklinik $clinic) => ['id' => $clinic->id, 'name' => $clinic->nama, 'type' => $clinic->jenis]),
         ];
     }
 
@@ -290,7 +355,7 @@ class KunjunganController extends Controller
     {
         $filters = $request->validate([
             'poliklinik_id' => ['required', 'integer', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
-            'tanggal' => ['required', 'date'],
+            'tanggal' => ['required', 'date_format:Y-m-d'],
         ]);
         $date = Carbon::parse($filters['tanggal']);
 
@@ -298,30 +363,6 @@ class KunjunganController extends Controller
             ->map(fn (Nakes $doctor): array => ['id' => $doctor->id, 'nama' => $doctor->nama]);
 
         return response()->json($doctors);
-    }
-
-    private function resolveScheduledDoctor(?int $doctorId, int $clinicId, string $date): ?int
-    {
-        $visitDate = Carbon::parse($date);
-        $doctors = $this->scheduledDoctors($clinicId, $visitDate);
-
-        if ($doctorId !== null && ! $doctors->contains('id', $doctorId)) {
-            throw ValidationException::withMessages(['dokter_id' => 'Dokter tidak memiliki jadwal aktif pada poli dan tanggal kunjungan yang dipilih.']);
-        }
-
-        if ($doctorId !== null) {
-            return $doctorId;
-        }
-
-        if ($doctors->count() === 1) {
-            return $doctors->first()->id;
-        }
-
-        if ($doctors->count() > 1) {
-            throw ValidationException::withMessages(['dokter_id' => 'Pilih salah satu dokter yang tersedia pada poliklinik dan tanggal tersebut.']);
-        }
-
-        throw ValidationException::withMessages(['tanggal' => 'Tidak ada dokter praktik pada tanggal tersebut. Periksa jadwal dan kalender libur.']);
     }
 
     /**

@@ -1,3 +1,4 @@
+import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
 import { Head, Link } from '@inertiajs/react';
 import { CalendarClock, ChartNoAxesCombined, ClipboardCheck, ClipboardList, Pill, Stethoscope, UsersRound } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -8,12 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Empty } from '@/components/ui/empty';
 
 interface Props {
+    followUp: FollowUpData;
     stats: { visitsToday: number; waitingExaminations: number; completedToday: number };
     schedule: Array<{ id: number; clinic: string; start: string; end: string }>;
     recentVisits: DashboardVisit[];
 }
 
-export default function DoctorDashboard({ stats, schedule, recentVisits }: Props) {
+export default function DoctorDashboard({ stats, schedule, recentVisits, followUp }: Props) {
     return (
         <>
             <Head title="Dashboard Dokter" />
@@ -28,6 +30,7 @@ export default function DoctorDashboard({ stats, schedule, recentVisits }: Props
                     <StatCard description="Menunggu pemeriksaan dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Menunggu pemeriksaan" value={stats.waitingExaminations} />
                     <StatCard description="Diteruskan ke farmasi atau kunjungan selesai" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Selesai ditangani" value={stats.completedToday} />
                 </section>
+                <FollowUp data={followUp} />
                 <Card>
                     <CardHeader>
                         <CardTitle>Akses cepat</CardTitle>

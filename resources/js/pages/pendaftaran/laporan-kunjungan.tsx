@@ -1,3 +1,4 @@
+import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
 import { CalendarDays, Pencil, Search, Ticket, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -27,6 +28,7 @@ interface Visit {
     doctor: string;
     date: string;
     status: string;
+    isReservation?: boolean;
     ticketUrl: string | null;
     editUrl: string | null;
     cancelUrl: string | null;
@@ -36,6 +38,7 @@ interface Filters {
     search: string;
     tanggal: string;
     status: string;
+    isReservation?: boolean;
     poliklinikId: number | '';
 }
 
@@ -72,9 +75,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Laporan kunjungan pasien</h2>
                     <p className="mt-1 text-sm text-neutral-500">Cari kunjungan, cetak nomor antrean, atau kelola kunjungan aktif.</p>
                 </div>
-                <Card>
-                    <CardContent className="p-5 sm:p-6">
-                        <form className="space-y-4" onSubmit={applyFilters}>
+                <FilterPanel><form className="space-y-4" onSubmit={applyFilters}>
                             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                                 <Field htmlFor="registration-visits-search" label="Cari pasien">
                                     <Input id="registration-visits-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama atau nomor RM" value={filters.search} />
@@ -99,9 +100,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                 <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
                                 <Button asChild variant="secondary"><a href="/pendaftaran/laporan-kunjungan">Reset</a></Button>
                             </div>
-                        </form>
-                    </CardContent>
-                </Card>
+                        </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
@@ -112,7 +111,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[1100px]">
-                                <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Tanggal</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></tr></TableHeader>
+                                <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Tanggal</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                                 <TableBody>
                                     {visits.data.length > 0 ? visits.data.map((visit) => (
                                         <TableRow key={visit.id}>
@@ -121,14 +120,14 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
                                             <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
-                                            <TableCell><StatusBadge status={visit.status} /></TableCell>
+                                            <TableCell><StatusBadge reservation={visit.isReservation} status={visit.status} /></TableCell>
                                             <TableCell>
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    {visit.ticketUrl && <Button asChild aria-label="Cetak nomor antrean" size="icon" variant="ghost"><a href={visit.ticketUrl}><Ticket className="size-4" /></a></Button>}
-                                                    {visit.editUrl && <Button asChild aria-label="Edit kunjungan" size="icon" variant="ghost"><a href={visit.editUrl}><Pencil className="size-4" /></a></Button>}
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    {visit.ticketUrl && <Button asChild aria-label="Cetak nomor antrean" size="sm" variant="secondary"><a href={visit.ticketUrl}><Ticket className="size-4" />Antrean</a></Button>}
+                                                    {visit.editUrl && <Button asChild aria-label="Edit kunjungan" size="sm" variant="secondary"><a href={visit.editUrl}><Pencil className="size-4" />Edit</a></Button>}
                                                     {visit.cancelUrl && <Button aria-label="Batalkan kunjungan" onClick={() => {
                                                         confirmAction('Batalkan kunjungan ini?', () => { router.post(visit.cancelUrl as string); }, 'Batalkan');
-                                                    }} size="icon" variant="ghost"><X className="size-4 text-red-600" /></Button>}
+                                                    }} size="sm" variant="secondary"><X className="size-4 text-red-600" /></Button>}
                                                     {!visit.ticketUrl && !visit.editUrl && !visit.cancelUrl && <span className="pr-2 text-xs text-neutral-400">Tidak ada tindakan</span>}
                                                 </div>
                                             </TableCell>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Farmasi;
 use App\Models\Kunjungan;
 use App\Models\Pasien;
+use App\VisitOverviewService;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,6 +24,7 @@ class DashboardController extends Controller
         ]);
 
         return Inertia::render('dashboard/index', [
+            'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()), 'href' => route('laporan.kunjungan')],
             'stats' => [
                 'totalPatients' => Pasien::count(),
                 'visitsToday' => Kunjungan::whereDate('tanggal', $to)->count(),

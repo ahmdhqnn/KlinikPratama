@@ -3,10 +3,8 @@ import { ArrowLeft, Save, UserRoundPlus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { ManualPatientFields, type ManualPatientIdentity } from '@/components/pasien/manual-patient-fields';
 import { PatientFields, type PatientFormData } from '@/components/pasien/patient-fields';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -35,9 +33,6 @@ interface Patient {
 
 interface FormData extends PatientFormData, ManualPatientIdentity {
     registration_type: 'directory' | 'manual';
-    grant_special_access: boolean;
-    special_unit_kerja: string;
-    special_reference: string;
 }
 
 interface Props {
@@ -53,8 +48,7 @@ export default function PatientForm({ patient, today }: Props) {
         tempat_lahir: patient?.birthPlace ?? '', tanggal_lahir: patient?.birthDate ?? '', jenis_kelamin: patient?.gender ?? '',
         golongan_darah: patient?.bloodType ?? '', agama: patient?.religion ?? '', nama_ibu: '', telepon: patient?.phone ?? '',
         alamat: patient?.address ?? '', rt: patient?.rt ?? '', rw: patient?.rw ?? '', kelurahan: patient?.village ?? '',
-        kecamatan: patient?.district ?? '', riwayat_alergi: patient?.allergyHistory ?? '', grant_special_access: false, special_unit_kerja: '',
-        special_reference: '',
+        kecamatan: patient?.district ?? '', riwayat_alergi: patient?.allergyHistory ?? '',
     });
 
     function submit(event: FormEvent<HTMLFormElement>) {
@@ -62,7 +56,7 @@ export default function PatientForm({ patient, today }: Props) {
         if (patient) {
             form.put(`/pelayanan/pasien/${patient.id}`);
         } else {
-            form.setData('registration_type', registrationType);
+            form.transform((data) => ({ ...data, registration_type: registrationType }));
             form.post('/pelayanan/pasien');
         }
     }
@@ -72,35 +66,25 @@ export default function PatientForm({ patient, today }: Props) {
             <Head title={patient ? `Edit ${patient.name}` : 'Daftarkan pasien baru'} />
             <form className="mx-auto max-w-5xl space-y-6" onSubmit={submit}>
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                    <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{patient ? 'Perbarui data pasien' : 'Daftarkan pasien baru'}</h2><p className="mt-1 text-sm text-neutral-500">Gunakan format data identitas yang sama dengan pendaftaran petugas.</p></div>
+                    <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{patient ? 'Perbarui data pasien' : 'Daftarkan pasien baru'}</h2><p className="mt-1 text-sm text-neutral-500">Lengkapi identitas dan kontak pasien.</p></div>
                     <Button asChild variant="secondary"><Link href={patient ? `/pelayanan/pasien/${patient.id}` : '/pelayanan/pasien'}><ArrowLeft className="size-4" />Kembali</Link></Button>
                 </div>
                 {!patient && <Tabs className="space-y-5" onValueChange={(value) => { const next = value as 'directory' | 'manual'; setRegistrationType(next); form.setData('registration_type', next); }} value={registrationType}>
-                    <TabsList aria-label="Metode pendaftaran pasien"><TabsTrigger value="directory">Dari kepesertaan</TabsTrigger><TabsTrigger value="manual">Pendaftaran manual</TabsTrigger></TabsList>
-                    <TabsContent className="space-y-6" value="directory">
+                    <TabsList aria-label="Metode pendaftaran pasien"><TabsTrigger value="directory">Dari kepesertaan</TabsTrigger><TabsTrigger value="manual">Pendaftaran Baru</TabsTrigger></TabsList>
+                    {registrationType === 'directory' && <TabsContent className="space-y-6" value="directory">
                         <PatientIdentityCard form={form} />
-                    </TabsContent>
-                    <TabsContent className="space-y-6" value="manual">
+                    </TabsContent>}
+                    {registrationType === 'manual' && <TabsContent className="space-y-6" value="manual">
                         <Card>
-                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Data pasien manual</CardTitle><CardDescription className="mt-1">Input identitas dan kontak dengan susunan yang sama seperti formulir petugas pendaftaran.</CardDescription></div></div></CardHeader>
+                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Identitas pasien</CardTitle><CardDescription className="mt-1">Simpan identitas pasien, lalu verifikasi kepesertaannya melalui database pasien.</CardDescription></div></div></CardHeader>
                             <CardContent className="space-y-6">
                                 <ManualPatientFields errors={form.errors} onChange={(field, value) => form.setData(field, value)} value={form.data} />
-                                <section className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50/70 p-4">
-                                    <div className="flex items-start gap-3">
-                                        <Checkbox checked={form.data.grant_special_access} id="grant-special-access" onCheckedChange={(checked) => form.setData('grant_special_access', checked === true)} />
-                                        <div><label className="text-sm font-semibold text-neutral-900" htmlFor="grant-special-access">Verifikasi hak layanan khusus</label><p className="mt-1 text-xs text-neutral-600">Khusus admin. Hak layanan diberikan setelah identitas, unit kerja, dan bukti verifikasi diperiksa. Statusnya dapat diperbarui di direktori kepesertaan.</p></div>
-                                    </div>
-                                    {form.data.grant_special_access && <div className="grid gap-4 sm:grid-cols-2">
-                                        <Field error={form.errors.special_unit_kerja} htmlFor="special-unit" label="Unit kerja" required><Input id="special-unit" maxLength={200} onChange={(event) => form.setData('special_unit_kerja', event.target.value)} value={form.data.special_unit_kerja} /></Field>
-                                        <div className="sm:col-span-2"><Field error={form.errors.special_reference} htmlFor="special-reference" label="Referensi bukti verifikasi" required><Input id="special-reference" maxLength={255} placeholder="Nomor surat, dasar penugasan, atau dokumen persetujuan" onChange={(event) => form.setData('special_reference', event.target.value)} value={form.data.special_reference} /></Field></div>
-                                        <div className="sm:col-span-2"><Badge variant="waiting">Perlu NIK 16 digit dan identitas kependudukan lengkap</Badge></div>
-                                    </div>}
-                                </section>
+
                             </CardContent>
                         </Card>
-                    </TabsContent>
+                    </TabsContent>}
                 </Tabs>}
-                {patient && <Card><CardHeader><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Informasi pasien</CardTitle><CardDescription className="mt-1">Kolom bertanda bintang wajib diisi.</CardDescription></div></div></CardHeader><CardContent><PatientFields data={form.data} errors={form.errors} onChange={(field, value) => form.setData(field, value)} /></CardContent></Card>}
+                {patient && <Card><CardHeader><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Informasi pasien</CardTitle><CardDescription className="mt-1">Kolom bertanda bintang wajib diisi.</CardDescription></div></div></CardHeader><CardContent>{patient.membershipId ? <PatientFields data={form.data} errors={form.errors} onChange={(field, value) => form.setData(field, value)} /> : <ManualPatientFields value={form.data} errors={form.errors} onChange={(field, value) => form.setData(field, value)} />}</CardContent></Card>}
                 <div className="flex flex-col-reverse justify-end gap-3 border-t border-neutral-100 pt-5 sm:flex-row">
                     <Button asChild variant="secondary"><Link href={patient ? `/pelayanan/pasien/${patient.id}` : '/pelayanan/pasien'}>Batalkan</Link></Button>
                     <Button disabled={form.processing} type="submit"><Save className="size-4" />{form.processing ? 'Menyimpan…' : patient ? 'Simpan perubahan' : 'Daftarkan pasien'}</Button>

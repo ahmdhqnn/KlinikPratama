@@ -1,15 +1,11 @@
-import { Head, router } from '@inertiajs/react';
-import { ClipboardCheck, HeartPulse, Search } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { Head, Link } from '@inertiajs/react';
+import { ClipboardCheck, HeartPulse } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
-import { Field } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DatePicker } from '@/components/ui/date-picker';
+import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 
 interface Clinic {
     id: number;
@@ -29,21 +25,11 @@ interface Visit {
 interface Props {
     filters: { search: string; tanggal: string; poliklinikId: number | '' };
     clinics: Clinic[];
-    visits: Visit[];
+    canSelectClinic: boolean;
+    visits: PaginationData & { data: Visit[] };
 }
 
-export default function ScreeningQueue({ filters: initialFilters, clinics, visits }: Props) {
-    const [filters, setFilters] = useState(initialFilters);
-
-    function applyFilters(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        router.get('/pelayanan/screening', {
-            search: filters.search,
-            tanggal: filters.tanggal,
-            poliklinik_id: filters.poliklinikId,
-        }, { preserveState: true, preserveScroll: true, replace: true });
-    }
-
+export default function ScreeningQueue({ filters: initialFilters, visits }: Props) {
     return (
         <>
             <Head title="Antrean Skrining" />
@@ -53,49 +39,36 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, visit
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Antrean skrining dan tanda vital</h2>
                     <p className="mt-1 text-sm text-neutral-500">Pasien yang menunggu atau sedang menjalani pemeriksaan awal.</p>
                 </div>
-                <Card>
-                    <CardContent className="p-5 sm:p-6">
-                        <form className="grid gap-4 sm:grid-cols-2 sm:items-start xl:grid-cols-[minmax(0,1fr)_1fr_1fr_auto]" onSubmit={applyFilters}>
-                            <Field htmlFor="screening-search" label="Cari pasien">
-                                <Input id="screening-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama atau nomor RM" value={filters.search} />
-                            </Field>
-                            <Field htmlFor="screening-date" label="Tanggal" required>
-                                <DatePicker id="screening-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} required value={filters.tanggal} />
-                            </Field>
-                            <Field htmlFor="screening-clinic" label="Poliklinik">
-                                <Select id="screening-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
-                                    <option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
-                                </Select>
-                            </Field>
-                            <Button className="sm:mt-7" type="submit"><Search className="size-4" />Cari antrean</Button>
-                        </form>
-                    </CardContent>
-                </Card>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-surface p-4">
+                    <p className="text-sm text-neutral-600">Antrean hari ini · {initialFilters.tanggal} · tanpa filter</p>
+                    <Button asChild variant="secondary"><Link href="/pelayanan/screening/riwayat">Semua riwayat skrining</Link></Button>
+                </div>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><HeartPulse className="size-5" /></span>
-                            <div><CardTitle>Daftar pasien</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(visits.length)} pasien pada antrean ini.</CardDescription></div>
+                            <div><CardTitle>Daftar pasien</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(visits.total)} pasien pada antrean ini.</CardDescription></div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[780px]">
-                                <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Status skrining</TableHead><TableHead className="text-right">Aksi</TableHead></tr></TableHeader>
+                                <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Status skrining</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                                 <TableBody>
-                                    {visits.length > 0 ? visits.map((visit) => (
+                                    {visits.data.length > 0 ? visits.data.map((visit) => (
                                         <TableRow key={visit.id}>
                                             <TableCell className="font-mono text-xs text-neutral-600">{visit.number}</TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                                             <TableCell><Badge variant={visit.hasScreening ? 'complete' : 'waiting'}>{visit.hasScreening ? 'Sudah skrining' : 'Belum skrining'}</Badge></TableCell>
-                                            <TableCell className="text-right"><Button asChild size="sm"><a href={visit.screeningUrl}><ClipboardCheck className="size-4" />{visit.hasScreening ? 'Lihat / ubah' : 'Mulai skrining'}</a></Button></TableCell>
+                                            <TableCell className="text-center"><Button asChild size="sm"><a href={visit.screeningUrl}><ClipboardCheck className="size-4" />{visit.hasScreening ? 'Lihat / ubah' : 'Mulai skrining'}</a></Button></TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada pasien menunggu skrining pada filter ini." /></TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada pasien menunggu skrining hari ini." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>
                     </CardContent>
+                    <Pagination pagination={visits} />
                 </Card>
             </div>
         </>

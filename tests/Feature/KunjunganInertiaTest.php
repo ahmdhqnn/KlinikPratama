@@ -68,7 +68,7 @@ class KunjunganInertiaTest extends TestCase
 
         $this->get(route('pelayanan.antrian'))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/kunjungan/antrian')
-            ->has('visits', 1)
+            ->has('visits.data', 1)
         );
 
         $this->put(route('pelayanan.kunjungan.update', $visit), [
@@ -94,6 +94,29 @@ class KunjunganInertiaTest extends TestCase
         $this->delete(route('pelayanan.kunjungan.destroy', $visit))->assertUnprocessable();
 
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'selesai']);
+    }
+
+    public function test_visit_form_limits_patient_choices_and_supports_server_side_search(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        for ($index = 1; $index <= 12; $index++) {
+            Pasien::create([
+                'no_rm' => sprintf('RM-LOOKUP-%02d', $index),
+                'nama' => $index === 1 ? 'Pasien Target Lama' : "Pasien Uji {$index}",
+            ]);
+        }
+
+        $this->actingAs($admin)->get(route('pelayanan.kunjungan.create'))->assertInertia(fn (Assert $page) => $page
+            ->component('pelayanan/kunjungan/form')
+            ->has('patients', 10)
+            ->where('patientSearchUrl', route('pelayanan.kunjungan.pasien.search')));
+
+        $this->get(route('pelayanan.kunjungan.pasien.search', ['q' => 'Pasien']))
+            ->assertOk()->assertJsonCount(10);
+        $this->get(route('pelayanan.kunjungan.pasien.search', ['q' => 'Target Lama']))
+            ->assertOk()->assertJsonPath('0.name', 'Pasien Target Lama');
+        $this->get(route('pelayanan.kunjungan.pasien.search', ['q' => 'x']))
+            ->assertSessionHasErrors('q');
     }
 
     public function test_visit_form_lists_only_clinic_doctors_scheduled_for_the_selected_date_and_server_rejects_others(): void

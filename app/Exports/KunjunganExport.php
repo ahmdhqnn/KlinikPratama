@@ -2,6 +2,8 @@
 
 namespace App\Exports;
 
+use App\VisitQueryService;
+use App\DateRangeFilter;
 use App\Models\Kunjungan;
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
@@ -21,12 +23,10 @@ class KunjunganExport implements FromQuery, WithHeadings, WithMapping, WithStyle
 
     public function query(): Builder
     {
-        return Kunjungan::with(['pasien', 'poliklinik', 'dokter'])
-            ->when($this->dari, fn ($q) => $q->whereDate('tanggal', '>=', $this->dari))
-            ->when($this->sampai, fn ($q) => $q->whereDate('tanggal', '<=', $this->sampai))
-            ->when($this->clinicId, fn ($q) => $q->where('poliklinik_id', $this->clinicId))
-            ->when($this->status, fn ($q) => $q->where('status', $this->status))
-            ->orderBy('tanggal');
+        return (new VisitQueryService)->filtered(
+            ['poliklinik_id' => $this->clinicId, 'status' => $this->status],
+            period: new DateRangeFilter($this->dari, $this->sampai),
+        )->with(['pasien', 'poliklinik', 'dokter'])->latest('tanggal')->latest('id');
     }
 
     public function headings(): array
@@ -42,9 +42,9 @@ class KunjunganExport implements FromQuery, WithHeadings, WithMapping, WithStyle
         return array_map(fn ($value) => is_string($value) && preg_match('/^[=+@-]/', $value) ? chr(39).$value : $value, [
             $kunjungan->no_kunjungan,
             $kunjungan->tanggal->format('d/m/Y'),
-            $kunjungan->pasien->no_rm,
-            $kunjungan->pasien->nama,
-            $kunjungan->poliklinik->nama,
+            $kunjungan->pasien?->no_rm ?? '-',
+            $kunjungan->pasien?->nama ?? '-',
+            $kunjungan->poliklinik?->nama ?? '-',
             $kunjungan->dokter?->nama ?? '-',
             $kunjungan->kategori_peserta ?? 'Historis',
             $kunjungan->unit_kerja,

@@ -42,7 +42,6 @@ class KepesertaanRegistry
         ])->validate();
 
         $isFamily = $data['kategori'] === 'lainnya' && $data['jenis_lainnya'] === 'keluarga';
-        $isSpecial = $data['kategori'] === 'lainnya' && $data['jenis_lainnya'] === 'khusus';
         if ($data['kategori'] === 'asn' && empty($data['nip'])) {
             throw ValidationException::withMessages(['nip' => 'Peserta ASN wajib memiliki NIP.']);
         }
@@ -52,13 +51,6 @@ class KepesertaanRegistry
         if ($isFamily && (empty($data['pegawai_penanggung_id']) || empty($data['hubungan_keluarga']))) {
             throw ValidationException::withMessages(['pegawai_penanggung_id' => 'Pilih ASN terkait dan hubungan keluarga untuk kepesertaan keluarga.']);
         }
-        if ($isSpecial && $actor->role !== 'admin') {
-            throw ValidationException::withMessages(['kategori' => 'Status pasien khusus hanya dapat ditetapkan oleh admin.']);
-        }
-        if ($isSpecial && (empty($data['nik']) || (! $member && ! $data['hak_layanan']))) {
-            throw ValidationException::withMessages(['kategori' => 'Pemberian status khusus baru memerlukan NIK terverifikasi dan hak layanan aktif.']);
-        }
-
         if ($data['status_kepegawaian'] !== 'nonaktif'
             && ((($data['jenis_lainnya'] ?? null) === 'pensiunan') !== ($data['status_kepegawaian'] === 'pensiun'))) {
             throw ValidationException::withMessages(['status_kepegawaian' => 'Gunakan status pensiun untuk pensiunan dan aktif untuk kategori lain.']);
@@ -81,10 +73,14 @@ class KepesertaanRegistry
         if ($member && $member->nik !== ($data['nik'] ?? null) && Pasien::withTrashed()->where('kepesertaan_id', $member->id)->exists()) {
             throw ValidationException::withMessages(['nik' => 'NIK peserta yang sudah terhubung dengan pasien tidak dapat diganti.']);
         }
+        if ($member && $member->nip !== ($data['nip'] ?? null) && Pasien::withTrashed()->where('kepesertaan_id', $member->id)->whereNotNull('nip')->exists()) {
+            throw ValidationException::withMessages(['nip' => 'NIP peserta yang sudah terhubung dengan pasien tidak dapat diganti.']);
+        }
         $before = $member?->only(array_keys($data));
         $member ??= new Kepesertaan;
         $member->fill([...$data, 'verified_by' => $actor->id, 'verified_at' => now()]);
         $member->save();
+        Pasien::where('kepesertaan_id', $member->id)->whereNull('nip')->update(['nip' => $member->nip]);
         DB::table('clinical_audit_events')->insert([
             'actor_id' => $actor->id, 'action' => $before ? 'membership.changed' : 'membership.created',
             'occurred_at' => now(), 'membership_id' => $member->id,

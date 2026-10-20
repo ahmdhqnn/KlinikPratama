@@ -10,6 +10,7 @@ use App\Models\Obat;
 use App\Models\ResepObat;
 use App\Models\StokMutasi;
 use App\PersediaanRecorder;
+use App\VisitQueryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,15 +20,14 @@ use Inertia\Response;
 
 class FarmasiController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, VisitQueryService $visits): Response
     {
-        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'dokter', 'farmasi', 'resep.resepObat.obat'])
-            ->when($request->search, fn ($q, $s) => $q->whereHas('pasien', fn ($pq) => $pq->where('nama', 'like', "%$s%")->orWhere('no_rm', 'like', "%$s%")))
-            ->when($request->tanggal, fn ($q, $t) => $q->whereDate('tanggal', $t))
-            ->whereDate('tanggal', $request->tanggal ?? today())
+        $filters = $visits->filters($request);
+        $kunjungan = $visits->filtered($filters)
+            ->with(['pasien', 'poliklinik', 'dokter', 'farmasi', 'resep.resepObat'])
             ->where(fn ($query) => $query->where('status', 'farmasi')->orWhereHas('farmasi', fn ($query) => $query->where('status', 'selesai')))
-            ->orderBy('created_at')
-            ->paginate(20)
+            ->latest('tanggal')->latest('id')
+            ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('pelayanan/farmasi/index', [
@@ -35,6 +35,7 @@ class FarmasiController extends Controller
                 'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit) => [
                     'id' => $visit->id,
                     'prescriptionNumber' => $visit->resep?->no_resep,
+                    'date' => $visit->tanggal?->format('d/m/Y'),
                     'patient' => $visit->pasien?->nama ?? 'Belum diisi',
                     'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
                     'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
@@ -50,13 +51,14 @@ class FarmasiController extends Controller
                 'previousUrl' => $kunjungan->previousPageUrl(),
                 'nextUrl' => $kunjungan->nextPageUrl(),
             ],
-            'date' => $request->input('tanggal', today()->toDateString()),
+            'date' => $filters['tanggal'] ?? '',
             'search' => $request->string('search')->toString(),
         ]);
     }
 
     public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $audit): Response
     {
+        abort_unless($kunjungan->status === 'farmasi' || $kunjungan->farmasi()->where('status', 'selesai')->exists(), 404);
         $kunjungan->load([
             'pasien', 'screening', 'pemeriksaan', 'poliklinik', 'dokter',
             'resep.resepObat.obat.batches',

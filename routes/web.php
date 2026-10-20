@@ -136,7 +136,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     // Pelayanan
     Route::prefix('pelayanan')->name('pelayanan.')->group(function () {
         Route::middleware(EnsureAdminRole::class)->group(function (): void {
-            Route::post('pasien/{pasien}/verifikasi-hak-khusus', [PasienController::class, 'verifySpecialAccess'])->name('pasien.verify-special-access');
+            Route::post('pasien/{pasien}/verifikasi-kepesertaan', [PasienController::class, 'verifyMembership'])->name('pasien.verify-membership');
+            Route::post('pasien/{pasien}/verifikasi-hak-khusus', [PasienController::class, 'verifyMembership'])->name('pasien.verify-special-access');
             Route::resource('pasien', PasienController::class)->except(['index', 'show']);
         });
         Route::middleware(EnsureRole::class.':admin,perawat,pendaftaran,dokter')->group(function (): void {
@@ -150,18 +151,24 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::post('pasien/gabung', [PasienController::class, 'gabung'])->name('pasien.gabung');
         });
 
-        Route::middleware(EnsureRole::class.':admin,perawat,pendaftaran')->group(function (): void {
-            Route::resource('kunjungan', KunjunganController::class);
+        Route::middleware(EnsureRole::class.':admin,pendaftaran')->group(function (): void {
+            Route::get('kunjungan/pasien/search', [KunjunganController::class, 'searchPatients'])->name('kunjungan.pasien.search');
+            Route::resource('kunjungan', KunjunganController::class)->except(['index', 'show']);
             Route::get('antrian', [KunjunganController::class, 'antrian'])->name('antrian');
             Route::post('kunjungan/{kunjungan}/batal', [KunjunganController::class, 'batal'])->name('kunjungan.batal');
+        });
+        Route::middleware(EnsureRole::class.':admin,perawat,pendaftaran')->group(function (): void {
+            Route::get('kunjungan', [KunjunganController::class, 'index'])->name('kunjungan.index');
+            Route::get('kunjungan/{kunjungan}', [KunjunganController::class, 'show'])->name('kunjungan.show');
         });
         Route::get('dokter/by-poli', [KunjunganController::class, 'doctorsByClinic'])
             ->withoutMiddleware(RedirectRegistrationRole::class)
             ->middleware(EnsureRole::class.':admin,pendaftaran')
             ->name('dokter.by-poli');
 
-        Route::middleware(EnsureRole::class.':perawat')->group(function (): void {
+        Route::middleware(EnsureRole::class.':admin,perawat')->group(function (): void {
             Route::get('screening', [ScreeningController::class, 'index'])->name('screening.index');
+            Route::get('screening/riwayat', [ScreeningController::class, 'history'])->name('screening.history');
             Route::get('screening/{kunjungan}', [ScreeningController::class, 'show'])->name('screening.show');
             Route::post('screening/{kunjungan}', [ScreeningController::class, 'store'])->name('screening.store');
             Route::put('screening/{kunjungan}', [ScreeningController::class, 'update'])->name('screening.update');
@@ -228,6 +235,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('/', [RegistrationController::class, 'dashboard'])->name('dashboard');
 
         Route::get('laporan-kunjungan', [RegistrationController::class, 'laporanKunjungan'])->name('laporan-kunjungan');
+        Route::get('kunjungan/{kunjungan}', [KunjunganController::class, 'show'])->name('kunjungan.show');
         Route::get('kunjungan/{kunjungan}/cetak-antrian', [RegistrationController::class, 'cetakAntrian'])->name('cetak-antrian');
         Route::get('kunjungan/{kunjungan}/edit', [RegistrationController::class, 'editKunjungan'])->name('edit-kunjungan');
         Route::put('kunjungan/{kunjungan}', [RegistrationController::class, 'updateKunjungan'])->name('update-kunjungan');

@@ -1,3 +1,4 @@
+import { FilterPanel } from '@/components/ui/filter-panel';
 import { router } from '@inertiajs/react';
 import { Download, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -25,9 +26,9 @@ export function DateRangeFilter({ from: initialFrom, to: initialTo, route, expor
     }
 
     return (
-        <Card><CardContent className="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-6"><form className="grid min-w-0 gap-4 sm:grid-cols-[minmax(18rem,1fr)_auto] sm:items-start" onSubmit={filterReport}>
-            <Field htmlFor="report-period" label={periodLabel} required><DateRangePicker id="report-period" from={from} onChange={(range) => { setFrom(range.from); setTo(range.to); }} required to={to} /></Field>
-            <Button className="sm:mt-7" type="submit"><Search className="size-4" />Filter data</Button>
-        </form>{exportUrl && <Button asChild className="sm:mt-7" variant="secondary"><a href={exportUrl}><Download className="size-4" />Export Excel</a></Button>}</CardContent></Card>
+        <FilterPanel><div className="flex flex-col gap-4 sm:flex-row sm:items-end"><form className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={filterReport}>
+            <Field htmlFor="report-period" label={periodLabel}><DateRangePicker id="report-period" from={from} onChange={(range) => { setFrom(range.from); setTo(range.to); }} to={to} /></Field>
+            <Button  type="submit"><Search className="size-4" />Filter data</Button>
+        </form>{exportUrl && <Button asChild  variant="secondary"><a href={exportUrl}><Download className="size-4" />Export Excel</a></Button>}</div></FilterPanel>
     );
 }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Kunjungan;
+use App\Models\Nakes;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
 use App\Models\Screening;
@@ -19,6 +20,7 @@ class SpecialtyScreeningTest extends TestCase
     {
         $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
         $clinic = Poliklinik::create(['kode' => 'GIGI-SKR', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $this->assignNurse($nurse, $clinic);
         $patient = Pasien::create(['no_rm' => 'RM-GIGI-SKR', 'nama' => 'Pasien Gigi']);
         $visit = $this->makeVisit('KNJ-GIGI-SKR', $patient, $clinic);
 
@@ -56,6 +58,7 @@ class SpecialtyScreeningTest extends TestCase
     {
         $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
         $clinic = Poliklinik::create(['kode' => 'UMUM-BACK', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $this->assignNurse($nurse, $clinic);
         $patient = Pasien::create(['no_rm' => 'RM-UMUM-BACK', 'nama' => 'Pasien Umum']);
         $visit = $this->makeVisit('KNJ-UMUM-BACK', $patient, $clinic);
 
@@ -76,6 +79,7 @@ class SpecialtyScreeningTest extends TestCase
     {
         $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
         $clinic = Poliklinik::create(['kode' => 'UMUM-SKR', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $this->assignNurse($nurse, $clinic);
         $patient = Pasien::create(['no_rm' => 'RM-UMUM-SKR', 'nama' => 'Pasien Umum']);
         $visit = $this->makeVisit('KNJ-UMUM-SKR', $patient, $clinic);
 
@@ -98,6 +102,7 @@ class SpecialtyScreeningTest extends TestCase
     {
         $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
         $clinic = Poliklinik::create(['kode' => 'GIGI-DEF', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $this->assignNurse($nurse, $clinic);
         $patient = Pasien::create(['no_rm' => 'RM-GIGI-DEF', 'nama' => 'Pasien Gigi']);
         $visit = $this->makeVisit('KNJ-GIGI-DEF', $patient, $clinic);
 
@@ -138,6 +143,7 @@ class SpecialtyScreeningTest extends TestCase
     {
         $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
         $clinic = Poliklinik::create(['kode' => 'GIGI-VAL', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $this->assignNurse($nurse, $clinic);
         $patient = Pasien::create(['no_rm' => 'RM-GIGI-VAL', 'nama' => 'Pasien Gigi']);
         $visit = $this->makeVisit('KNJ-GIGI-VAL', $patient, $clinic);
 
@@ -156,6 +162,7 @@ class SpecialtyScreeningTest extends TestCase
         $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
         $clinic = Poliklinik::create(['kode' => 'UMUM-RME', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
         $otherClinic = Poliklinik::create(['kode' => 'GIGI-RME', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $this->assignNurse($nurse, $clinic);
         $patient = Pasien::create(['no_rm' => 'RM-RME-FILTER', 'nama' => 'Pasien Riwayat']);
 
         for ($index = 1; $index <= 12; $index++) {
@@ -171,11 +178,11 @@ class SpecialtyScreeningTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('pelayanan/pasien/rekam-medis')
-                ->where('pagination.total', 13)
+                ->where('pagination.total', 12)
                 ->where('pagination.currentPage', 1)
                 ->has('visits', 10)
                 ->where('filters.status', '')
-                ->has('clinics', 2));
+                ->has('clinics', 1));
 
         $this->actingAs($nurse)->get(route('pelayanan.pasien.rekam-medis', [
             'pasien' => $patient->id,
@@ -191,6 +198,54 @@ class SpecialtyScreeningTest extends TestCase
             ->where('filters.poliklinik_id', (string) $clinic->id));
     }
 
+    public function test_nurse_scope_is_bound_to_assigned_clinic_and_history_is_bound_to_account(): void
+    {
+        $clinic = Poliklinik::create(['kode' => 'UMUM-SCOPE', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $otherClinic = Poliklinik::create(['kode' => 'GIGI-SCOPE', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        $otherNurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $this->assignNurse($nurse, $clinic);
+        $this->assignNurse($otherNurse, $clinic);
+
+        $nursePatient = Pasien::create(['no_rm' => 'RM-SCOPE-NURSE', 'nama' => 'Pasien Perawat Pertama']);
+        $otherNursePatient = Pasien::create(['no_rm' => 'RM-SCOPE-OTHER', 'nama' => 'Pasien Perawat Kedua']);
+        $foreignPatient = Pasien::create(['no_rm' => 'RM-SCOPE-GIGI', 'nama' => 'Pasien Poli Gigi']);
+        $screenedVisit = $this->makeVisit('KNJ-SCOPE-NURSE', $nursePatient, $clinic);
+        $otherNurseVisit = $this->makeVisit('KNJ-SCOPE-OTHER', $otherNursePatient, $clinic);
+        $foreignVisit = $this->makeVisit('KNJ-SCOPE-GIGI', $foreignPatient, $otherClinic);
+        $pendingVisit = $this->makeVisit('KNJ-SCOPE-PENDING', Pasien::create(['no_rm' => 'RM-SCOPE-PENDING', 'nama' => 'Antrean Poli Umum']), $clinic);
+
+        $this->actingAs($nurse)->post(route('pelayanan.kunjungan.screening.store', $screenedVisit), $this->validScreeningPayload())->assertRedirect();
+        $this->actingAs($otherNurse)->post(route('pelayanan.kunjungan.screening.store', $otherNurseVisit), $this->validScreeningPayload())->assertRedirect();
+
+        $this->actingAs($nurse)->get(route('pelayanan.screening.index', [
+            'poliklinik_id' => $otherClinic->id,
+            'tanggal' => today()->toDateString(),
+        ]))->assertInertia(fn (Assert $page) => $page
+            ->component('pelayanan/screening/index')
+            ->where('canSelectClinic', false)
+            ->where('filters.poliklinikId', $clinic->id)
+            ->where('visits.total', 1)
+            ->where('visits.data.0.patient', 'Antrean Poli Umum'));
+
+        $this->actingAs($nurse)->get(route('pelayanan.screening.history'))->assertInertia(fn (Assert $page) => $page
+            ->component('pelayanan/screening/history')
+            ->where('screenings.total', 1)
+            ->where('screenings.data.0.patient', 'Pasien Perawat Pertama'));
+
+        $this->actingAs($nurse)->get(route('pelayanan.screening.show', $foreignVisit))->assertNotFound();
+        $this->actingAs($nurse)->post(route('pelayanan.kunjungan.screening.store', $foreignVisit), $this->validScreeningPayload())->assertNotFound();
+
+        $this->actingAs($admin)->get(route('pelayanan.screening.index', [
+            'poliklinik_id' => $otherClinic->id,
+            'tanggal' => today()->toDateString(),
+        ]))->assertInertia(fn (Assert $page) => $page
+            ->where('canSelectClinic', true)
+            ->where('visits.total', 1)
+            ->where('visits.data.0.patient', 'Pasien Poli Gigi'));
+    }
+
     private function makeVisit(string $number, Pasien $patient, Poliklinik $clinic): Kunjungan
     {
         return Kunjungan::create([
@@ -201,5 +256,32 @@ class SpecialtyScreeningTest extends TestCase
             'status' => 'menunggu',
             'jenis_pasien' => 'lama',
         ]);
+    }
+
+    private function assignNurse(User $user, Poliklinik $clinic): Nakes
+    {
+        return Nakes::create([
+            'kode' => 'NURSE-'.$user->id,
+            'nama' => $user->name,
+            'kategori' => 'medis',
+            'jabatan' => 'perawat',
+            'poliklinik_id' => $clinic->id,
+            'user_id' => $user->id,
+            'is_active' => true,
+        ]);
+    }
+
+    /** @return array<string, string> */
+    private function validScreeningPayload(): array
+    {
+        return [
+            'nyeri_dada' => 'tidak',
+            'kondisi_psikiatri' => 'normal',
+            'nadi_teraba' => 'teraba',
+            'kejang' => 'tidak',
+            'pola_pernapasan' => 'normal',
+            'kesadaran' => 'sadar',
+            'risiko_jatuh_visual' => 'rendah',
+        ];
     }
 }

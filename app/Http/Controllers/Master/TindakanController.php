@@ -30,7 +30,7 @@ class TindakanController extends Controller
             }))
             ->when($filters['kategori'] ?? null, fn ($query, string $category) => $query->where('kategori', $category))
             ->orderBy('kode')
-            ->paginate(15)
+            ->paginate(10)
             ->withQueryString();
 
         $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();

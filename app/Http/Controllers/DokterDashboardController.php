@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\DateRangeFilter;
+use App\DoctorAccessService;
 use App\JadwalPraktikResolver;
 use App\Models\Diagnosa;
 use App\Models\Kunjungan;
+use App\Models\Nakes;
 use App\Models\Obat;
 use App\Models\Pasien;
+use App\VisitOverviewService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -15,18 +19,13 @@ use Inertia\Response;
 
 class DokterDashboardController extends Controller
 {
-    public function __construct(private JadwalPraktikResolver $schedule) {}
+    public function __construct(private JadwalPraktikResolver $schedule, private DoctorAccessService $doctorAccess) {}
 
     public function index(): Response
     {
         $dokterId = $this->dokterId();
         $today = today();
-        $scheduledClinicIds = $this->scheduledClinicIds($dokterId, $today->toDateString());
-        $base = Kunjungan::where(fn (Builder $query) => $query
-            ->where('dokter_id', $dokterId)
-            ->orWhere(fn (Builder $unassigned) => $unassigned->whereNull('dokter_id')
-                ->where('status', 'pemeriksaan')
-                ->whereIn('poliklinik_id', $scheduledClinicIds)));
+        $base = $this->doctorAccess->visibleVisits(auth()->user(), $today->toDateString());
 
         $kunjunganHariIni = (clone $base)->whereDate('tanggal', $today)->count();
         $menungguPemeriksaan = (clone $base)->whereDate('tanggal', $today)
@@ -42,6 +41,7 @@ class DokterDashboardController extends Controller
             ->get();
 
         return Inertia::render('dokter/dashboard', [
+            'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()->where('dokter_id', $dokterId)), 'href' => route('dokter.janji-kunjungan')],
             'stats' => [
                 'visitsToday' => $kunjunganHariIni,
                 'waitingExaminations' => $menungguPemeriksaan,
@@ -55,6 +55,7 @@ class DokterDashboardController extends Controller
                 'medicalRecordNumber' => $visit->pasien->no_rm,
                 'clinic' => $visit->poliklinik->nama,
                 'status' => $visit->status,
+                'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                 'actionUrl' => $visit->status === 'pemeriksaan'
                     ? route('pelayanan.pemeriksaan.show', $visit)
                     : route('pelayanan.pasien.rekam-medis', $visit->pasien),
@@ -66,25 +67,15 @@ class DokterDashboardController extends Controller
 
     public function appointments(Request $request): Response
     {
-        $filters = $request->validate([
-            'dari' => ['nullable', 'date_format:Y-m-d'],
-            'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
-        ]);
-        $dari = $filters['dari'] ?? today()->toDateString();
-
-        $kunjungan = $this->doctorVisits()
+        $period = DateRangeFilter::fromRequest($request);
+        $kunjungan = $period->apply($this->doctorVisits())
             ->with(['pasien', 'poliklinik'])
-            ->whereDate('tanggal', '>=', $dari)
-            ->when(isset($filters['sampai']), fn (Builder $query) => $query->whereDate('tanggal', '<=', $filters['sampai']))
-            ->orderBy('tanggal')
-            ->orderBy('created_at')
-            ->paginate(20)
-            ->withQueryString();
+            ->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
 
         return Inertia::render('dokter/appointments', [
             'filters' => [
-                'dari' => $dari,
-                'sampai' => $filters['sampai'] ?? '',
+                'dari' => $period->from ?? '',
+                'sampai' => $period->to ?? '',
             ],
             'visits' => [
                 'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit): array => [
@@ -95,6 +86,7 @@ class DokterDashboardController extends Controller
                     'medicalRecordNumber' => $visit->pasien->no_rm,
                     'clinic' => $visit->poliklinik->nama,
                     'status' => $visit->status,
+                    'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'examinationUrl' => route('pelayanan.pemeriksaan.show', $visit),
                 ])->values(),
                 'currentPage' => $kunjungan->currentPage(),
@@ -120,7 +112,7 @@ class DokterDashboardController extends Controller
                     ->orWhere('nik', 'like', "%{$search}%");
             }))
             ->orderBy('nama')
-            ->paginate(20)
+            ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('dokter/patients', [
@@ -148,7 +140,7 @@ class DokterDashboardController extends Controller
     public function stock(): Response
     {
         $obat = Obat::withSum(['batches as usable_stock' => fn ($query) => $query->usable()], 'stok')->where('is_active', true)->where('jenis', 'obat')
-            ->orderBy('nama')->paginate(30);
+            ->orderBy('nama')->paginate(10);
 
         return Inertia::render('dokter/stock', [
             'medicines' => [
@@ -174,22 +166,19 @@ class DokterDashboardController extends Controller
 
     public function topDiagnoses(Request $request): Response
     {
-        $filters = $request->validate([
-            'dari' => ['nullable', 'date_format:Y-m-d'],
-            'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
-        ]);
-        $dari = $filters['dari'] ?? now()->startOfMonth()->toDateString();
-        $sampai = $filters['sampai'] ?? today()->toDateString();
+        $period = DateRangeFilter::fromRequest($request);
+        $dari = $period->from ?? '';
+        $sampai = $period->to ?? '';
         $diagnosa = Diagnosa::query()
             ->select('kode_icd10', 'nama_diagnosa')
             ->selectRaw('COUNT(*) as jumlah')
             ->whereHas('pemeriksaan.kunjungan', fn (Builder $query) => $query
                 ->where('dokter_id', $this->dokterId())
-                ->whereDate('tanggal', '>=', $dari)
-                ->whereDate('tanggal', '<=', $sampai))
+                ->when($dari, fn (Builder $visits) => $visits->whereDate('tanggal', '>=', $dari))
+                ->when($sampai, fn (Builder $visits) => $visits->whereDate('tanggal', '<=', $sampai)))
             ->groupBy('kode_icd10', 'nama_diagnosa')
             ->orderByDesc('jumlah')
-            ->paginate(20)
+            ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('dokter/top-diagnoses', [
@@ -218,19 +207,7 @@ class DokterDashboardController extends Controller
 
     private function dokterId(): int
     {
-        $dokterId = auth()->user()->nakes?->id;
-        abort_unless($dokterId, 403, 'Akun dokter belum terhubung dengan data tenaga kesehatan.');
-
-        return $dokterId;
+        return $this->doctorAccess->doctorId(auth()->user());
     }
 
-    /**
-     * @return array<int, int>
-     */
-    private function scheduledClinicIds(int $doctorId, string $date): array
-    {
-        $visitDate = Carbon::parse($date);
-
-        return $this->schedule->doctorSchedule($doctorId, $visitDate)->pluck('id')->all();
-    }
 }

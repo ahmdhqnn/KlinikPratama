@@ -20,6 +20,10 @@ const variants: Record<string, 'waiting' | 'screening' | 'examination' | 'pharma
     batal: 'cancelled',
 };
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, reservation = false }: { status: string; reservation?: boolean }) {
+    if (reservation) {
+        return <Badge variant="default">Reservasi</Badge>;
+    }
+
     return <Badge variant={variants[status] ?? 'default'}>{labels[status] ?? status}</Badge>;
 }
