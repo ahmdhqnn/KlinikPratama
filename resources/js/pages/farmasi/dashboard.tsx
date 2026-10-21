@@ -25,9 +25,9 @@ export default function PharmacyDashboard({ stats, recentVisits, followUp }: Pro
                 </div>
 
                 <section aria-label="Statistik farmasi" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <StatCard description="Menunggu penyiapan obat" icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Menunggu farmasi" value={stats.waitingVisits} />
-                    <StatCard description="Sedang disiapkan atau diserahkan" icon={<Timer className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Sedang diproses" value={stats.processingVisits} />
-                    <StatCard description="Resep yang diselesaikan hari ini" icon={<CheckCircle2 className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Selesai hari ini" value={stats.completedToday} />
+                    <StatCard description="Menunggu penyiapan obat" icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Menunggu penyiapan obat" value={stats.waitingVisits} />
+                    <StatCard description="Sedang disiapkan atau diserahkan" icon={<Timer className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Penyiapan obat berlangsung" value={stats.processingVisits} />
+                    <StatCard description="Resep yang diselesaikan hari ini" icon={<CheckCircle2 className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Penyerahan obat selesai" value={stats.completedToday} />
                     <StatCard description="Stok layak pakai mencapai batas minimum" icon={<PackageSearch className="size-5" />} iconClassName={stats.lowStockMedicines > 0 ? 'bg-amber-50 text-amber-800' : 'bg-neutral-50 text-neutral-700'} label="Obat perlu perhatian" value={stats.lowStockMedicines} />
                 </section>
                 <FollowUp data={followUp} showUpcoming={false} />

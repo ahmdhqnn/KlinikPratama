@@ -1,6 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import { ClipboardCheck, HeartPulse } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -19,6 +19,7 @@ interface Visit {
     medicalRecordNumber: string;
     clinic: string;
     hasScreening: boolean;
+    status: string;
     screeningUrl: string;
 }
 
@@ -60,8 +61,8 @@ export default function ScreeningQueue({ filters: initialFilters, visits }: Prop
                                             <TableCell className="font-mono text-xs text-neutral-600">{visit.number}</TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
-                                            <TableCell><Badge variant={visit.hasScreening ? 'complete' : 'waiting'}>{visit.hasScreening ? 'Sudah skrining' : 'Belum skrining'}</Badge></TableCell>
-                                            <TableCell className="text-center"><Button asChild size="sm"><a href={visit.screeningUrl}><ClipboardCheck className="size-4" />{visit.hasScreening ? 'Lihat / ubah' : 'Mulai skrining'}</a></Button></TableCell>
+                                            <TableCell><StatusBadge status={visit.status} /></TableCell>
+                                            <TableCell className="text-center"><Button asChild size="sm"><a href={visit.screeningUrl}><ClipboardCheck className="size-4" />{visit.hasScreening ? 'Lanjutkan asesmen' : 'Mulai skrining'}</a></Button></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada pasien menunggu skrining hari ini." /></TableCell></TableRow>}
                                 </TableBody>

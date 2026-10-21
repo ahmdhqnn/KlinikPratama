@@ -783,13 +783,12 @@ export function AnatomyBodyMap({
                                         key={code}
                                         type="button"
                                         onClick={() => setActiveSystemFilter((cur) => (cur === code ? null : code))}
-                                        className={`group flex flex-col items-start rounded-xl border p-2.5 text-left transition-all ${
-                                            isFilterActive
+                                        className={`group flex flex-col items-start rounded-xl border p-2.5 text-left transition-all ${isFilterActive
                                                 ? 'border-neutral-900 bg-neutral-100 shadow-xs ring-1 ring-neutral-900'
                                                 : isCurrentSelected
-                                                  ? 'border-neutral-400 bg-neutral-100/60'
-                                                  : 'border-neutral-200/80 bg-neutral-50/50 hover:border-neutral-300 hover:bg-neutral-100/70'
-                                        }`}
+                                                    ? 'border-neutral-400 bg-neutral-100/60'
+                                                    : 'border-neutral-200/80 bg-neutral-50/50 hover:border-neutral-300 hover:bg-neutral-100/70'
+                                            }`}
                                     >
                                         <div className="flex w-full items-center justify-between">
                                             <Icon className="size-4 text-neutral-700" />

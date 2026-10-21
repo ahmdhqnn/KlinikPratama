@@ -18,7 +18,23 @@ class Kunjungan extends Model
         'unit_kerja', 'kategori_peserta',
     ];
 
-    protected $casts = ['tanggal' => 'date', 'hak_layanan_snapshot' => 'array', 'verified_at' => 'datetime'];
+    protected $casts = ['tanggal' => 'date', 'hak_layanan_snapshot' => 'array', 'verified_at' => 'datetime', 'lampiran' => 'array'];
+
+    protected $hidden = ['lampiran'];
+
+    /** @return array<int, array{id: string, name: string, note: ?string, size: int, mime: string, downloadUrl: string, deleteUrl: string}> */
+    public function attachmentSummaries(): array
+    {
+        return array_map(fn (array $attachment): array => [
+            'id' => $attachment['id'],
+            'name' => $attachment['name'],
+            'note' => $attachment['note'],
+            'size' => $attachment['size'],
+            'mime' => $attachment['mime'],
+            'downloadUrl' => route('pelayanan.kunjungan.attachments.show', [$this, $attachment['id']]),
+            'deleteUrl' => route('pelayanan.kunjungan.attachments.destroy', [$this, $attachment['id']]),
+        ], $this->lampiran ?? []);
+    }
 
     public function pasien(): BelongsTo
     {

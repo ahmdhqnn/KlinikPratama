@@ -20,7 +20,7 @@ interface PatientForm extends VisitFormValues {
     pasien_id: string;
 }
 
-interface PatientResult {
+export interface PatientResult {
     id: number;
     no_rm: string;
     nama: string;
@@ -28,6 +28,19 @@ interface PatientResult {
     tanggal_lahir: string | null;
     telepon: string | null;
     eligibilityReason: string | null;
+    nik: string | null;
+    nip: string | null;
+    tempat_lahir: string | null;
+    golongan_darah: string | null;
+    agama: string | null;
+    nama_ibu: string | null;
+    alamat: string | null;
+    rt: string | null;
+    rw: string | null;
+    kelurahan: string | null;
+    kecamatan: string | null;
+    unit_kerja: string | null;
+    membership: string;
 }
 
 interface Props {
@@ -55,6 +68,9 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl }: Props) {
         }
 
         const abortController = new AbortController();
+        setResults([]);
+        setSearching(true);
+        setSearchError('');
         const timeout = window.setTimeout(async () => {
             setSearching(true);
             setSearchError('');
@@ -71,9 +87,12 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl }: Props) {
                     throw new Error('Pencarian pasien gagal. Coba kembali.');
                 }
 
-                setResults(await response.json() as PatientResult[]);
+                const patients: PatientResult[] = await response.json();
+                if (!abortController.signal.aborted) {
+                    setResults(patients);
+                }
             } catch (error) {
-                if (!(error instanceof DOMException && error.name === 'AbortError')) {
+                if (!abortController.signal.aborted) {
                     setSearchError(error instanceof Error ? error.message : 'Pencarian pasien gagal.');
                     setResults([]);
                 }
@@ -92,15 +111,15 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl }: Props) {
 
     function selectPatient(patient: PatientResult) {
         setSelectedPatient(patient);
-        form.setData('pasien_id', String(patient.id));
+        form.setData((data) => ({ ...data, pasien_id: String(patient.id), catatan: '' }));
         setQuery('');
         setResults([]);
-        form.clearErrors('pasien_id');
+        form.clearErrors();
     }
 
     function clearPatient() {
         setSelectedPatient(null);
-        form.setData('pasien_id', '');
+        form.setData((data) => ({ ...data, pasien_id: '', catatan: '' }));
         setQuery('');
     }
 
@@ -123,11 +142,11 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl }: Props) {
                     <CardContent className="space-y-4">
                         <Field error={form.errors.pasien_id ?? searchError} htmlFor="patient-search" label="Cari pasien" required>
                             <div className="relative">
-                                <Input autoComplete="off" id="patient-search" onChange={(event) => {
+                                <Input autoComplete="off" id="patient-search" maxLength={100} onChange={(event) => {
                                     setQuery(event.target.value);
                                     setSelectedPatient(null);
-                                    form.setData('pasien_id', '');
-                                }} placeholder="Ketik nama, No. RM, atau NIK…" value={query} />
+                                    form.setData((data) => ({ ...data, pasien_id: '', catatan: '' }));
+                                }} placeholder="Ketik nama, No. RM, NIK, atau NIP" value={query} />
                                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400">
                                     {searching ? <Spinner label="Mencari pasien" /> : <Search className="size-4" />}
                                 </span>
@@ -149,7 +168,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl }: Props) {
                             </ul>
                         )}
                         {query.trim().length >= 2 && !searching && !searchError && results.length === 0 && (
-                            <Empty className="min-h-0 py-6" description="Periksa kembali nama, nomor rekam medis, atau NIK yang Anda masukkan." title="Pasien tidak ditemukan" />
+                            <Empty className="min-h-0 py-6" description="Periksa kembali nama, nomor rekam medis, NIK, atau NIP yang Anda masukkan." title="Pasien tidak ditemukan" />
                         )}
                         {query.trim().length > 0 && query.trim().length < 2 && (
                             <p className="text-xs text-neutral-500">Masukkan minimal 2 karakter untuk mulai mencari.</p>
@@ -168,6 +187,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl }: Props) {
                                     </div>
                                     <Button aria-label="Ganti pasien" onClick={clearPatient} size="icon" type="button" variant="ghost"><X className="size-4" /></Button>
                                 </div>
+                                <RegisteredPatientIdentity patient={selectedPatient} />
                             </div>
                         )}
                     </CardContent>
@@ -197,10 +217,25 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl }: Props) {
                 {selectedPatient && (
                     <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
                         <Button asChild variant="secondary"><Link href="/pendaftaran">Batal</Link></Button>
-                        <Button disabled={form.processing || !form.data.poliklinik_id} type="submit"><Check className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan kunjungan'}</Button>
+                        <Button disabled={form.processing || !form.data.poliklinik_id || !form.data.dokter_id || Boolean(selectedPatient.eligibilityReason)} type="submit"><Check className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan kunjungan'}</Button>
                     </div>
                 )}
             </form>
         </>
     );
+}
+
+export function RegisteredPatientIdentity({ patient }: { patient: PatientResult }) {
+    const fields = [
+        ['NIK', patient.nik], ['NIP', patient.nip], ['Tempat lahir', patient.tempat_lahir],
+        ['Tanggal lahir', patient.tanggal_lahir], ['Golongan darah', patient.golongan_darah],
+        ['Agama', patient.agama], ['Nama ibu kandung', patient.nama_ibu], ['Nomor telepon', patient.telepon],
+        ['Kepesertaan', patient.membership], ['Unit kerja', patient.unit_kerja], ['Alamat', patient.alamat],
+        ['RT / RW', [patient.rt, patient.rw].filter(Boolean).join(' / ')],
+        ['Kelurahan / desa', patient.kelurahan], ['Kecamatan', patient.kecamatan],
+    ];
+
+    return <dl className="mt-4 grid gap-4 border-t border-neutral-200 pt-4 sm:grid-cols-2 lg:grid-cols-3">
+        {fields.map(([label, value]) => <div className="min-w-0" key={label}><dt className="text-xs text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm font-medium text-neutral-900">{value || 'Belum diisi'}</dd></div>)}
+    </dl>;
 }

@@ -3,7 +3,7 @@ import { Head, router } from '@inertiajs/react';
 import { CalendarDays, Pencil, Search, Ticket, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
-import { StatusBadge } from '@/components/dashboard/status-badge';
+import { StatusBadge, visitStatusLabels } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -48,10 +48,7 @@ interface Props {
     visits: PaginationData & { data: Visit[] };
 }
 
-const statusOptions = [
-    ['menunggu', 'Menunggu'], ['screening', 'Skrining'], ['pemeriksaan', 'Pemeriksaan'],
-    ['farmasi', 'Farmasi'], ['selesai', 'Selesai'], ['batal', 'Dibatalkan'],
-];
+const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusLabels[status]]);
 
 export default function RegistrationVisitReport({ filters: initialFilters, clinics, visits }: Props) {
     const [filters, setFilters] = useState(initialFilters);

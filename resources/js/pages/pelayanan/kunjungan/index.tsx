@@ -4,7 +4,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { ClipboardList, Plus, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
-import { StatusBadge } from '@/components/dashboard/status-badge';
+import { StatusBadge, visitStatusLabels } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -65,7 +65,7 @@ export default function VisitsIndex({ visits, filters: initialFilters, clinics, 
                 <FilterPanel><form className={`grid gap-4 sm:items-end ${canSelectClinic ? 'sm:grid-cols-2 xl:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-2'}`} onSubmit={applyFilters}>
                     <Field htmlFor="visit-search" label="Cari pasien"><Input id="visit-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama pasien atau No. RM" value={filters.search} /></Field>
                     <Field htmlFor="visit-date-filter" label="Tanggal"><DatePicker id="visit-date-filter" onChange={(event) => setFilters({ ...filters, date: event.target.value })} value={filters.date} /></Field>
-                    <Field htmlFor="visit-status-filter" label="Status"><Select id="visit-status-filter" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}><option value="">Semua status</option>{statuses.map((status) => <option key={status} value={status}>{status[0].toUpperCase() + status.slice(1)}</option>)}</Select></Field>
+                    <Field htmlFor="visit-status-filter" label="Status"><Select id="visit-status-filter" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}><option value="">Semua status</option>{statuses.map((status) => <option key={status} value={status}>{visitStatusLabels[status]}</option>)}</Select></Field>
                     {canSelectClinic && <Field htmlFor="visit-clinic-filter" label="Poliklinik"><Select id="visit-clinic-filter" onChange={(event) => setFilters({ ...filters, clinicId: event.target.value })} value={filters.clinicId}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>}
                     <Button type="submit"><Search className="size-4" />Filter</Button>
                 </form></FilterPanel>

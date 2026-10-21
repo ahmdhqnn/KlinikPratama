@@ -11,7 +11,7 @@ class PerawatClinicResolver
     {
         $nakes = $user->nakes()
             ->with('poliklinik')
-            ->whereIn('jabatan', ['perawat', 'bidan'])
+            ->whereIn('jabatan', ['perawat', 'bidan', 'terapis_gigi'])
             ->where('is_active', true)
             ->whereHas('poliklinik', fn ($query) => $query->where('is_active', true)->whereIn('jenis', ['umum', 'gigi']))
             ->first();

@@ -24,8 +24,8 @@ export default function NurseDashboard({ stats, visits, followUp }: Props) {
                     <p className="mt-1 text-sm text-neutral-500">Pantau antrean, pemeriksaan tanda vital, dan prioritas triase hari ini.</p>
                 </div>
                 <section aria-label="Statistik keperawatan" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    <StatCard description="Menunggu atau sedang menjalani skrining" icon={<HeartPulse className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Menunggu tanda vital" value={stats.menunggu_ttv} />
-                    <StatCard description="Siap mendapat pemeriksaan dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Siap ke dokter" value={stats.siap_dokter} />
+                    <StatCard description="Menunggu atau sedang menjalani skrining" icon={<HeartPulse className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Antrean skrining" value={stats.menunggu_ttv} />
+                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan dokter" value={stats.siap_dokter} />
                     <StatCard description="Triase merah yang perlu perhatian" icon={<AlertTriangle className="size-5" />} iconClassName="bg-red-50 text-red-700" label="Triase darurat" value={stats.triase_darurat} />
                 </section>
                 <FollowUp data={followUp} />

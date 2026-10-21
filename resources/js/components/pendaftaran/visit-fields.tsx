@@ -71,9 +71,11 @@ export function VisitFields({ existingVisit, clinics, today, doctorsUrl, values,
 
                 return response.json() as Promise<ScheduledDoctor[]>;
             })
-            .then(setDoctors)
+            .then((availableDoctors) => {
+                if (!abortController.signal.aborted) setDoctors(availableDoctors);
+            })
             .catch((error: unknown) => {
-                if (error instanceof DOMException && error.name === 'AbortError') {
+                if (abortController.signal.aborted) {
                     return;
                 }
 
@@ -152,7 +154,7 @@ export function VisitFields({ existingVisit, clinics, today, doctorsUrl, values,
                     <DatePicker id="reservation-date" min={minimumDate} required value={values.tanggal} onChange={(event) => onChange({ tanggal: event.target.value, dokter_id: '' })} />
                     <p className="text-xs text-neutral-500">{isDental ? 'Reservasi terlebih dahulu sesuai jadwal dokter. Skrining dan pemeriksaan tersedia pada tanggal kunjungan.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
                 </Field>
-                <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Fasilitas klinik internal</p><p className="mt-1 text-xs text-neutral-500">Hak layanan diverifikasi saat pendaftaran. Layanan, obat, dan BHP dicatat untuk kebutuhan pelayanan dan persediaan.</p></div>
+                <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Fasilitas klinik internal</p><p className="mt-1 text-xs text-neutral-500">Pasien baru dapat langsung didaftarkan untuk kunjungan. Verifikasi kepesertaan dilakukan oleh admin.</p></div>
             </div>
             <Field error={errors.catatan} htmlFor="catatan" label="Catatan kunjungan">
                 <Textarea aria-describedby={errors.catatan ? 'catatan-error' : undefined} id="catatan" onChange={(event) => onChange({ catatan: event.target.value })} placeholder="Catatan tambahan (opsional)" value={values.catatan} />

@@ -1,4 +1,5 @@
 import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
+import { visitStatusLabels } from '@/components/dashboard/status-badge';
 import { Head } from '@inertiajs/react';
 import {
     ArrowUpRight,
@@ -26,16 +27,6 @@ interface DashboardProps {
     visitStatuses: Record<string, number>;
     visitsByDay: Array<{ tanggal: string; jumlah: number }>;
 }
-
-const statusLabels: Record<string, string> = {
-    menunggu: 'Menunggu',
-    screening: 'Skrining',
-    pemeriksaan: 'Pemeriksaan',
-    farmasi: 'Farmasi',
-    kasir: 'Perlu penyelesaian',
-    selesai: 'Selesai',
-    batal: 'Dibatalkan',
-};
 
 function formatNumber(value: number): string {
     return new Intl.NumberFormat('id-ID').format(value);
@@ -137,7 +128,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                             <CardDescription>Pergerakan pasien di setiap tahap pelayanan.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                            {Object.entries(statusLabels).map(([status, label]) => (
+                            {Object.entries(visitStatusLabels).map(([status, label]) => (
                                 <div className="flex items-center justify-between gap-3" key={status}>
                                     <div className="flex items-center gap-3">
                                         <span className={`size-2 rounded-full ${status === 'selesai' ? 'bg-emerald-500' : status === 'batal' ? 'bg-red-500' : 'bg-neutral-500'}`} />

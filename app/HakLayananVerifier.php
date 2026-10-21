@@ -46,7 +46,28 @@ class HakLayananVerifier
 
     public function patientReason(Pasien $patient): ?string
     {
-        return $patient->kepesertaan_id ? $this->patientReason($patient) : null;
+        if (! $patient->kepesertaan_id) {
+            return null;
+        }
+
+        if ($reason = $this->reason($patient->kepesertaan)) {
+            return $reason;
+        }
+
+        return $this->identityReason($patient, $patient->kepesertaan);
+    }
+
+    private function identityReason(Pasien $patient, Kepesertaan $member): ?string
+    {
+        if ($member->nik && $member->nik !== $patient->nik) {
+            return 'NIK pasien tidak sesuai direktori kepesertaan. Perbaiki tautan identitas terlebih dahulu.';
+        }
+
+        if ($member->nip && $patient->nip && $member->nip !== $patient->nip) {
+            return 'NIP pasien tidak sesuai direktori kepesertaan. Perbaiki tautan identitas terlebih dahulu.';
+        }
+
+        return null;
     }
 
     public function patient(Pasien $patient, Request $request): array
@@ -67,8 +88,8 @@ class HakLayananVerifier
         }
 
         $member = $this->member((int) $patient->kepesertaan_id, 'pasien_id');
-        if ($member->nik && $member->nik !== $patient->nik) {
-            throw ValidationException::withMessages(['pasien_id' => 'NIK pasien tidak sesuai direktori kepesertaan. Perbaiki tautan identitas terlebih dahulu.']);
+        if ($reason = $this->identityReason($patient, $member)) {
+            throw ValidationException::withMessages(['pasien_id' => $reason]);
         }
 
         return [

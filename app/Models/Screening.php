@@ -23,9 +23,14 @@ class Screening extends Model
         'riwayat_penyakit_keluarga', 'skala_nyeri', 'lokasi_nyeri_gigi',
         'pemicu_nyeri_gigi', 'durasi_keluhan_gigi', 'risiko_medis_gigi',
         'riwayat_infeksi_gigi', 'catatan_medis_gigi',
+        'keluhan_tambahan', 'lama_keluhan', 'riwayat_obat', 'status_alergi',
+        'status_riwayat_penyakit', 'sumber_informasi', 'alasan_pengukuran_tidak_lengkap',
+        'triase_perawat', 'catatan_triase', 'started_at', 'submitted_at',
     ];
 
     protected $casts = [
+        'started_at' => 'datetime',
+        'submitted_at' => 'datetime',
         'lingkar_perut' => 'decimal:1',
         'skala_nyeri' => 'integer',
         'pemicu_nyeri_gigi' => 'array',
@@ -52,5 +57,26 @@ class Screening extends Model
         }
 
         return null;
+    }
+
+    /** @return array<string, ?string> */
+    public function handoverSummary(): array
+    {
+        $historyLabels = ['ada' => 'Ada riwayat', 'tidak_ada' => 'Tidak ada, telah dikaji', 'belum_diketahui' => 'Belum dapat diketahui'];
+
+        return [
+            'Keluhan tambahan' => $this->keluhan_tambahan,
+            'Lama keluhan' => $this->lama_keluhan,
+            'Sumber informasi' => match ($this->sumber_informasi) {
+                'pasien' => 'Pasien sendiri', 'keluarga' => 'Keluarga', 'pendamping' => 'Pendamping',
+                'tidak_dapat_diperoleh' => 'Belum dapat diperoleh', default => null,
+            },
+            'Status alergi saat ini' => $historyLabels[$this->status_alergi] ?? null,
+            'Status riwayat penyakit' => $historyLabels[$this->status_riwayat_penyakit] ?? null,
+            'Obat yang digunakan' => $this->riwayat_obat,
+            'Catatan Pengkajian' => $this->alasan_pengukuran_tidak_lengkap,
+            'Catatan triase' => $this->catatan_triase,
+            'Observasi perawat' => $this->pemeriksaan_fisik,
+        ];
     }
 }

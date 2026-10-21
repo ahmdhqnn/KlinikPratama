@@ -113,8 +113,14 @@ class SharedDomainFilteringTest extends TestCase
         $this->travelTo('2026-10-20 10:00:00');
         $user = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $visit = $this->visit('UPDATE', '2026-10-20', 'screening');
+        $staff = Nakes::create(['kode' => 'UPDATE-NURSE', 'nama' => 'Petugas Skrining', 'kategori' => 'medis', 'jabatan' => 'perawat', 'poliklinik_id' => $visit->poliklinik_id, 'is_active' => true]);
 
         $this->actingAs($user)->put(route('pelayanan.screening.update', $visit), [
+            'petugas_id' => $staff->id,
+            'keluhan' => 'Keluhan pasien', 'lama_keluhan' => '2 hari', 'sumber_informasi' => 'pasien',
+            'status_alergi' => 'belum_diketahui', 'status_riwayat_penyakit' => 'belum_diketahui', 'konfirmasi_riwayat' => true,
+            'triase_perawat' => 'hijau',
+            'td_sistole' => 120, 'td_diastole' => 80, 'nadi' => 80, 'suhu' => 36.5, 'respirasi' => 18, 'berat_badan' => 60, 'tinggi_badan' => 160,
             'nyeri_dada' => 'tidak', 'kejang' => 'tidak', 'nadi_teraba' => 'teraba',
             'kesadaran' => 'sadar', 'pola_pernapasan' => 'normal',
             'kondisi_psikiatri' => 'normal', 'risiko_jatuh_visual' => 'rendah',

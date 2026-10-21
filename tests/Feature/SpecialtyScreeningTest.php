@@ -28,6 +28,7 @@ class SpecialtyScreeningTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('pelayanan/screening/show')->where('visit.clinicType', 'gigi'));
 
         $this->post(route('pelayanan.kunjungan.screening.store', $visit), [
+            ...$this->validScreeningPayload(),
             'keluhan' => 'Nyeri geraham saat mengunyah',
             'skala_nyeri' => 6,
             'lokasi_nyeri_gigi' => 'Geraham kiri bawah',
@@ -63,6 +64,7 @@ class SpecialtyScreeningTest extends TestCase
         $visit = $this->makeVisit('KNJ-UMUM-BACK', $patient, $clinic);
 
         $this->actingAs($nurse)->post(route('pelayanan.kunjungan.screening.store', $visit), [
+            ...$this->validScreeningPayload(),
             'nyeri_dada' => 'tidak', 'kondisi_psikiatri' => 'normal', 'nadi_teraba' => 'teraba',
             'kejang' => 'tidak', 'pola_pernapasan' => 'normal', 'kesadaran' => 'sadar', 'risiko_jatuh_visual' => 'rendah',
         ])->assertRedirect(route('pelayanan.kunjungan.show', $visit));
@@ -84,6 +86,7 @@ class SpecialtyScreeningTest extends TestCase
         $visit = $this->makeVisit('KNJ-UMUM-SKR', $patient, $clinic);
 
         $this->actingAs($nurse)->post(route('pelayanan.kunjungan.screening.store', $visit), [
+            ...$this->validScreeningPayload(),
             'riwayat_penyakit' => 'Asma', 'riwayat_penyakit_keluarga' => 'Hipertensi', 'risiko_jatuh' => 'sedang',
             'berat_badan' => 70, 'tinggi_badan' => 175,
             'lokasi_nyeri_gigi' => 'Payload tidak relevan', 'pemicu_nyeri_gigi' => ['dingin'],
@@ -117,17 +120,18 @@ class SpecialtyScreeningTest extends TestCase
             );
 
         $this->actingAs($nurse)->post(route('pelayanan.kunjungan.screening.store', $visit), [
+            ...$this->validScreeningPayload(),
             'nyeri_dada' => 'tidak', 'kondisi_psikiatri' => 'normal', 'nadi_teraba' => 'teraba',
             'kejang' => 'tidak', 'pola_pernapasan' => 'normal', 'kesadaran' => 'sadar', 'risiko_jatuh_visual' => 'rendah',
         ])->assertRedirect();
 
         $screening = Screening::where('kunjungan_id', $visit->id)->firstOrFail();
-        $this->assertNull($screening->keluhan);
+        $this->assertSame('Keluhan pasien', $screening->keluhan);
         $this->assertNull($screening->riwayat_penyakit);
         $this->assertNull($screening->riwayat_alergi);
         $this->assertNull($screening->riwayat_penyakit_keluarga);
         $this->assertNull($screening->pemicu_nyeri_gigi);
-        $this->assertNull($screening->risiko_medis_gigi);
+        $this->assertSame(['tidak_ada'], $screening->risiko_medis_gigi);
         $this->assertNull($screening->riwayat_infeksi_gigi);
         $this->assertNull($screening->catatan_medis_gigi);
 
@@ -148,6 +152,7 @@ class SpecialtyScreeningTest extends TestCase
         $visit = $this->makeVisit('KNJ-GIGI-VAL', $patient, $clinic);
 
         $this->actingAs($nurse)->post(route('pelayanan.kunjungan.screening.store', $visit), [
+            ...$this->validScreeningPayload(),
             'riwayat_infeksi_gigi' => ['tidak_ada', 'hepatitis'],
             'nyeri_dada' => 'tidak', 'kondisi_psikiatri' => 'normal', 'nadi_teraba' => 'teraba',
             'kejang' => 'tidak', 'pola_pernapasan' => 'normal', 'kesadaran' => 'sadar', 'risiko_jatuh_visual' => 'rendah',
@@ -271,10 +276,14 @@ class SpecialtyScreeningTest extends TestCase
         ]);
     }
 
-    /** @return array<string, string> */
+    /** @return array<string, mixed> */
     private function validScreeningPayload(): array
     {
         return [
+            'keluhan' => 'Keluhan pasien', 'lama_keluhan' => '2 hari', 'sumber_informasi' => 'pasien',
+            'status_alergi' => 'belum_diketahui', 'status_riwayat_penyakit' => 'belum_diketahui', 'konfirmasi_riwayat' => '1',
+            'triase_perawat' => 'hijau', 'risiko_medis_gigi' => ['tidak_ada'],
+            'td_sistole' => '120', 'td_diastole' => '80', 'nadi' => '80', 'suhu' => '36.5', 'respirasi' => '18', 'berat_badan' => '60', 'tinggi_badan' => '160',
             'nyeri_dada' => 'tidak',
             'kondisi_psikiatri' => 'normal',
             'nadi_teraba' => 'teraba',

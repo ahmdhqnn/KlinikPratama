@@ -49,11 +49,14 @@ interface Props {
 
 export default function NewPatientRegistration({ clinics, today, doctorsUrl, initialTab }: Props) {
     const [registrationType, setRegistrationType] = useState<'directory' | 'manual' | 'registered'>(initialTab);
-    const form = useForm<PatientForm>({
+    const defaultData: PatientForm = {
         registration_type: 'directory', kepesertaan_id: '', nama: '', nik: '', nip: '', unit_kerja: '', tempat_lahir: '', tanggal_lahir: '', jenis_kelamin: '', golongan_darah: '',
         agama: '', nama_ibu: '', telepon: '', alamat: '', rt: '', rw: '', kelurahan: '', kecamatan: '',
         riwayat_alergi: '', poliklinik_id: clinics.find((clinic) => clinic.type === 'umum')?.id.toString() ?? '', dokter_id: '', tanggal: today, catatan: '',
-    });
+    };
+    const manualForm = useForm<PatientForm>({ ...defaultData, registration_type: 'manual' });
+    const directoryForm = useForm<PatientForm>(defaultData);
+    const form = registrationType === 'manual' ? manualForm : directoryForm;
 
     function updateField(field: keyof PatientForm, value: string) {
         form.setData((data) => ({ ...data, [field]: value }));
@@ -78,7 +81,11 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                     <Button asChild variant="secondary"><Link href="/pendaftaran"><ArrowLeft className="size-4" />Kembali ke dashboard</Link></Button>
                 </div>
 
-                <Tabs className="space-y-5" onValueChange={(value) => setRegistrationType(value as typeof registrationType)} value={registrationType}>
+                <Tabs className="space-y-5" onValueChange={(value) => {
+                    setRegistrationType(value as typeof registrationType);
+                    manualForm.clearErrors();
+                    directoryForm.clearErrors();
+                }} value={registrationType}>
                     <TabsList aria-label="Pendaftaran pasien" className="h-auto flex-wrap">
                         <TabsTrigger value="manual">Pendaftaran Baru</TabsTrigger>
                         <TabsTrigger value="registered">Pasien Terdaftar</TabsTrigger>
@@ -96,9 +103,10 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                     </CardHeader>
                     <CardContent className="space-y-5">
                         <MembershipIdentityFields
+                            registrationOnly
                             value={form.data.kepesertaan_id}
                             error={form.errors.kepesertaan_id}
-                            onClear={() => form.setData('kepesertaan_id', '')}
+                            onClear={() => form.reset()}
                             identity={{
                                 name: form.data.nama, nik: form.data.nik || null, nip: form.data.nip || null, unit: form.data.unit_kerja,
                                 tempatLahir: form.data.tempat_lahir || null, tanggalLahir: form.data.tanggal_lahir || null,
@@ -107,7 +115,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                                 kelurahan: form.data.kelurahan || null, kecamatan: form.data.kecamatan || null,
                             }}
                             onSelect={(member) => form.setData((data) => ({
-                                ...data, kepesertaan_id: String(member.id), nama: member.name, nik: member.nik ?? '', nip: member.nip ?? '', unit_kerja: member.unit,
+                                ...data, nama_ibu: '', telepon: '', riwayat_alergi: '', kepesertaan_id: String(member.id), nama: member.name, nik: member.nik ?? '', nip: member.nip ?? '', unit_kerja: member.unit,
                                 tempat_lahir: member.tempatLahir ?? '', tanggal_lahir: member.tanggalLahir ?? '', jenis_kelamin: member.jenisKelamin ?? '',
                                 golongan_darah: member.golonganDarah ?? '', agama: member.agama ?? '', alamat: member.alamat ?? '',
                                 rt: member.rt ?? '', rw: member.rw ?? '', kelurahan: member.kelurahan ?? '', kecamatan: member.kecamatan ?? '',
@@ -155,7 +163,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
 
                 <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
                     <Button asChild variant="secondary"><Link href="/pendaftaran">Batal</Link></Button>
-                    <Button disabled={form.processing} type="submit"><UserRoundPlus className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan dan buat kunjungan'}</Button>
+                    <Button disabled={form.processing || !form.data.dokter_id || (registrationType === 'directory' && !form.data.kepesertaan_id)} type="submit"><UserRoundPlus className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan dan buat kunjungan'}</Button>
                 </div>
                     </form>}
                 </Tabs>

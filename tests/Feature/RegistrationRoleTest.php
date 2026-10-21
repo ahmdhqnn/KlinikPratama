@@ -214,6 +214,10 @@ class RegistrationRoleTest extends TestCase
             ->has('staff')
         );
         $this->actingAs($user)->post(route('pelayanan.kunjungan.screening.store', $visit), [
+            'keluhan' => 'Keluhan pasien', 'lama_keluhan' => '2 hari', 'sumber_informasi' => 'pasien',
+            'status_alergi' => 'belum_diketahui', 'status_riwayat_penyakit' => 'belum_diketahui', 'konfirmasi_riwayat' => true,
+            'triase_perawat' => 'hijau',
+            'td_sistole' => 120, 'td_diastole' => 80, 'nadi' => 80, 'suhu' => 36.5, 'respirasi' => 18, 'berat_badan' => 60, 'tinggi_badan' => 160,
             'nyeri_dada' => 'tidak',
             'kondisi_psikiatri' => 'normal',
             'nadi_teraba' => 'teraba',

@@ -205,8 +205,9 @@ class UserController extends Controller
         }
 
         $nakes = $user->nakes()->first();
-        $jabatan = $user->role;
-        $kategori = in_array($jabatan, ['dokter', 'perawat'], true) ? 'medis' : 'non_medis';
+        $jabatan = $user->role === 'perawat' && in_array($nakes?->jabatan, ['bidan', 'terapis_gigi'], true)
+            ? $nakes->jabatan : $user->role;
+        $kategori = in_array($jabatan, ['dokter', 'perawat', 'bidan', 'terapis_gigi'], true) ? 'medis' : 'non_medis';
 
         if ($nakes) {
             $nakes->update([

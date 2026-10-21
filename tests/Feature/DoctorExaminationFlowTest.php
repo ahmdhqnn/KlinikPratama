@@ -39,9 +39,9 @@ class DoctorExaminationFlowTest extends TestCase
         $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('visit.examinationFormDefaults.anamnesis', null)
-                ->where('visit.examinationFormDefaults.pastHistory', 'Tidak ada riwayat penyakit kronis')
-                ->where('visit.examinationFormDefaults.familyHistory', 'Tidak ada riwayat penyakit keluarga')
-                ->where('visit.examinationFormDefaults.allergyHistory', 'Tidak ada riwayat alergi')
+                ->where('visit.examinationFormDefaults.pastHistory', 'Belum dicatat')
+                ->where('visit.examinationFormDefaults.familyHistory', 'Belum dicatat')
+                ->where('visit.examinationFormDefaults.allergyHistory', null)
             );
 
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.store', $visit), [

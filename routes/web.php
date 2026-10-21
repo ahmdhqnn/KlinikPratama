@@ -19,6 +19,7 @@ use App\Http\Controllers\Pelayanan\KunjunganController;
 use App\Http\Controllers\Pelayanan\PasienController;
 use App\Http\Controllers\Pelayanan\PemeriksaanController;
 use App\Http\Controllers\Pelayanan\ScreeningController;
+use App\Http\Controllers\Pelayanan\VisitAttachmentController;
 use App\Http\Controllers\Pendaftaran\RegistrationController;
 use App\Http\Controllers\PerawatDashboardController;
 use App\Http\Controllers\PersuratanController;
@@ -135,6 +136,13 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
 
     // Pelayanan
     Route::prefix('pelayanan')->name('pelayanan.')->group(function () {
+        Route::get('kunjungan/{kunjungan}/lampiran/{attachment}', [VisitAttachmentController::class, 'show'])
+            ->whereUuid('attachment')->middleware(EnsureRole::class.':admin,perawat,dokter')->name('kunjungan.attachments.show');
+        Route::middleware(EnsureRole::class.':admin,perawat')->group(function (): void {
+            Route::post('kunjungan/{kunjungan}/lampiran', [VisitAttachmentController::class, 'store'])->name('kunjungan.attachments.store');
+            Route::delete('kunjungan/{kunjungan}/lampiran/{attachment}', [VisitAttachmentController::class, 'destroy'])
+                ->whereUuid('attachment')->name('kunjungan.attachments.destroy');
+        });
         Route::middleware(EnsureAdminRole::class)->group(function (): void {
             Route::post('pasien/{pasien}/verifikasi-kepesertaan', [PasienController::class, 'verifyMembership'])->name('pasien.verify-membership');
             Route::post('pasien/{pasien}/verifikasi-hak-khusus', [PasienController::class, 'verifyMembership'])->name('pasien.verify-special-access');
@@ -169,6 +177,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::middleware(EnsureRole::class.':admin,perawat')->group(function (): void {
             Route::get('screening', [ScreeningController::class, 'index'])->name('screening.index');
             Route::get('screening/riwayat', [ScreeningController::class, 'history'])->name('screening.history');
+            Route::post('screening/{kunjungan}/mulai', [ScreeningController::class, 'start'])->name('screening.start');
+            Route::get('screening/{kunjungan}/cetak', [ScreeningController::class, 'print'])->name('screening.print');
             Route::get('screening/{kunjungan}', [ScreeningController::class, 'show'])->name('screening.show');
             Route::post('screening/{kunjungan}', [ScreeningController::class, 'store'])->name('screening.store');
             Route::put('screening/{kunjungan}', [ScreeningController::class, 'update'])->name('screening.update');

@@ -92,6 +92,7 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
     }
 
     const alreadyComplete = visit.pharmacy?.status === 'selesai' || visit.status !== 'farmasi';
+    const pharmacyStatus = visit.status === 'batal' ? null : visit.pharmacy?.status ?? (visit.status === 'farmasi' ? 'menunggu' : null);
     const dispensedMedicineCount = new Set(visit.allocations.map((allocation) => allocation.medicine)).size;
     const firstAllocation = visit.allocations[0];
     const allergyStatus = getAllergyStatus([
@@ -113,7 +114,7 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
                     <CardContent className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_minmax(15rem,1.4fr)] lg:items-center">
                         <div><p className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Nomor resep</p><p className="mt-1 break-all font-mono text-lg font-semibold text-neutral-950">{visit.prescriptionNumber ?? 'Belum diisi'}</p></div>
                         <div><p className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Dokter peresep</p><p className="mt-1 text-sm font-medium text-neutral-900">{visit.doctor ?? 'Belum ditentukan'}</p></div>
-                        <div><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-600">Status</p><StatusBadge status={alreadyComplete ? 'selesai' : 'farmasi'} /></div>
+                        <div><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-600">Status</p><StatusBadge context={pharmacyStatus ? 'pharmacy' : 'visit'} status={pharmacyStatus ?? visit.status} /></div>
                         <div className={allergyStatus.state === 'reported' ? 'flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900' : 'flex items-start gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm text-neutral-700'}>
                             {allergyStatus.state === 'reported' ? <TriangleAlert className="mt-0.5 size-4 shrink-0" /> : allergyStatus.state === 'none' ? <CircleCheck className="mt-0.5 size-4 shrink-0 text-neutral-500" /> : <CircleHelp className="mt-0.5 size-4 shrink-0 text-neutral-500" />}
                             <span><strong>Status alergi:</strong> {allergyStatus.label}</span>

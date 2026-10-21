@@ -3,7 +3,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Activity, Ban, CalendarDays, Clock3, ClipboardCheck, Eye, Pencil, Printer, Search, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { StatusBadge } from '@/components/dashboard/status-badge';
+import { StatusBadge, visitStatusLabels } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -46,10 +46,7 @@ interface Props {
     recentVisits: Visit[];
 }
 
-const statusOptions = [
-    ['menunggu', 'Menunggu'], ['screening', 'Skrining'], ['pemeriksaan', 'Pemeriksaan'],
-    ['farmasi', 'Farmasi'], ['selesai', 'Selesai'], ['batal', 'Dibatalkan'],
-];
+const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusLabels[status]]);
 
 export default function ClinicVisits({ filters: initialFilters, clinics, stats, access, visits, recentVisits }: Props) {
     const [filters, setFilters] = useState(initialFilters);
@@ -88,9 +85,9 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                         </form></FilterPanel>
                 <section aria-label="Ringkasan antrean poliklinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard description="Kunjungan sesuai filter saat ini" icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan" value={stats.total} />
-                    <StatCard description="Belum memulai skrining" icon={<Clock3 className="size-5" />} iconClassName="bg-amber-50 text-amber-700" label="Menunggu" value={stats.waiting} />
-                    <StatCard description="Sedang dalam skrining perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Skrining" value={stats.screening} />
-                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan" value={stats.examination} />
+                    <StatCard description="Belum memulai skrining" icon={<Clock3 className="size-5" />} iconClassName="bg-amber-50 text-amber-700" label="Menunggu skrining" value={stats.waiting} />
+                    <StatCard description="Sedang dalam skrining perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Proses skrining" value={stats.screening} />
+                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan dokter" value={stats.examination} />
                 </section>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">

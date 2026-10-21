@@ -50,13 +50,16 @@ class KepesertaanController extends Controller
 
     public function search(Request $request, HakLayananVerifier $verifier): JsonResponse
     {
-        $data = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']]);
-        $members = Kepesertaan::with('penanggung')->where(fn ($query) => $query
+        $data = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100'], 'registration' => ['sometimes', 'boolean']]);
+        $members = Kepesertaan::with(['penanggung', 'pasien' => fn ($query) => $query->withTrashed()])->where(fn ($query) => $query
             ->where('nama', 'like', "%{$data['q']}%")->orWhere('nip', 'like', "%{$data['q']}%")->orWhere('nik', 'like', "%{$data['q']}%"))
             ->latest('created_at')->latest('id')->limit(10)->get()->map(fn (Kepesertaan $member): array => [
                 'id' => $member->id, 'name' => $member->nama, 'nik' => $member->nik, 'nip' => $member->nip,
                 'category' => $member->membershipLabel(), 'unit' => $member->unit_kerja,
-                'reason' => $verifier->reason($member),
+                'reason' => $verifier->reason($member) ?? ($request->boolean('registration')
+                    ? ($member->pasien ? 'Peserta sudah memiliki rekam medis. Gunakan tab Pasien Terdaftar.'
+                        : ((! $member->tanggal_lahir || ! $member->jenis_kelamin) ? 'Lengkapi tanggal lahir dan jenis kelamin melalui menu Kepesertaan.' : null))
+                    : null),
                 'tempatLahir' => $member->tempat_lahir, 'tanggalLahir' => $member->tanggal_lahir?->toDateString(),
                 'jenisKelamin' => $member->jenis_kelamin, 'agama' => $member->agama, 'golonganDarah' => $member->golongan_darah,
                 'alamat' => $member->alamat, 'rt' => $member->rt, 'rw' => $member->rw,
