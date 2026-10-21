@@ -36,6 +36,7 @@ import { Empty } from '@/components/ui/empty';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import type { PageProps } from '@inertiajs/core';
+import { activeNavigationHref, type NavigationTarget } from '@/lib/navigation';
 
 interface AppUser {
     id: number;
@@ -51,7 +52,7 @@ interface SharedPageProps extends PageProps {
     flash: { success?: string | null; error?: string | null };
 }
 
-interface NavigationItem {
+interface NavigationItem extends NavigationTarget {
     label: string;
     href: string;
     icon: typeof LayoutDashboard;
@@ -70,11 +71,11 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             items: [
                 { label: 'Pasien', href: '/pelayanan/pasien', icon: UsersRound },
                 { label: 'Skrining', href: '/pelayanan/screening', icon: HeartPulse },
-                { label: 'Kunjungan', href: '/pelayanan/kunjungan', icon: ClipboardList },
+                { label: 'Kunjungan', href: '/pelayanan/kunjungan', activePaths: ['/pendaftaran/kunjungan'], icon: ClipboardList },
                 { label: 'Antrian', href: '/pelayanan/antrian', icon: Activity },
                 { label: 'Persuratan', href: '/persuratan', icon: FileText },
                 { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
-                { label: 'Kepesertaan & hak layanan', href: '/kepesertaan', icon: ShieldCheck },
+                { label: 'Kepesertaan', href: '/kepesertaan', icon: ShieldCheck },
                 { label: 'Terminologi klinis', href: '/master/terminologi-klinis', icon: ClipboardList },
             ],
         },
@@ -111,11 +112,11 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         {
             label: 'Pendaftaran',
             items: [
-                { label: 'Dashboard', href: '/pendaftaran', icon: LayoutDashboard },
-                { label: 'Pendaftaran Pasien', href: '/pendaftaran/pendaftaran-baru', icon: UserRoundPlus },
+                { label: 'Dashboard', href: '/pendaftaran', icon: LayoutDashboard, exact: true },
+                { label: 'Pendaftaran Pasien', href: '/pendaftaran/pendaftaran-baru', activePaths: ['/pendaftaran/pendaftaran-lama'], icon: UserRoundPlus },
                 { label: 'Database Pasien', href: '/pendaftaran/database-pasien', icon: UsersRound },
-                { label: 'Kepesertaan & Hak Layanan', href: '/kepesertaan', icon: ShieldCheck },
-                { label: 'Kunjungan Per Poli', href: '/pendaftaran/kunjungan-per-poli', icon: BedDouble },
+                { label: 'Kepesertaan', href: '/kepesertaan', icon: ShieldCheck },
+                { label: 'Kunjungan Per Poli', href: '/pendaftaran/kunjungan-per-poli', activePaths: ['/pendaftaran/kunjungan'], icon: BedDouble },
                 { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
                 { label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
                 { label: 'Laporan Kunjungan', href: '/pendaftaran/laporan-kunjungan', icon: BarChart3 },
@@ -135,7 +136,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         {
             label: 'Pemantauan',
             items: [
-                { label: 'Kunjungan Per Poli', href: '/pendaftaran/kunjungan-per-poli', icon: Activity },
+                { label: 'Kunjungan Per Poli', href: '/pendaftaran/kunjungan-per-poli', activePaths: ['/pelayanan/kunjungan'], icon: Activity },
                 { label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
                 { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
             ],
@@ -145,9 +146,9 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         {
             label: 'Praktik Dokter',
             items: [
-                { label: 'Dashboard', href: '/dokter', icon: LayoutDashboard },
+                { label: 'Dashboard', href: '/dokter', icon: LayoutDashboard, exact: true },
                 { label: 'Kunjungan', href: '/dokter/kunjungan', icon: ClipboardList },
-                { label: 'Pasien', href: '/dokter/pasien', icon: UsersRound },
+                { label: 'Pasien', href: '/dokter/pasien', activePaths: ['/pelayanan/pasien'], icon: UsersRound },
                 { label: 'Stok Obat', href: '/dokter/stok-obat', icon: Pill },
                 { label: 'Top Diagnosis', href: '/dokter/laporan-top-diagnosa', icon: ChartNoAxesCombined },
                 { label: 'Pemeriksaan', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
@@ -166,7 +167,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
 function getPageTitle(component: string): string {
     const titles: Record<string, string> = {
         'dashboard/index': 'Dashboard',
-        'kepesertaan/index': 'Kepesertaan & Hak Layanan',
+        'kepesertaan/index': 'Kepesertaan',
         'stok/persediaan/index': 'Persediaan Obat & BHP',
         'stok/persediaan/show': 'Batch & Kartu Stok',
         'pendaftaran/dashboard': 'Dashboard Pendaftaran',
@@ -268,6 +269,8 @@ function SidebarContents({
     headerClassName?: string;
     isCollapsed?: boolean;
 }) {
+    const activeHref = activeNavigationHref(pathname, groups.flatMap((group) => group.items));
+
     return (
         <>
             <SidebarHeader className={`${isCollapsed ? 'justify-center px-2' : ''} ${headerClassName ?? ''}`}>
@@ -288,14 +291,12 @@ function SidebarContents({
                         <SidebarGroupLabel className={isCollapsed ? 'sr-only' : undefined}>{group.label}</SidebarGroupLabel>
                         <SidebarMenu>
                             {group.items.map(({ href, icon: Icon, label }) => {
-                                const active = href === '/'
-                                    ? pathname === '/'
-                                    : pathname === href || pathname.startsWith(`${href}/`);
+                                const active = href === activeHref;
 
                                 return (
                                     <SidebarMenuItem key={`${href}-${label}`}>
                                         <SidebarMenuButton asChild className={isCollapsed ? 'justify-center px-2' : undefined} isActive={active}>
-                                            <Link aria-label={label} href={href} onClick={onNavigate} title={isCollapsed ? label : undefined}>
+                                            <Link aria-current={active ? 'page' : undefined} aria-label={label} href={href} onClick={onNavigate} title={isCollapsed ? label : undefined}>
                                                 <Icon aria-hidden="true" className="size-[18px] shrink-0" />
                                                 <span className={isCollapsed ? 'sr-only' : undefined}>{label}</span>
                                             </Link>
@@ -363,7 +364,8 @@ function AccountAvatar({ user }: { user: AppUser | null }) {
 }
 
 export default function AppLayout({ children }: { children: ReactNode }) {
-    const { auth, flash } = usePage<SharedPageProps>().props;
+    const page = usePage<SharedPageProps>();
+    const { auth, flash } = page.props;
     const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -373,8 +375,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         ...(navigationByRole[user?.role ?? ''] ?? []),
         { label: 'Akun', items: [{ label: 'Profil Saya', href: '/profile', icon: UserRound }] },
     ];
-    const pathname = window.location.pathname;
-    const pageTitle = getPageTitle(usePage().component);
+    const pathname = page.url.split(/[?#]/, 1)[0];
+    const pageTitle = getPageTitle(page.component);
     const validHrefs = new Set([...Object.values(navigationByRole).flatMap((roleGroups) => roleGroups.flatMap((group) => group.items.map((item) => item.href))), '/profile']);
     const breadcrumbs = getBreadcrumbItems(pathname, pageTitle, validHrefs);
     const searchResults = groups.flatMap((group) => group.items

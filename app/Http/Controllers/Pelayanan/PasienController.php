@@ -177,7 +177,7 @@ class PasienController extends Controller
         DB::transaction(function () use ($request, $pasien, $data, $registry, $auditRecorder): void {
             $patient = Pasien::whereKey($pasien->id)->lockForUpdate()->firstOrFail();
             if ($patient->kepesertaan_id) {
-                throw ValidationException::withMessages(['nik' => 'Pasien sudah terhubung dengan kepesertaan. Perbarui status melalui menu Kepesertaan & Hak Layanan.']);
+                throw ValidationException::withMessages(['nik' => 'Pasien sudah terhubung dengan kepesertaan. Perbarui status melalui menu Kepesertaan.']);
             }
             if (mb_strtolower(trim($patient->nama)) !== mb_strtolower(trim($data['nama']))) {
                 throw ValidationException::withMessages(['nama' => 'Nama verifikasi harus sesuai dengan nama pasien yang dipilih.']);
@@ -513,7 +513,9 @@ class PasienController extends Controller
                     'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'date' => $visit->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
                     'status' => $visit->status,
+                    'attachments' => $visit->attachmentSummaries(),
                     'screening' => $visit->screening ? [
+                        'summary' => $visit->screening->handoverSummary(),
                         'systolic' => $visit->screening->td_sistole,
                         'diastolic' => $visit->screening->td_diastole,
                         'pulse' => $visit->screening->nadi,

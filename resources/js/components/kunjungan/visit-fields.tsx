@@ -62,6 +62,9 @@ export function VisitFields({ today, existingVisit, data, errors, clinics, docto
         }
 
         const controller = new AbortController();
+        setPatientOptions([]);
+        setSearchingPatients(true);
+        setPatientSearchFailed(false);
         const timeout = window.setTimeout(() => {
             setSearchingPatients(true);
             setPatientSearchFailed(false);
@@ -71,9 +74,9 @@ export function VisitFields({ today, existingVisit, data, errors, clinics, docto
                     if (!response.ok) throw new Error('Pencarian pasien gagal.');
                     return response.json() as Promise<(Option & { medicalRecordNumber: string })[]>;
                 })
-                .then(setPatientOptions)
+                .then((options) => { if (!controller.signal.aborted) setPatientOptions(options); })
                 .catch((error: unknown) => {
-                    if (error instanceof DOMException && error.name === 'AbortError') return;
+                    if (controller.signal.aborted) return;
                     setPatientOptions([]);
                     setPatientSearchFailed(true);
                 })
@@ -89,6 +92,8 @@ export function VisitFields({ today, existingVisit, data, errors, clinics, docto
     useEffect(() => {
         if (!data.poliklinik_id || !data.tanggal) {
             setDoctors([]);
+            setLoadingDoctors(false);
+            setDoctorLoadError(false);
             return;
         }
         const controller = new AbortController();
@@ -101,13 +106,14 @@ export function VisitFields({ today, existingVisit, data, errors, clinics, docto
                 return response.json() as Promise<Array<{ id: number; nama: string }>>;
             })
             .then((availableDoctors) => {
+                if (controller.signal.aborted) return;
                 const options = availableDoctors.map((doctor) => ({ id: doctor.id, name: doctor.nama }));
                 setDoctors(options);
                 if (options.length === 1 && !data.dokter_id) onChangeRef.current('dokter_id', String(options[0].id));
                 else if (data.dokter_id && !options.some((doctor) => String(doctor.id) === data.dokter_id)) onChangeRef.current('dokter_id', '');
             })
             .catch((error: unknown) => {
-                if (error instanceof DOMException && error.name === 'AbortError') return;
+                if (controller.signal.aborted) return;
                 setDoctorLoadError(true);
                 setDoctors([]);
                 onChangeRef.current('dokter_id', '');

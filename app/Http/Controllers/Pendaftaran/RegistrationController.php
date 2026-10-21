@@ -197,25 +197,52 @@ class RegistrationController extends Controller
     public function searchPasien(Request $request): JsonResponse
     {
         $validated = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']]);
-        $search = $validated['q'];
+        $search = trim($validated['q']);
 
         $pasien = Pasien::query()
             ->where(function ($query) use ($search): void {
                 $query->where('nama', 'like', "%{$search}%")
                     ->orWhere('no_rm', 'like', "%{$search}%")
                     ->orWhere('nip', 'like', "%{$search}%")->orWhere('nik', 'like', "%{$search}%");
+                $query->orWhereHas('kepesertaan', fn ($members) => $members->where('nip', 'like', "%{$search}%"));
             })
             ->latest('created_at')->latest('id')
             ->limit(10)
-            ->with('kepesertaan.penanggung')->get(['id', 'no_rm', 'nama', 'nik', 'nip', 'jenis_kelamin', 'tanggal_lahir', 'telepon', 'kepesertaan_id'])
-            ->map(fn (Pasien $patient): array => [...$patient->only(['id', 'no_rm', 'nama', 'jenis_kelamin', 'tanggal_lahir', 'telepon']), 'eligibilityReason' => app(HakLayananVerifier::class)->patientReason($patient)]);
+            ->with('kepesertaan.penanggung')->get()
+            ->map(fn (Pasien $patient): array => $this->patientRegistrationData($patient));
 
         return response()->json($pasien);
     }
 
     public function getPasienDetail(Pasien $pasien): JsonResponse
     {
-        return response()->json($pasien->only(['id', 'no_rm', 'nama', 'jenis_kelamin', 'tanggal_lahir', 'telepon']));
+        $pasien->loadMissing('kepesertaan.penanggung');
+
+        return response()->json($this->patientRegistrationData($pasien));
+    }
+
+    /** @return array<string, mixed> */
+    private function patientRegistrationData(Pasien $patient): array
+    {
+        $member = $patient->kepesertaan;
+
+        return [
+            ...$patient->only(['id', 'no_rm', 'nama', 'nik', 'telepon', 'nama_ibu']),
+            'nip' => $patient->nip ?? $member?->nip,
+            'tanggal_lahir' => ($member?->tanggal_lahir ?? $patient->tanggal_lahir)?->toDateString(),
+            'jenis_kelamin' => $member?->jenis_kelamin ?? $patient->jenis_kelamin,
+            'tempat_lahir' => $member?->tempat_lahir ?? $patient->tempat_lahir,
+            'golongan_darah' => $member?->golongan_darah ?? $patient->golongan_darah,
+            'agama' => $member?->agama ?? $patient->agama,
+            'alamat' => $member?->alamat ?? $patient->alamat,
+            'rt' => $member?->rt ?? $patient->rt,
+            'rw' => $member?->rw ?? $patient->rw,
+            'kelurahan' => $member?->kelurahan ?? $patient->kelurahan,
+            'kecamatan' => $member?->kecamatan ?? $patient->kecamatan,
+            'unit_kerja' => $member?->unit_kerja,
+            'membership' => $member?->membershipLabel() ?? 'Menunggu verifikasi',
+            'eligibilityReason' => app(HakLayananVerifier::class)->patientReason($patient),
+        ];
     }
 
     public function storePasienLama(Request $request): RedirectResponse

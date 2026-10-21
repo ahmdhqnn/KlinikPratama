@@ -27,7 +27,7 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
                 </div>
                 <section aria-label="Statistik praktik dokter" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     <StatCard description="Seluruh kunjungan yang ditugaskan hari ini" icon={<CalendarClock className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Kunjungan hari ini" value={stats.visitsToday} />
-                    <StatCard description="Menunggu pemeriksaan dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Menunggu pemeriksaan" value={stats.waitingExaminations} />
+                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Antrean pemeriksaan dokter" value={stats.waitingExaminations} />
                     <StatCard description="Diteruskan ke farmasi atau kunjungan selesai" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Selesai ditangani" value={stats.completedToday} />
                 </section>
                 <FollowUp data={followUp} />

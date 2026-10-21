@@ -54,8 +54,8 @@ export default function MembershipDirectory({ members, search, categories, other
         if (editing) form.put(`/kepesertaan/${editing}`, options); else form.post(urls.index, options);
     }
 
-    return <><Head title="Kepesertaan & Hak Layanan" /><div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Direktori instansi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Kepesertaan & hak layanan</h2><p className="mt-1 text-sm text-neutral-500">Verifikasi identitas dan status hak layanan peserta klinik internal.</p></div><Button onClick={() => show()}><Plus className="size-4" />Verifikasi peserta</Button></div>
+    return <><Head title="Kepesertaan" /><div className="space-y-6">
+        <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Direktori instansi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Kepesertaan</h2><p className="mt-1 text-sm text-neutral-500">Verifikasi identitas dan status hak layanan peserta klinik internal.</p></div><Button onClick={() => show()}><Plus className="size-4" />Verifikasi peserta</Button></div>
         <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileSpreadsheet className="size-5" />Impor data kepegawaian</CardTitle><CardDescription>Gunakan template Excel. NIP dan NIK harus bertipe teks. Semua baris diperiksa; impor dibatalkan jika ada kesalahan. Pengunggah bertanggung jawab memverifikasi sumber daftar.</CardDescription></CardHeader><CardContent>
             <form className="grid gap-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-end" onSubmit={(event) => { event.preventDefault(); upload.post(urls.import, { forceFormData: true, preserveScroll: true, onSuccess: () => upload.reset() }); }}>
                 <Field label="Berkas Excel (.xlsx)" htmlFor="membership-file" required error={upload.errors.file}><Input id="membership-file" type="file" accept=".xlsx" required onChange={(event) => upload.setData('file', event.target.files?.[0] ?? null)} /></Field>

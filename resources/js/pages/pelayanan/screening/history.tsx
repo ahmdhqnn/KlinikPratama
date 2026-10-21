@@ -22,6 +22,8 @@ interface ScreeningRecord {
     triage: string | null;
     priority: string | null;
     visitUrl: string | null;
+    printUrl: string | null;
+    isDraft: boolean;
 }
 
 interface Props {
@@ -82,9 +84,9 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                                     <TableCell className="font-mono text-xs">{record.visitNumber}</TableCell>
                                     <TableCell><p className="font-medium text-neutral-900">{record.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{record.medicalRecordNumber}</p></TableCell>
                                     <TableCell>{record.clinic}</TableCell>
-                                    <TableCell>{record.staff}</TableCell>
+                                    <TableCell>{record.staff}<p className="mt-1 text-xs text-neutral-500">{record.isDraft ? 'Draf asesmen' : 'Asesmen terkirim'}</p></TableCell>
                                     <TableCell><span className="font-medium capitalize">{record.triage ?? 'Belum ditentukan'}</span>{record.priority && <span className="mt-0.5 block text-xs text-neutral-500 capitalize">{record.priority}</span>}</TableCell>
-                                    <TableCell className="text-center">{record.visitUrl && <Button asChild size="sm" variant="secondary"><Link href={record.visitUrl}>Lihat kunjungan</Link></Button>}</TableCell>
+                                    <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2">{record.printUrl && <Button asChild size="sm" variant="secondary"><a href={record.printUrl} target="_blank" rel="noopener noreferrer">Cetak asesmen</a></Button>}{record.visitUrl && <Button asChild size="sm" variant="secondary"><Link href={record.visitUrl}>Lihat kunjungan</Link></Button>}</div></TableCell>
                                 </TableRow>) : <TableRow><TableCell colSpan={7}><Empty size="compact" title="Belum ada catatan skrining pada filter ini." /></TableCell></TableRow>}
                             </TableBody>
                         </Table>

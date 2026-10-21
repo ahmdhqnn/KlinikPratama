@@ -20,6 +20,44 @@ class FarmasiInertiaTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_zero_dispensed_quantity_stays_zero_after_saving_and_reloading(): void
+    {
+        $pharmacist = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
+        $clinic = Poliklinik::create(['kode' => 'ZERO', 'nama' => 'Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $patient = Pasien::create(['no_rm' => 'RM-ZERO', 'nama' => 'Pasien Uji']);
+        $visit = Kunjungan::create(['no_kunjungan' => 'ZERO', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => 'farmasi']);
+        $medicine = Obat::create(['kode' => 'MED-ZERO', 'nama' => 'Obat Uji', 'satuan_kecil' => 'tablet', 'stok' => 0, 'is_active' => true]);
+        $prescription = Resep::create(['no_resep' => 'RSP-ZERO', 'kunjungan_id' => $visit->id, 'status' => 'menunggu']);
+        $item = $prescription->resepObat()->create(['obat_id' => $medicine->id, 'nama_obat' => $medicine->nama, 'jumlah' => 3, 'jenis' => 'jadi', 'is_resep_luar' => false]);
+        Farmasi::create(['kunjungan_id' => $visit->id, 'resep_id' => $prescription->id, 'status' => 'menunggu']);
+
+        $this->actingAs($pharmacist)->post(route('pelayanan.farmasi.store', $visit), [
+            'items' => [['resep_obat_id' => $item->id, 'obat_id' => $medicine->id, 'jumlah_diberikan' => 0]],
+            'catatan' => 'Obat belum tersedia; pasien diarahkan ke apotek luar.',
+        ])->assertSessionHasNoErrors();
+        $this->get(route('pelayanan.farmasi.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.prescriptionItems.0.dispensedQuantity', 0));
+        $this->post(route('pelayanan.farmasi.selesai', $visit))->assertSessionHasNoErrors();
+        $this->get(route('pelayanan.farmasi.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.prescriptionItems.0.dispensedQuantity', 0));
+        $this->assertDatabaseCount('stok_mutasi', 0);
+    }
+
+    public function test_future_reservation_cannot_be_dispensed_even_if_its_stage_is_incorrect(): void
+    {
+        $this->travelTo('2026-10-20 09:00:00');
+        $pharmacist = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
+        $clinic = Poliklinik::create(['kode' => 'FUTURE', 'nama' => 'Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $patient = Pasien::create(['no_rm' => 'RM-FUTURE', 'nama' => 'Pasien Reservasi']);
+        $visit = Kunjungan::create(['no_kunjungan' => 'FUTURE', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => '2026-10-21', 'status' => 'farmasi']);
+
+        $this->actingAs($pharmacist)->post(route('pelayanan.farmasi.store', $visit), ['items' => []])->assertUnprocessable();
+        $this->post(route('pelayanan.farmasi.selesai', $visit), ['items' => []])->assertUnprocessable();
+        $this->assertDatabaseCount('farmasi', 0);
+        $this->assertDatabaseCount('stok_mutasi', 0);
+        $this->assertSame('farmasi', $visit->fresh()->status);
+    }
+
     public function test_pharmacist_dashboard_summarizes_queue_and_restricts_access_to_pharmacy_role(): void
     {
         $pharmacist = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);

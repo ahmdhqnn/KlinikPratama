@@ -14,6 +14,7 @@ export interface MemberOption {
 }
 
 interface MembershipPickerProps {
+    registrationOnly?: boolean;
     value: string;
     label?: string;
     error?: string;
@@ -21,7 +22,7 @@ interface MembershipPickerProps {
     onSelect: (member: MemberOption) => void;
 }
 
-export function MembershipPicker({ value, label, error, onClear, onSelect }: MembershipPickerProps) {
+export function MembershipPicker({ value, label, error, onClear, onSelect, registrationOnly = false }: MembershipPickerProps) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<MemberOption[]>([]);
     const [loading, setLoading] = useState(false);
@@ -29,20 +30,22 @@ export function MembershipPicker({ value, label, error, onClear, onSelect }: Mem
     const [selected, setSelected] = useState<MemberOption | null>(null);
 
     useEffect(() => {
-        if (query.trim().length < 2) { setResults([]); setLoading(false); return; }
+        if (query.trim().length < 2) { setResults([]); setLoading(false); setFailure(''); return; }
         const controller = new AbortController();
+        setResults([]); setLoading(true); setFailure('');
         const timer = window.setTimeout(async () => {
             setLoading(true); setFailure('');
             try {
-                const response = await fetch('/kepesertaan/search?q=' + encodeURIComponent(query.trim()), { headers: { Accept: 'application/json' }, signal: controller.signal });
+                const response = await fetch('/kepesertaan/search?q=' + encodeURIComponent(query.trim()) + (registrationOnly ? '&registration=1' : ''), { headers: { Accept: 'application/json' }, signal: controller.signal });
                 if (!response.ok) throw new Error('Direktori belum dapat dimuat. Coba kembali.');
-                setResults(await response.json() as MemberOption[]);
+                const members: MemberOption[] = await response.json();
+                if (!controller.signal.aborted) setResults(members);
             } catch (error) {
                 if (!controller.signal.aborted) { setFailure(error instanceof Error ? error.message : 'Pencarian gagal.'); setResults([]); }
             } finally { if (!controller.signal.aborted) setLoading(false); }
         }, 300);
         return () => { window.clearTimeout(timer); controller.abort(); };
-    }, [query]);
+    }, [query, registrationOnly]);
 
     return <div className="space-y-3">
         <Field error={error ?? failure} htmlFor="membership-search" label="NIP, NIK, atau nama peserta" required>

@@ -1,13 +1,26 @@
 import { Badge } from '@/components/ui/badge';
 
-const labels: Record<string, string> = {
-    menunggu: 'Menunggu',
-    screening: 'Skrining',
-    pemeriksaan: 'Pemeriksaan',
-    farmasi: 'Farmasi',
-    kasir: 'Perlu penyelesaian',
-    selesai: 'Selesai',
-    batal: 'Dibatalkan',
+export const visitStatusLabels: Record<string, string> = {
+    menunggu: 'Menunggu skrining',
+    screening: 'Proses skrining',
+    pemeriksaan: 'Pemeriksaan dokter',
+    farmasi: 'Pelayanan farmasi',
+    kasir: 'Perlu penyelesaian kunjungan',
+    selesai: 'Kunjungan selesai',
+    batal: 'Kunjungan dibatalkan',
+};
+
+const pharmacyStatusLabels: Record<string, string> = {
+    menunggu: 'Menunggu penyiapan obat',
+    farmasi: 'Menunggu penyiapan obat',
+    diproses: 'Penyiapan obat berlangsung',
+    selesai: 'Penyerahan obat selesai',
+    batal: 'Pelayanan farmasi dibatalkan',
+};
+
+const laboratoryStatusLabels: Record<string, string> = {
+    menunggu: 'Menunggu pemeriksaan lab',
+    selesai: 'Pemeriksaan lab selesai',
 };
 
 const variants: Record<string, 'waiting' | 'screening' | 'examination' | 'pharmacy' | 'complete' | 'cancelled' | 'default'> = {
@@ -15,15 +28,18 @@ const variants: Record<string, 'waiting' | 'screening' | 'examination' | 'pharma
     screening: 'screening',
     pemeriksaan: 'examination',
     farmasi: 'pharmacy',
+    diproses: 'pharmacy',
     kasir: 'waiting',
     selesai: 'complete',
     batal: 'cancelled',
 };
 
-export function StatusBadge({ status, reservation = false }: { status: string; reservation?: boolean }) {
+export function StatusBadge({ status, reservation = false, context = 'visit' }: { status: string; reservation?: boolean; context?: 'visit' | 'pharmacy' | 'laboratory' }) {
     if (reservation) {
         return <Badge variant="default">Reservasi</Badge>;
     }
 
-    return <Badge variant={variants[status] ?? 'default'}>{labels[status] ?? status}</Badge>;
+    const labels = { visit: visitStatusLabels, pharmacy: pharmacyStatusLabels, laboratory: laboratoryStatusLabels }[context];
+
+    return <Badge className="justify-center text-center leading-4" variant={variants[status] ?? 'default'}>{labels[status] ?? status}</Badge>;
 }

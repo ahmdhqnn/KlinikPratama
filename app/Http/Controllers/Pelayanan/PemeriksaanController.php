@@ -21,6 +21,7 @@ use App\Models\Poliklinik;
 use App\Models\ResepObat;
 use App\Models\Tindakan;
 use App\Models\TindakanKunjungan;
+use App\PatientAllergyHistory;
 use App\PersediaanRecorder;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -34,7 +35,7 @@ use Inertia\Response;
 
 class PemeriksaanController extends Controller
 {
-    public function __construct(private DoctorAccessService $doctorAccess) {}
+    public function __construct(private DoctorAccessService $doctorAccess, private PatientAllergyHistory $allergies) {}
 
     public function index(Request $request): Response
     {
@@ -111,6 +112,7 @@ class PemeriksaanController extends Controller
         $latestNote = $kunjungan->pemeriksaan?->clinicalNoteVersions->sortBy('version')->last();
         $noteIntegrityValid = $kunjungan->pemeriksaan?->signed_at ? $noteRecorder->verify($kunjungan->pemeriksaan) : null;
         $effectiveNote = $noteIntegrityValid ? $latestNote->payload : null;
+        $allergyHistory = $this->allergies->forVisit($kunjungan)['riwayat_alergi'];
         $clinicalAnswer = static fn (?string $value, string $fallback): string => filled($value) ? $value : $fallback;
         $firstRecordedValue = static function (?string ...$values): ?string {
             foreach ($values as $value) {
@@ -132,19 +134,14 @@ class PemeriksaanController extends Controller
             'pastHistory' => $firstRecordedValue(
                 is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_dahulu'] ?? null) : $kunjungan->pemeriksaan?->riwayat_penyakit_dahulu,
                 $kunjungan->screening?->riwayat_penyakit,
-                'Tidak ada riwayat penyakit kronis',
+                'Belum dicatat',
             ),
             'familyHistory' => $firstRecordedValue(
                 is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $kunjungan->pemeriksaan?->riwayat_penyakit_keluarga,
                 $kunjungan->screening?->riwayat_penyakit_keluarga,
-                'Tidak ada riwayat penyakit keluarga',
+                'Belum dicatat',
             ),
-            'allergyHistory' => $firstRecordedValue(
-                is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $kunjungan->pemeriksaan?->riwayat_alergi,
-                $kunjungan->screening?->riwayat_alergi,
-                $kunjungan->pasien->riwayat_alergi,
-                'Tidak ada riwayat alergi',
-            ),
+            'allergyHistory' => $allergyHistory,
         ];
         $oralHygieneIndex = is_array($effectiveNote) ? ($effectiveNote['oral_hygiene_index'] ?? null) : $kunjungan->pemeriksaan?->oral_hygiene_index;
         $odontogram = is_array($effectiveNote)
@@ -159,6 +156,7 @@ class PemeriksaanController extends Controller
         return Inertia::render('pelayanan/pemeriksaan/show', [
             'visit' => [
                 'id' => $kunjungan->id,
+                'attachments' => $kunjungan->attachmentSummaries(),
                 'number' => $kunjungan->no_kunjungan,
                 'status' => $kunjungan->status,
                 'doctorId' => $kunjungan->dokter_id,
@@ -173,10 +171,11 @@ class PemeriksaanController extends Controller
                     'gender' => $kunjungan->pasien->jenis_kelamin,
                     'age' => $kunjungan->pasien->umur,
                     'bloodType' => $kunjungan->pasien->golongan_darah,
-                    'allergies' => $kunjungan->pasien->riwayat_alergi,
+                    'allergies' => $allergyHistory,
                 ],
                 'examinationFormDefaults' => $examinationFormDefaults,
                 'screening' => $kunjungan->screening ? [
+                    'summary' => $kunjungan->screening->handoverSummary(),
                     'systolic' => $kunjungan->screening->td_sistole,
                     'diastolic' => $kunjungan->screening->td_diastole,
                     'pulse' => $kunjungan->screening->nadi,
@@ -499,9 +498,9 @@ class PemeriksaanController extends Controller
 
                 $item = $resep->resepObat()->create([
                     'obat_id' => $data['obat_id'] ?? null,
-                    'nama_obat' => $data['nama_obat'] ?? $obat?->nama,
+                    'nama_obat' => $isResepLuar ? $data['nama_obat'] : $obat->nama,
                     'jumlah' => $data['jumlah'],
-                    'satuan' => $data['satuan'] ?? $obat?->satuan_kecil,
+                    'satuan' => $isResepLuar ? ($data['satuan'] ?? null) : $obat->satuan_kecil,
                     'aturan_pakai' => $data['aturan_pakai'],
                     'catatan' => $data['catatan'] ?? null,
                     'jenis' => $data['jenis'],
@@ -794,6 +793,7 @@ class PemeriksaanController extends Controller
                 'signed_by_user_id' => $request->user()->id,
                 'signed_at' => now(),
             ]);
+            $this->allergies->remember($lockedVisit, $examination->riwayat_alergi);
 
             $prescription = $lockedVisit->resep;
             if ($prescription && $prescription->resepObat()->exists()) {
@@ -878,6 +878,9 @@ class PemeriksaanController extends Controller
             }
 
             $noteRecorder->recordAddendum($examination, $payload, $request->user()->id, trim($data['reason']));
+            if (array_key_exists('riwayat_alergi', $fields)) {
+                $this->allergies->remember($lockedVisit, $payload['riwayat_alergi']);
+            }
             $auditRecorder->record($request, 'clinical_examination.addendum', $lockedVisit->pasien_id, $lockedVisit->id);
         });
 
@@ -1153,6 +1156,10 @@ class PemeriksaanController extends Controller
                     ->all();
                 $data[$field] = $systems === [] ? null : $systems;
             }
+        }
+
+        if (blank($data['riwayat_alergi'] ?? null)) {
+            $data['riwayat_alergi'] = $this->allergies->forVisit($kunjungan)['riwayat_alergi'];
         }
 
         return $data;

@@ -4,7 +4,7 @@ import { Activity, Download, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { StatusBadge } from '@/components/dashboard/status-badge';
+import { StatusBadge, visitStatusLabels } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -53,7 +53,7 @@ export default function VisitReport({ filters, clinics, stats, visits, exportUrl
                 <FilterPanel><form className="grid gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-2" onSubmit={filterReport}>
                     <Field htmlFor="visit-report-period" label="Periode kunjungan"><DateRangePicker id="visit-report-period" from={from} onChange={(range) => { setFrom(range.from); setTo(range.to); }} to={to} /></Field>
                     <Field htmlFor="visit-report-clinic" label="Poliklinik"><Select id="visit-report-clinic" onChange={(event) => setClinicId(event.target.value)} value={clinicId}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>
-                    <Field htmlFor="visit-report-status" label="Status kunjungan"><Select id="visit-report-status" onChange={(event) => setStatus(event.target.value)} value={status}><option value="">Semua status</option>{['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((value) => <option key={value} value={value}>{value.charAt(0).toUpperCase() + value.slice(1)}</option>)}</Select></Field>
+                    <Field htmlFor="visit-report-status" label="Status kunjungan"><Select id="visit-report-status" onChange={(event) => setStatus(event.target.value)} value={status}><option value="">Semua status</option>{['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((value) => <option key={value} value={value}>{visitStatusLabels[value]}</option>)}</Select></Field>
                     <div className="flex gap-3 "><Button type="submit">Terapkan filter</Button><Button asChild variant="secondary"><a href={exportUrl}><Download className="size-4" />Export Excel</a></Button></div>
                 </form></FilterPanel>
                 <div className="grid gap-4 md:grid-cols-3"><StatCard description="Dalam rentang tanggal terpilih" icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan" value={stats.total} /><StatCard description="Kunjungan telah diselesaikan" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Kunjungan selesai" value={stats.completed} /><StatCard description="Hak layanan tercatat saat pendaftaran" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Hak terverifikasi" value={stats.verified} /></div>

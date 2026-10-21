@@ -3,7 +3,7 @@ import { ClipboardCheck, Eye, Pill, Stethoscope } from 'lucide-react';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Empty } from '@/components/ui/empty';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader } from '@/components/ui/table';
 
 export interface DashboardVisit {
     id: number;
@@ -12,6 +12,7 @@ export interface DashboardVisit {
     medicalRecordNumber: string;
     clinic: string;
     status: string;
+    isReservation?: boolean;
     triage?: string | null;
     priority?: string | null;
     actionUrl: string;
@@ -28,7 +29,7 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                     <TableHead>Pasien</TableHead>
                     <TableHead>Poliklinik</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Aksi cepat</TableHead>
+                    <TableHead>Aksi cepat</TableHead>
                 </tr></TableHeader>
                 <TableBody>
                     {visits.length > 0 ? visits.map((visit) => (
@@ -40,8 +41,8 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                             </TableCell>
                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                             <TableCell>
-                                <div className="flex flex-col items-start gap-1.5">
-                                    <StatusBadge status={visit.status} />
+                                <div className="flex flex-col items-center gap-1.5">
+                                    <StatusBadge context={visit.actionType === 'pharmacy' ? 'pharmacy' : 'visit'} reservation={visit.isReservation} status={visit.status} />
                                     {visit.triage && (
                                         <span className={`text-xs font-medium capitalize ${visit.triage === 'merah' ? 'text-red-700' : 'text-neutral-500'}`}>
                                             Triase {visit.triage}{visit.priority ? ` · ${visit.priority}` : ''}
@@ -49,7 +50,7 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                                     )}
                                 </div>
                             </TableCell>
-                            <TableCell className="text-right"><Button asChild size="sm" variant="secondary"><Link href={visit.actionUrl}><ActionIcon type={visit.actionType} />{visit.actionLabel}</Link></Button></TableCell>
+                            <TableCell><Button asChild size="sm" variant="secondary"><Link href={visit.actionUrl}><ActionIcon type={visit.actionType} />{visit.actionLabel}</Link></Button></TableCell>
                         </tr>
                     )) : (
                         <tr>

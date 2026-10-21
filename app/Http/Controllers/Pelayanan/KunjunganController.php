@@ -218,6 +218,8 @@ class KunjunganController extends Controller
                         : route('pelayanan.pasien.show', $kunjungan->pasien))
                     : null,
                 'screening' => $canScreen ? route('pelayanan.screening.show', $kunjungan) : null,
+                'screeningPrint' => in_array($role, ['admin', 'perawat'], true) && $kunjungan->screening
+                    ? route('pelayanan.screening.print', $kunjungan) : null,
                 'medicalRecord' => $role === 'perawat' && $kunjungan->pasien
                     ? route('pelayanan.pasien.rekam-medis', $kunjungan->pasien)
                     : null,

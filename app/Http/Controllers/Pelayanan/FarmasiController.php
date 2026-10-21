@@ -9,8 +9,10 @@ use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\ResepObat;
 use App\Models\StokMutasi;
+use App\PatientAllergyHistory;
 use App\PersediaanRecorder;
 use App\VisitQueryService;
+use App\VisitSchedulingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +22,8 @@ use Inertia\Response;
 
 class FarmasiController extends Controller
 {
+    public function __construct(private VisitSchedulingService $scheduling) {}
+
     public function index(Request $request, VisitQueryService $visits): Response
     {
         $filters = $visits->filters($request);
@@ -56,9 +60,10 @@ class FarmasiController extends Controller
         ]);
     }
 
-    public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $audit): Response
+    public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $audit, PatientAllergyHistory $allergies): Response
     {
         abort_unless($kunjungan->status === 'farmasi' || $kunjungan->farmasi()->where('status', 'selesai')->exists(), 404);
+        $this->scheduling->ensureServiceDate($kunjungan);
         $kunjungan->load([
             'pasien', 'screening', 'pemeriksaan', 'poliklinik', 'dokter',
             'resep.resepObat.obat.batches',
@@ -78,9 +83,9 @@ class FarmasiController extends Controller
                     'id' => $kunjungan->pasien->id,
                     'name' => $kunjungan->pasien->nama,
                     'medicalRecordNumber' => $kunjungan->pasien->no_rm,
-                    'allergies' => $kunjungan->pasien->riwayat_alergi,
+                    'allergies' => $allergies->forVisit($kunjungan)['riwayat_alergi'],
                     'screeningAllergies' => $kunjungan->screening?->riwayat_alergi,
-                    'examinationAllergies' => $kunjungan->pemeriksaan?->riwayat_alergi,
+                    'examinationAllergies' => $allergies->examination($kunjungan->pemeriksaan),
                 ],
                 'doctor' => $kunjungan->dokter?->nama,
                 'pharmacy' => $kunjungan->farmasi ? [
@@ -110,7 +115,7 @@ class FarmasiController extends Controller
                         'requestedQuantity' => (float) $item->jumlah,
                         'dispensedQuantity' => $pharmacyItem?->jumlah_diberikan !== null
                             ? (float) $pharmacyItem->jumlah_diberikan
-                            : ($item->is_resep_luar ? 0 : (float) $item->jumlah),
+                            : ($item->is_resep_luar || in_array($kunjungan->farmasi?->status, ['diproses', 'selesai'], true) ? 0 : (float) $item->jumlah),
                         'unit' => $item->satuan,
                         'instructions' => $pharmacyItem?->aturan_pakai ?? $item->aturan_pakai,
                         'external' => $item->is_resep_luar,
@@ -134,6 +139,7 @@ class FarmasiController extends Controller
         DB::transaction(function () use ($data, $kunjungan, $request): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             abort_unless($lockedVisit->status === 'farmasi', 422, 'Kunjungan tidak berada pada tahap farmasi.');
+            $this->scheduling->ensureServiceDate($lockedVisit);
 
             $farmasi = Farmasi::where('kunjungan_id', $kunjungan->id)->lockForUpdate()->first();
             abort_if($farmasi?->status === 'selesai', 422, 'Dispensing sudah selesai dan tidak dapat diubah.');
@@ -172,6 +178,7 @@ class FarmasiController extends Controller
             }
 
             abort_unless($lockedVisit->status === 'farmasi', 422, 'Kunjungan tidak berada pada tahap farmasi.');
+            $this->scheduling->ensureServiceDate($lockedVisit);
 
             $lockedVisit->loadMissing('resep');
             $farmasi ??= Farmasi::create([
