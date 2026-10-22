@@ -152,7 +152,7 @@ export function VisitFields({ existingVisit, clinics, today, doctorsUrl, values,
                 </Field>
                 <Field error={errors.tanggal} htmlFor="reservation-date" label={isDental ? 'Tanggal janji Poli Gigi' : 'Tanggal kunjungan'} required>
                     <DatePicker id="reservation-date" min={minimumDate} required value={values.tanggal} onChange={(event) => onChange({ tanggal: event.target.value, dokter_id: '' })} />
-                    <p className="text-xs text-neutral-500">{isDental ? 'Reservasi terlebih dahulu sesuai jadwal dokter. Skrining dan pemeriksaan tersedia pada tanggal kunjungan.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
+                    <p className="text-xs text-neutral-500">{isDental ? 'Reservasi sesuai jadwal dokter. Pengkajian awal dan pemeriksaan tersedia pada tanggal kunjungan.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
                 </Field>
                 <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Fasilitas klinik internal</p><p className="mt-1 text-xs text-neutral-500">Pasien baru dapat langsung didaftarkan untuk kunjungan. Verifikasi kepesertaan dilakukan oleh admin.</p></div>
             </div>

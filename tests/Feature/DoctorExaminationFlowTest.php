@@ -154,16 +154,16 @@ class DoctorExaminationFlowTest extends TestCase
             ->where('auth.user.role', 'dokter')
             ->where('stats.visitsToday', 1)
             ->has('schedule')
-            ->has('recentVisits', 1)
+            ->has('recentVisits.data', 1)
         );
         $visit->update(['status' => 'selesai']);
         $this->actingAs($user)->get(route('dokter.dashboard'))->assertInertia(fn (Assert $page) => $page
             ->where('stats.visitsToday', 1)
             ->where('stats.completedToday', 1)
-            ->has('recentVisits', 1)
-            ->where('recentVisits.0.status', 'selesai')
-            ->where('recentVisits.0.actionUrl', route('pelayanan.pasien.rekam-medis', $patient))
-            ->where('recentVisits.0.actionLabel', 'Lihat RME')
+            ->has('recentVisits.data', 1)
+            ->where('recentVisits.data.0.status', 'selesai')
+            ->where('recentVisits.data.0.actionUrl', route('pelayanan.pasien.rekam-medis', $patient))
+            ->where('recentVisits.data.0.actionLabel', 'Lihat RME')
         );
         $visit->update(['status' => 'pemeriksaan']);
         $this->actingAs($user)->get(route('dokter.janji-kunjungan', [
@@ -348,9 +348,9 @@ class DoctorExaminationFlowTest extends TestCase
         $this->actingAs($user)->get(route('dokter.dashboard'))->assertInertia(fn (Assert $page) => $page
             ->where('stats.visitsToday', 1)
             ->where('stats.waitingExaminations', 1)
-            ->where('recentVisits.0.number', $visit->no_kunjungan)
-            ->where('recentVisits.0.actionUrl', route('pelayanan.pemeriksaan.show', $visit))
-            ->where('recentVisits.0.actionLabel', 'Pemeriksaan')
+            ->where('recentVisits.data.0.number', $visit->no_kunjungan)
+            ->where('recentVisits.data.0.actionUrl', route('pelayanan.pemeriksaan.show', $visit))
+            ->where('recentVisits.data.0.actionLabel', 'Pemeriksaan')
         );
         $this->get(route('pelayanan.pemeriksaan.index'))->assertInertia(fn (Assert $page) => $page
             ->has('visits.data', 1)

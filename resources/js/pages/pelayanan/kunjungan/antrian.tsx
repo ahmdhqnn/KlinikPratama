@@ -16,7 +16,7 @@ interface Visit {
 }
 
 const queues = [
-    { title: 'Antrean skrining perawat', statuses: ['menunggu', 'screening'], color: 'border-amber-200 bg-amber-50' },
+    { title: 'Antrean pengkajian awal perawat', statuses: ['menunggu', 'screening'], color: 'border-amber-200 bg-amber-50' },
     { title: 'Pemeriksaan dokter', statuses: ['pemeriksaan'], color: 'border-neutral-200 bg-neutral-50' },
     { title: 'Farmasi', statuses: ['farmasi'], color: 'border-neutral-200 bg-neutral-50' },
 ];

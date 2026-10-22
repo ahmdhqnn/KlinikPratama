@@ -20,7 +20,7 @@ class StoreScreeningRequest extends FormRequest
         if ($this->user()->role === 'perawat') {
             abort_unless((int) $visit->poliklinik_id === app(PerawatClinicResolver::class)->clinicId($this->user()), 404);
         }
-        abort_unless(in_array($visit->status, ['menunggu', 'screening'], true), 422, 'Skrining sudah diteruskan dan tidak dapat diubah.');
+        abort_unless(in_array($visit->status, ['menunggu', 'screening'], true), 422, 'Pengkajian awal sudah diteruskan dan tidak dapat diubah.');
         app(VisitSchedulingService::class)->ensureServiceDate($visit);
 
         return in_array($this->user()->role, ['admin', 'perawat'], true);

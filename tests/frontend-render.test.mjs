@@ -30,6 +30,7 @@ async function renderPage(path, props, url = '/pendaftaran') {
 }
 
 const singlePage = { currentPage: 1, lastPage: 1, from: 1, to: 9, total: 9, previousUrl: null, nextUrl: null };
+const pageOf = (data) => ({ currentPage: 1, lastPage: 1, from: data.length ? 1 : null, to: data.length || null, total: data.length, previousUrl: null, nextUrl: null, data });
 
 for (const clinicType of ['umum', 'gigi']) {
     test(`${clinicType} screening separates measurements, preserves unknown answers, and offers draft and handoff actions`, async () => {
@@ -58,7 +59,7 @@ for (const clinicType of ['umum', 'gigi']) {
         assert.doesNotMatch(html, /Prioritas menurut penilaian petugas/);
         assert.match(html, /id="suhu"/);
         assert.match(html, /id="catatan_triase"[^>]*>/, 'the optional triage note should be available in compact mode');
-        assert.match(html, /Catatan triase \/ komunikasi kepada dokter/);
+        assert.match(html, /Catatan penapisan \/ komunikasi kepada dokter/);
         assert.match(html, /min-w-0 xl:col-span-2/, 'the triage note should fill the two columns beside the final triage item');
         assert.match(html, /id="td_sistole"/);
         assert.match(html, /Tekanan darah \(mmHg\)/);
@@ -77,7 +78,7 @@ for (const clinicType of ['umum', 'gigi']) {
         assert.match(html, /id="td_diastole"/);
         assert.match(html, /id="respirasi"/);
         assert.match(html, /id="sumber_informasi"/);
-        assert.match(html, />Mulai skrining<\/button>/);
+        assert.match(html, />Mulai pengkajian<\/button>/);
         assert.doesNotMatch(html, /Panggil pasien|Pasien hadir/);
         assert.doesNotMatch(html, /id="section-additional"/);
         assert.match(html, /aria-label="Profil pasien"/);
@@ -111,7 +112,7 @@ test('compact screening retains saved answers and requires clarification of unkn
     assert.doesNotMatch(html, /id="section-triage"/);
     assert.match(html, /Riwayat sistemik yang perlu diperhatikan dokter gigi/);
     assert.match(html, /id="catatan_medis_gigi"[^>]*required=""/);
-    assert.doesNotMatch(html, />Mulai skrining<\/button>/);
+    assert.doesNotMatch(html, />Mulai pengkajian<\/button>/);
 });
 
 test('known negative allergy history selects no allergy and leaves its details hidden', async () => {
@@ -131,22 +132,47 @@ test('known negative allergy history selects no allergy and leaves its details h
 test('nurse queue labels saved draft as in progress rather than completed screening', async () => {
     const html = await renderPage('pelayanan/screening/index', {
         filters: { search: '', tanggal: '2026-10-21', poliklinikId: 1 }, clinics: [], canSelectClinic: false,
-        visits: { ...singlePage, total: 1, data: [{ id: 1, number: 'K-001', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', hasScreening: true, status: 'screening', screeningUrl: '/pelayanan/screening/1' }] },
+        visits: { ...singlePage, total: 1, data: [{ id: 1, number: 'K-001', date: '21/10/2026', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', hasScreening: true, status: 'screening', screeningUrl: '/pelayanan/screening/1' }] },
     });
-    assert.match(html, /Proses skrining/);
-    assert.match(html, /Lanjutkan asesmen/);
-    assert.doesNotMatch(html, /Sudah skrining/);
+    assert.match(html, /Pengkajian awal berlangsung/);
+    assert.match(html, /Lanjutkan pengkajian/);
+    assert.doesNotMatch(html, /Pengkajian selesai/);
+    assert.ok(html.indexOf('Pengkajian saya') < html.indexOf('<table'), 'history action should be above the queue table');
+    assert.match(html, /aria-label="Filter data"[^>]*>[\s\S]*?Pengkajian saya[\s\S]*?aria-controls="[^"]+"[^>]*>[\s\S]*?Filter/, 'history action and filter should share a control row');
+    assert.match(html, /id="screening-queue-search"/);
+    assert.match(html, /id="screening-queue-date"/);
+    const historyActionIndex = html.indexOf('Pengkajian saya');
+    const historyActionMarkup = html.slice(html.lastIndexOf('<a', historyActionIndex), html.indexOf('>', historyActionIndex) + 1);
+    assert.match(historyActionMarkup, /border-neutral-200 bg-surface/, 'history action should match the filter toggle style');
+});
+
+test('clinic visit tables show the appropriate nurse action and consistent controls', async () => {
+    const visit = { id: 1, number: 'K-001', date: '22/10/2026', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', doctor: 'Dokter Uji', status: 'screening', actionUrl: '/pelayanan/screening/1', actionLabel: 'Lanjutkan pengkajian', ticketUrl: null, editUrl: null, cancelUrl: null };
+    const html = await renderPage('pendaftaran/kunjungan-per-poli', {
+        filters: { poliklinikId: 1, tanggal: '', status: '' }, clinics: [{ id: 1, name: 'Poli Umum' }],
+        stats: { total: 1, waiting: 0, screening: 1, examination: 0 },
+        access: { manageVisits: false, monitorClinicalFlow: true, selectClinic: false },
+        visits: pageOf([visit]), recentVisits: pageOf([visit]),
+    });
+    assert.match(html, /Kunjungan poli/);
+    assert.equal((html.match(/>Lanjutkan pengkajian<\/a>/g) ?? []).length, 2);
+    assert.equal((html.match(/href="\/pelayanan\/screening\/1"/g) ?? []).length, 2);
+    assert.doesNotMatch(html, />Edit<\/a>|>Batalkan<\/button>|>Cetak<\/a>/);
 });
 
 test('dashboard queues clarify each workflow and center headers, cells, and status badges', async () => {
     const visit = { id: 1, number: 'K-001', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', actionUrl: '/pelayanan/kunjungan/1', actionLabel: 'Buka', triage: 'hijau', priority: 'normal' };
     const followUp = { upcoming: 0, overdue: 0, href: '/pelayanan/kunjungan' };
-    for (const [page, props, expected] of [
-        ['perawat/dashboard', { stats: { menunggu_ttv: 1, siap_dokter: 0, triase_darurat: 0 }, visits: [{ ...visit, status: 'menunggu', actionType: 'screening' }] }, 'Menunggu skrining'],
-        ['dokter/dashboard', { stats: { visitsToday: 1, waitingExaminations: 1, completedToday: 0 }, schedule: [], recentVisits: [{ ...visit, status: 'pemeriksaan', actionType: 'examination' }] }, 'Pemeriksaan dokter'],
-        ['farmasi/dashboard', { stats: { waitingVisits: 0, processingVisits: 1, completedToday: 0, lowStockMedicines: 0 }, recentVisits: [{ ...visit, status: 'diproses', actionType: 'pharmacy' }] }, 'Penyiapan obat berlangsung'],
+    for (const [page, props, expected, destination] of [
+        ['perawat/dashboard', { stats: { total_kunjungan: 1, total_kunjungan_hari_ini: 1, menunggu_ttv: 1, menunggu_ttv_hari_ini: 1, siap_dokter: 0, siap_dokter_hari_ini: 0, triase_darurat: 0 }, visits: pageOf([{ ...visit, status: 'menunggu', actionType: 'screening' }]) }, 'Menunggu pengkajian awal', '/pelayanan/screening'],
+        ['dokter/dashboard', { stats: { visitsToday: 1, waitingExaminations: 1, completedToday: 0 }, schedule: [], recentVisits: pageOf([{ ...visit, status: 'pemeriksaan', actionType: 'examination' }]) }, 'Pemeriksaan dokter', '/pelayanan/pemeriksaan'],
+        ['farmasi/dashboard', { stats: { waitingVisits: 0, processingVisits: 1, completedToday: 0, lowStockMedicines: 0 }, recentVisits: [{ ...visit, status: 'diproses', actionType: 'pharmacy' }] }, 'Penyiapan obat berlangsung', '/pelayanan/farmasi'],
     ]) {
         const html = await renderPage(page, { ...props, followUp });
+        assert.ok(html.includes(`href="${destination}"`), `${page} summary card should link to its related menu`);
+        if (page === 'perawat/dashboard') {
+            assert.doesNotMatch(html, /hari ini: 0/);
+        }
         const table = html.match(/<table\b[\s\S]*?<\/table>/)?.[0];
         assert.ok(table, page);
         assert.ok(table.includes(expected), page);
@@ -159,11 +185,32 @@ test('dashboard queues clarify each workflow and center headers, cells, and stat
     }
 });
 
+test('dashboard summaries and day bars navigate to their related menus', async () => {
+    const globalDashboard = await renderPage('dashboard/index', {
+        stats: { totalPatients: 12, visitsToday: 3, visitsThisMonth: 18, prescriptionsToday: 2 },
+        visitStatuses: { menunggu: 1, screening: 1, pemeriksaan: 1, farmasi: 0, kasir: 0, selesai: 0, batal: 0 },
+        visitsByDay: [{ tanggal: '2026-10-21', jumlah: 2 }, { tanggal: '2026-10-22', jumlah: 3 }],
+        canRegister: true,
+        followUp: { upcoming: 0, overdue: 0, href: '/laporan/kunjungan' },
+    });
+    assert.ok(globalDashboard.includes('href="/pelayanan/pasien"'));
+    assert.ok(globalDashboard.includes('href="/pendaftaran/kunjungan-per-poli?tanggal=2026-10-22"'));
+    assert.ok(globalDashboard.includes('href="/laporan/kunjungan?dari=2026-10-21&amp;sampai=2026-10-21"'));
+
+    const registrationDashboard = await renderPage('pendaftaran/dashboard', {
+        today: '2026-10-22',
+        stats: { visitsToday: 3, newPatientsToday: 1, waitingScreening: 1, inProgress: 1 },
+        followUp: { upcoming: 0, overdue: 0, href: '/pendaftaran/laporan-kunjungan' },
+    });
+    assert.ok(registrationDashboard.includes('href="/pendaftaran/kunjungan-per-poli?tanggal=2026-10-22"'));
+    assert.ok(registrationDashboard.includes('href="/pendaftaran/database-pasien"'));
+});
+
 test('shared waiting and completed codes retain their pharmacy and laboratory meanings', async () => {
     const { StatusBadge } = await server.ssrLoadModule('/resources/js/components/dashboard/status-badge.tsx');
     for (const [context, status, label] of [
-        ['visit', 'menunggu', 'Menunggu skrining'],
-        ['visit', 'screening', 'Proses skrining'],
+        ['visit', 'menunggu', 'Menunggu pengkajian awal'],
+        ['visit', 'screening', 'Pengkajian awal berlangsung'],
         ['visit', 'farmasi', 'Pelayanan farmasi'],
         ['visit', 'selesai', 'Kunjungan selesai'],
         ['pharmacy', 'menunggu', 'Menunggu penyiapan obat'],
@@ -177,7 +224,7 @@ test('shared waiting and completed codes retain their pharmacy and laboratory me
     }
     const reservation = renderToString(createElement(StatusBadge, { status: 'menunggu', reservation: true }));
     assert.match(reservation, />Reservasi</);
-    assert.doesNotMatch(reservation, /Menunggu skrining/);
+    assert.doesNotMatch(reservation, /Menunggu pengkajian awal/);
 });
 
 test('pharmacy detail shows saved processing status instead of treating it as waiting', async () => {
@@ -357,19 +404,24 @@ test('shared field preserves labels and announces validation errors with a selec
 for (const canManage of [true, false]) {
     test(`practice schedule renders with management access ${canManage}`, async () => {
         const emptyPage = { ...singlePage, from: 0, to: 0, total: 0, data: [] };
+        const schedule = { id: 1, doctorId: 1, clinicId: 1, doctor: 'Dokter Uji', clinic: canManage ? 'Poli Umum' : 'Poli Gigi', day: 'senin', start: '08:00', end: '16:00', active: true, validFrom: '2026-10-20', validUntil: null, updateUrl: '/pendaftaran/jadwal-praktik/1', deleteUrl: '/pendaftaran/jadwal-praktik/1' };
         const html = await renderPage('pendaftaran/jadwal-praktik', {
             canManage, canSelectClinic: canManage,
             filters: { dokterId: '', poliklinikId: '', hari: '' },
-            doctors: [{ id: 1, name: 'Dokter Uji' }], clinics: [{ id: 1, name: 'Poli Umum' }],
+            doctors: [{ id: 1, name: 'Dokter Uji' }], clinics: [{ id: 1, name: schedule.clinic }],
             days: ['senin', 'selasa', 'rabu', 'kamis', 'jumat'], today: '2026-10-20',
-            schedules: emptyPage, holidays: emptyPage, exceptions: emptyPage,
+            schedules: { ...emptyPage, data: [schedule], total: 1 }, holidays: emptyPage, exceptions: emptyPage,
         });
+        assert.match(html, /Detail jadwal Dokter Uji senin/);
         if (canManage) {
             assert.match(html, /id="asn-doctor"/);
             assert.match(html, /id="asn-clinic"/);
             assert.match(html, /<button[^>]*disabled=""[^>]*>Terapkan Senin/);
+            assert.match(html, /Perbarui jadwal Dokter Uji senin/);
+            assert.match(html, /Hapus jadwal Dokter Uji senin/);
         } else {
             assert.doesNotMatch(html, /id="asn-doctor"|Terapkan jadwal ASN|Simpan pengecualian/);
+            assert.doesNotMatch(html, /Perbarui jadwal Dokter Uji senin|Hapus jadwal Dokter Uji senin/);
         }
     });
 }

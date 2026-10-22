@@ -234,6 +234,17 @@ class SpecialtyScreeningTest extends TestCase
             ->where('visits.total', 1)
             ->where('visits.data.0.patient', 'Antrean Poli Umum'));
 
+        $this->actingAs($nurse)->get(route('pelayanan.screening.index', [
+            'search' => 'RM-SCOPE-PENDING',
+        ]))->assertInertia(fn (Assert $page) => $page
+            ->where('filters.search', 'RM-SCOPE-PENDING')
+            ->where('visits.total', 1)
+            ->where('visits.data.0.patient', 'Antrean Poli Umum'));
+
+        $this->actingAs($nurse)->get(route('pelayanan.screening.index', [
+            'search' => $foreignPatient->nama,
+        ]))->assertInertia(fn (Assert $page) => $page->where('visits.total', 0));
+
         $this->actingAs($nurse)->get(route('pelayanan.screening.history'))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/screening/history')
             ->where('screenings.total', 1)

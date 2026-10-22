@@ -42,6 +42,7 @@ class RegistrationController extends Controller
         ];
 
         return Inertia::render('pendaftaran/dashboard', [
+            'today' => $today->toDateString(),
             'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()), 'href' => route('pendaftaran.laporan-kunjungan')],
             'stats' => [
                 'visitsToday' => $stats['total_kunjungan_hari_ini'],
@@ -367,8 +368,8 @@ class RegistrationController extends Controller
         $kunjunganTerbaru = Kunjungan::with(['pasien', 'dokter', 'poliklinik'])->whereDate('tanggal', today())
             ->when($assignedClinicId, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId))
             ->latest('tanggal')->latest('created_at')->latest('id')
-            ->limit(10)
-            ->get();
+            ->paginate(10, ['*'], 'recent_page')
+            ->withQueryString();
         $mapVisit = fn (Kunjungan $visit): array => [
             'id' => $visit->id,
             'number' => $visit->no_kunjungan,
@@ -388,7 +389,7 @@ class RegistrationController extends Controller
                 : route($role === 'pendaftaran' ? 'pendaftaran.kunjungan.show' : 'pelayanan.kunjungan.show', $visit),
             'actionLabel' => $role === 'perawat' && ! $visit->tanggal->isFuture()
                 ? (in_array($visit->status, ['menunggu', 'screening'], true)
-                    ? 'Skrining'
+                    ? ($visit->status === 'screening' ? 'Lanjutkan pengkajian' : 'Mulai pengkajian')
                     : ($visit->status === 'batal' ? 'Detail' : 'Lihat RME'))
                 : 'Detail',
             'ticketUrl' => $visit->status !== 'batal' && $request->user()->role !== 'perawat' ? route('pendaftaran.cetak-antrian', $visit) : null,
@@ -431,7 +432,16 @@ class RegistrationController extends Controller
                 'previousUrl' => $kunjungan->previousPageUrl(),
                 'nextUrl' => $kunjungan->nextPageUrl(),
             ],
-            'recentVisits' => $kunjunganTerbaru->map($mapVisit)->values(),
+            'recentVisits' => [
+                'data' => $kunjunganTerbaru->getCollection()->map($mapVisit)->values(),
+                'currentPage' => $kunjunganTerbaru->currentPage(),
+                'lastPage' => $kunjunganTerbaru->lastPage(),
+                'from' => $kunjunganTerbaru->firstItem(),
+                'to' => $kunjunganTerbaru->lastItem(),
+                'total' => $kunjunganTerbaru->total(),
+                'previousUrl' => $kunjunganTerbaru->previousPageUrl(),
+                'nextUrl' => $kunjunganTerbaru->nextPageUrl(),
+            ],
         ]);
     }
 

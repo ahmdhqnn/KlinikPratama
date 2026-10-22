@@ -1,8 +1,8 @@
 import { Badge } from '@/components/ui/badge';
 
 export const visitStatusLabels: Record<string, string> = {
-    menunggu: 'Menunggu skrining',
-    screening: 'Proses skrining',
+    menunggu: 'Menunggu pengkajian awal',
+    screening: 'Pengkajian awal berlangsung',
     pemeriksaan: 'Pemeriksaan dokter',
     farmasi: 'Pelayanan farmasi',
     kasir: 'Perlu penyelesaian kunjungan',

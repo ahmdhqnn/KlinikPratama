@@ -7,12 +7,13 @@ import { VisitTable, type DashboardVisit } from '@/components/dashboard/visit-ta
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
+import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 
 interface Props {
     followUp: FollowUpData;
     stats: { visitsToday: number; waitingExaminations: number; completedToday: number };
     schedule: Array<{ id: number; clinic: string; start: string; end: string }>;
-    recentVisits: DashboardVisit[];
+    recentVisits: PaginationData & { data: DashboardVisit[] };
 }
 
 export default function DoctorDashboard({ stats, schedule, recentVisits, followUp }: Props) {
@@ -26,9 +27,9 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
                     <p className="mt-1 text-sm text-neutral-500">Jadwal praktik dan kunjungan pasien yang ditugaskan kepada Anda.</p>
                 </div>
                 <section aria-label="Statistik praktik dokter" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    <StatCard description="Seluruh kunjungan yang ditugaskan hari ini" icon={<CalendarClock className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Kunjungan hari ini" value={stats.visitsToday} />
-                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Antrean pemeriksaan dokter" value={stats.waitingExaminations} />
-                    <StatCard description="Diteruskan ke farmasi atau kunjungan selesai" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Selesai ditangani" value={stats.completedToday} />
+                    <StatCard description="Kunjungan yang ditugaskan kepada Anda hari ini" href="/dokter/kunjungan" icon={<CalendarClock className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Kunjungan saya hari ini" value={stats.visitsToday} />
+                    <StatCard description="Menunggu atau sedang diperiksa dokter" href="/pelayanan/pemeriksaan" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Antrean pemeriksaan dokter" value={stats.waitingExaminations} />
+                    <StatCard description="Diteruskan ke farmasi atau kunjungan selesai" href="/dokter/kunjungan" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Selesai ditangani" value={stats.completedToday} />
                 </section>
                 <FollowUp data={followUp} />
                 <Card>
@@ -61,10 +62,11 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
                     </Card>
                     <Card className="overflow-hidden">
                         <CardHeader className="border-b border-neutral-100">
-                            <CardTitle>Kunjungan terkini</CardTitle>
-                            <CardDescription>Daftar kunjungan pasien hari ini.</CardDescription>
+                            <CardTitle>Kunjungan saya hari ini</CardTitle>
+                            <CardDescription>Pasien yang ditugaskan kepada Anda hari ini.</CardDescription>
                         </CardHeader>
-                        <VisitTable visits={recentVisits} />
+                        <VisitTable visits={recentVisits.data} />
+                        <Pagination pagination={recentVisits} />
                     </Card>
                 </section>
             </div>

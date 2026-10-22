@@ -4,7 +4,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { CardContent } from '@/components/ui/card';
 
-export function FilterPanel({ children }: { children: ReactNode }) {
+export function FilterPanel({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
     const { url, props } = usePage();
     const [path, query = ''] = url.split('?');
     const params = new URLSearchParams(query);
@@ -22,6 +22,7 @@ export function FilterPanel({ children }: { children: ReactNode }) {
     return <section aria-label="Filter data" className="space-y-3">
         <div className="flex flex-wrap items-center justify-end gap-3">
             <div className="flex flex-wrap items-center gap-2">
+                {actions}
                 {active && <Button asChild size="sm" variant="ghost"><Link href={path} preserveScroll replace><X className="size-4" />Reset filter</Link></Button>}
                 <Button aria-controls={panelId} aria-expanded={open} onClick={() => setOpen(!open)} size="sm" type="button" variant="secondary">
                     <SlidersHorizontal className="size-4" />Filter{active && <span className="size-2 rounded-full bg-neutral-500" aria-label="Filter aktif" />}<ChevronDown className={`size-4 transition-transform ${open ? 'rotate-180' : ''}`} />
