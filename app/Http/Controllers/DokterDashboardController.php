@@ -37,8 +37,8 @@ class DokterDashboardController extends Controller
         $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik'])
             ->whereDate('tanggal', $today)
             ->orderByDesc('created_at')
-            ->limit(10)
-            ->get();
+            ->paginate(10)
+            ->withQueryString();
 
         return Inertia::render('dokter/dashboard', [
             'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()->where('dokter_id', $dokterId)), 'href' => route('dokter.janji-kunjungan')],
@@ -48,7 +48,8 @@ class DokterDashboardController extends Controller
                 'completedToday' => $selesaiHariIni,
             ],
             'schedule' => $jadwalHariIni,
-            'recentVisits' => $kunjunganTerkini->map(fn (Kunjungan $visit): array => [
+            'recentVisits' => [
+                'data' => $kunjunganTerkini->getCollection()->map(fn (Kunjungan $visit): array => [
                 'id' => $visit->id,
                 'number' => $visit->no_kunjungan,
                 'patient' => $visit->pasien->nama,
@@ -61,7 +62,15 @@ class DokterDashboardController extends Controller
                     : route('pelayanan.pasien.rekam-medis', $visit->pasien),
                 'actionLabel' => $visit->status === 'pemeriksaan' ? 'Pemeriksaan' : 'Lihat RME',
                 'actionType' => $visit->status === 'pemeriksaan' ? 'examination' : 'detail',
-            ])->values(),
+                ])->values(),
+                'currentPage' => $kunjunganTerkini->currentPage(),
+                'lastPage' => $kunjunganTerkini->lastPage(),
+                'from' => $kunjunganTerkini->firstItem(),
+                'to' => $kunjunganTerkini->lastItem(),
+                'total' => $kunjunganTerkini->total(),
+                'previousUrl' => $kunjunganTerkini->previousPageUrl(),
+                'nextUrl' => $kunjunganTerkini->nextPageUrl(),
+            ],
         ]);
     }
 

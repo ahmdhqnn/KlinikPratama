@@ -1,6 +1,6 @@
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { Activity, Ban, CalendarDays, Clock3, ClipboardCheck, Eye, Pencil, Printer, Search, Stethoscope } from 'lucide-react';
+import { Activity, Ban, CalendarDays, Clock3, ClipboardCheck, HeartPulse, Pencil, Printer, Search, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { StatusBadge, visitStatusLabels } from '@/components/dashboard/status-badge';
@@ -43,7 +43,7 @@ interface Props {
     stats: { total: number; waiting: number; screening: number; examination: number };
     access: { manageVisits: boolean; monitorClinicalFlow: boolean; selectClinic: boolean };
     visits: PaginationData & { data: Visit[] };
-    recentVisits: Visit[];
+    recentVisits: PaginationData & { data: Visit[] };
 }
 
 const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusLabels[status]]);
@@ -58,12 +58,12 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
 
     return (
         <>
-            <Head title="Kunjungan Per Poliklinik" />
+            <Head title="Kunjungan Poli" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Pemantauan antrean klinik</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Kunjungan per poliklinik</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Pantau alur kunjungan pada poliklinik dan tanggal tertentu.</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Kunjungan poli</h2>
+                    <p className="mt-1 text-sm text-neutral-500">Daftar mencakup seluruh dokter. Pilih tanggal untuk melihat periode tertentu.</p>
                 </div>
                 <FilterPanel><form className={`grid gap-4 sm:items-end ${access.selectClinic ? 'sm:grid-cols-2 xl:grid-cols-2' : 'sm:grid-cols-2'}`} onSubmit={applyFilters}>
                             {access.selectClinic && <Field htmlFor="visits-by-clinic" label="Poliklinik">
@@ -84,9 +84,9 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                             <Button disabled={clinics.length === 0} type="submit"><Search className="size-4" />Terapkan filter</Button>
                         </form></FilterPanel>
                 <section aria-label="Ringkasan antrean poliklinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <StatCard description="Kunjungan sesuai filter saat ini" icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan" value={stats.total} />
-                    <StatCard description="Belum memulai skrining" icon={<Clock3 className="size-5" />} iconClassName="bg-amber-50 text-amber-700" label="Menunggu skrining" value={stats.waiting} />
-                    <StatCard description="Sedang dalam skrining perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Proses skrining" value={stats.screening} />
+                    <StatCard description="Kunjungan pada periode dan pilihan layanan Anda" icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan" value={stats.total} />
+                    <StatCard description="Belum memulai pengkajian awal perawat" icon={<Clock3 className="size-5" />} iconClassName="bg-amber-50 text-amber-700" label="Menunggu pengkajian awal" value={stats.waiting} />
+                    <StatCard description="Sedang dalam pengkajian awal perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pengkajian awal berlangsung" value={stats.screening} />
                     <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan dokter" value={stats.examination} />
                 </section>
                 <Card className="overflow-hidden">
@@ -98,7 +98,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
-                            <Table className="min-w-[760px]">
+                            <Table className="min-w-[1120px]">
                                 <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                                 <TableBody>
                                     {visits.data.length > 0 ? visits.data.map((visit) => (
@@ -107,12 +107,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
                                             <TableCell><StatusBadge reservation={visit.isReservation} status={visit.status} /></TableCell>
-                                            <TableCell><div className="flex flex-wrap justify-center gap-2">
-                                                <Button asChild size="sm" variant="secondary"><Link href={visit.actionUrl}><Eye className="size-4" />{visit.actionLabel}</Link></Button>
-                                                {access.manageVisits && visit.editUrl && <Button asChild aria-label={`Perbarui kunjungan ${visit.number}`} size="sm" variant="secondary"><Link href={visit.editUrl}><Pencil className="size-4" />Edit</Link></Button>}
-                                                {access.manageVisits && visit.cancelUrl && <Button aria-label={`Batalkan kunjungan ${visit.number}`} onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} untuk ${visit.patient}?`, () => { router.post(visit.cancelUrl as string, {}, { preserveScroll: true }); }, 'Batalkan')} size="sm" type="button" variant="secondary"><Ban className="size-4 text-red-600" />Batalkan</Button>}
-                                                {visit.ticketUrl && <Button asChild aria-label={`Cetak antrean ${visit.number}`} size="sm" variant="secondary"><a href={visit.ticketUrl}><Printer className="size-4" />Cetak</a></Button>}
-                                            </div></TableCell>
+                                            <TableCell><VisitActions manageVisits={access.manageVisits} visit={visit} /></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty description={clinics.length ? 'Coba sesuaikan filter tanggal untuk melihat kunjungan.' : 'Aktifkan poliklinik agar daftar kunjungan dapat ditampilkan.'} size="compact" title={clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'} /></TableCell></TableRow>}
                                 </TableBody>
@@ -125,30 +120,43 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Clock3 className="size-5" /></span>
-                            <div><CardTitle>Kunjungan hari ini</CardTitle><CardDescription className="mt-1">Sepuluh kunjungan terbaru hari ini.</CardDescription></div>
+                            <div><CardTitle>Kunjungan hari ini</CardTitle><CardDescription className="mt-1">Kunjungan terbaru di poliklinik.</CardDescription></div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
-                            <Table className="min-w-[860px]">
+                            <Table className="min-w-[1120px]">
                                 <TableHeader><tr><TableHead>Tanggal</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                                 <TableBody>
-                                    {recentVisits.length > 0 ? recentVisits.map((visit) => (
+                                    {recentVisits.data.length > 0 ? recentVisits.data.map((visit) => (
                                         <TableRow key={visit.id}>
                                             <TableCell className="text-neutral-600">{visit.date}</TableCell>
                                             <TableCell className="font-mono text-xs text-neutral-600">{visit.number}<p className="mt-1 text-xs text-neutral-500">{visit.date} · {visit.clinic}</p></TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
                                             <TableCell><StatusBadge reservation={visit.isReservation} status={visit.status} /></TableCell>
-                                            <TableCell><div className="flex justify-center gap-2"><Button asChild size="sm" variant="secondary"><Link href={visit.actionUrl}><Eye className="size-4" />{visit.actionLabel}</Link></Button>{visit.ticketUrl && <Button asChild aria-label={`Cetak antrean ${visit.number}`} size="sm" variant="secondary"><a href={visit.ticketUrl}><Printer className="size-4" />Cetak</a></Button>}</div></TableCell>
+                                            <TableCell><VisitActions manageVisits={access.manageVisits} visit={visit} /></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty description="Belum ada kunjungan terbaru untuk poliklinik ini." size="compact" title="Belum ada data kunjungan." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>
                     </CardContent>
+                    <Pagination pagination={recentVisits} />
                 </Card>
             </div>
         </>
     );
+}
+
+function VisitActions({ visit, manageVisits }: { visit: Visit; manageVisits: boolean }) {
+    const isScreeningAction = visit.actionLabel === 'Mulai pengkajian' || visit.actionLabel === 'Lanjutkan pengkajian';
+    const isMedicalRecordAction = visit.actionLabel === 'Lihat RME';
+
+    return <div className="flex justify-center gap-2">
+        <Button asChild size="sm" variant="secondary"><Link href={visit.actionUrl}>{isScreeningAction && <ClipboardCheck className="size-4" />}{isMedicalRecordAction && <HeartPulse className="size-4" />}{isMedicalRecordAction ? 'RME' : visit.actionLabel}</Link></Button>
+        {manageVisits && visit.editUrl && <Button asChild aria-label={`Perbarui kunjungan ${visit.number}`} size="sm" variant="secondary"><Link href={visit.editUrl}><Pencil className="size-4" />Edit</Link></Button>}
+        {manageVisits && visit.cancelUrl && <Button aria-label={`Batalkan kunjungan ${visit.number}`} onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} untuk ${visit.patient}?`, () => { router.post(visit.cancelUrl as string, {}, { preserveScroll: true }); }, 'Batalkan')} size="sm" type="button" variant="secondary"><Ban className="size-4 text-red-600" />Batalkan</Button>}
+        {visit.ticketUrl && <Button asChild aria-label={`Cetak antrean ${visit.number}`} size="sm" variant="secondary"><a href={visit.ticketUrl}><Printer className="size-4" />Cetak</a></Button>}
+    </div>;
 }

@@ -10,6 +10,7 @@ use App\Models\Nakes;
 use App\Models\Pasien;
 use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
+use App\Models\Screening;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -66,11 +67,10 @@ class RegistrationRoleTest extends TestCase
             'status' => 'menunggu',
             'jenis_pasien' => 'lama',
         ]);
-
         $list = $this->actingAs($user)->get(route('pendaftaran.kunjungan-per-poli'));
         $list->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('visits.data.0.actionUrl', route('pendaftaran.kunjungan.show', $visit))
-            ->where('recentVisits.0.actionUrl', route('pendaftaran.kunjungan.show', $visit))
+            ->where('recentVisits.data.0.actionUrl', route('pendaftaran.kunjungan.show', $visit))
         );
         $detail = $this->get($list->inertiaProps('visits.data.0.actionUrl'));
         $detail->assertOk()->assertInertia(fn (Assert $page) => $page
@@ -193,19 +193,51 @@ class RegistrationRoleTest extends TestCase
             'status' => 'menunggu',
             'jenis_pasien' => 'lama',
         ]);
+        $historicalPatient = Pasien::create(['no_rm' => 'RM-000011', 'nama' => 'Pasien Riwayat']);
+        Kunjungan::create([
+            'no_kunjungan' => 'KNJ-0011',
+            'pasien_id' => $historicalPatient->id,
+            'poliklinik_id' => $clinic->id,
+            'tanggal' => today()->subDay(),
+            'status' => 'pemeriksaan',
+            'jenis_pasien' => 'lama',
+        ]);
+        $draftPatient = Pasien::create(['no_rm' => 'RM-000012', 'nama' => 'Pasien Pengkajian Draf']);
+        $draftVisit = Kunjungan::create([
+            'no_kunjungan' => 'KNJ-0012',
+            'pasien_id' => $draftPatient->id,
+            'poliklinik_id' => $clinic->id,
+            'tanggal' => today()->subDay(),
+            'status' => 'screening',
+            'jenis_pasien' => 'lama',
+        ]);
+        Screening::create([
+            'kunjungan_id' => $draftVisit->id,
+            'petugas_id' => Nakes::where('user_id', $user->id)->value('id'),
+            'started_at' => now()->subDay(),
+        ]);
 
         $this->actingAs($user)->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
             ->component('perawat/dashboard')
             ->where('auth.user.role', 'perawat')
-            ->has('stats.menunggu_ttv')
-            ->has('visits', 1)
-            ->where('visits.0.actionUrl', route('pelayanan.screening.show', $visit))
-            ->where('visits.0.actionLabel', 'Skrining')
+            ->where('stats.total_kunjungan', 3)
+            ->where('stats.total_kunjungan_hari_ini', 1)
+            ->where('stats.menunggu_ttv', 2)
+            ->where('stats.menunggu_ttv_hari_ini', 1)
+            ->where('stats.siap_dokter', 1)
+            ->where('stats.siap_dokter_hari_ini', 0)
+            ->has('visits.data', 1)
+            ->where('visits.data.0.actionUrl', route('pelayanan.screening.show', $visit))
+            ->where('visits.data.0.actionLabel', 'Mulai pengkajian')
         );
         $this->actingAs($user)->get(route('pelayanan.screening.index'))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/screening/index')
             ->where('auth.user.role', 'perawat')
-            ->has('visits.data', 1)
+            ->has('visits.data', 2)
+            ->where('visits.data.1.patient', 'Pasien Pengkajian Draf')
+            ->where('visits.data.1.status', 'screening')
+            ->where('visits.data.1.hasScreening', true)
+            ->where('visits.data.1.screeningUrl', route('pelayanan.screening.show', $draftVisit))
         );
         $this->actingAs($user)->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/screening/show')
@@ -462,8 +494,8 @@ class RegistrationRoleTest extends TestCase
                 ->component('pendaftaran/kunjungan-per-poli')
                 ->has('visits.data', 2)
                 ->where('visits.data.0.patient', 'Pasien Hari Ini')
-                ->has('recentVisits', 1)
-                ->where('recentVisits.0.patient', 'Pasien Hari Ini')
+                ->has('recentVisits.data', 1)
+                ->where('recentVisits.data.0.patient', 'Pasien Hari Ini')
                 ->where('visits.data.1.patient', 'Pasien Sebelumnya')
                 ->where('visits.data.1.date', '18/10/2026')
             );
@@ -508,7 +540,7 @@ class RegistrationRoleTest extends TestCase
         $this->actingAs($nurse)->get(route('pendaftaran.kunjungan-per-poli', ['poliklinik_id' => $clinic->id]))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('visits.data.0.ticketUrl', null)
-                ->where('visits.data.0.actionLabel', 'Skrining')
+                ->where('visits.data.0.actionLabel', 'Mulai pengkajian')
                 ->where('visits.data.0.actionUrl', route('pelayanan.screening.show', Kunjungan::firstOrFail()))
                 ->where('visits.data.0.editUrl', null)
                 ->where('visits.data.0.cancelUrl', null)

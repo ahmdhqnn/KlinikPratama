@@ -27,13 +27,24 @@ class ScreeningController extends Controller
 
     public function index(Request $request): Response
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'tanggal' => ['nullable', 'date_format:Y-m-d'],
+            'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
+        ]);
         $isNurse = $request->user()->role === 'perawat';
         $assignedClinicId = $isNurse ? $this->perawatClinicResolver->clinicId($request->user()) : null;
-        $selectedClinicId = $assignedClinicId;
+        $selectedClinicId = $assignedClinicId ?? ($filters['poliklinik_id'] ?? null);
         $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'screening'])
             ->when($selectedClinicId, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId))
-            ->whereDate('tanggal', today())
-            ->whereIn('status', ['menunggu', 'screening'])
+            ->when($filters['tanggal'] ?? null, fn ($query, string $date) => $query->whereDate('tanggal', $date))
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->whereHas('pasien', fn ($patients) => $patients
+                ->where(fn ($patientQuery) => $patientQuery->where('nama', 'like', "%{$search}%")
+                    ->orWhere('no_rm', 'like', "%{$search}%"))))
+            ->where(function ($query): void {
+                $query->where('status', 'screening')
+                    ->orWhere(fn ($waiting) => $waiting->where('status', 'menunggu')->whereDate('tanggal', today()));
+            })
             ->orderBy('created_at')->orderBy('id')
             ->paginate(10)
             ->withQueryString();
@@ -44,8 +55,8 @@ class ScreeningController extends Controller
 
         return Inertia::render('pelayanan/screening/index', [
             'filters' => [
-                'search' => '',
-                'tanggal' => today()->toDateString(),
+                'search' => $filters['search'] ?? '',
+                'tanggal' => $filters['tanggal'] ?? '',
                 'poliklinikId' => $selectedClinicId ? (int) $selectedClinicId : '',
             ],
             'canSelectClinic' => ! $isNurse,
@@ -57,6 +68,7 @@ class ScreeningController extends Controller
                 'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit): array => [
                     'id' => $visit->id,
                     'number' => $visit->no_kunjungan,
+                    'date' => $visit->tanggal?->format('d/m/Y') ?? 'Belum diisi',
                     'patient' => $visit->pasien?->nama ?? 'Belum diisi',
                     'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
                     'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
@@ -150,7 +162,7 @@ class ScreeningController extends Controller
         DB::transaction(function () use ($kunjungan, $nurse, $data, $request, $auditRecorder): void {
             $visit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->scheduling->ensureServiceDate($visit);
-            abort_unless(in_array($visit->status, ['menunggu', 'screening'], true), 422, 'Kunjungan tidak lagi berada di antrean skrining.');
+            abort_unless(in_array($visit->status, ['menunggu', 'screening'], true), 422, 'Kunjungan tidak lagi berada di antrean pengkajian awal.');
             if ($visit->status === 'menunggu') {
                 Screening::updateOrCreate(['kunjungan_id' => $visit->id], [
                     'petugas_id' => $nurse?->id ?? $data['petugas_id'],
@@ -161,7 +173,7 @@ class ScreeningController extends Controller
             }
         });
 
-        return redirect()->route('pelayanan.screening.show', $kunjungan)->with('success', 'Skrining dimulai. Pastikan identitas pasien sesuai sebelum melakukan pengkajian.');
+        return redirect()->route('pelayanan.screening.show', $kunjungan)->with('success', 'Pengkajian awal dimulai. Pastikan identitas pasien sesuai sebelum melakukan pemeriksaan.');
     }
 
     public function print(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): HttpResponse
@@ -189,7 +201,7 @@ class ScreeningController extends Controller
         $isNurse = $request->user()->role === 'perawat';
         $nurse = $isNurse ? $this->perawatClinicResolver->nakes($request->user()) : null;
         abort_if($nurse && (int) $kunjungan->poliklinik_id !== (int) $nurse->poliklinik_id, 404);
-        abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Skrining tidak dapat diubah setelah pelayanan dimulai.');
+        abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Pengkajian awal tidak dapat diubah setelah pelayanan dimulai.');
         $auditRecorder->record($request, 'screening.view', $kunjungan->pasien_id, $kunjungan->id);
         $petugasList = Nakes::whereIn('jabatan', ['perawat', 'bidan', 'terapis_gigi'])->where('is_active', true)
             ->where('poliklinik_id', $kunjungan->poliklinik_id)->orderBy('nama')->get();
@@ -259,7 +271,7 @@ class ScreeningController extends Controller
         $isNurse = $request->user()->role === 'perawat';
         $nurse = $isNurse ? $this->perawatClinicResolver->nakes($request->user()) : null;
         abort_if($nurse && (int) $kunjungan->poliklinik_id !== (int) $nurse->poliklinik_id, 404);
-        abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Skrining tidak dapat diubah setelah pelayanan dimulai.');
+        abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Pengkajian awal tidak dapat diubah setelah pelayanan dimulai.');
 
         $data = $request->validated();
         $isDraft = ($data['tindakan'] ?? 'kirim') === 'draf';
@@ -290,7 +302,7 @@ class ScreeningController extends Controller
             abort_unless(
                 Nakes::whereKey($data['petugas_id'])->where('poliklinik_id', $kunjungan->poliklinik_id)->exists(),
                 422,
-                'Petugas skrining harus ditugaskan pada poliklinik kunjungan ini.'
+                'Petugas pengkajian harus ditugaskan pada poliklinik kunjungan ini.'
             );
         }
 
@@ -300,7 +312,7 @@ class ScreeningController extends Controller
 
         DB::transaction(function () use ($data, $kunjungan, $request, $auditRecorder, $isDraft): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
-            abort_unless(in_array($lockedVisit->status, ['menunggu', 'screening'], true), 422, 'Skrining tidak dapat diubah setelah pelayanan dimulai.');
+            abort_unless(in_array($lockedVisit->status, ['menunggu', 'screening'], true), 422, 'Pengkajian awal tidak dapat diubah setelah pelayanan dimulai.');
 
             $this->scheduling->ensureServiceDate($lockedVisit);
             $data['started_at'] = $lockedVisit->screening?->started_at ?? now();
@@ -334,7 +346,7 @@ class ScreeningController extends Controller
         });
 
         return redirect()->route($isDraft ? 'pelayanan.screening.show' : 'pelayanan.kunjungan.show', $kunjungan)
-            ->with('success', $isDraft ? 'Draf asesmen tersimpan. Pasien masih dalam proses skrining.' : 'Asesmen awal tersimpan dan pasien diteruskan ke dokter.');
+            ->with('success', $isDraft ? 'Draf pengkajian tersimpan. Pasien masih dalam proses pengkajian awal.' : 'Pengkajian awal tersimpan dan pasien diteruskan ke dokter.');
     }
 
     public function update(StoreScreeningRequest $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): RedirectResponse

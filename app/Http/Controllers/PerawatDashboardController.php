@@ -16,11 +16,17 @@ class PerawatDashboardController extends Controller
         $today = today();
         $clinicId = $perawatClinicResolver->clinicId($request->user());
 
+        $clinicVisits = Kunjungan::query()->where('poliklinik_id', $clinicId);
+        $todayVisits = (clone $clinicVisits)->whereDate('tanggal', $today);
+        $assessmentStatuses = ['menunggu', 'screening'];
         $stats = [
-            'menunggu_ttv' => Kunjungan::where('poliklinik_id', $clinicId)->whereDate('tanggal', $today)->whereIn('status', ['menunggu', 'screening'])->count(),
-            'siap_dokter' => Kunjungan::where('poliklinik_id', $clinicId)->whereDate('tanggal', $today)->where('status', 'pemeriksaan')->count(),
-            'triase_darurat' => Kunjungan::whereDate('tanggal', $today)
-                ->where('poliklinik_id', $clinicId)
+            'total_kunjungan' => (clone $clinicVisits)->count(),
+            'total_kunjungan_hari_ini' => (clone $todayVisits)->count(),
+            'menunggu_ttv' => (clone $clinicVisits)->whereIn('status', $assessmentStatuses)->count(),
+            'menunggu_ttv_hari_ini' => (clone $todayVisits)->whereIn('status', $assessmentStatuses)->count(),
+            'siap_dokter' => (clone $clinicVisits)->where('status', 'pemeriksaan')->count(),
+            'siap_dokter_hari_ini' => (clone $todayVisits)->where('status', 'pemeriksaan')->count(),
+            'triase_darurat' => (clone $todayVisits)
                 ->whereHas('screening', fn ($query) => $query->where('kesimpulan_triase', 'merah'))
                 ->count(),
         ];
@@ -30,13 +36,14 @@ class PerawatDashboardController extends Controller
             ->where('poliklinik_id', $clinicId)
             ->whereIn('status', ['menunggu', 'screening', 'pemeriksaan'])
             ->oldest('created_at')
-            ->limit(10)
-            ->get();
+            ->paginate(10)
+            ->withQueryString();
 
         return Inertia::render('perawat/dashboard', [
             'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()->where('poliklinik_id', $clinicId)), 'href' => route('pendaftaran.kunjungan-per-poli')],
             'stats' => $stats,
-            'visits' => $kunjungan->map(fn (Kunjungan $visit): array => [
+            'visits' => [
+                'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit): array => [
                 'id' => $visit->id,
                 'number' => $visit->no_kunjungan,
                 'patient' => $visit->pasien->nama,
@@ -49,12 +56,20 @@ class PerawatDashboardController extends Controller
                     ? route('pelayanan.screening.show', $visit)
                     : route('pelayanan.pasien.rekam-medis', $visit->pasien),
                 'actionLabel' => match ($visit->status) {
-                    'menunggu' => 'Skrining',
-                    'screening' => 'Lanjutkan skrining',
+                    'menunggu' => 'Mulai pengkajian',
+                    'screening' => 'Lanjutkan pengkajian',
                     default => 'Lihat RME',
                 },
                 'actionType' => in_array($visit->status, ['menunggu', 'screening'], true) ? 'screening' : 'detail',
-            ])->values(),
+                ])->values(),
+                'currentPage' => $kunjungan->currentPage(),
+                'lastPage' => $kunjungan->lastPage(),
+                'from' => $kunjungan->firstItem(),
+                'to' => $kunjungan->lastItem(),
+                'total' => $kunjungan->total(),
+                'previousUrl' => $kunjungan->previousPageUrl(),
+                'nextUrl' => $kunjungan->nextPageUrl(),
+            ],
         ]);
     }
 }

@@ -45,7 +45,7 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                                     <StatusBadge context={visit.actionType === 'pharmacy' ? 'pharmacy' : 'visit'} reservation={visit.isReservation} status={visit.status} />
                                     {visit.triage && (
                                         <span className={`text-xs font-medium capitalize ${visit.triage === 'merah' ? 'text-red-700' : 'text-neutral-500'}`}>
-                                            Triase {visit.triage}{visit.priority ? ` · ${visit.priority}` : ''}
+                                            {visit.triage === 'merah' ? 'Perlu respons segera' : visit.triage === 'kuning' ? 'Perlu penilaian lanjut' : visit.triage === 'hijau' ? 'Prioritas rutin' : `Prioritas awal: ${visit.triage}`}{visit.priority ? ` · ${visit.priority === 'darurat' ? 'respons darurat' : visit.priority === 'segera' ? 'penilaian segera' : visit.priority === 'normal' ? 'rutin' : visit.priority}` : ''}
                                         </span>
                                     )}
                                 </div>

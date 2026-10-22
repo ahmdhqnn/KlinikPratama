@@ -1,7 +1,7 @@
 import { DatePicker } from '@/components/ui/date-picker';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { CalendarDays, Clock3, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CalendarDays, Clock3, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -225,7 +225,7 @@ export default function DoctorSchedule({ canManage, canSelectClinic, filters: in
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
-                            <Table className="min-w-[820px]">
+                            <Table className="min-w-[1050px]">
                                 <TableHeader><tr><TableHead>Dokter</TableHead><TableHead>Poliklinik</TableHead><TableHead>Hari</TableHead><TableHead>Jam praktik</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                                 <TableBody>
                                     {schedules.data.length > 0 ? schedules.data.map((schedule) => (
@@ -235,7 +235,7 @@ export default function DoctorSchedule({ canManage, canSelectClinic, filters: in
                                             <TableCell><span className="rounded-full bg-neutral-50 px-2.5 py-1 text-xs font-semibold capitalize text-neutral-700">{schedule.day}</span></TableCell>
                                             <TableCell><span className="inline-flex items-center gap-2 font-mono text-xs text-neutral-600"><Clock3 className="size-3.5" />{schedule.start} – {schedule.end}</span><span className="mt-1 block text-xs text-neutral-500">{schedule.validFrom ?? '1970-01-01'} s.d. {schedule.validUntil ?? 'seterusnya'}</span></TableCell>
                                             <TableCell><Badge variant={schedule.active ? 'complete' : 'cancelled'}>{schedule.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell>
-                                            <TableCell><div className="flex flex-wrap items-center justify-center gap-2"><Button aria-label={`Detail jadwal ${schedule.doctor} ${schedule.day}`} onClick={() => setDetailSchedule(schedule)} size="sm" type="button" variant="secondary"><Eye className="size-4" />Detail</Button>{canManage && <><Button aria-label={`Perbarui jadwal ${schedule.doctor} ${schedule.day}`} onClick={() => editSchedule(schedule)} size="sm" type="button" variant="secondary"><Pencil className="size-4" />Edit</Button><Button aria-label={`Hapus jadwal ${schedule.doctor} ${schedule.day}`} onClick={() => deleteSchedule(schedule)} size="sm" type="button" variant="destructive"><Trash2 className="size-4" />Hapus</Button></>}</div></TableCell>
+                                            <TableCell><div className="flex justify-center gap-2"><Button aria-label={`Detail jadwal ${schedule.doctor} ${schedule.day}`} onClick={() => setDetailSchedule(schedule)} size="sm" type="button" variant="secondary">Detail</Button>{canManage && <><Button aria-label={`Perbarui jadwal ${schedule.doctor} ${schedule.day}`} onClick={() => editSchedule(schedule)} size="sm" type="button" variant="secondary"><Pencil className="size-4" />Edit</Button><Button aria-label={`Hapus jadwal ${schedule.doctor} ${schedule.day}`} onClick={() => deleteSchedule(schedule)} size="sm" type="button" variant="secondary"><Trash2 className="size-4 text-red-600" />Hapus</Button></>}</div></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty size="compact" title="Tidak ada jadwal praktik sesuai filter." /></TableCell></TableRow>}
                                 </TableBody>

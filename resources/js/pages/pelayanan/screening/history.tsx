@@ -33,6 +33,17 @@ interface Props {
     screenings: PaginationData & { data: ScreeningRecord[] };
 }
 
+const responseLabels: Record<string, string> = {
+    merah: 'Merah · perlu respons segera',
+    kuning: 'Kuning · perlu penilaian lanjut',
+    hijau: 'Hijau · prioritas rutin',
+};
+const priorityLabels: Record<string, string> = {
+    darurat: 'respons darurat',
+    segera: 'perlu penilaian segera',
+    normal: 'rutin',
+};
+
 export default function ScreeningHistory({ filters: initialFilters, canSelectClinic, clinics, screenings }: Props) {
     const [filters, setFilters] = useState(initialFilters);
 
@@ -46,18 +57,18 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
     }
 
     return <>
-        <Head title="Riwayat Skrining Saya" />
+        <Head title="Pengkajian Saya" />
         <div className="space-y-6">
             <div>
                 <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan</p>
-                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Riwayat skrining saya</h2>
-                <p className="mt-1 text-sm text-neutral-500">Daftar skrining yang dicatat oleh akun Anda, tersimpan per halaman.</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pengkajian saya</h2>
+                <p className="mt-1 text-sm text-neutral-500">Riwayat pengkajian awal yang telah Anda catat.</p>
             </div>
             <FilterPanel><form className={`grid gap-4 sm:items-end ${canSelectClinic ? 'sm:grid-cols-2 xl:grid-cols-2' : 'sm:grid-cols-2'}`} onSubmit={applyFilters}>
                         <Field htmlFor="screening-history-search" label="Cari pasien">
                             <Input id="screening-history-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama atau nomor RM" value={filters.search} />
                         </Field>
-                        <Field htmlFor="screening-history-date" label="Tanggal skrining">
+                        <Field htmlFor="screening-history-date" label="Tanggal pengkajian">
                             <Input id="screening-history-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} type="date" value={filters.tanggal} />
                         </Field>
                         {canSelectClinic && <Field htmlFor="screening-history-clinic" label="Poliklinik">
@@ -71,13 +82,13 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                 <CardHeader className="border-b border-neutral-100">
                     <div className="flex items-start gap-3">
                         <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><ClipboardCheck className="size-5" /></span>
-                        <div><CardTitle>Catatan skrining</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(screenings.total)} catatan sesuai cakupan akun dan filter.</CardDescription></div>
+                        <div><CardTitle>Daftar pengkajian awal</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(screenings.total)} pengkajian tercatat.</CardDescription></div>
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <Table className="min-w-[950px]">
-                            <TableHeader><tr><TableHead>Tanggal</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Petugas</TableHead><TableHead>Triase</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                            <TableHeader><tr><TableHead>Tanggal</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Petugas</TableHead><TableHead>Prioritas awal</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                             <TableBody>
                                 {screenings.data.length ? screenings.data.map((record) => <TableRow key={record.id}>
                                     <TableCell>{record.date}</TableCell>
@@ -85,9 +96,9 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                                     <TableCell><p className="font-medium text-neutral-900">{record.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{record.medicalRecordNumber}</p></TableCell>
                                     <TableCell>{record.clinic}</TableCell>
                                     <TableCell>{record.staff}<p className="mt-1 text-xs text-neutral-500">{record.isDraft ? 'Draf asesmen' : 'Asesmen terkirim'}</p></TableCell>
-                                    <TableCell><span className="font-medium capitalize">{record.triage ?? 'Belum ditentukan'}</span>{record.priority && <span className="mt-0.5 block text-xs text-neutral-500 capitalize">{record.priority}</span>}</TableCell>
-                                    <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2">{record.printUrl && <Button asChild size="sm" variant="secondary"><a href={record.printUrl} target="_blank" rel="noopener noreferrer">Cetak asesmen</a></Button>}{record.visitUrl && <Button asChild size="sm" variant="secondary"><Link href={record.visitUrl}>Lihat kunjungan</Link></Button>}</div></TableCell>
-                                </TableRow>) : <TableRow><TableCell colSpan={7}><Empty size="compact" title="Belum ada catatan skrining pada filter ini." /></TableCell></TableRow>}
+                                    <TableCell><span className="font-medium">{record.triage ? responseLabels[record.triage] ?? record.triage : 'Belum ditentukan'}</span>{record.priority && <span className="mt-0.5 block text-xs text-neutral-500">Kategori: {priorityLabels[record.priority] ?? record.priority}</span>}</TableCell>
+                                    <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2">{record.printUrl && <Button asChild size="sm" variant="secondary"><a href={record.printUrl}>Cetak pengkajian</a></Button>}{record.visitUrl && <Button asChild size="sm" variant="secondary"><Link href={record.visitUrl}>Lihat kunjungan</Link></Button>}</div></TableCell>
+                                </TableRow>) : <TableRow><TableCell colSpan={7}><Empty size="compact" title="Belum ada catatan pengkajian pada filter ini." /></TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </div>

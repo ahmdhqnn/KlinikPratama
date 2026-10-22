@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Link } from '@inertiajs/react';
 import { Card, CardContent } from '@/components/ui/card';
 
 export function StatCard({
@@ -7,15 +8,17 @@ export function StatCard({
     description,
     icon,
     iconClassName,
+    href,
 }: {
     label: string;
     value: number | string;
     description: string;
     icon: ReactNode;
     iconClassName: string;
+    href?: string;
 }) {
-    return (
-        <Card>
+    const card = (
+        <Card className={href ? 'min-w-0 transition-colors group-hover:border-neutral-300' : undefined}>
             <CardContent className="flex min-h-32 items-center justify-between gap-4 p-5 sm:p-6">
                 <div className="min-w-0">
                     <p className="text-sm font-medium text-neutral-500">{label}</p>
@@ -30,4 +33,10 @@ export function StatCard({
             </CardContent>
         </Card>
     );
+
+    if (!href) {
+        return card;
+    }
+
+    return <Link aria-label={`${label}: ${typeof value === 'number' ? new Intl.NumberFormat('id-ID').format(value) : value}. ${description}`} className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2" href={href}>{card}</Link>;
 }

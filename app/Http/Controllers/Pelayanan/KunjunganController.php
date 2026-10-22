@@ -249,7 +249,7 @@ class KunjunganController extends Controller
                 ],
                 'progress' => [
                     ['label' => 'Verifikasi hak layanan', 'done' => (bool) $kunjungan->verified_at],
-                    ['label' => 'Skrining tanda vital', 'done' => (bool) $kunjungan->screening],
+                ['label' => 'Pengkajian awal perawat', 'done' => (bool) $kunjungan->screening],
                     ['label' => 'Pemeriksaan dokter', 'done' => $kunjungan->pemeriksaan?->status === 'selesai'],
                     ['label' => 'Farmasi', 'done' => $kunjungan->farmasi?->status === 'selesai'],
                     ['label' => 'Kunjungan selesai', 'done' => $kunjungan->status === 'selesai'],
