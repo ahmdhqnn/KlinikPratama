@@ -14,7 +14,7 @@ class RedirectRegistrationRole
             return redirect()->route('pendaftaran.kunjungan.show', $request->route('kunjungan'));
         }
 
-        if ($request->user()?->role === 'pendaftaran' && $request->routeIs('pelayanan.pasien.rekam-medis')) {
+        if ($request->user()?->role === 'pendaftaran' && ($request->routeIs('pelayanan.pasien.rekam-medis') || $request->routeIs('pelayanan.screening.print'))) {
             abort(403, 'Unauthorized access.');
         }
 

@@ -7,11 +7,9 @@ use App\DoctorAccessService;
 use App\JadwalPraktikResolver;
 use App\Models\Diagnosa;
 use App\Models\Kunjungan;
-use App\Models\Nakes;
 use App\Models\Obat;
 use App\Models\Pasien;
 use App\VisitOverviewService;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -34,7 +32,7 @@ class DokterDashboardController extends Controller
             ->whereIn('status', ['farmasi', 'kasir', 'selesai'])->count();
         $jadwalHariIni = $this->schedule->doctorSchedule($dokterId, $today);
 
-        $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik'])
+        $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik', 'screening'])
             ->whereDate('tanggal', $today)
             ->orderByDesc('created_at')
             ->paginate(10)
@@ -50,18 +48,20 @@ class DokterDashboardController extends Controller
             'schedule' => $jadwalHariIni,
             'recentVisits' => [
                 'data' => $kunjunganTerkini->getCollection()->map(fn (Kunjungan $visit): array => [
-                'id' => $visit->id,
-                'number' => $visit->no_kunjungan,
-                'patient' => $visit->pasien->nama,
-                'medicalRecordNumber' => $visit->pasien->no_rm,
-                'clinic' => $visit->poliklinik->nama,
-                'status' => $visit->status,
-                'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
-                'actionUrl' => $visit->status === 'pemeriksaan'
-                    ? route('pelayanan.pemeriksaan.show', $visit)
-                    : route('pelayanan.pasien.rekam-medis', $visit->pasien),
-                'actionLabel' => $visit->status === 'pemeriksaan' ? 'Pemeriksaan' : 'Lihat RME',
-                'actionType' => $visit->status === 'pemeriksaan' ? 'examination' : 'detail',
+                    'id' => $visit->id,
+                    'number' => $visit->no_kunjungan,
+                    'patient' => $visit->pasien->nama,
+                    'medicalRecordNumber' => $visit->pasien->no_rm,
+                    'clinic' => $visit->poliklinik->nama,
+                    'status' => $visit->status,
+                    'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
+                    'triage' => $visit->screening?->kesimpulan_triase,
+                    'priority' => $visit->screening?->prioritas_layanan,
+                    'actionUrl' => $visit->status === 'pemeriksaan'
+                        ? route('pelayanan.pemeriksaan.show', $visit)
+                        : route('pelayanan.pasien.rekam-medis', $visit->pasien),
+                    'actionLabel' => $visit->status === 'pemeriksaan' ? 'Pemeriksaan' : 'Lihat RME',
+                    'actionType' => $visit->status === 'pemeriksaan' ? 'examination' : 'detail',
                 ])->values(),
                 'currentPage' => $kunjunganTerkini->currentPage(),
                 'lastPage' => $kunjunganTerkini->lastPage(),
@@ -78,7 +78,7 @@ class DokterDashboardController extends Controller
     {
         $period = DateRangeFilter::fromRequest($request);
         $kunjungan = $period->apply($this->doctorVisits())
-            ->with(['pasien', 'poliklinik'])
+            ->with(['pasien', 'poliklinik', 'screening'])
             ->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
 
         return Inertia::render('dokter/appointments', [
@@ -96,6 +96,8 @@ class DokterDashboardController extends Controller
                     'clinic' => $visit->poliklinik->nama,
                     'status' => $visit->status,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
+                    'triage' => $visit->screening?->kesimpulan_triase,
+                    'priority' => $visit->screening?->prioritas_layanan,
                     'examinationUrl' => route('pelayanan.pemeriksaan.show', $visit),
                 ])->values(),
                 'currentPage' => $kunjungan->currentPage(),
@@ -218,5 +220,4 @@ class DokterDashboardController extends Controller
     {
         return $this->doctorAccess->doctorId(auth()->user());
     }
-
 }

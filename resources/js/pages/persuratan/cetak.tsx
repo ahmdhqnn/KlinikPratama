@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { returnToPreviousScreen } from '@/lib/navigation';
 
 interface PrintItem {
@@ -31,7 +32,9 @@ interface DocumentData {
     notes?: string | null;
 }
 
-interface Props { document: DocumentData; }
+interface Props {
+    document: DocumentData;
+}
 
 const titles: Record<DocumentData['kind'], string> = {
     resep_luar: 'Resep Obat',
@@ -47,60 +50,154 @@ export default function Cetak({ document }: Props) {
             <Head title={`${titles[document.kind]} · ${document.patient.name}`} />
             <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-8 print:max-w-none print:p-0">
                 <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-                    <Button onClick={() => returnToPreviousScreen(document.backUrl)} type="button" variant="secondary"><ArrowLeft className="size-4" />{document.backLabel}</Button>
-                    <Button onClick={() => window.print()}><Printer className="size-4" />Cetak dokumen</Button>
+                    <Button onClick={() => returnToPreviousScreen(document.backUrl)} type="button" variant="secondary">
+                        <ArrowLeft className="size-4" />
+                        {document.backLabel}
+                    </Button>
+                    <div className="flex items-center gap-2">
+                        <ThemeToggle />
+                        <Button onClick={() => window.print()}>
+                            <Printer className="size-4" />
+                            Cetak dokumen
+                        </Button>
+                    </div>
                 </div>
 
-                <article className="min-h-[10in] rounded-xl border border-neutral-200 bg-white p-6 text-neutral-950 shadow-sm sm:p-12 print:min-h-0 print:rounded-none print:border-0 print:p-0 print:shadow-none">
-                    <header className="flex items-start gap-4 border-b-2 border-neutral-900 pb-5">
-                        {document.clinic.logoUrl && <img alt="Logo klinik" className="max-h-20 max-w-24 object-contain" src={document.clinic.logoUrl} />}
+                <article className="min-h-[10in] rounded-xl border border-neutral-200 bg-surface p-6 text-neutral-950 shadow-sm sm:p-12 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 print:min-h-0 print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black print:shadow-none">
+                    <header className="flex items-start gap-4 border-b-2 border-neutral-900 pb-5 dark:border-neutral-200 print:border-neutral-900">
+                        {document.clinic.logoUrl && (
+                            <img alt="Logo klinik" className="max-h-20 max-w-24 object-contain print:max-h-16" src={document.clinic.logoUrl} />
+                        )}
                         <div className="min-w-0 flex-1 text-center">
-                            <h1 className="text-xl font-bold uppercase tracking-wide">{document.clinic.name}</h1>
-                            {document.clinic.address && <p className="mt-1 text-sm">{document.clinic.address}</p>}
-                            <p className="text-sm">{[document.clinic.phone, document.clinic.email].filter(Boolean).join(' · ')}</p>
+                            <h1 className="text-xl font-bold uppercase tracking-wide text-neutral-950 dark:text-neutral-50 print:text-black">
+                                {document.clinic.name}
+                            </h1>
+                            {document.clinic.address && (
+                                <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400 print:text-neutral-700">
+                                    {document.clinic.address}
+                                </p>
+                            )}
+                            <p className="text-sm text-neutral-600 dark:text-neutral-400 print:text-neutral-700">
+                                {[document.clinic.phone, document.clinic.email].filter(Boolean).join(' · ')}
+                            </p>
                         </div>
                     </header>
 
                     <div className="mt-7 flex flex-wrap items-start justify-between gap-3">
-                        <div><h2 className="text-lg font-bold uppercase">{titles[document.kind]}</h2>{document.number && <p className="mt-1 text-sm">Nomor: {document.number}</p>}</div>
-                        <p className="text-sm">{printDate}</p>
+                        <div>
+                            <h2 className="text-lg font-bold uppercase tracking-tight text-neutral-950 dark:text-neutral-50 print:text-black">
+                                {titles[document.kind]}
+                            </h2>
+                            {document.number && (
+                                <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400 print:text-neutral-700">
+                                    Nomor: <span className="font-mono font-medium text-neutral-900 dark:text-neutral-200 print:text-black">{document.number}</span>
+                                </p>
+                            )}
+                        </div>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400 print:text-neutral-700">{printDate}</p>
                     </div>
 
-                    <section className="mt-7 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
-                        <p><span className="inline-block w-24 text-neutral-600">Nama</span>: <strong>{document.patient.name}</strong></p>
-                        <p><span className="inline-block w-24 text-neutral-600">No. RM</span>: {document.patient.medicalRecordNumber}</p>
-                        <p><span className="inline-block w-24 text-neutral-600">Jenis kelamin</span>: {document.patient.gender === 'L' ? 'Laki-laki' : document.patient.gender === 'P' ? 'Perempuan' : 'Belum diisi'}</p>
-                        <p><span className="inline-block w-24 text-neutral-600">Umur</span>: {document.patient.age === null ? 'Belum diisi' : `${document.patient.age} tahun`}</p>
-                        <p><span className="inline-block w-24 text-neutral-600">Poliklinik</span>: {document.clinicName}</p>
-                        <p><span className="inline-block w-24 text-neutral-600">No. kunjungan</span>: {document.visitNumber}</p>
-                        {document.patient.address && <p className="sm:col-span-2"><span className="inline-block w-24 text-neutral-600">Alamat</span>: {document.patient.address}</p>}
+                    <section className="mt-7 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2 border-b border-neutral-200 pb-6 dark:border-neutral-800 print:border-neutral-300">
+                        <p><span className="inline-block w-24 text-neutral-600 dark:text-neutral-400 print:text-neutral-600">Nama</span>: <strong className="text-neutral-900 dark:text-neutral-100 print:text-black">{document.patient.name}</strong></p>
+                        <p><span className="inline-block w-24 text-neutral-600 dark:text-neutral-400 print:text-neutral-600">No. RM</span>: <span className="font-mono text-neutral-900 dark:text-neutral-200 print:text-black">{document.patient.medicalRecordNumber}</span></p>
+                        <p><span className="inline-block w-24 text-neutral-600 dark:text-neutral-400 print:text-neutral-600">Jenis kelamin</span>: {document.patient.gender === 'L' ? 'Laki-laki' : document.patient.gender === 'P' ? 'Perempuan' : 'Belum diisi'}</p>
+                        <p><span className="inline-block w-24 text-neutral-600 dark:text-neutral-400 print:text-neutral-600">Umur</span>: {document.patient.age === null ? 'Belum diisi' : `${document.patient.age} tahun`}</p>
+                        <p><span className="inline-block w-24 text-neutral-600 dark:text-neutral-400 print:text-neutral-600">Poliklinik</span>: {document.clinicName}</p>
+                        <p><span className="inline-block w-24 text-neutral-600 dark:text-neutral-400 print:text-neutral-600">No. kunjungan</span>: <span className="font-mono text-neutral-900 dark:text-neutral-200 print:text-black">{document.visitNumber}</span></p>
+                        {document.patient.address && (
+                            <p className="sm:col-span-2">
+                                <span className="inline-block w-24 text-neutral-600 dark:text-neutral-400 print:text-neutral-600">Alamat</span>: {document.patient.address}
+                            </p>
+                        )}
                     </section>
 
-                    {document.kind === 'resep_luar' && <section className="mt-8">
-                        <h3 className="border-b border-neutral-400 pb-2 text-sm font-bold uppercase">R/</h3>
-                        <div className="divide-y divide-neutral-200">{document.items?.map((item, index) => <div className="grid gap-1 py-4 sm:grid-cols-[2rem_1fr_auto] sm:gap-3" key={`${item.name}-${index}`}><span className="font-semibold">{index + 1}.</span><div><p className="font-semibold">{item.name} <span className="font-normal">({item.type === 'racikan' ? 'racikan' : 'obat jadi'})</span></p><p className="mt-1 text-sm">S {item.instructions || 'Aturan pakai sesuai petunjuk dokter'}</p>{item.note && <p className="mt-1 text-sm">Catatan: {item.note}</p>}</div><strong className="text-sm">{item.quantity} {item.unit ?? ''}</strong></div>)}</div>
-                        <p className="mt-10 text-xs text-neutral-700">Obat tidak boleh diganti tanpa sepengetahuan dokter.</p>
-                    </section>}
+                    {document.kind === 'resep_luar' && (
+                        <section className="mt-8">
+                            <h3 className="border-b border-neutral-900 pb-2 text-sm font-bold uppercase tracking-wider dark:border-neutral-700 print:border-neutral-900">
+                                R/
+                            </h3>
+                            <div className="divide-y divide-neutral-200 dark:divide-neutral-800 print:divide-neutral-200">
+                                {document.items?.map((item, index) => (
+                                    <div className="grid gap-1 py-4 sm:grid-cols-[2rem_1fr_auto] sm:gap-3" key={`${item.name}-${index}`}>
+                                        <span className="font-semibold text-neutral-600 dark:text-neutral-400 print:text-neutral-700">{index + 1}.</span>
+                                        <div>
+                                            <p className="font-semibold text-neutral-900 dark:text-neutral-100 print:text-black">
+                                                {item.name} <span className="font-normal text-neutral-600 dark:text-neutral-400 print:text-neutral-600">({item.type === 'racikan' ? 'racikan' : 'obat jadi'})</span>
+                                            </p>
+                                            <p className="mt-1 text-sm text-neutral-700 dark:text-neutral-300 print:text-neutral-700">
+                                                S {item.instructions || 'Aturan pakai sesuai petunjuk dokter'}
+                                            </p>
+                                            {item.note && (
+                                                <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400 print:text-neutral-600">
+                                                    Catatan: {item.note}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <strong className="text-sm text-neutral-900 dark:text-neutral-100 print:text-black">
+                                            {item.quantity} {item.unit ?? ''}
+                                        </strong>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="mt-8 text-xs italic text-neutral-600 dark:text-neutral-400 print:text-neutral-700">
+                                Obat tidak boleh diganti tanpa sepengetahuan dokter.
+                            </p>
+                        </section>
+                    )}
 
-                    {document.kind === 'rujukan_internal' && <section className="mt-8 space-y-4 text-sm">
-                        <p><strong>Rujukan dari:</strong> {document.fromClinic ?? document.clinicName}</p>
-                        <p><strong>Rujukan ke:</strong> {document.toClinic ?? 'Belum diisi'}</p>
-                        {document.content && <p className="whitespace-pre-wrap leading-6">{document.content}</p>}
-                        {document.notes && <p><strong>Catatan klinis:</strong> {document.notes}</p>}
-                    </section>}
+                    {document.kind === 'rujukan_internal' && (
+                        <section className="mt-8 space-y-4 text-sm">
+                            <div className="rounded-lg border border-neutral-200 bg-neutral-50/70 p-4 dark:border-neutral-800 dark:bg-neutral-800/40 print:border-neutral-300 print:bg-transparent">
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    <p><strong className="text-neutral-700 dark:text-neutral-300 print:text-neutral-800">Rujukan dari:</strong> {document.fromClinic ?? document.clinicName}</p>
+                                    <p><strong className="text-neutral-700 dark:text-neutral-300 print:text-neutral-800">Rujukan ke:</strong> {document.toClinic ?? 'Belum diisi'}</p>
+                                </div>
+                            </div>
+                            {document.content && (
+                                <p className="whitespace-pre-wrap leading-relaxed text-neutral-800 dark:text-neutral-200 print:text-black">{document.content}</p>
+                            )}
+                            {document.notes && (
+                                <div className="mt-3 rounded-md border-l-2 border-neutral-400 pl-3 py-1 text-xs text-neutral-600 dark:border-neutral-600 dark:text-neutral-400 print:border-neutral-500 print:text-neutral-700">
+                                    <strong>Catatan klinis:</strong> {document.notes}
+                                </div>
+                            )}
+                        </section>
+                    )}
 
-                    {document.kind === 'surat' && <section className="mt-8 space-y-4 text-sm">
-                        {document.type && <p><strong>Jenis surat:</strong> {document.type === 'sakit' ? 'Surat keterangan sakit' : document.type === 'sehat' ? 'Surat keterangan sehat' : document.type === 'rujukan' ? 'Surat rujukan eksternal' : 'Surat keterangan'}</p>}
-                        {document.content && <div className="whitespace-pre-wrap leading-7">{document.content}</div>}
-                    </section>}
+                    {document.kind === 'surat' && (
+                        <section className="mt-8 space-y-4 text-sm">
+                            {document.type && (
+                                <p className="text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400 print:text-neutral-700">
+                                    Jenis surat: <span className="font-bold text-neutral-900 dark:text-neutral-100 print:text-black">{document.type === 'sakit' ? 'Surat keterangan sakit' : document.type === 'sehat' ? 'Surat keterangan sehat' : document.type === 'rujukan' ? 'Surat rujukan eksternal' : 'Surat keterangan'}</span>
+                                </p>
+                            )}
+                            {document.content && (
+                                <div className="whitespace-pre-wrap leading-relaxed text-neutral-800 dark:text-neutral-200 print:text-black">
+                                    {document.content}
+                                </div>
+                            )}
+                        </section>
+                    )}
 
                     <footer className="mt-14 flex justify-end">
                         <div className="min-w-56 text-center text-sm">
-                            <p>{document.clinicName}, {printDate}</p>
-                            <p className="mt-1">Dokter pemeriksa,</p>
-                            {document.doctor.signatureDataUrl ? <img alt={`Tanda tangan ${document.doctor.name}`} className="mx-auto my-2 h-20 max-w-48 object-contain" src={document.doctor.signatureDataUrl} /> : <div className="h-20" />}
-                            <p className="font-semibold underline underline-offset-2">{document.doctor.name}</p>
-                            {document.doctor.sip && <p className="mt-1 text-xs">SIP: {document.doctor.sip}</p>}
+                            <p className="text-neutral-700 dark:text-neutral-300 print:text-neutral-800">{document.clinicName}, {printDate}</p>
+                            <p className="mt-1 text-neutral-600 dark:text-neutral-400 print:text-neutral-700">Dokter pemeriksa,</p>
+                            {document.doctor.signatureDataUrl ? (
+                                <img
+                                    alt={`Tanda tangan ${document.doctor.name}`}
+                                    className="mx-auto my-2 h-20 max-w-48 object-contain dark:brightness-0 dark:invert dark:opacity-90 print:filter-none"
+                                    src={document.doctor.signatureDataUrl}
+                                />
+                            ) : (
+                                <div className="h-20" />
+                            )}
+                            <p className="font-semibold underline underline-offset-2 text-neutral-900 dark:text-neutral-100 print:text-black">
+                                {document.doctor.name}
+                            </p>
+                            {document.doctor.sip && (
+                                <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400 print:text-neutral-600">SIP: {document.doctor.sip}</p>
+                            )}
                         </div>
                     </footer>
                 </article>
