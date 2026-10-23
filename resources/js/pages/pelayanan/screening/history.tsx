@@ -3,6 +3,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { ClipboardCheck, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { PriorityBadge } from '@/components/dashboard/priority-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -32,17 +33,6 @@ interface Props {
     clinics: { id: number; name: string }[];
     screenings: PaginationData & { data: ScreeningRecord[] };
 }
-
-const responseLabels: Record<string, string> = {
-    merah: 'Merah · perlu respons segera',
-    kuning: 'Kuning · perlu penilaian lanjut',
-    hijau: 'Hijau · prioritas rutin',
-};
-const priorityLabels: Record<string, string> = {
-    darurat: 'respons darurat',
-    segera: 'perlu penilaian segera',
-    normal: 'rutin',
-};
 
 export default function ScreeningHistory({ filters: initialFilters, canSelectClinic, clinics, screenings }: Props) {
     const [filters, setFilters] = useState(initialFilters);
@@ -88,15 +78,15 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <Table className="min-w-[950px]">
-                            <TableHeader><tr><TableHead>Tanggal</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Petugas</TableHead><TableHead>Prioritas awal</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                            <TableHeader><tr><TableHead>Tanggal</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Petugas</TableHead><TableHead className="text-center">Prioritas</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                             <TableBody>
                                 {screenings.data.length ? screenings.data.map((record) => <TableRow key={record.id}>
                                     <TableCell>{record.date}</TableCell>
                                     <TableCell className="font-mono text-xs">{record.visitNumber}</TableCell>
                                     <TableCell><p className="font-medium text-neutral-900">{record.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{record.medicalRecordNumber}</p></TableCell>
                                     <TableCell>{record.clinic}</TableCell>
-                                    <TableCell>{record.staff}<p className="mt-1 text-xs text-neutral-500">{record.isDraft ? 'Draf asesmen' : 'Asesmen terkirim'}</p></TableCell>
-                                    <TableCell><span className="font-medium">{record.triage ? responseLabels[record.triage] ?? record.triage : 'Belum ditentukan'}</span>{record.priority && <span className="mt-0.5 block text-xs text-neutral-500">Kategori: {priorityLabels[record.priority] ?? record.priority}</span>}</TableCell>
+                                    <TableCell>{record.staff}<p className="mt-1 text-xs text-neutral-500">{record.isDraft ? 'Draf pengkajian' : 'Pengkajian terkirim'}</p></TableCell>
+                                    <TableCell className="text-center"><PriorityBadge triage={record.triage} priority={record.priority} /></TableCell>
                                     <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2">{record.printUrl && <Button asChild size="sm" variant="secondary"><a href={record.printUrl}>Cetak pengkajian</a></Button>}{record.visitUrl && <Button asChild size="sm" variant="secondary"><Link href={record.visitUrl}>Lihat kunjungan</Link></Button>}</div></TableCell>
                                 </TableRow>) : <TableRow><TableCell colSpan={7}><Empty size="compact" title="Belum ada catatan pengkajian pada filter ini." /></TableCell></TableRow>}
                             </TableBody>

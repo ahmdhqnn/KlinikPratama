@@ -82,7 +82,7 @@ class ScreeningWorkflowTest extends TestCase
 
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'berat_badan' => null, 'tinggi_badan' => null, 'kesimpulan_triase' => 'merah', 'prioritas_layanan' => 'darurat']);
         $this->assertNotNull($visit->fresh()->screening->submitted_at);
-        $this->assertSame('pemeriksaan', $visit->status);
+        $this->assertSame('pemeriksaan', $visit->fresh()->status);
         $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'tindakan' => 'draf'])->assertUnprocessable();
         $this->assertSame('merah', $visit->fresh()->screening->kesimpulan_triase);
     }
