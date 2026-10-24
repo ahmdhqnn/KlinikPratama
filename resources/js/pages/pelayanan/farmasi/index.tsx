@@ -1,7 +1,8 @@
+import { ActionButton } from '@/components/ui/action-button';
 import { DataScope } from '@/components/dashboard/data-scope';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { ClipboardList, Eye, Search } from 'lucide-react';
+import { ClipboardList, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatusBadge } from '@/components/dashboard/status-badge';
@@ -51,7 +52,7 @@ export default function PharmacyQueue({ visits, date: initialDate, search: initi
                     <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[850px]"><TableHeader><tr><TableHead>No. resep</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Jumlah item</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>{visits.data.length ? visits.data.map((visit) => {
                         const isComplete = visit.pharmacyStatus === 'selesai';
 
-                        return <TableRow key={visit.id}><TableCell className="font-mono text-xs font-semibold text-neutral-700">{visit.prescriptionNumber ?? 'Belum diisi'}<p className="mt-1 text-xs text-neutral-500">{visit.date}</p></TableCell><TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="font-mono text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor ?? 'Belum diisi'}</TableCell><TableCell>{visit.itemCount} item</TableCell><TableCell><StatusBadge context="pharmacy" status={visit.pharmacyStatus} /></TableCell><TableCell className="text-center"><Button asChild size="sm" variant={isComplete ? 'secondary' : 'default'}><Link href={`/pelayanan/farmasi/${visit.id}`}>{isComplete ? <><Eye className="size-4" />Lihat detail</> : 'Proses resep'}</Link></Button></TableCell></TableRow>;
+                        return <TableRow key={visit.id}><TableCell className="font-mono text-xs font-semibold text-neutral-700">{visit.prescriptionNumber ?? 'Belum diisi'}<p className="mt-1 text-xs text-neutral-500">{visit.date}</p></TableCell><TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="font-mono text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor ?? 'Belum diisi'}</TableCell><TableCell>{visit.itemCount} item</TableCell><TableCell><StatusBadge context="pharmacy" status={visit.pharmacyStatus} /></TableCell><TableCell className="text-center"><ActionButton asChild action={isComplete ? 'detail' : 'pharmacy'} label={isComplete ? 'Lihat detail resep' : 'Proses resep'}><Link href={`/pelayanan/farmasi/${visit.id}`} /></ActionButton></TableCell></TableRow>;
                     }) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada resep pada tanggal dan filter ini." /></TableCell></TableRow>}</TableBody></Table></div><Pagination pagination={visits} /></CardContent>
                 </Card>
             </div>

@@ -148,6 +148,22 @@ class ScreeningWorkflowTest extends TestCase
         $this->actingAs($registration)->get(route('pelayanan.screening.print', $visit))->assertForbidden();
     }
 
+    public function test_submitted_assessment_is_completed_on_service_detail(): void
+    {
+        [$nurse, $visit] = $this->context('gigi', 'terapis_gigi');
+
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [
+            ...$this->payload(), 'risiko_medis_gigi' => ['tidak_ada'], 'status_alergi' => 'tidak_ada',
+        ])->assertSessionHasNoErrors()->assertRedirect(route('pelayanan.kunjungan.show', $visit));
+
+        $this->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.progress.1.done', true)
+            ->where('visit.progress.1.active', false)
+            ->where('visit.progress.1.note', null)
+            ->where('visit.patient.allergies', 'Tidak ada riwayat alergi menurut pasien')
+            ->where('permissions.processScreening', false));
+    }
+
     /** @return array{User, Kunjungan, Nakes} */
     private function context(string $type = 'umum', string $position = 'perawat'): array
     {

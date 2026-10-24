@@ -1,3 +1,4 @@
+import { ActionButton } from '@/components/ui/action-button';
 import { DataScope } from '@/components/dashboard/data-scope';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
@@ -9,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DatePicker } from '@/components/ui/date-picker';
 
@@ -43,7 +43,7 @@ export default function ExaminationsIndex({ visits, date: initialDate }: { visit
                 <FilterPanel><form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={filterVisits}><Field className="w-full sm:max-w-xs" htmlFor="examination-visit-date" label="Tanggal kunjungan"><DatePicker id="examination-visit-date" onChange={(event) => setDate(event.target.value)} value={date} /></Field><Button type="submit"><Search className="size-4" />Tampilkan</Button></form></FilterPanel>
                 <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><ClipboardPlus className="size-5" /></span><div><CardTitle>Daftar pemeriksaan</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(visits.total)} kunjungan sesuai cakupan data.</CardDescription></div></div></CardHeader>
                     <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[850px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead>Diagnosis</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>
-                        {visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}><TableCell className="font-mono text-xs font-semibold text-neutral-700">{visit.number}<p className="mt-1 text-xs text-neutral-500">{visit.date}</p></TableCell><TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="font-mono text-xs text-neutral-500">{visit.medicalRecordNumber} · {visit.gender ?? 'Belum diisi'}</p></TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor ?? 'Belum ditentukan'}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell><TableCell>{visit.diagnosisCount}</TableCell><TableCell className="text-center"><Button asChild size="sm"><Link href={`/pelayanan/pemeriksaan/${visit.id}`}>Buka pemeriksaan</Link></Button></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada pasien dalam antrean pemeriksaan pada tanggal ini." /></TableCell></TableRow>}
+                        {visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}><TableCell className="font-mono text-xs font-semibold text-neutral-700">{visit.number}<p className="mt-1 text-xs text-neutral-500">{visit.date}</p></TableCell><TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="font-mono text-xs text-neutral-500">{visit.medicalRecordNumber} · {visit.gender ?? 'Belum diisi'}</p></TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor ?? 'Belum ditentukan'}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell><TableCell>{visit.diagnosisCount}</TableCell><TableCell className="text-center"><ActionButton asChild action="examination" label="Buka pemeriksaan"><Link href={`/pelayanan/pemeriksaan/${visit.id}`} /></ActionButton></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada pasien dalam antrean pemeriksaan pada tanggal ini." /></TableCell></TableRow>}
                     </TableBody></Table></div><Pagination pagination={visits} /></CardContent>
                 </Card>
             </div>

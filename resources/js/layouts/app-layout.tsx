@@ -44,6 +44,7 @@ interface AppUser {
     email: string;
     role: string;
     roleLabel: string;
+    clinicType?: string | null;
     photoUrl: string | null;
 }
 
@@ -65,18 +66,15 @@ interface NavigationGroup {
 
 const navigationByRole: Record<string, NavigationGroup[]> = {
     admin: [
-        { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/', icon: LayoutDashboard }] },
+        { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/', icon: LayoutDashboard, exact: true }] },
         {
             label: 'Operasional',
             items: [
+                { label: 'Kunjungan', href: '/pelayanan/kunjungan', activePaths: ['/pendaftaran/kunjungan'], icon: ClipboardList },
                 { label: 'Pasien', href: '/pelayanan/pasien', icon: UsersRound },
                 { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
-                { label: 'Kunjungan', href: '/pelayanan/kunjungan', activePaths: ['/pendaftaran/kunjungan'], icon: ClipboardList },
-                { label: 'Antrian', href: '/pelayanan/antrian', icon: Activity },
+                { label: 'Antrean', href: '/pelayanan/antrian', icon: Activity },
                 { label: 'Persuratan', href: '/persuratan', icon: FileText },
-                { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
-                { label: 'Kepesertaan', href: '/kepesertaan', icon: ShieldCheck },
-                { label: 'Terminologi klinis', href: '/master/terminologi-klinis', icon: ClipboardList },
             ],
         },
         {
@@ -84,6 +82,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             items: [
                 { label: 'Poliklinik', href: '/master/poliklinik', icon: Boxes },
                 { label: 'Tindakan medis', href: '/master/tindakan', icon: HeartPulse },
+                { label: 'Terminologi klinis', href: '/master/terminologi-klinis', icon: ClipboardList },
                 { label: 'Laboratorium', href: '/master/laboratorium', icon: Activity },
                 { label: 'Obat & BHP', href: '/master/obat', icon: Pill },
                 { label: 'Depo obat', href: '/master/depo-obat', icon: Pill },
@@ -94,9 +93,11 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         {
             label: 'Pengelolaan',
             items: [
+                { label: 'Kepesertaan', href: '/kepesertaan', icon: ShieldCheck },
+                { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
                 { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes },
-                { label: 'Pengaturan', href: '/setting', icon: Settings },
                 { label: 'Pengguna', href: '/users', icon: UsersRound },
+                { label: 'Pengaturan', href: '/setting', icon: Settings },
             ],
         },
         {
@@ -109,58 +110,84 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         },
     ],
     pendaftaran: [
+        { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/pendaftaran', icon: LayoutDashboard, exact: true }] },
         {
-            label: 'Pendaftaran',
+            label: 'Operasional',
             items: [
-                { label: 'Dashboard', href: '/pendaftaran', icon: LayoutDashboard, exact: true },
                 { label: 'Pendaftaran Pasien', href: '/pendaftaran/pendaftaran-baru', activePaths: ['/pendaftaran/pendaftaran-lama'], icon: UserRoundPlus },
-                { label: 'Database Pasien', href: '/pendaftaran/database-pasien', icon: UsersRound },
-                { label: 'Kepesertaan', href: '/kepesertaan', icon: ShieldCheck },
                 { label: 'Kunjungan Poli', href: '/pendaftaran/kunjungan-per-poli', activePaths: ['/pendaftaran/kunjungan'], icon: BedDouble },
+                { label: 'Database Pasien', href: '/pendaftaran/database-pasien', icon: UsersRound },
+            ],
+        },
+        {
+            label: 'Pengelolaan',
+            items: [
                 { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
-                { label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
+                { label: 'Kepesertaan', href: '/kepesertaan', icon: ShieldCheck },
+            ],
+        },
+        {
+            label: 'Laporan',
+            items: [
                 { label: 'Laporan Kunjungan', href: '/pendaftaran/laporan-kunjungan', icon: BarChart3 },
+                { label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
             ],
         },
     ],
     perawat: [
+        { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/perawat/dashboard', icon: LayoutDashboard, exact: true }] },
         {
-            label: 'Pelayanan',
+            label: 'Operasional',
             items: [
-                { label: 'Dashboard', href: '/perawat/dashboard', icon: LayoutDashboard },
                 { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
                 { label: 'Pengkajian saya', href: '/pelayanan/screening/riwayat', icon: ClipboardCheck },
                 { label: 'Pasien', href: '/pelayanan/pasien', icon: UsersRound },
             ],
         },
         {
-            label: 'Pemantauan',
+            label: 'Koordinasi Layanan',
             items: [
                 { label: 'Kunjungan Poli', href: '/pendaftaran/kunjungan-per-poli', activePaths: ['/pelayanan/kunjungan'], icon: Activity },
-                { label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
                 { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
             ],
         },
+        { label: 'Laporan', items: [{ label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined }] },
     ],
     dokter: [
+        { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/dokter', icon: LayoutDashboard, exact: true }] },
         {
-            label: 'Praktik Dokter',
+            label: 'Operasional',
             items: [
-                { label: 'Dashboard', href: '/dokter', icon: LayoutDashboard, exact: true },
+                { label: 'Pemeriksaan', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
                 { label: 'Kunjungan', href: '/dokter/kunjungan', icon: ClipboardList },
                 { label: 'Pasien', href: '/dokter/pasien', activePaths: ['/pelayanan/pasien'], icon: UsersRound },
-                { label: 'Stok Obat', href: '/dokter/stok-obat', icon: Pill },
-                { label: 'Top Diagnosis', href: '/dokter/laporan-top-diagnosa', icon: ChartNoAxesCombined },
-                { label: 'Pemeriksaan', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
                 { label: 'Persuratan', href: '/persuratan', icon: FileText },
             ],
         },
+        {
+            label: 'Penunjang',
+            items: [
+                { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
+                { label: 'Stok Obat', href: '/dokter/stok-obat', icon: Pill },
+            ],
+        },
+        { label: 'Laporan', items: [{ label: 'Top Diagnosis', href: '/dokter/laporan-top-diagnosa', icon: ChartNoAxesCombined }] },
     ],
     farmasi: [
-        { label: 'Farmasi', items: [{ label: 'Dashboard', href: '/farmasi/dashboard', icon: LayoutDashboard }, { label: 'Antrian Farmasi', href: '/pelayanan/farmasi', icon: Pill }, { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes }] },
+        { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/farmasi/dashboard', icon: LayoutDashboard, exact: true }] },
+        { label: 'Operasional', items: [{ label: 'Antrean Farmasi', href: '/pelayanan/farmasi', icon: Pill }] },
+        { label: 'Pengelolaan', items: [{ label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes }] },
     ],
     manajemen: [
-        { label: 'Manajemen', items: [{ label: 'Dashboard', href: '/', icon: LayoutDashboard }, { label: 'Laporan kunjungan', href: '/laporan/kunjungan', icon: ClipboardList }, { label: 'Laporan stok', href: '/laporan/stok', icon: Boxes }, { label: 'Laporan laboratorium', href: '/laporan/laboratorium', icon: Activity }] },
+        { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/', icon: LayoutDashboard, exact: true }] },
+        {
+            label: 'Laporan',
+            items: [
+                { label: 'Laporan Kunjungan', href: '/laporan/kunjungan', icon: ClipboardList },
+                { label: 'Laporan Stok', href: '/laporan/stok', icon: Boxes },
+                { label: 'Laporan Laboratorium', href: '/laporan/laboratorium', icon: Activity },
+            ],
+        },
     ],
 };
 
@@ -187,6 +214,7 @@ function getPageTitle(component: string): string {
         'dokter/stock': 'Stok Obat',
         'dokter/top-diagnoses': 'Top Diagnosis',
         'pelayanan/screening/index': 'Antrean Pengkajian Awal',
+        'pelayanan/screening/show': 'Pengkajian Awal',
         'pelayanan/screening/history': 'Pengkajian Saya',
         'pelayanan/pasien/index': 'Database Pasien',
         'pelayanan/pasien/form': 'Data Pasien',
@@ -209,6 +237,7 @@ function getPageTitle(component: string): string {
         'users/index': 'Manajemen Pengguna',
         'profile/show': 'Profil Saya',
         'setting/index': 'Pengaturan Klinik',
+        'master/terminologi/index': 'Terminologi Klinis',
         'master/poliklinik/index': 'Poliklinik',
         'master/poliklinik/show': 'Ruang Poliklinik',
         'master/depo-obat/index': 'Depo Obat',
@@ -372,12 +401,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const [searchOpen, setSearchOpen] = useState(false);
     const user = auth.user;
     const groups: NavigationGroup[] = [
-        ...(navigationByRole[user?.role ?? ''] ?? []),
+        ...(navigationByRole[user?.role ?? ''] ?? []).map((group) => ({
+            ...group,
+            items: group.items.map((item) => user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
+                ? { ...item, label: user.clinicType === 'gigi' ? 'Pemeriksaan Gigi & Mulut' : user.clinicType === 'umum' ? 'Pemeriksaan Umum' : item.label }
+                : item),
+        })),
         { label: 'Akun', items: [{ label: 'Profil Saya', href: '/profile', icon: UserRound }] },
     ];
     const pathname = page.url.split(/[?#]/, 1)[0];
     const pageTitle = getPageTitle(page.component);
-    const validHrefs = new Set([...Object.values(navigationByRole).flatMap((roleGroups) => roleGroups.flatMap((group) => group.items.map((item) => item.href))), '/profile']);
+    const validHrefs = new Set(groups.flatMap((group) => group.items.map((item) => item.href)));
     const breadcrumbs = getBreadcrumbItems(pathname, pageTitle, validHrefs);
     const searchResults = groups.flatMap((group) => group.items
         .filter((item) => `${item.label} ${group.label}`.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()))
@@ -508,7 +542,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     <AccountMenu user={user} />
                 </header>
 
-                <main className="mx-auto w-full max-w-[1600px] p-4 print:max-w-none print:p-0 sm:p-6 lg:p-8">
+                <main className={`mx-auto min-w-0 w-full p-4 print:max-w-none print:p-0 sm:p-6 lg:p-8 ${['pelayanan/pasien/rekam-medis', 'pelayanan/pemeriksaan/show'].includes(page.component) ? 'max-w-none' : 'max-w-[1600px]'}`}>
                     {children}
                 </main>
             </div>

@@ -10,6 +10,7 @@ use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
+use App\PatientAllergyHistory;
 use App\PerawatClinicResolver;
 use App\VisitQueryService;
 use Carbon\Carbon;
@@ -181,19 +182,27 @@ class KunjunganController extends Controller
             ->with('success', "Kunjungan berhasil didaftarkan: {$kunjungan->no_kunjungan}");
     }
 
-    public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): Response
+    public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder, PatientAllergyHistory $allergies): Response
     {
         if ($request->user()->role === 'perawat') {
             abort_if((int) $kunjungan->poliklinik_id !== $this->perawatClinicResolver->clinicId($request->user()), 404);
         }
         $auditRecorder->record($request, 'visit.view', $kunjungan->pasien_id, $kunjungan->id);
         $kunjungan->load([
-            'pasien', 'poliklinik', 'dokter', 'screening:id,kunjungan_id',
-            'pemeriksaan:id,kunjungan_id,status', 'farmasi:id,kunjungan_id,status',
+            'pasien', 'poliklinik', 'dokter', 'screening:id,kunjungan_id,submitted_at,riwayat_alergi,alergi_jenis,alergi_reaksi',
+            'pemeriksaan', 'farmasi:id,kunjungan_id,status',
         ]);
 
         $role = $request->user()->role;
         $isRegistrationPage = $request->routeIs('pendaftaran.kunjungan.show');
+        $canViewRme = in_array($role, ['admin', 'perawat'], true);
+        $screeningCompleted = $kunjungan->screening !== null && ($kunjungan->screening->submitted_at !== null
+            || ! in_array($kunjungan->status, ['menunggu', 'screening', 'batal'], true));
+        $confirmedVisit = clone $kunjungan;
+        if (! $screeningCompleted) {
+            $confirmedVisit->setRelation('screening', null);
+        }
+        $allergyHistory = $canViewRme && $kunjungan->pasien ? $allergies->forVisit($confirmedVisit)['riwayat_alergi'] : null;
         $canEdit = in_array($role, ['admin', 'pendaftaran'], true) && $kunjungan->status === 'menunggu';
         $canScreen = $role === 'perawat' && ! $kunjungan->tanggal->isFuture()
             && in_array($kunjungan->status, ['menunggu', 'screening'], true);
@@ -205,7 +214,7 @@ class KunjunganController extends Controller
             },
             'permissions' => [
                 'editVisit' => $canEdit,
-                'viewRme' => $role === 'perawat',
+                'viewRme' => $canViewRme,
                 'processScreening' => $canScreen,
             ],
             'links' => [
@@ -220,7 +229,7 @@ class KunjunganController extends Controller
                 'screening' => $canScreen ? route('pelayanan.screening.show', $kunjungan) : null,
                 'screeningPrint' => in_array($role, ['admin', 'perawat'], true) && $kunjungan->screening
                     ? route('pelayanan.screening.print', $kunjungan) : null,
-                'medicalRecord' => $role === 'perawat' && $kunjungan->pasien
+                'medicalRecord' => $canViewRme && $kunjungan->pasien
                     ? route('pelayanan.pasien.rekam-medis', $kunjungan->pasien)
                     : null,
             ],
@@ -243,13 +252,11 @@ class KunjunganController extends Controller
                     'gender' => $kunjungan->pasien?->jenis_kelamin,
                     'age' => $kunjungan->pasien?->umur,
                     'bloodType' => $kunjungan->pasien?->golongan_darah,
-                    'allergies' => auth()->user()->role === 'perawat'
-                        ? ($kunjungan->pasien?->riwayat_alergi ?: 'Belum dicatat')
-                        : null,
+                    'allergies' => $allergyHistory,
                 ],
                 'progress' => [
                     ['label' => 'Verifikasi hak layanan', 'done' => (bool) $kunjungan->verified_at],
-                ['label' => 'Pengkajian awal perawat', 'done' => (bool) $kunjungan->screening],
+                    ['label' => 'Pengkajian awal perawat', 'done' => $screeningCompleted, 'active' => $kunjungan->status === 'screening', 'note' => $kunjungan->screening && ! $screeningCompleted ? 'Draf pengkajian belum dikirim ke dokter.' : null],
                     ['label' => 'Pemeriksaan dokter', 'done' => $kunjungan->pemeriksaan?->status === 'selesai'],
                     ['label' => 'Farmasi', 'done' => $kunjungan->farmasi?->status === 'selesai'],
                     ['label' => 'Kunjungan selesai', 'done' => $kunjungan->status === 'selesai'],

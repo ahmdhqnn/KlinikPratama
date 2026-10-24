@@ -1,3 +1,5 @@
+import { DatePicker } from '@/components/ui/date-picker';
+import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
 import { ClipboardCheck, Search } from 'lucide-react';
@@ -58,8 +60,8 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                         <Field htmlFor="screening-history-search" label="Cari pasien">
                             <Input id="screening-history-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama atau nomor RM" value={filters.search} />
                         </Field>
-                        <Field htmlFor="screening-history-date" label="Tanggal pengkajian">
-                            <Input id="screening-history-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} type="date" value={filters.tanggal} />
+                        <Field htmlFor="screening-history-date" label="Tanggal kunjungan">
+                            <DatePicker id="screening-history-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} value={filters.tanggal} />
                         </Field>
                         {canSelectClinic && <Field htmlFor="screening-history-clinic" label="Poliklinik">
                             <Select id="screening-history-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
@@ -87,7 +89,7 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                                     <TableCell>{record.clinic}</TableCell>
                                     <TableCell>{record.staff}<p className="mt-1 text-xs text-neutral-500">{record.isDraft ? 'Draf pengkajian' : 'Pengkajian terkirim'}</p></TableCell>
                                     <TableCell className="text-center"><PriorityBadge triage={record.triage} priority={record.priority} /></TableCell>
-                                    <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2">{record.printUrl && <Button asChild size="sm" variant="secondary"><a href={record.printUrl}>Cetak pengkajian</a></Button>}{record.visitUrl && <Button asChild size="sm" variant="secondary"><Link href={record.visitUrl}>Lihat kunjungan</Link></Button>}</div></TableCell>
+                                    <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2">{record.printUrl && <ActionButton asChild action="print" label="Cetak pengkajian"><a href={record.printUrl} /></ActionButton>}{record.visitUrl && <ActionButton asChild action="detail" label="Lihat kunjungan"><Link href={record.visitUrl} /></ActionButton>}</div></TableCell>
                                 </TableRow>) : <TableRow><TableCell colSpan={7}><Empty size="compact" title="Belum ada catatan pengkajian pada filter ini." /></TableCell></TableRow>}
                             </TableBody>
                         </Table>

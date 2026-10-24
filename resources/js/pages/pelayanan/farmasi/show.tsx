@@ -1,3 +1,5 @@
+import { getAllergyStatus } from '@/lib/allergy-status';
+import { ActionButton } from '@/components/ui/action-button';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, Check, ChevronDown, ChevronUp, CircleCheck, CircleHelp, Printer, Save, TriangleAlert } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -133,7 +135,7 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
                                 <TableCell className="whitespace-nowrap">{item.external ? <span className="text-xs text-neutral-500">Ditebus di luar</span> : item.reserved ? <span className="text-xs font-medium text-neutral-700">Sudah direservasi</span> : <span className={item.stock >= quantity ? 'font-medium text-emerald-700' : 'font-medium text-red-700'}>{item.stock} {item.stockUnit}</span>}</TableCell>
                                 <TableCell>{item.external ? <div><p className="font-medium text-neutral-700">Tidak diserahkan di klinik</p><input name={`items[${index}][jumlah_diberikan]`} type="hidden" value="0" /></div> : <div className="space-y-1"><Input aria-label={`Jumlah ${item.name} diserahkan`} className="w-32 font-mono" disabled={alreadyComplete} min="0" onChange={(event) => form.setData('items', form.data.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, jumlah_diberikan: event.target.value } : entry))} step="1" type="number" value={current?.jumlah_diberikan ?? '0'} />{!sufficient && <p className="text-xs font-medium text-red-700">Jumlah melebihi resep atau stok tersedia.</p>}{form.errors[`items.${index}.jumlah_diberikan` as keyof typeof form.errors] && <p className="text-xs text-red-700">{form.errors[`items.${index}.jumlah_diberikan` as keyof typeof form.errors]}</p>}</div>}</TableCell>
                                 <TableCell><Input aria-label={`Aturan pakai ${item.name}`} disabled={alreadyComplete || item.external} onChange={(event) => form.setData('items', form.data.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, aturan_pakai: event.target.value } : entry))} placeholder="3 x 1 setelah makan" value={current?.aturan_pakai ?? ''} /></TableCell>
-                                <TableCell>{!item.external && <Button onClick={() => setEtiketItem({ name: item.name, instructions: current?.aturan_pakai ?? '' })} size="sm" type="button" variant="secondary"><Printer className="size-4" />Etiket</Button>}</TableCell>
+                                <TableCell>{!item.external && <ActionButton onClick={() => setEtiketItem({ name: item.name, instructions: current?.aturan_pakai ?? '' })} type="button" action="print" label="Etiket" />}</TableCell>
                             </TableRow>;
                         }) : <TableRow><TableCell colSpan={6}><Empty size="compact" title="Tidak ada item resep untuk disiapkan." /></TableCell></TableRow>}
                     </TableBody></Table></div></CardContent>
@@ -194,25 +196,4 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
 
 function escapeHtml(value: string) {
     return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
-}
-
-function getAllergyStatus(values: Array<string | null>): { label: string; state: 'reported' | 'none' | 'unknown' } {
-    const allergies = values.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
-    const reportedAllergies = allergies.filter((allergy) => !isNoAllergyReport(allergy) && allergy.toLocaleLowerCase('id-ID') !== 'belum dicatat');
-
-    if (reportedAllergies.length > 0) {
-        return { label: [...new Set(reportedAllergies)].join(' · '), state: 'reported' };
-    }
-
-    if (allergies.some(isNoAllergyReport)) {
-        return { label: 'Tidak ada riwayat alergi', state: 'none' };
-    }
-
-    return { label: 'Belum dicatat', state: 'unknown' };
-}
-
-function isNoAllergyReport(value: string): boolean {
-    const normalizedValue = value.toLocaleLowerCase('id-ID').replace(/[.!]+$/, '').trim();
-
-    return ['tidak ada riwayat alergi', 'tidak ada alergi', 'nihil', 'tidak ada'].includes(normalizedValue);
 }

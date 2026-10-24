@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pendaftaran;
 use App\ClinicDocumentNumber;
 use App\ClinicalAuditRecorder;
 use App\DateRangeFilter;
+use App\DoctorAccessService;
 use App\HakLayananVerifier;
 use App\Http\Controllers\Controller;
 use App\JadwalPraktikResolver;
@@ -15,6 +16,7 @@ use App\Models\Pasien;
 use App\Models\Poliklinik;
 use App\PatientRegistrationService;
 use App\PerawatClinicResolver;
+use App\PracticeScheduleAccess;
 use App\VisitOverviewService;
 use App\VisitQueryService;
 use Carbon\Carbon;
@@ -29,7 +31,7 @@ use Inertia\Response;
 
 class RegistrationController extends Controller
 {
-    public function __construct(private JadwalPraktikResolver $schedule, private PerawatClinicResolver $perawatClinicResolver, private \App\VisitSchedulingService $scheduling) {}
+    public function __construct(private JadwalPraktikResolver $schedule, private PerawatClinicResolver $perawatClinicResolver, private \App\VisitSchedulingService $scheduling, private PracticeScheduleAccess $scheduleAccess) {}
 
     public function dashboard(): Response
     {
@@ -492,7 +494,7 @@ class RegistrationController extends Controller
         ]);
     }
 
-    public function jadwalPraktik(Request $request): Response
+    public function jadwalPraktik(Request $request, DoctorAccessService $doctorAccess): Response
     {
         $filters = $request->validate([
             'dokter_id' => ['nullable', 'integer', 'exists:nakes,id'],
@@ -506,17 +508,20 @@ class RegistrationController extends Controller
         $poliklinikList = $assignedClinicId
             ? Poliklinik::whereKey($assignedClinicId)->where('is_active', true)->orderBy('nama')->get()
             : Poliklinik::registrable()->orderBy('nama')->get();
-        $scheduledDoctorIds = $assignedClinicId
+        $canManage = $this->scheduleAccess->canManage($request->user());
+        $assignedDoctorId = $request->user()->role === 'dokter' ? $doctorAccess->doctorId($request->user()) : null;
+        $scheduledDoctorIds = $assignedClinicId && ! $canManage
             ? JadwalDokter::query()->where('poliklinik_id', $assignedClinicId)->select('dokter_id')
             : null;
         $dokterList = Nakes::where('jabatan', 'dokter')->where('is_active', true)
+            ->when($assignedDoctorId, fn ($query, int $id) => $query->whereKey($id))
             ->when($scheduledDoctorIds, fn ($query, $ids) => $query->whereIn('id', $ids))
             ->orderBy('nama')->get();
         $hariList = JadwalDokter::getHariList();
 
         $jadwal = JadwalDokter::with(['dokter', 'poliklinik'])
             ->where(fn ($query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', today()))
-            ->when($filters['dokter_id'] ?? null, fn ($query, int $id) => $query->where('dokter_id', $id))
+            ->when($assignedDoctorId ?? ($filters['dokter_id'] ?? null), fn ($query, int $id) => $query->where('dokter_id', $id))
             ->when($assignedClinicId, fn ($query, int $id) => $query->where('poliklinik_id', $id))
             ->when(! $assignedClinicId && ($filters['poliklinik_id'] ?? null), fn ($query) => $query->where('poliklinik_id', $filters['poliklinik_id']))
             ->when($filters['hari'] ?? null, fn ($query, string $day) => $query->where('hari', $day))
@@ -527,14 +532,16 @@ class RegistrationController extends Controller
         $holidays = DB::table('hari_libur_praktik')->where('tanggal', '>=', today()->toDateString())
             ->orderBy('tanggal')->paginate(10, ['*'], 'holidays_page')->withQueryString();
         $exceptions = DB::table('jadwal_khusus_dokter')->where('tanggal', '>=', today()->toDateString())
+            ->when($assignedDoctorId, fn ($query, int $id) => $query->where('dokter_id', $id))
             ->when($assignedClinicId, fn ($query, int $id) => $query->where('poliklinik_id', $id))
             ->orderBy('tanggal')->paginate(10, ['*'], 'exceptions_page')->withQueryString();
 
         return Inertia::render('pendaftaran/jadwal-praktik', [
-            'canManage' => in_array($request->user()->role, ['admin', 'pendaftaran'], true),
+            'canManage' => $canManage,
+            'canManageHolidays' => $request->user()->hasRole('admin', 'pendaftaran'),
             'canSelectClinic' => $assignedClinicId === null,
             'filters' => [
-                'dokterId' => isset($filters['dokter_id']) ? (int) $filters['dokter_id'] : '',
+                'dokterId' => $assignedDoctorId ?? (isset($filters['dokter_id']) ? (int) $filters['dokter_id'] : ''),
                 'poliklinikId' => $assignedClinicId ? (int) $assignedClinicId : (isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : ''),
                 'hari' => $filters['hari'] ?? '',
             ],
@@ -609,6 +616,7 @@ class RegistrationController extends Controller
             'jam_mulai' => ['required', 'date_format:H:i'],
             'jam_selesai' => ['required', 'date_format:H:i', 'after:jam_mulai'],
         ]);
+        $this->scheduleAccess->authorizeClinic($request->user(), (int) $validated['poliklinik_id']);
 
         $doctorIsActiveDoctor = Nakes::whereKey($validated['dokter_id'])
             ->where('jabatan', 'dokter')
@@ -641,6 +649,8 @@ class RegistrationController extends Controller
 
     public function updateJadwalPraktik(Request $request, JadwalDokter $jadwal): RedirectResponse
     {
+        $this->scheduleAccess->authorizeClinic($request->user(), (int) $jadwal->poliklinik_id);
+
         $validated = $request->validate([
             'dokter_id' => ['required', 'exists:nakes,id'],
             'poliklinik_id' => ['required', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
@@ -650,6 +660,7 @@ class RegistrationController extends Controller
             'jam_mulai' => ['required', 'date_format:H:i'],
             'jam_selesai' => ['required', 'date_format:H:i', 'after:jam_mulai'],
         ]);
+        $this->scheduleAccess->authorizeClinic($request->user(), (int) $validated['poliklinik_id']);
 
         $doctorIsActiveDoctor = Nakes::whereKey($validated['dokter_id'])
             ->where('jabatan', 'dokter')
@@ -680,8 +691,10 @@ class RegistrationController extends Controller
         return back()->with('success', 'Jadwal praktik berhasil diperbarui.');
     }
 
-    public function destroyJadwalPraktik(JadwalDokter $jadwal): RedirectResponse
+    public function destroyJadwalPraktik(Request $request, JadwalDokter $jadwal): RedirectResponse
     {
+        $this->scheduleAccess->authorizeClinic($request->user(), (int) $jadwal->poliklinik_id);
+
         $jadwal->delete();
 
         return back()->with('success', 'Jadwal praktik berhasil dihapus.');
@@ -693,6 +706,7 @@ class RegistrationController extends Controller
             'dokter_id' => ['required', Rule::exists('nakes', 'id')->where('jabatan', 'dokter')->where('is_active', true)->whereNull('deleted_at')],
             'poliklinik_id' => ['required', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
         ]);
+        $this->scheduleAccess->authorizeClinic($request->user(), (int) $data['poliklinik_id']);
         $added = DB::transaction(fn (): int => $this->schedule->applyAsnTemplate((int) $data['dokter_id'], (int) $data['poliklinik_id'], today()->toDateString()));
 
         return back()->with('success', "{$added} hari jadwal ASN ditambahkan; jadwal yang sudah diatur tetap dipertahankan.");
@@ -731,6 +745,7 @@ class RegistrationController extends Controller
             'jam_selesai' => ['required_if:is_active,1', 'nullable', 'date_format:H:i', 'after:jam_mulai'],
             'alasan' => ['required', 'string', 'max:255'],
         ]);
+        $this->scheduleAccess->authorizeClinic($request->user(), (int) $data['poliklinik_id']);
         if (! $data['is_active']) {
             $data['jam_mulai'] = null;
             $data['jam_selesai'] = null;
@@ -742,8 +757,12 @@ class RegistrationController extends Controller
         return back()->with('success', 'Pengecualian jadwal praktik disimpan.');
     }
 
-    public function destroyScheduleException(int $exception): RedirectResponse
+    public function destroyScheduleException(Request $request, int $exception): RedirectResponse
     {
+        $scheduleException = DB::table('jadwal_khusus_dokter')->where('id', $exception)->first();
+        abort_unless($scheduleException !== null, 404);
+        $this->scheduleAccess->authorizeClinic($request->user(), (int) $scheduleException->poliklinik_id);
+
         DB::table('jadwal_khusus_dokter')->where('id', $exception)->delete();
 
         return back()->with('success', 'Pengecualian jadwal dihapus.');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Pelayanan;
 
+use App\ClinicalAnswer;
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
 use App\CorrespondenceService;
@@ -113,35 +114,31 @@ class PemeriksaanController extends Controller
         $noteIntegrityValid = $kunjungan->pemeriksaan?->signed_at ? $noteRecorder->verify($kunjungan->pemeriksaan) : null;
         $effectiveNote = $noteIntegrityValid ? $latestNote->payload : null;
         $allergyHistory = $this->allergies->forVisit($kunjungan)['riwayat_alergi'];
-        $clinicalAnswer = static fn (?string $value, string $fallback): string => filled($value) ? $value : $fallback;
+        $clinicalAnswer = static fn (?string $value, string $fallback): string => ClinicalAnswer::normalize($value) ?? $fallback;
         $firstRecordedValue = static function (?string ...$values): ?string {
             foreach ($values as $value) {
-                if (filled($value)) {
-                    return $value;
+                $recordedValue = ClinicalAnswer::normalize($value);
+                if ($recordedValue !== null) {
+                    return $recordedValue;
                 }
             }
 
             return null;
         };
         $examinationFormDefaults = [
-            'anamnesis' => $firstRecordedValue(
-                is_array($effectiveNote) ? ($effectiveNote['anamnesis'] ?? null) : $kunjungan->pemeriksaan?->anamnesis,
-                $kunjungan->screening?->keluhan,
-            ),
-            'currentHistory' => is_array($effectiveNote)
+            'anamnesis' => is_array($effectiveNote)
+                ? ClinicalAnswer::normalize($effectiveNote['anamnesis'] ?? null)
+                : $firstRecordedValue($kunjungan->pemeriksaan?->anamnesis, $kunjungan->screening?->keluhan),
+            'currentHistory' => ClinicalAnswer::normalize(is_array($effectiveNote)
                 ? ($effectiveNote['riwayat_penyakit_sekarang'] ?? null)
-                : $kunjungan->pemeriksaan?->riwayat_penyakit_sekarang,
-            'pastHistory' => $firstRecordedValue(
-                is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_dahulu'] ?? null) : $kunjungan->pemeriksaan?->riwayat_penyakit_dahulu,
-                $kunjungan->screening?->riwayat_penyakit,
-                'Belum dicatat',
-            ),
-            'familyHistory' => $firstRecordedValue(
-                is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $kunjungan->pemeriksaan?->riwayat_penyakit_keluarga,
-                $kunjungan->screening?->riwayat_penyakit_keluarga,
-                'Belum dicatat',
-            ),
-            'allergyHistory' => $allergyHistory,
+                : $kunjungan->pemeriksaan?->riwayat_penyakit_sekarang),
+            'pastHistory' => is_array($effectiveNote)
+                ? ClinicalAnswer::normalize($effectiveNote['riwayat_penyakit_dahulu'] ?? null)
+                : $firstRecordedValue($kunjungan->pemeriksaan?->riwayat_penyakit_dahulu, $kunjungan->screening?->riwayat_penyakit),
+            'familyHistory' => is_array($effectiveNote)
+                ? ClinicalAnswer::normalize($effectiveNote['riwayat_penyakit_keluarga'] ?? null)
+                : $firstRecordedValue($kunjungan->pemeriksaan?->riwayat_penyakit_keluarga, $kunjungan->screening?->riwayat_penyakit_keluarga),
+            'allergyHistory' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $allergyHistory),
         ];
         $oralHygieneIndex = is_array($effectiveNote) ? ($effectiveNote['oral_hygiene_index'] ?? null) : $kunjungan->pemeriksaan?->oral_hygiene_index;
         $odontogram = is_array($effectiveNote)
@@ -154,6 +151,7 @@ class PemeriksaanController extends Controller
             ])->all());
 
         return Inertia::render('pelayanan/pemeriksaan/show', [
+            'initialTab' => is_string($request->query('tab')) ? $request->query('tab') : 'anamnesis',
             'visit' => [
                 'id' => $kunjungan->id,
                 'attachments' => $kunjungan->attachmentSummaries(),
@@ -203,12 +201,12 @@ class PemeriksaanController extends Controller
                 'examination' => $kunjungan->pemeriksaan ? [
                     'doctorId' => $kunjungan->pemeriksaan->dokter_id,
                     'startedAt' => ($kunjungan->pemeriksaan->started_at ?? $kunjungan->pemeriksaan->created_at)?->locale('id')->isoFormat('D MMMM Y HH:mm'),
-                    'anamnesis' => is_array($effectiveNote) ? ($effectiveNote['anamnesis'] ?? null) : $kunjungan->pemeriksaan->anamnesis,
-                    'currentHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_sekarang'] ?? null) : $kunjungan->pemeriksaan->riwayat_penyakit_sekarang,
-                    'pastHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_dahulu'] ?? null) : $kunjungan->pemeriksaan->riwayat_penyakit_dahulu,
-                    'familyHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $kunjungan->pemeriksaan->riwayat_penyakit_keluarga,
-                    'allergyHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $kunjungan->pemeriksaan->riwayat_alergi,
-                    'physicalExam' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $kunjungan->pemeriksaan->pemeriksaan_fisik,
+                    'anamnesis' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['anamnesis'] ?? null) : $kunjungan->pemeriksaan->anamnesis),
+                    'currentHistory' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_sekarang'] ?? null) : $kunjungan->pemeriksaan->riwayat_penyakit_sekarang),
+                    'pastHistory' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_dahulu'] ?? null) : $kunjungan->pemeriksaan->riwayat_penyakit_dahulu),
+                    'familyHistory' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $kunjungan->pemeriksaan->riwayat_penyakit_keluarga),
+                    'allergyHistory' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $kunjungan->pemeriksaan->riwayat_alergi),
+                    'physicalExam' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $kunjungan->pemeriksaan->pemeriksaan_fisik),
                     'physicalSystems' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik_terstruktur'] ?? []) : ($kunjungan->pemeriksaan->pemeriksaan_fisik_terstruktur ?? []),
                     'extraoralExam' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_ekstraoral'] ?? null) : $kunjungan->pemeriksaan->pemeriksaan_ekstraoral,
                     'oralHygieneIndex' => is_numeric($oralHygieneIndex) ? (float) $oralHygieneIndex : null,
@@ -428,7 +426,14 @@ class PemeriksaanController extends Controller
                 $data['code_release'] = $canonical->release;
             }
 
-            $pemeriksaan = $kunjungan->pemeriksaan()->firstOrCreate(['kunjungan_id' => $kunjungan->id], ['status' => 'draft']);
+            $pemeriksaan = $kunjungan->pemeriksaan()->firstOrCreate(['kunjungan_id' => $kunjungan->id], ['status' => 'draft', 'dokter_id' => $kunjungan->dokter_id]);
+
+            if ($pemeriksaan->diagnosa()->where('code_system', $codeSystem)->where('kode_icd10', $data['kode_icd10'])->exists()) {
+                throw ValidationException::withMessages(['kode_icd10' => 'Diagnosis ini sudah tercatat. Hapus entri sebelumnya jika perlu dikoreksi.']);
+            }
+            if ($data['jenis'] === 'utama') {
+                $pemeriksaan->diagnosa()->where('jenis', 'utama')->update(['jenis' => 'tambahan']);
+            }
 
             $pemeriksaan->diagnosa()->create([
                 'kode_icd10' => $data['kode_icd10'],
@@ -489,6 +494,8 @@ class PemeriksaanController extends Controller
                         'status' => 'menunggu',
                     ]
                 );
+
+                abort_unless($resep->status === 'menunggu', 422, 'Resep yang sudah diproses tidak dapat diubah.');
 
                 $obat = ! empty($data['obat_id']) ? Obat::whereKey($data['obat_id'])->lockForUpdate()->firstOrFail() : null;
                 $isResepLuar = (bool) ($data['is_resep_luar'] ?? false);
@@ -757,11 +764,11 @@ class PemeriksaanController extends Controller
             $examination = $lockedVisit->pemeriksaan()->lockForUpdate()->first();
             abort_unless($examination, 422, 'Simpan hasil pemeriksaan sebelum menyelesaikan kunjungan.');
             abort_unless(
-                filled($examination->anamnesis) && filled($examination->pemeriksaan_fisik),
+                ClinicalAnswer::normalize($examination->anamnesis) !== null && ClinicalAnswer::normalize($examination->pemeriksaan_fisik) !== null,
                 422,
                 'Anamnesis dan pemeriksaan fisik wajib diisi sebelum finalisasi.'
             );
-            abort_unless($examination->diagnosa()->where('jenis', 'utama')->exists(), 422, 'Diagnosis utama wajib dicatat sebelum finalisasi.');
+            abort_unless($examination->diagnosa()->where('jenis', 'utama')->count() === 1, 422, 'Pastikan tepat satu diagnosis utama sebelum finalisasi.');
             if ($lockedVisit->poliklinik?->jenis === 'gigi') {
                 abort_unless($lockedVisit->odontogramFindings()->exists(), 422, 'Catat temuan odontogram sebelum finalisasi kunjungan gigi.');
             }
@@ -796,13 +803,14 @@ class PemeriksaanController extends Controller
             $this->allergies->remember($lockedVisit, $examination->riwayat_alergi);
 
             $prescription = $lockedVisit->resep;
-            if ($prescription && $prescription->resepObat()->exists()) {
+            if ($prescription && $prescription->resepObat()->where('is_resep_luar', false)->exists()) {
                 Farmasi::firstOrCreate(
                     ['kunjungan_id' => $lockedVisit->id],
                     ['resep_id' => $prescription->id, 'status' => 'menunggu']
                 );
                 $lockedVisit->update(['status' => 'farmasi']);
             } else {
+                $prescription?->update(['status' => 'selesai']);
                 $lockedVisit->update(['status' => 'selesai']);
             }
 
@@ -829,7 +837,6 @@ class PemeriksaanController extends Controller
             'pemeriksaan_fisik_terstruktur' => ['sometimes', Rule::excludeIf(! $isGeneralClinic), 'nullable', 'array'],
             'pemeriksaan_fisik_terstruktur.*' => ['nullable', 'string', 'max:3000'],
             'pemeriksaan_ekstraoral' => ['sometimes', Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
-            'oral_hygiene_index' => ['sometimes', Rule::excludeIf(! $isDentalClinic), 'nullable', 'numeric', 'between:0,6'],
             'diagnosis_banding' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'catatan' => ['sometimes', 'nullable', 'string'],
             'edukasi' => ['sometimes', 'nullable', 'string'],
@@ -838,7 +845,7 @@ class PemeriksaanController extends Controller
         $fields = array_intersect_key($data, array_flip([
             'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu',
             'riwayat_penyakit_keluarga', 'riwayat_alergi', 'pemeriksaan_fisik',
-            'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'oral_hygiene_index',
+            'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral',
             'diagnosis_banding', 'catatan', 'edukasi', 'kontrol_berikutnya',
         ]));
         if ($fields === []) {
@@ -859,7 +866,7 @@ class PemeriksaanController extends Controller
             $payload = $latestVersion->payload;
 
             foreach ($fields as $field => $value) {
-                $normalized = is_string($value) ? trim($value) : $value;
+                $normalized = is_string($value) ? ClinicalAnswer::normalize($value) : $value;
                 if ($field === 'pemeriksaan_fisik_terstruktur' && is_array($normalized)) {
                     $normalized = collect($normalized)
                         ->map(fn (mixed $entry): ?string => filled($entry) ? trim((string) $entry) : null)
@@ -1127,6 +1134,7 @@ class PemeriksaanController extends Controller
         $isDentalClinic = $kunjungan->poliklinik?->jenis === 'gigi';
 
         $data = $request->validate([
+            'section' => ['sometimes', 'required', Rule::in(['anamnesis', 'pemeriksaan', 'diagnosis', 'rencana'])],
             'dokter_id' => ['nullable', 'exists:nakes,id'],
             'anamnesis' => ['nullable', 'string', 'max:10000'],
             'riwayat_penyakit_sekarang' => ['nullable', 'string', 'max:10000'],
@@ -1137,16 +1145,27 @@ class PemeriksaanController extends Controller
             'pemeriksaan_fisik_terstruktur' => [Rule::excludeIf(! $isGeneralClinic), 'nullable', 'array'],
             'pemeriksaan_fisik_terstruktur.*' => ['nullable', 'string', 'max:3000'],
             'pemeriksaan_ekstraoral' => [Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
-            'oral_hygiene_index' => [Rule::excludeIf(! $isDentalClinic), 'nullable', 'numeric', 'between:0,6'],
             'diagnosis_banding' => ['nullable', 'string', 'max:5000'],
             'catatan' => ['nullable', 'string', 'max:5000'],
             'edukasi' => ['nullable', 'string', 'max:5000'],
             'kontrol_berikutnya' => ['nullable', 'date_format:Y-m-d'],
         ]);
 
+        $section = $data['section'] ?? null;
+        unset($data['section']);
+        if ($section !== null) {
+            $sectionFields = match ($section) {
+                'anamnesis' => ['dokter_id', 'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu', 'riwayat_penyakit_keluarga', 'riwayat_alergi'],
+                'pemeriksaan' => ['pemeriksaan_fisik', 'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral'],
+                'diagnosis' => ['diagnosis_banding'],
+                'rencana' => ['kontrol_berikutnya', 'catatan', 'edukasi'],
+            };
+            $data = array_intersect_key($data, array_flip($sectionFields));
+        }
+
         foreach ($data as $field => $value) {
             if (is_string($value)) {
-                $data[$field] = filled($value) ? trim($value) : null;
+                $data[$field] = ClinicalAnswer::normalize($value);
             }
 
             if ($field === 'pemeriksaan_fisik_terstruktur' && is_array($value)) {
@@ -1158,7 +1177,7 @@ class PemeriksaanController extends Controller
             }
         }
 
-        if (blank($data['riwayat_alergi'] ?? null)) {
+        if (($section === null || $section === 'anamnesis') && ! array_key_exists('riwayat_alergi', $data)) {
             $data['riwayat_alergi'] = $this->allergies->forVisit($kunjungan)['riwayat_alergi'];
         }
 

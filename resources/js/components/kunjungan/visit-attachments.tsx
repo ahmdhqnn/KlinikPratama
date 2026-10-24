@@ -1,5 +1,6 @@
+import { ActionButton } from '@/components/ui/action-button';
 import { useForm } from '@inertiajs/react';
-import { Download, FileText, Trash2, Upload } from 'lucide-react';
+import { FileText, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Attachment } from '@/components/ui/attachment';
 import { Button } from '@/components/ui/button';
@@ -54,8 +55,8 @@ export function VisitAttachments({ attachments = [], uploadUrl, disabled = false
                     </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
-                    <Button asChild size="sm" variant="secondary"><a href={document.downloadUrl} aria-label={`Unduh ${document.name}`}><Download className="size-4" />Unduh</a></Button>
-                    {uploadUrl && <Button aria-label={`Hapus ${document.name}`} disabled={busy} onClick={() => confirmAction(`Hapus lampiran “${document.name}” dari kunjungan ini?`, () => removal.delete(document.deleteUrl, { preserveScroll: true }), 'Hapus lampiran')} size="sm" type="button" variant="ghost"><Trash2 className="size-4" /><span className="sm:sr-only">Hapus</span></Button>}
+                    <ActionButton asChild action="download" label={`Unduh ${document.name}`}><a href={document.downloadUrl} /></ActionButton>
+                    {uploadUrl && <ActionButton disabled={busy} onClick={() => confirmAction(`Hapus lampiran “${document.name}” dari kunjungan ini?`, () => removal.delete(document.deleteUrl, { preserveScroll: true }), 'Hapus lampiran')} type="button" action="delete" label={`Hapus ${document.name}`} />}
                 </div>
             </li>)}
         </ul> : <p className="text-sm text-neutral-500">Belum ada lampiran pada kunjungan ini.</p>}

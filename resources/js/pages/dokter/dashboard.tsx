@@ -1,5 +1,5 @@
 import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { CalendarClock, ChartNoAxesCombined, ClipboardCheck, ClipboardList, Pill, Stethoscope, UsersRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -17,12 +17,14 @@ interface Props {
 }
 
 export default function DoctorDashboard({ stats, schedule, recentVisits, followUp }: Props) {
+    const { auth } = usePage<{ auth?: { user?: { clinicType?: string | null } | null } }>().props;
+    const practiceLabel = auth?.user?.clinicType === 'gigi' ? 'Praktik dokter gigi' : auth?.user?.clinicType === 'umum' ? 'Praktik dokter umum' : 'Praktik dokter';
     return (
         <>
             <Head title="Dashboard Dokter" />
             <div className="space-y-6">
                 <div>
-                    <p className="text-sm font-medium text-neutral-700">Praktik dokter</p>
+                    <p className="text-sm font-medium text-neutral-700">{practiceLabel}</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ringkasan pelayanan</h2>
                     <p className="mt-1 text-sm text-neutral-500">Jadwal praktik dan kunjungan pasien yang ditugaskan kepada Anda.</p>
                 </div>

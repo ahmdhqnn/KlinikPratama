@@ -1,3 +1,5 @@
+import { fieldControlInvalidClassName, useFieldControl } from '@/components/ui/field';
+import { calendarNavigationDate, clampDate, fromDateKey, isDateWithinBounds, isMonthWithinBounds, toDateKey } from '@/lib/calendar';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Select } from '@/components/ui/select';
@@ -5,24 +7,6 @@ import { cn } from '@/lib/utils';
 
 export interface DatePickerChangeEvent {
     target: { value: string };
-}
-
-function toDateKey(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-
-    return `${year}-${month}-${day}`;
-}
-
-function fromDateKey(value?: string): Date | null {
-    if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        return null;
-    }
-
-    const [year, month, day] = value.split('-').map(Number);
-
-    return new Date(year, month - 1, day);
 }
 
 export function DatePicker({
@@ -40,6 +24,7 @@ export function DatePicker({
     name,
     'aria-label': ariaLabel,
     'aria-describedby': ariaDescribedBy,
+    'aria-invalid': ariaInvalid,
 }: {
     id?: string;
     value?: string;
@@ -55,15 +40,18 @@ export function DatePicker({
     name?: string;
     'aria-label'?: string;
     'aria-describedby'?: string;
+    'aria-invalid'?: boolean | 'true' | 'false' | 'grammar' | 'spelling';
 }) {
+    const accessibility = useFieldControl({ 'aria-describedby': ariaDescribedBy, 'aria-invalid': ariaInvalid, 'aria-required': required || undefined });
     const [open, setOpen] = useState(false);
+    const [inlineCalendar, setInlineCalendar] = useState(false);
     const calendarId = useId();
     const containerRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const selectedDate = useMemo(() => fromDateKey(value), [value]);
-    const [activeDateKey, setActiveDateKey] = useState(value || toDateKey(new Date()));
+    const initialDate = clampDate(fromDateKey(value) ?? new Date(), min, calendarMode === 'date-of-birth' ? (max && max < toDateKey(new Date()) ? max : toDateKey(new Date())) : max);
+    const [activeDateKey, setActiveDateKey] = useState(toDateKey(initialDate));
     const [visibleMonth, setVisibleMonth] = useState(() => {
-        const initialDate = fromDateKey(value) ?? new Date();
         return new Date(initialDate.getFullYear(), initialDate.getMonth(), 1);
     });
     const isDateOfBirthPicker = calendarMode === 'date-of-birth';
@@ -103,7 +91,7 @@ export function DatePicker({
             containerRef.current?.querySelector<HTMLButtonElement>(`[data-date="${activeDateKey}"]`)?.focus();
         });
 
-        function closeOutside(event: PointerEvent): void {
+        function closeOutside(event: Event): void {
             const target = event.target as Element | null;
             const isCalendarControl = target?.closest('[data-radix-popper-content-wrapper]');
 
@@ -120,20 +108,31 @@ export function DatePicker({
         }
 
         document.addEventListener('pointerdown', closeOutside);
+        document.addEventListener('focusin', closeOutside);
         document.addEventListener('keydown', closeOnEscape);
 
         return () => {
             document.removeEventListener('pointerdown', closeOutside);
+            document.removeEventListener('focusin', closeOutside);
             document.removeEventListener('keydown', closeOnEscape);
         };
     }, [activeDateKey, open]);
 
     function changeMonth(event: MouseEvent<HTMLButtonElement>, offset: number): void {
         event.preventDefault();
-        setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() + offset, 1));
+        showMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + offset, 1));
+    }
+
+    function showMonth(month: Date): void {
+        const focusDate = clampDate(month, min, effectiveMax);
+        setVisibleMonth(new Date(focusDate.getFullYear(), focusDate.getMonth(), 1));
+        setActiveDateKey(toDateKey(focusDate));
     }
 
     function chooseDate(date: Date): void {
+        if (disabled || readOnly || !isDateWithinBounds(date, min, effectiveMax)) {
+            return;
+        }
         const nextValue = toDateKey(date);
         setActiveDateKey(nextValue);
         onChange?.({ target: { value: nextValue } });
@@ -142,25 +141,11 @@ export function DatePicker({
     }
 
     function moveFocus(event: ReactKeyboardEvent<HTMLButtonElement>, date: Date): void {
-        const offsetByKey: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
-        let nextDate: Date | null = null;
-
-        if (event.key in offsetByKey) {
-            nextDate = new Date(date);
-            nextDate.setDate(date.getDate() + offsetByKey[event.key]);
-        } else if (event.key === 'Home' || event.key === 'End') {
-            nextDate = new Date(date);
-            const mondayOffset = (date.getDay() + 6) % 7;
-            nextDate.setDate(date.getDate() + (event.key === 'Home' ? -mondayOffset : 6 - mondayOffset));
-        } else if (event.key === 'PageUp' || event.key === 'PageDown') {
-            const monthOffset = event.key === 'PageUp' ? -1 : 1;
-            const targetMonth = new Date(date.getFullYear(), date.getMonth() + monthOffset + 1, 0).getDate();
-            nextDate = new Date(date.getFullYear(), date.getMonth() + monthOffset, Math.min(date.getDate(), targetMonth));
-        }
-
-        if (!nextDate) {
+        const proposedDate = calendarNavigationDate(date, event.key);
+        if (!proposedDate) {
             return;
         }
+        const nextDate = clampDate(proposedDate, min, effectiveMax);
 
         event.preventDefault();
         const nextValue = toDateKey(nextDate);
@@ -174,16 +159,18 @@ export function DatePicker({
     }
 
     return (
-        <div className="relative" ref={containerRef}>
-            {name && <input name={name} type="hidden" value={value} />}
+        <div className="relative min-w-0 w-full" ref={containerRef}>
+            {name && <input disabled={disabled || readOnly} name={name} type="hidden" value={value} />}
             <input
                 aria-hidden="true"
+                disabled={disabled || readOnly}
                 className="pointer-events-none absolute size-px opacity-0"
                 max={effectiveMax}
                 min={min}
                 onChange={() => undefined}
                 onInvalid={(event) => {
                     event.preventDefault();
+                    setInlineCalendar(Boolean(containerRef.current?.closest('[role="dialog"]')));
                     setOpen(true);
                     triggerRef.current?.focus();
                 }}
@@ -193,18 +180,20 @@ export function DatePicker({
                 value={value}
             />
             <button
-                aria-describedby={ariaDescribedBy}
+                {...accessibility}
                 aria-expanded={open}
                 aria-controls={calendarId}
                 aria-haspopup="dialog"
-                aria-label={ariaLabel ?? dateLabel}
-                aria-required={required || undefined}
-                className={cn('flex h-10 w-full items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm shadow-sm outline-none transition hover:border-neutral-300 focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50', value ? 'text-neutral-950' : 'text-neutral-400', className)}
+                aria-label={ariaLabel ?? (id ? undefined : dateLabel)}
+                className={cn('flex h-10 min-w-0 w-full items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm shadow-sm outline-none transition hover:border-neutral-300 focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50', value ? 'text-neutral-950' : 'text-neutral-400', fieldControlInvalidClassName, className)}
                 disabled={disabled || readOnly}
                 id={id}
                 onClick={() => {
-                    if (!open && selectedDate) {
-                        setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+                    setInlineCalendar(Boolean(containerRef.current?.closest('[role="dialog"]')));
+                    if (!open) {
+                        const focusDate = clampDate(selectedDate ?? new Date(), min, effectiveMax);
+                        setVisibleMonth(new Date(focusDate.getFullYear(), focusDate.getMonth(), 1));
+                        setActiveDateKey(toDateKey(focusDate));
                     }
                     setOpen((current) => !current);
                 }}
@@ -215,20 +204,20 @@ export function DatePicker({
                 <CalendarDays aria-hidden="true" className="size-4 shrink-0 text-neutral-500" />
             </button>
             {open && (
-                <div aria-label="Pilih tanggal" className="absolute right-0 top-full z-[85] mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-neutral-200 bg-surface p-3 shadow-xl shadow-inverse/15 sm:left-0 sm:right-auto" id={calendarId} role="dialog">
+                <div aria-label="Pilih tanggal" className={cn('z-[85] mt-2 rounded-xl border border-neutral-200 bg-surface p-3 shadow-xl shadow-inverse/15', inlineCalendar ? 'relative w-full max-w-80' : 'absolute right-0 top-full w-[min(20rem,calc(100vw-2rem))] sm:left-0 sm:right-auto')} id={calendarId} role="dialog">
                     <div className="mb-3 flex items-center justify-between gap-2">
-                        <button aria-label="Bulan sebelumnya" className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" onClick={(event) => changeMonth(event, -1)} type="button"><ChevronLeft aria-hidden="true" className="size-4" /></button>
+                        <button disabled={!isMonthWithinBounds(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1), min, effectiveMax)} aria-label="Bulan sebelumnya" className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 disabled:cursor-not-allowed disabled:opacity-40" onClick={(event) => changeMonth(event, -1)} type="button"><ChevronLeft aria-hidden="true" className="size-4" /></button>
                         {isDateOfBirthPicker ? (
                             <div aria-live="polite" className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_6rem] gap-2">
-                                <Select aria-label="Pilih bulan lahir" className="h-9 min-w-0 rounded-md px-2 text-xs" onChange={(event) => setVisibleMonth((month) => new Date(month.getFullYear(), Number(event.target.value), 1))} value={visibleMonth.getMonth()}>
+                                <Select aria-label="Pilih bulan lahir" className="h-9 min-w-0 rounded-md px-2 text-xs" onChange={(event) => showMonth(new Date(visibleMonth.getFullYear(), Number(event.target.value), 1))} value={visibleMonth.getMonth()}>
                                     {monthOptions.map((month) => <option key={month} value={month}>{new Intl.DateTimeFormat('id-ID', { month: 'long' }).format(new Date(2000, month, 1))}</option>)}
                                 </Select>
-                                <Select aria-label="Pilih tahun lahir" className="h-9 rounded-md px-2 text-xs" onChange={(event) => setVisibleMonth((month) => new Date(Number(event.target.value), month.getMonth(), 1))} value={visibleMonth.getFullYear()}>
+                                <Select aria-label="Pilih tahun lahir" className="h-9 rounded-md px-2 text-xs" onChange={(event) => showMonth(new Date(Number(event.target.value), visibleMonth.getMonth(), 1))} value={visibleMonth.getFullYear()}>
                                     {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
                                 </Select>
                             </div>
                         ) : <p aria-live="polite" className="text-sm font-semibold capitalize text-neutral-900">{monthLabel}</p>}
-                        <button aria-label="Bulan berikutnya" className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" onClick={(event) => changeMonth(event, 1)} type="button"><ChevronRight aria-hidden="true" className="size-4" /></button>
+                        <button disabled={!isMonthWithinBounds(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1), min, effectiveMax)} aria-label="Bulan berikutnya" className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 disabled:cursor-not-allowed disabled:opacity-40" onClick={(event) => changeMonth(event, 1)} type="button"><ChevronRight aria-hidden="true" className="size-4" /></button>
                     </div>
                     <div className="grid grid-cols-7 gap-1">
                         {weekdays.map((day) => <span aria-hidden="true" className="py-1 text-center text-[11px] font-medium text-neutral-400" key={day}>{day}</span>)}
@@ -242,7 +231,7 @@ export function DatePicker({
                                 <button
                                     aria-label={new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(date)}
                                     aria-pressed={selected}
-                                    className={cn('flex size-9 items-center justify-center rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500', selected ? 'bg-neutral-600 font-semibold text-neutral-50 hover:bg-neutral-700' : dateKey === today ? 'font-semibold text-neutral-700 hover:bg-neutral-50' : 'text-neutral-700 hover:bg-neutral-100', !inMonth && !selected && 'text-neutral-300', outsideBounds && 'cursor-not-allowed opacity-30')}
+                                    className={cn('flex aspect-square w-full items-center justify-center rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500', selected ? 'bg-neutral-700 font-semibold text-neutral-50 hover:bg-neutral-800' : dateKey === today ? 'font-semibold text-neutral-700 hover:bg-neutral-50' : 'text-neutral-700 hover:bg-neutral-100', !inMonth && !selected && 'text-neutral-300', outsideBounds && 'cursor-not-allowed opacity-30')}
                                     disabled={Boolean(outsideBounds)}
                                     data-date={dateKey}
                                     key={dateKey}
@@ -256,9 +245,10 @@ export function DatePicker({
                             );
                         })}
                     </div>
-                    {!isDateOfBirthPicker && <div className="mt-3 border-t border-neutral-100 pt-2 text-right">
-                        <button className="rounded px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" onClick={() => chooseDate(new Date())} type="button">Hari ini</button>
-                    </div>}
+                    <div className="mt-3 flex items-center justify-between border-t border-neutral-100 pt-2">
+                        {!required && value ? <button className="rounded px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-100" onClick={() => { onChange?.({ target: { value: '' } }); setOpen(false); triggerRef.current?.focus(); }} type="button">Hapus tanggal</button> : <span />}
+                        <button className="rounded px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 disabled:cursor-not-allowed disabled:opacity-40" disabled={!isDateWithinBounds(new Date(), min, effectiveMax)} onClick={() => chooseDate(new Date())} type="button">Hari ini</button>
+                    </div>
                 </div>
             )}
         </div>

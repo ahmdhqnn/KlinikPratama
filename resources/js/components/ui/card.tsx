@@ -5,7 +5,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLElement>) {
     return (
         <section
             className={cn(
-                'rounded-2xl border border-neutral-200 bg-surface shadow-sm shadow-inverse/[0.025]',
+                'min-w-0 rounded-2xl border border-neutral-200 bg-surface shadow-sm shadow-inverse/[0.025]',
                 className,
             )}
             {...props}
@@ -43,5 +43,5 @@ export function CardContent({
     className,
     ...props
 }: HTMLAttributes<HTMLDivElement>) {
-    return <div className={cn('p-5 pt-0 sm:p-6 sm:pt-0', className)} {...props} />;
+    return <div className={cn('min-w-0 p-5 pt-0 sm:p-6 sm:pt-0', className)} {...props} />;
 }
