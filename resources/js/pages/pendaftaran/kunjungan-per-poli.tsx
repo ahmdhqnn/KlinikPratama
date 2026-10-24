@@ -1,6 +1,7 @@
+import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { Activity, Ban, CalendarDays, Clock3, ClipboardCheck, HeartPulse, Pencil, Printer, Search, Stethoscope } from 'lucide-react';
+import { Activity, CalendarDays, Clock3, ClipboardCheck, Search, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { StatusBadge, visitStatusLabels } from '@/components/dashboard/status-badge';
@@ -8,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -154,9 +154,9 @@ function VisitActions({ visit, manageVisits }: { visit: Visit; manageVisits: boo
     const isMedicalRecordAction = visit.actionLabel === 'Lihat RME';
 
     return <div className="flex justify-center gap-2">
-        <Button asChild size="sm" variant="secondary"><Link href={visit.actionUrl}>{isScreeningAction && <ClipboardCheck className="size-4" />}{isMedicalRecordAction && <HeartPulse className="size-4" />}{isMedicalRecordAction ? 'RME' : visit.actionLabel}</Link></Button>
-        {manageVisits && visit.editUrl && <Button asChild aria-label={`Perbarui kunjungan ${visit.number}`} size="sm" variant="secondary"><Link href={visit.editUrl}><Pencil className="size-4" />Edit</Link></Button>}
-        {manageVisits && visit.cancelUrl && <Button aria-label={`Batalkan kunjungan ${visit.number}`} onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} untuk ${visit.patient}?`, () => { router.post(visit.cancelUrl as string, {}, { preserveScroll: true }); }, 'Batalkan')} size="sm" type="button" variant="secondary"><Ban className="size-4 text-red-600" />Batalkan</Button>}
-        {visit.ticketUrl && <Button asChild aria-label={`Cetak antrean ${visit.number}`} size="sm" variant="secondary"><a href={visit.ticketUrl}><Printer className="size-4" />Cetak</a></Button>}
+        <ActionButton asChild action={isScreeningAction ? 'screening' : isMedicalRecordAction ? 'rme' : 'detail'} label={visit.actionLabel}><Link href={visit.actionUrl} /></ActionButton>
+        {manageVisits && visit.editUrl && <ActionButton asChild action="edit" label={`Perbarui kunjungan ${visit.number}`}><Link href={visit.editUrl} /></ActionButton>}
+        {manageVisits && visit.cancelUrl && <ActionButton onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} untuk ${visit.patient}?`, () => { router.post(visit.cancelUrl as string, {}, { preserveScroll: true }); }, 'Batalkan')} type="button" action="cancel" label={`Batalkan kunjungan ${visit.number}`} />}
+        {visit.ticketUrl && <ActionButton asChild action="print" label={`Cetak antrean ${visit.number}`}><a href={visit.ticketUrl} /></ActionButton>}
     </div>;
 }

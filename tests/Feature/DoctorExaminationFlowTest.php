@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\ClinicalNoteVersion;
 use App\Models\Diagnosa;
 use App\Models\JadwalDokter;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Obat;
+use App\Models\OdontogramFinding;
 use App\Models\Pasien;
 use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
@@ -15,6 +17,7 @@ use App\Models\Tindakan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class DoctorExaminationFlowTest extends TestCase
@@ -39,8 +42,8 @@ class DoctorExaminationFlowTest extends TestCase
         $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('visit.examinationFormDefaults.anamnesis', null)
-                ->where('visit.examinationFormDefaults.pastHistory', 'Belum dicatat')
-                ->where('visit.examinationFormDefaults.familyHistory', 'Belum dicatat')
+                ->where('visit.examinationFormDefaults.pastHistory', null)
+                ->where('visit.examinationFormDefaults.familyHistory', null)
                 ->where('visit.examinationFormDefaults.allergyHistory', null)
             );
 
@@ -410,4 +413,240 @@ class DoctorExaminationFlowTest extends TestCase
         $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertForbidden();
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'dokter_id' => $doctor->id]);
     }
+
+    #[TestWith(['umum', 'anamnesis'])]
+    #[TestWith(['gigi', 'anamnesis'])]
+    #[TestWith(['umum', 'pemeriksaan'])]
+    #[TestWith(['gigi', 'pemeriksaan'])]
+    #[TestWith(['umum', 'diagnosis'])]
+    #[TestWith(['gigi', 'diagnosis'])]
+    #[TestWith(['umum', 'rencana'])]
+    #[TestWith(['gigi', 'rencana'])]
+    public function test_saving_a_clinical_section_preserves_other_draft_sections(string $clinicType, string $section): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections($clinicType);
+        $payloads = [
+            'anamnesis' => ['anamnesis' => 'Keluhan diperbarui', 'pemeriksaan_fisik' => null, 'diagnosis_banding' => null, 'kontrol_berikutnya' => null],
+            'pemeriksaan' => ['pemeriksaan_fisik' => 'Temuan diperbarui', 'anamnesis' => null, 'riwayat_alergi' => 'Tidak ada alergi', 'diagnosis_banding' => null, 'catatan' => null],
+            'diagnosis' => ['diagnosis_banding' => 'Periodontitis', 'anamnesis' => null, 'pemeriksaan_fisik' => null, 'riwayat_alergi' => 'Tidak ada alergi', 'edukasi' => null],
+            'rencana' => ['kontrol_berikutnya' => '2026-11-03', 'catatan' => 'Evaluasi ulang', 'edukasi' => 'Anjuran diperbarui', 'anamnesis' => null, 'pemeriksaan_fisik' => null, 'riwayat_alergi' => 'Tidak ada alergi'],
+        ];
+        $expectedChanges = [
+            'anamnesis' => ['anamnesis' => 'Keluhan diperbarui'],
+            'pemeriksaan' => ['pemeriksaan_fisik' => 'Temuan diperbarui'],
+            'diagnosis' => ['diagnosis_banding' => 'Periodontitis'],
+            'rencana' => ['kontrol_berikutnya' => '2026-11-03', 'catatan' => 'Evaluasi ulang', 'edukasi' => 'Anjuran diperbarui'],
+        ];
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => $section, 'oral_hygiene_index' => 5, ...$payloads[$section],
+        ])->assertSessionHasNoErrors();
+
+        $expected = array_replace([
+            'id' => $examination->id, 'anamnesis' => 'Keluhan awal', 'pemeriksaan_fisik' => 'Temuan awal',
+            'diagnosis_banding' => 'Diagnosis banding awal', 'riwayat_alergi' => 'Penisilin',
+            'kontrol_berikutnya' => '2026-11-01', 'catatan' => 'Catatan awal', 'edukasi' => 'Edukasi awal',
+            'oral_hygiene_index' => 1.25,
+        ], $expectedChanges[$section]);
+        $expectedDate = $expected['kontrol_berikutnya'];
+        unset($expected['kontrol_berikutnya']);
+        $this->assertDatabaseHas('pemeriksaan', $expected);
+        $this->assertSame($expectedDate, $examination->fresh()->kontrol_berikutnya?->toDateString());
+    }
+
+    public function test_clearing_follow_up_date_does_not_clear_anamnesis_or_allergy(): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections('gigi');
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => 'rencana', 'kontrol_berikutnya' => '', 'catatan' => '', 'edukasi' => '',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('pemeriksaan', [
+            'id' => $examination->id, 'kontrol_berikutnya' => null, 'catatan' => null, 'edukasi' => null,
+            'anamnesis' => 'Keluhan awal', 'pemeriksaan_fisik' => 'Temuan awal', 'riwayat_alergi' => 'Penisilin',
+        ]);
+    }
+
+    public function test_invalid_follow_up_date_leaves_existing_plan_unchanged(): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections('umum');
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => 'rencana', 'kontrol_berikutnya' => '2026-02-30', 'edukasi' => 'Isian baru',
+        ])->assertSessionHasErrors('kontrol_berikutnya');
+
+        $this->assertDatabaseHas('pemeriksaan', ['id' => $examination->id, 'edukasi' => 'Edukasi awal']);
+        $this->assertSame('2026-11-01', $examination->fresh()->kontrol_berikutnya?->toDateString());
+    }
+
+    public function test_unknown_section_cannot_overwrite_a_draft_examination(): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections('umum');
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => 'tidak-dikenal', 'anamnesis' => 'Ganti catatan',
+        ])->assertSessionHasErrors('section');
+
+        $this->assertDatabaseHas('pemeriksaan', ['id' => $examination->id, 'anamnesis' => 'Keluhan awal']);
+    }
+
+    #[TestWith(['umum', 'Belum dicatat'])]
+    #[TestWith(['gigi', 'Belum di catat'])]
+    #[TestWith(['umum', ' BELUM   DIISI. '])]
+    #[TestWith(['gigi', 'Belum dikaji'])]
+    public function test_unknown_history_stays_empty_in_doctor_form_and_is_not_recorded_as_absent(string $clinicType, string $placeholder): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections($clinicType);
+        $visit->pasien->update(['riwayat_alergi' => $placeholder]);
+        $examination->update([
+            'riwayat_penyakit_sekarang' => $placeholder, 'riwayat_penyakit_dahulu' => $placeholder,
+            'riwayat_penyakit_keluarga' => $placeholder, 'riwayat_alergi' => $placeholder,
+        ]);
+        Screening::create([
+            'kunjungan_id' => $visit->id, 'riwayat_penyakit' => $placeholder,
+            'riwayat_penyakit_keluarga' => $placeholder, 'riwayat_alergi' => $placeholder,
+        ]);
+
+        $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.examinationFormDefaults.currentHistory', null)
+            ->where('visit.examinationFormDefaults.pastHistory', null)
+            ->where('visit.examinationFormDefaults.familyHistory', null)
+            ->where('visit.examinationFormDefaults.allergyHistory', null)
+        );
+        $this->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => 'anamnesis', 'anamnesis' => 'Keluhan masih dirasakan',
+            'riwayat_penyakit_sekarang' => $placeholder, 'riwayat_penyakit_dahulu' => '',
+            'riwayat_penyakit_keluarga' => '', 'riwayat_alergi' => '',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('pemeriksaan', [
+            'id' => $examination->id, 'riwayat_penyakit_sekarang' => null, 'riwayat_penyakit_dahulu' => null,
+            'riwayat_penyakit_keluarga' => null, 'riwayat_alergi' => null,
+        ]);
+        $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien_id))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.0.examination.currentHistory', 'Belum dicatat')
+            ->where('visits.0.examination.pastHistory', 'Belum dicatat')
+            ->where('visits.0.examination.familyHistory', 'Belum dicatat')
+            ->where('visits.0.examination.allergyHistory', 'Belum dicatat')
+        );
+    }
+
+    public function test_real_nursing_history_is_carried_forward_despite_legacy_doctor_placeholders(): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections('gigi');
+        $examination->update(['riwayat_penyakit_dahulu' => 'Belum dicatat', 'riwayat_penyakit_keluarga' => 'Belum dicatat']);
+        Screening::create(['kunjungan_id' => $visit->id, 'riwayat_penyakit' => 'Diabetes', 'riwayat_penyakit_keluarga' => 'Hipertensi pada ayah']);
+
+        $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.examinationFormDefaults.pastHistory', 'Diabetes')
+            ->where('visit.examinationFormDefaults.familyHistory', 'Hipertensi pada ayah')
+        );
+    }
+
+    public function test_explicitly_confirmed_absent_histories_are_preserved_in_signed_medical_record(): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections('gigi');
+        Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'K02.9', 'nama_diagnosa' => 'Karies', 'jenis' => 'utama']);
+        OdontogramFinding::create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries']);
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => 'anamnesis', 'anamnesis' => 'Nyeri gigi',
+            'riwayat_penyakit_dahulu' => 'Tidak ada riwayat penyakit dahulu menurut pasien',
+            'riwayat_penyakit_keluarga' => 'Tidak ada riwayat penyakit keluarga menurut pasien',
+            'riwayat_alergi' => 'Tidak ada riwayat alergi menurut pasien',
+        ])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertRedirect();
+
+        $payload = ClinicalNoteVersion::sole()->payload;
+        $this->assertSame('Tidak ada riwayat penyakit dahulu menurut pasien', $payload['riwayat_penyakit_dahulu']);
+        $this->assertSame('Tidak ada riwayat penyakit keluarga menurut pasien', $payload['riwayat_penyakit_keluarga']);
+        $this->assertSame('Tidak ada riwayat alergi menurut pasien', $payload['riwayat_alergi']);
+        $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien_id))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.0.examination.familyHistory', 'Tidak ada riwayat penyakit keluarga menurut pasien')
+            ->where('visits.0.examination.allergyHistory', 'Tidak ada riwayat alergi menurut pasien')
+        );
+    }
+
+    public function test_unanswered_doctor_allergy_stays_unknown_while_known_patient_allergy_remains_visible(): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections('umum');
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => 'anamnesis', 'anamnesis' => 'Keluhan awal', 'riwayat_alergi' => '',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('pemeriksaan', ['id' => $examination->id, 'riwayat_alergi' => null]);
+        $this->assertDatabaseHas('pasien', ['id' => $visit->pasien_id, 'riwayat_alergi' => 'Udang']);
+        $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien_id))->assertInertia(fn (Assert $page) => $page
+            ->where('patient.allergies', 'Udang')
+            ->where('visits.0.examination.allergyHistory', 'Belum dicatat')
+        );
+    }
+
+    #[TestWith(['anamnesis'])]
+    #[TestWith(['pemeriksaan_fisik'])]
+    public function test_placeholder_is_not_sufficient_clinical_content_for_finalization(string $field): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections('umum');
+        $examination->update([$field => 'Belum dicatat']);
+        Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'R50.9', 'nama_diagnosa' => 'Demam', 'jenis' => 'utama']);
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertUnprocessable();
+
+        $this->assertDatabaseMissing('clinical_note_versions', ['pemeriksaan_id' => $examination->id]);
+        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'pemeriksaan']);
+    }
+
+    public function test_final_snapshot_keeps_legacy_unknown_histories_null_and_preserves_known_patient_allergy(): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections('umum');
+        $examination->update([
+            'riwayat_penyakit_sekarang' => 'Belum diisi', 'riwayat_penyakit_dahulu' => 'Belum di catat',
+            'riwayat_penyakit_keluarga' => 'Belum dicatat', 'riwayat_alergi' => 'Belum diketahui',
+        ]);
+        Screening::create(['kunjungan_id' => $visit->id, 'riwayat_penyakit_keluarga' => 'Hipertensi pada ayah']);
+        Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'R50.9', 'nama_diagnosa' => 'Demam', 'jenis' => 'utama']);
+
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertRedirect();
+
+        $payload = ClinicalNoteVersion::sole()->payload;
+        $this->assertNull($payload['riwayat_penyakit_sekarang']);
+        $this->assertNull($payload['riwayat_penyakit_dahulu']);
+        $this->assertNull($payload['riwayat_penyakit_keluarga']);
+        $this->assertNull($payload['riwayat_alergi']);
+        $this->assertDatabaseHas('pasien', ['id' => $visit->pasien_id, 'riwayat_alergi' => 'Udang']);
+        $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.examinationFormDefaults.familyHistory', null)
+            ->where('visit.examinationFormDefaults.allergyHistory', null)
+            ->where('visit.screening.familyHistory', 'Hipertensi pada ayah')
+        );
+    }
+
+    /**
+     * @return array{User, Kunjungan, Pemeriksaan}
+     */
+    private function examinationWithSections(string $clinicType): array
+    {
+        $user = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $doctor = Nakes::create([
+            'kode' => 'DOK-SECTION', 'nama' => 'Dokter Pemeriksa', 'kategori' => 'medis', 'jabatan' => 'dokter',
+            'user_id' => $user->id, 'is_active' => true,
+        ]);
+        $clinic = Poliklinik::create(['kode' => 'POLI-SECTION', 'nama' => 'Poli Pemeriksaan', 'jenis' => $clinicType, 'is_active' => true]);
+        $patient = Pasien::create(['no_rm' => 'RM-SECTION', 'nama' => 'Pasien Pemeriksaan', 'riwayat_alergi' => 'Udang']);
+        $visit = Kunjungan::create([
+            'no_kunjungan' => 'KNJ-SECTION', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id,
+            'dokter_id' => $doctor->id, 'tanggal' => today(), 'status' => 'pemeriksaan',
+        ]);
+        $examination = Pemeriksaan::create([
+            'kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id,
+            'anamnesis' => 'Keluhan awal', 'pemeriksaan_fisik' => 'Temuan awal', 'riwayat_alergi' => 'Penisilin',
+            'diagnosis_banding' => 'Diagnosis banding awal', 'kontrol_berikutnya' => '2026-11-01',
+            'catatan' => 'Catatan awal', 'edukasi' => 'Edukasi awal', 'oral_hygiene_index' => 1.25,
+        ]);
+
+        return [$user, $visit, $examination];
+    }
+
 }

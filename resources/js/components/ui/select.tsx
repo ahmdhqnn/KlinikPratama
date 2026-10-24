@@ -1,3 +1,4 @@
+import { fieldControlInvalidClassName, useFieldControl } from '@/components/ui/field';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Children, isValidElement, type ComponentProps, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
@@ -39,6 +40,7 @@ function optionText(children: ReactNode): string {
 }
 
 export function Select({ className, children, value, defaultValue, onChange, id, name, disabled, required, ...props }: SelectProps) {
+    const accessibility = useFieldControl(props);
     const options = Children.toArray(children).flatMap((child) => {
         if (!isValidElement<OptionProps>(child) || child.type !== 'option') {
             return [];
@@ -66,11 +68,13 @@ export function Select({ className, children, value, defaultValue, onChange, id,
         >
             <SelectPrimitive.Trigger
                 className={cn(
-                    'flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm text-neutral-950 shadow-sm outline-none transition focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-neutral-400',
+                    'flex h-10 min-w-0 w-full items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm text-neutral-950 shadow-sm outline-none transition focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-neutral-400',
+                    fieldControlInvalidClassName,
                     className,
                 )}
                 id={id}
                 {...props}
+                {...accessibility}
             >
                 <SelectPrimitive.Value />
                 <SelectPrimitive.Icon asChild>

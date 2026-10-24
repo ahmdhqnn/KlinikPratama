@@ -1,3 +1,4 @@
+import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
 import { Search, UsersRound } from 'lucide-react';
@@ -68,7 +69,7 @@ export default function DoctorPatients({ search, patients }: Props) {
                                             <TableCell className="font-medium text-neutral-900">{patient.name}</TableCell>
                                             <TableCell className="text-neutral-600">{patient.gender ?? 'Belum diisi'}</TableCell>
                                             <TableCell className="text-center tabular-nums text-neutral-600">{new Intl.NumberFormat('id-ID').format(patient.visitCount)}</TableCell>
-                                            <TableCell className="text-center"><Button asChild size="sm" variant="secondary"><a href={patient.recordUrl}>Lihat RME</a></Button></TableCell>
+                                            <TableCell className="text-center"><ActionButton asChild action="rme" label="Lihat RME"><a href={patient.recordUrl} /></ActionButton></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada pasien yang cocok dengan pencarian." /></TableCell></TableRow>}
                                 </TableBody>

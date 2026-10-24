@@ -17,18 +17,18 @@ class ClinicalNoteRecorder
         $visit->loadMissing(['tindakanKunjungan.tindakan', 'resep.resepObat', 'rujukanInternal', 'odontogramFindings']);
 
         return [
-            'anamnesis' => $examination->anamnesis,
-            'riwayat_penyakit_sekarang' => $examination->riwayat_penyakit_sekarang,
-            'riwayat_penyakit_dahulu' => $examination->riwayat_penyakit_dahulu,
-            'riwayat_penyakit_keluarga' => $examination->riwayat_penyakit_keluarga,
-            'riwayat_alergi' => $examination->riwayat_alergi,
-            'pemeriksaan_fisik' => $examination->pemeriksaan_fisik,
+            'anamnesis' => ClinicalAnswer::normalize($examination->anamnesis),
+            'riwayat_penyakit_sekarang' => ClinicalAnswer::normalize($examination->riwayat_penyakit_sekarang),
+            'riwayat_penyakit_dahulu' => ClinicalAnswer::normalize($examination->riwayat_penyakit_dahulu),
+            'riwayat_penyakit_keluarga' => ClinicalAnswer::normalize($examination->riwayat_penyakit_keluarga),
+            'riwayat_alergi' => ClinicalAnswer::normalize($examination->riwayat_alergi),
+            'pemeriksaan_fisik' => ClinicalAnswer::normalize($examination->pemeriksaan_fisik),
             'pemeriksaan_fisik_terstruktur' => $examination->pemeriksaan_fisik_terstruktur ?? [],
-            'pemeriksaan_ekstraoral' => $examination->pemeriksaan_ekstraoral,
+            'pemeriksaan_ekstraoral' => ClinicalAnswer::normalize($examination->pemeriksaan_ekstraoral),
             'oral_hygiene_index' => $examination->oral_hygiene_index,
-            'diagnosis_banding' => $examination->diagnosis_banding,
-            'catatan' => $examination->catatan,
-            'edukasi' => $examination->edukasi,
+            'diagnosis_banding' => ClinicalAnswer::normalize($examination->diagnosis_banding),
+            'catatan' => ClinicalAnswer::normalize($examination->catatan),
+            'edukasi' => ClinicalAnswer::normalize($examination->edukasi),
             'kontrol_berikutnya' => $examination->kontrol_berikutnya?->toDateString(),
             'diagnoses' => $examination->diagnosa->sortBy('id')->map(fn ($diagnosis): array => [
                 'code' => $diagnosis->kode_icd10,

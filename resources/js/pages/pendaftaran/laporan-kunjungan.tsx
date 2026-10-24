@@ -1,6 +1,7 @@
+import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
-import { CalendarDays, Pencil, Search, Ticket, X } from 'lucide-react';
+import { CalendarDays, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatusBadge, visitStatusLabels } from '@/components/dashboard/status-badge';
@@ -119,12 +120,12 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                             <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                             <TableCell><StatusBadge reservation={visit.isReservation} status={visit.status} /></TableCell>
                                             <TableCell>
-                                                <div className="flex items-center justify-center gap-1.5">
-                                                    {visit.ticketUrl && <Button asChild aria-label="Cetak nomor antrean" size="sm" variant="secondary"><a href={visit.ticketUrl}><Ticket className="size-4" />Antrean</a></Button>}
-                                                    {visit.editUrl && <Button asChild aria-label="Edit kunjungan" size="sm" variant="secondary"><a href={visit.editUrl}><Pencil className="size-4" />Edit</a></Button>}
-                                                    {visit.cancelUrl && <Button aria-label="Batalkan kunjungan" onClick={() => {
+                                                <div className="flex items-center justify-center gap-2">
+                                                    {visit.ticketUrl && <ActionButton asChild action="print" label="Cetak nomor antrean"><a href={visit.ticketUrl} /></ActionButton>}
+                                                    {visit.editUrl && <ActionButton asChild action="edit" label="Edit kunjungan"><a href={visit.editUrl} /></ActionButton>}
+                                                    {visit.cancelUrl && <ActionButton onClick={() => {
                                                         confirmAction('Batalkan kunjungan ini?', () => { router.post(visit.cancelUrl as string); }, 'Batalkan');
-                                                    }} size="sm" variant="secondary"><X className="size-4 text-red-600" /></Button>}
+                                                    }} action="cancel" label="Batalkan kunjungan" />}
                                                     {!visit.ticketUrl && !visit.editUrl && !visit.cancelUrl && <span className="pr-2 text-xs text-neutral-400">Tidak ada tindakan</span>}
                                                 </div>
                                             </TableCell>

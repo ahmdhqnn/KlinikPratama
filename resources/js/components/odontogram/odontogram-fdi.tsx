@@ -516,8 +516,8 @@ export function OdontogramFdi({
             {/* Panel Ringkasan Gigi Terpilih (Active Tooth Detail Banner) */}
             <div className="flex flex-col justify-between gap-3 rounded-xl border border-neutral-200/90 bg-neutral-50/70 p-3.5 transition-colors sm:flex-row sm:items-center">
                 <div className="flex items-center gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900 font-mono text-base font-black text-neutral-50">
-                        {activeMeta ? activeMeta.fdi : 'Belum diisi'}
+                    <div aria-label={activeMeta ? `Gigi FDI ${activeMeta.fdi}` : 'Belum ada gigi dipilih'} className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900 font-mono text-base font-black text-neutral-50" role="img">
+                        {activeMeta ? activeMeta.fdi : <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 5C9.5 3 6 3 4.5 5.5 2.5 9 5 13 5.5 16c.3 2 1.2 5 2.5 5 1.5 0 1-7 4-7s2.5 7 4 7c1.3 0 2.2-3 2.5-5 .5-3 3-7 1-10.5C18 3 14.5 3 12 5Z" /></svg>}
                     </div>
                     <div>
                         <div className="flex flex-wrap items-center gap-2">

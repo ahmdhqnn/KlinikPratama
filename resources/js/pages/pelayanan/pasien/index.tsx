@@ -1,6 +1,7 @@
+import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { Download, FileSpreadsheet, HeartPulse, Plus, Search, ShieldCheck, UsersRound } from 'lucide-react';
+import { Download, FileSpreadsheet, Plus, Search, ShieldCheck, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { Button } from '@/components/ui/button';
@@ -160,7 +161,7 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
                                 <TableCell className="text-neutral-600">{patient.phone ?? 'Belum diisi'}</TableCell>
                                 <TableCell className="max-w-56 truncate text-neutral-500">{patient.address ?? 'Belum diisi'}</TableCell>
                                 <TableCell><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700">{patient.membership}</span></TableCell>
-                                <TableCell><div className="flex justify-center gap-2">{permissions.managePatients && patient.canVerify && <Button onClick={() => openVerification(patient)} size="sm" variant="secondary"><ShieldCheck className="size-4" />Verifikasi</Button>}<Button asChild size="sm" variant="secondary"><Link href={`/pelayanan/pasien/${patient.id}`}>Detail</Link></Button>{permissions.viewRme && <Button asChild size="sm" variant="secondary"><Link href={`/pelayanan/pasien/${patient.id}/rekam-medis`}><HeartPulse className="size-4" />RME</Link></Button>}</div></TableCell>
+                                <TableCell><div className="flex justify-center gap-2">{permissions.managePatients && patient.canVerify && <ActionButton onClick={() => openVerification(patient)} action="verify" label="Verifikasi" />}<ActionButton asChild action="detail" label="Detail"><Link href={`/pelayanan/pasien/${patient.id}`} /></ActionButton>{permissions.viewRme && <ActionButton asChild action="rme" label="Lihat RME"><Link href={`/pelayanan/pasien/${patient.id}/rekam-medis`} /></ActionButton>}</div></TableCell>
                             </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty description="Ubah kata kunci atau kategori, lalu coba lagi." size="compact" title="Tidak ada pasien yang cocok" /></TableCell></TableRow>}</TableBody>
                         </Table></div>
                         <Pagination pagination={patients} />

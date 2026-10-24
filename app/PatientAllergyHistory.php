@@ -81,9 +81,7 @@ class PatientAllergyHistory
 
     private function normalize(?string $history): ?string
     {
-        $history = filled($history) ? trim($history) : null;
-
-        return in_array(mb_strtolower($history ?? ''), ['', '-', 'belum dicatat', 'belum diketahui'], true) ? null : $history;
+        return ClinicalAnswer::normalize($history);
     }
 
     private function screening(?Screening $screening): ?string

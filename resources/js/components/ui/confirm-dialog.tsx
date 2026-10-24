@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 interface ConfirmationRequest {
+    title: string;
     description: string;
     action: () => void;
     actionLabel: string;
@@ -19,8 +20,8 @@ interface ConfirmationRequest {
 let activeRequest: ConfirmationRequest | null = null;
 let notifyProvider: (() => void) | null = null;
 
-export function confirmAction(description: string, action: () => void, actionLabel = 'Lanjutkan'): void {
-    activeRequest = { description, action, actionLabel };
+export function confirmAction(description: string, action: () => void, actionLabel = 'Lanjutkan', title = 'Konfirmasi tindakan'): void {
+    activeRequest = { title, description, action, actionLabel };
     notifyProvider?.();
 }
 
@@ -53,7 +54,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
             <AlertDialog onOpenChange={(open) => { if (!open) close(); }} open={request !== null}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Konfirmasi tindakan</AlertDialogTitle>
+                        <AlertDialogTitle>{request?.title ?? 'Konfirmasi tindakan'}</AlertDialogTitle>
                         <AlertDialogDescription>{request?.description}</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

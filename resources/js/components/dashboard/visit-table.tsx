@@ -1,8 +1,7 @@
+import { ActionButton } from '@/components/ui/action-button';
 import { Link } from '@inertiajs/react';
-import { ClipboardCheck, Eye, Pill, Stethoscope } from 'lucide-react';
 import { PriorityBadge } from '@/components/dashboard/priority-badge';
 import { StatusBadge } from '@/components/dashboard/status-badge';
-import { Button } from '@/components/ui/button';
 import { Empty } from '@/components/ui/empty';
 import { Table, TableBody, TableCell, TableHead, TableHeader } from '@/components/ui/table';
 
@@ -53,9 +52,7 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                                 </div>
                             </TableCell>
                             <TableCell className="text-center">
-                                <Button asChild size="sm" variant="secondary">
-                                    <Link href={visit.actionUrl}><ActionIcon type={visit.actionType} />{visit.actionLabel}</Link>
-                                </Button>
+                                <ActionButton asChild action={visit.actionLabel === 'Lihat RME' ? 'rme' : visit.actionType} label={visit.actionLabel}><Link href={visit.actionUrl} /></ActionButton>
                             </TableCell>
                         </tr>
                     )) : (
@@ -67,16 +64,4 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
             </Table>
         </div>
     );
-}
-
-function ActionIcon({ type }: { type: DashboardVisit['actionType'] }) {
-    const icons = {
-        screening: ClipboardCheck,
-        examination: Stethoscope,
-        pharmacy: Pill,
-        detail: Eye,
-    };
-    const Icon = icons[type];
-
-    return <Icon className="size-4" />;
 }

@@ -1,3 +1,5 @@
+import { DatePicker } from '@/components/ui/date-picker';
+import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
 import { ClipboardCheck, HeartPulse, Search } from 'lucide-react';
@@ -63,7 +65,7 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
                             <Input id="screening-queue-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama atau nomor RM" value={filters.search} />
                         </Field>
                         <Field htmlFor="screening-queue-date" label="Tanggal kunjungan">
-                            <Input id="screening-queue-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} type="date" value={filters.tanggal} />
+                            <DatePicker id="screening-queue-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} value={filters.tanggal} />
                         </Field>
                         {canSelectClinic && <Field htmlFor="screening-queue-clinic" label="Poliklinik">
                             <Select id="screening-queue-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
@@ -92,7 +94,7 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                                             <TableCell><StatusBadge status={visit.status} /></TableCell>
-                                            <TableCell className="text-center"><Button asChild size="sm" variant="secondary"><Link href={visit.screeningUrl}><ClipboardCheck className="size-4" />{visit.hasScreening ? 'Lanjutkan pengkajian' : 'Mulai pengkajian'}</Link></Button></TableCell>
+                                            <TableCell className="text-center"><ActionButton asChild action="screening" label={visit.hasScreening ? 'Lanjutkan pengkajian' : 'Mulai pengkajian'}><Link href={visit.screeningUrl} /></ActionButton></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty size="compact" title="Tidak ada pasien yang menunggu atau memiliki pengkajian yang belum selesai." /></TableCell></TableRow>}
                                 </TableBody>

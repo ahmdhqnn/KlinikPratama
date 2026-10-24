@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pelayanan;
 
 use App\ClinicDocumentNumber;
+use App\ClinicalAnswer;
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
 use App\Exports\PasienExport;
@@ -294,6 +295,7 @@ class PasienController extends Controller
                     'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
                     'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'status' => $visit->status,
+                    'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                 ]),
             ],
         ]);
@@ -494,7 +496,7 @@ class PasienController extends Controller
                 $versions = $visit->pemeriksaan?->clinicalNoteVersions->sortBy('version') ?? collect();
                 $integrityValid = $visit->pemeriksaan?->signed_at ? $noteRecorder->verify($visit->pemeriksaan) : null;
                 $effectiveNote = $integrityValid ? $versions->last()->payload : null;
-                $clinicalAnswer = static fn (?string $value, string $fallback): string => filled($value) ? $value : $fallback;
+                $clinicalAnswer = static fn (?string $value, string $fallback): string => ClinicalAnswer::normalize($value) ?? $fallback;
                 $oralHygieneIndex = is_array($effectiveNote) ? ($effectiveNote['oral_hygiene_index'] ?? null) : $visit->pemeriksaan?->oral_hygiene_index;
                 $odontogram = is_array($effectiveNote)
                     ? ($effectiveNote['odontogram'] ?? [])
@@ -513,6 +515,7 @@ class PasienController extends Controller
                     'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'date' => $visit->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
                     'status' => $visit->status,
+                    'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'attachments' => $visit->attachmentSummaries(),
                     'screening' => $visit->screening ? [
                         'summary' => $visit->screening->handoverSummary(),
@@ -543,7 +546,7 @@ class PasienController extends Controller
                         'currentHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_sekarang'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_sekarang, 'Belum dicatat'),
                         'pastHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_dahulu'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_dahulu, 'Belum dicatat'),
                         'familyHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_keluarga, 'Belum dicatat'),
-                        'allergyHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : ($visit->pemeriksaan->riwayat_alergi ?: $visit->screening?->riwayat_alergi ?: $visit->pasien?->riwayat_alergi), 'Belum dicatat'),
+                        'allergyHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $visit->pemeriksaan->riwayat_alergi, 'Belum dicatat'),
                         'physicalExamination' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $visit->pemeriksaan->pemeriksaan_fisik,
                         'physicalSystems' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik_terstruktur'] ?? []) : ($visit->pemeriksaan->pemeriksaan_fisik_terstruktur ?? []),
                         'extraoralExamination' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_ekstraoral'] ?? null) : $visit->pemeriksaan->pemeriksaan_ekstraoral, 'Belum diperiksa'),

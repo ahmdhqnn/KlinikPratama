@@ -406,7 +406,7 @@ body {
     .receipt-content { padding: 0 !important; }
     .medical-record-print,
     .queue-ticket { break-inside: avoid; box-shadow: none !important; }
-    .medical-record-print { border-color: hsl(0 0% 83.1%) !important; }
+    .medical-record-print { border-color: hsl(0 0% 83.1%) !important; break-inside: auto; overflow: visible !important; }
     .queue-ticket { width: 80mm; max-width: 100% !important; margin: 0 auto !important; }
 }
 .print-only { display: none; }

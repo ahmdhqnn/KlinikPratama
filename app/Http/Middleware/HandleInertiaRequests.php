@@ -35,12 +35,16 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $doctorProfile = $request->user()?->role === 'dokter' ? $request->user()->nakes : null;
+        $practiceClinic = $doctorProfile?->is_active ? $doctorProfile->poliklinik : null;
+
         return [
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user() ? [
                     ...$request->user()->only('id', 'name', 'email', 'role'),
                     'roleLabel' => $request->user()->role_label,
+                    'clinicType' => $practiceClinic?->is_active ? $practiceClinic->jenis : null,
                     'photoUrl' => $request->user()->photo_path ? route('profile.photo', ['v' => basename($request->user()->photo_path)]) : null,
                 ] : null,
             ],

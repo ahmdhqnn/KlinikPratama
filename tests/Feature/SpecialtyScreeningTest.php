@@ -262,6 +262,31 @@ class SpecialtyScreeningTest extends TestCase
             ->where('visits.data.0.patient', 'Pasien Poli Gigi'));
     }
 
+    public function test_dental_draft_can_be_resumed_with_all_specialty_answers(): void
+    {
+        $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        $clinic = Poliklinik::create(['kode' => 'GIGI-DRAFT', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $this->assignNurse($nurse, $clinic);
+        $patient = Pasien::create(['no_rm' => 'RM-GIGI-DRAFT', 'nama' => 'Pasien Gigi']);
+        $visit = $this->makeVisit('KNJ-GIGI-DRAFT', $patient, $clinic);
+
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [
+            'tindakan' => 'draf', 'lokasi_nyeri_gigi' => 'Geraham kanan bawah', 'durasi_keluhan_gigi' => 'Saat mengunyah',
+            'skala_nyeri' => 0, 'pemicu_nyeri_gigi' => ['dingin'], 'risiko_medis_gigi' => ['belum_diketahui'],
+            'riwayat_infeksi_gigi' => ['tidak_ada'], 'catatan_medis_gigi' => 'Riwayat obat perlu dikonfirmasi',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'screening']);
+        $this->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.screening.lokasi_nyeri_gigi', 'Geraham kanan bawah')
+            ->where('visit.screening.durasi_keluhan_gigi', 'Saat mengunyah')
+            ->where('visit.screening.skala_nyeri', 0)
+            ->where('visit.screening.pemicu_nyeri_gigi', ['dingin'])
+            ->where('visit.screening.risiko_medis_gigi', ['belum_diketahui'])
+            ->where('visit.screening.riwayat_infeksi_gigi', ['tidak_ada'])
+            ->where('visit.screening.catatan_medis_gigi', 'Riwayat obat perlu dikonfirmasi'));
+    }
+
     private function makeVisit(string $number, Pasien $patient, Poliklinik $clinic): Kunjungan
     {
         return Kunjungan::create([

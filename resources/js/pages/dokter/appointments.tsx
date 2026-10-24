@@ -1,6 +1,7 @@
+import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
-import { CalendarDays, ClipboardCheck, Search } from 'lucide-react';
+import { CalendarDays, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { PriorityBadge } from '@/components/dashboard/priority-badge';
@@ -84,7 +85,7 @@ export default function DoctorAppointments({ filters, visits }: Props) {
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                                             <TableCell className="text-center"><StatusBadge reservation={visit.isReservation} status={visit.status} /></TableCell>
                                             <TableCell className="text-center"><PriorityBadge triage={visit.triage} priority={visit.priority} /></TableCell>
-                                            <TableCell className="text-center"><Button asChild size="sm" variant="secondary"><a href={visit.examinationUrl}><ClipboardCheck className="size-4" />Pemeriksaan</a></Button></TableCell>
+                                            <TableCell className="text-center"><ActionButton asChild action="examination" label="Pemeriksaan"><a href={visit.examinationUrl} /></ActionButton></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty size="compact" title="Belum ada kunjungan pada rentang tanggal ini." /></TableCell></TableRow>}
                                 </TableBody>

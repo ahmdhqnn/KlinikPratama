@@ -1,3 +1,4 @@
+import { AllergyHistory } from '@/components/kunjungan/allergy-history';
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, CalendarPlus, HeartPulse, Pencil, UserRound } from 'lucide-react';
 import { Pagination } from '@/components/dashboard/pagination';
@@ -15,6 +16,7 @@ interface Visit {
     clinic: string;
     doctor: string;
     status: string;
+    isReservation?: boolean;
 }
 
 interface Patient {
@@ -72,13 +74,13 @@ export default function PatientDetail({ patient, permissions }: { patient: Patie
                             <Info label="Kelurahan/desa" value={patient.village} />
                             <Info label="Kecamatan" value={patient.district} />
                             <Info label="Kategori kepesertaan" value={patient.membership} />
-                            {patient.allergies && <div className={`rounded-xl border p-4 ${patient.allergies.trim().toLocaleLowerCase().startsWith('tidak ada') ? 'border-neutral-200 bg-neutral-50' : 'border-red-200 bg-red-50'}`}><p className={`text-xs font-semibold uppercase tracking-wide ${patient.allergies.trim().toLocaleLowerCase().startsWith('tidak ada') ? 'text-neutral-600' : 'text-red-700'}`}>Riwayat alergi</p><p className={`mt-1 text-sm font-medium ${patient.allergies.trim().toLocaleLowerCase().startsWith('tidak ada') ? 'text-neutral-900' : 'text-red-900'}`}>{patient.allergies}</p></div>}
+                            <AllergyHistory value={patient.allergies} />
                         </CardContent>
                     </Card>
                     <Card className="overflow-hidden">
                         <CardHeader className="border-b border-neutral-100"><CardTitle>Riwayat kunjungan</CardTitle><CardDescription>Menampilkan hingga 20 kunjungan terakhir pasien.</CardDescription></CardHeader>
                         <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[720px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Poli</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead></tr></TableHeader><TableBody>
-                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={visit.url}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? 'Belum diisi'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada riwayat kunjungan." /></TableCell></TableRow>}
+                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={visit.url}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? 'Belum diisi'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge reservation={visit.isReservation} status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada riwayat kunjungan." /></TableCell></TableRow>}
                         </TableBody></Table></div></CardContent>
                     </Card>
                 </div>

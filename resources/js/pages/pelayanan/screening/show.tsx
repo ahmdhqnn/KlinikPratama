@@ -1,3 +1,4 @@
+import { isNoAllergyReport } from '@/lib/allergy-status';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { ArrowLeft, ChevronDown, ClipboardCheck, Play, Printer, Save, UserRound } from 'lucide-react';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
@@ -45,7 +46,7 @@ const historyOptions: Option[] = [['ada', 'Ada riwayat'], ['tidak_ada', 'Tidak a
 export default function ScreeningForm({ visit, staff, canSelectStaff, currentStaff }: Props) {
     const values = Object.fromEntries(scalarFields.map((key) => [key, visit.screening[key] == null ? '' : String(visit.screening[key])])) as Record<ScalarField, string>;
     const allergyHistory = visit.patient.allergyHistory?.trim() ?? '';
-    const knownNoAllergy = allergyHistory.toLowerCase() === 'tidak ada riwayat alergi menurut pasien';
+    const knownNoAllergy = isNoAllergyReport(allergyHistory);
     if (!values.status_alergi && allergyHistory) {
         values.status_alergi = knownNoAllergy ? 'tidak_ada' : 'ada';
     }
@@ -99,6 +100,33 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         <p className="text-xs leading-5 text-neutral-500">IMT dihitung dari berat dan tinggi badan. Interpretasi sesuai usia dan kondisi klinis.</p>
         {text('alasan_pengukuran_tidak_lengkap', 'Catatan Pengkajian', false, true, true)}
     </>;
+    const historyConfirmation = <>
+        <label className="flex cursor-pointer items-start gap-2 text-sm leading-6">
+            <Checkbox className="mt-1 shrink-0" id="konfirmasi_riwayat" checked={form.data.konfirmasi_riwayat} onCheckedChange={(checked) => form.setData('konfirmasi_riwayat', checked === true)} />
+            <span>Riwayat alergi dan penyakit sudah dikonfirmasi; informasi yang belum diketahui telah ditandai. <span className="text-red-600">*</span></span>
+        </label>
+        {form.errors.konfirmasi_riwayat && <p className="text-xs text-red-600">{form.errors.konfirmasi_riwayat}</p>}
+    </>;
+    const painScale = <Field error={form.errors.skala_nyeri} htmlFor="skala_nyeri" label="Skala nyeri (0–10)"><Select id="skala_nyeri" value={form.data.skala_nyeri} onChange={(event) => update('skala_nyeri', event.target.value)}><option value="">Belum dikaji</option>{Array.from({ length: 11 }, (_, value) => <option key={value} value={value}>{value}{value === 0 ? ' · Tidak nyeri' : ''}</option>)}</Select></Field>;
+    const dentalAssessment = <>
+        <ChoiceGroup error={form.errors.risiko_medis_gigi} label="Riwayat sistemik yang perlu diperhatikan dokter gigi" name="risiko_medis_gigi" required options={[
+            ['hipertensi', 'Hipertensi'], ['diabetes', 'Diabetes melitus'], ['penyakit_jantung', 'Penyakit jantung'], ['gangguan_pembekuan', 'Gangguan pembekuan'],
+            ['antikoagulan', 'Obat antikoagulan'], ['lainnya', 'Lainnya'], ['tidak_ada', 'Tidak ada, sudah ditanyakan'], ['belum_diketahui', 'Belum dapat diketahui'],
+        ]} selected={form.data.risiko_medis_gigi} onChange={(value) => form.setData((data) => ({ ...data, risiko_medis_gigi: value, konfirmasi_riwayat: false }))} />
+        <div className="grid min-w-0 gap-4 md:grid-cols-2">
+            {text('lokasi_nyeri_gigi', 'Lokasi nyeri gigi / gusi', false, false, true)}
+            {text('durasi_keluhan_gigi', 'Pola dan durasi episode nyeri', false, false, true)}
+            {painScale}
+        </div>
+        <ChoiceGroup error={form.errors.pemicu_nyeri_gigi} label="Pemicu nyeri gigi (opsional)" name="pemicu_nyeri_gigi" options={[
+            ['dingin', 'Dingin'], ['manis', 'Manis'], ['mengunyah', 'Mengunyah'], ['panas', 'Panas'], ['spontan', 'Spontan'], ['lainnya', 'Lainnya'], ['tidak_ada', 'Tidak ada pemicu'],
+        ]} selected={form.data.pemicu_nyeri_gigi} onChange={(value) => form.setData('pemicu_nyeri_gigi', value)} />
+        <ChoiceGroup error={form.errors.riwayat_infeksi_gigi} label="Riwayat infeksi yang diketahui (opsional)" name="riwayat_infeksi_gigi" options={[
+            ['hepatitis', 'Hepatitis'], ['hiv', 'HIV'], ['infeksi_lain', 'Infeksi lain'], ['tidak_ada', 'Tidak ada riwayat yang diketahui'],
+        ]} selected={form.data.riwayat_infeksi_gigi} onChange={(value) => form.setData('riwayat_infeksi_gigi', value)} />
+        {text('catatan_medis_gigi', 'Catatan / hal yang perlu dikonfirmasi dokter gigi', form.data.risiko_medis_gigi.includes('belum_diketahui'), true, true)}
+        {historyConfirmation}
+    </>;
     const compactAssessment = <AssessmentSection
         id="ringkas"
         title="Pengkajian awal"
@@ -127,16 +155,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                 {single('status_riwayat_penyakit', 'Status riwayat penyakit sistemik', historyOptions)}
                 {(form.data.status_riwayat_penyakit === 'ada' || showOptional('riwayat_penyakit', 'riwayat_obat', 'penyakit_nama', 'penyakit_keterangan')) && <div className="grid min-w-0 gap-4 md:grid-cols-2"><div className="min-w-0 col-span-full">{text('riwayat_penyakit', 'Riwayat penyakit sistemik', form.data.status_riwayat_penyakit === 'ada', true)}</div>{text('riwayat_obat', 'Obat rutin / sedang digunakan', false, true)}{text('penyakit_nama', 'Nama penyakit spesifik')}{text('penyakit_keterangan', 'Keterangan riwayat penyakit', false, true)}</div>}
             </div>
-            {isDental && <ChoiceGroup error={form.errors.risiko_medis_gigi} label="Riwayat sistemik yang perlu diperhatikan dokter gigi" name="risiko_medis_gigi" required options={[
-                ['hipertensi', 'Hipertensi'], ['diabetes', 'Diabetes melitus'], ['penyakit_jantung', 'Penyakit jantung'], ['gangguan_pembekuan', 'Gangguan pembekuan'],
-                ['antikoagulan', 'Obat antikoagulan'], ['lainnya', 'Lainnya'], ['tidak_ada', 'Tidak ada, sudah ditanyakan'], ['belum_diketahui', 'Belum dapat diketahui'],
-            ]} selected={form.data.risiko_medis_gigi} onChange={(value) => form.setData((data) => ({ ...data, risiko_medis_gigi: value, konfirmasi_riwayat: false }))} />}
-            {isDental && form.data.risiko_medis_gigi.includes('belum_diketahui') && text('catatan_medis_gigi', 'Catatan untuk dikonfirmasi dokter gigi', true, true)}
-            <label className="flex cursor-pointer items-start gap-2 text-sm leading-6">
-                <Checkbox className="mt-1 shrink-0" id="konfirmasi_riwayat" checked={form.data.konfirmasi_riwayat} onCheckedChange={(checked) => form.setData('konfirmasi_riwayat', checked === true)} />
-                <span>Riwayat alergi dan penyakit sudah dikonfirmasi; informasi yang belum diketahui telah ditandai. <span className="text-red-600">*</span></span>
-            </label>
-            {form.errors.konfirmasi_riwayat && <p className="text-xs text-red-600">{form.errors.konfirmasi_riwayat}</p>}
+            {!isDental && historyConfirmation}
         </section>
         <section className="space-y-4 border-t border-neutral-100 pt-5">
             <div><h4 className="text-sm font-semibold text-neutral-900">Anamnesis dasar</h4><p className="mt-1 text-xs text-neutral-500">Keluhan, lama keluhan, dan sumber informasi.</p></div>
@@ -150,6 +169,10 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                 </Field>
             </div>
         </section>
+        {isDental && <section className="space-y-4 border-t border-neutral-100 pt-5" aria-label="Pengkajian khusus gigi dan mulut">
+            <div><h4 className="text-sm font-semibold text-neutral-900">Pengkajian khusus gigi & mulut</h4><p className="mt-1 text-xs text-neutral-500">Catat keluhan gigi, risiko medis, dan informasi yang perlu diteruskan kepada dokter gigi.</p></div>
+            {dentalAssessment}
+        </section>}
         <section className="space-y-4 border-t border-neutral-100 pt-5">
             <div><h4 className="text-sm font-semibold text-neutral-900">Penapisan cepat</h4><p className="mt-1 text-xs text-neutral-500">Opsional. Kosong berarti belum dinilai, bukan hasil normal.</p></div>
             <div className="grid min-w-0 items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -263,11 +286,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                             {text('riwayat_obat', 'Obat rutin / sedang digunakan', false, true)}
                         </div>}
                     </div>
-                    <label className="flex cursor-pointer items-start gap-2 text-sm leading-6">
-                        <Checkbox className="mt-1 shrink-0" id="konfirmasi_riwayat" checked={form.data.konfirmasi_riwayat} onCheckedChange={(checked) => form.setData('konfirmasi_riwayat', checked === true)} />
-                        <span>Riwayat alergi dan penyakit sudah dikonfirmasi; informasi yang belum diketahui telah ditandai. <span className="text-red-600">*</span></span>
-                    </label>
-                    {form.errors.konfirmasi_riwayat && <p className="text-xs text-red-600">{form.errors.konfirmasi_riwayat}</p>}
+                    {!isDental && historyConfirmation}
                 </>)}
 
                 {section('complaint', '4. Anamnesis dasar', 'Keluhan dan sumber informasi pasien.', <>
@@ -296,17 +315,9 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                     {triage && <div role="status" className={`rounded-lg border p-3 text-sm ${triage === 'merah' ? 'border-red-200 bg-red-50 text-red-900' : triage === 'kuning' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}><strong>Kebutuhan respons awal: {responseLabel}.</strong> {triage === 'merah' ? 'Segera hubungi dokter dan ikuti prosedur kegawatdaruratan klinik; jangan menunda pertolongan untuk melengkapi formulir.' : 'Gunakan hasil ini sebagai informasi awal dan tetap ikuti penilaian klinis serta prosedur klinik.'}</div>}
                 </>)}
 
-                {isDental && section('dental', '6. Pengkajian khusus gigi & mulut', 'Kaji risiko medis sebelum pemeriksaan dokter gigi.', <>
-                    <ChoiceGroup error={form.errors.risiko_medis_gigi} label="Risiko medis yang relevan terhadap tindakan gigi" name="risiko_medis_gigi" required options={[
-                        ['hipertensi', 'Hipertensi'], ['diabetes', 'Diabetes melitus'], ['penyakit_jantung', 'Penyakit jantung'], ['gangguan_pembekuan', 'Gangguan pembekuan'], ['antikoagulan', 'Obat antikoagulan'], ['lainnya', 'Lainnya'], ['tidak_ada', 'Tidak ada, sudah ditanyakan'], ['belum_diketahui', 'Belum dapat diketahui'],
-                    ]} selected={form.data.risiko_medis_gigi} onChange={(value) => form.setData((data) => ({ ...data, risiko_medis_gigi: value, konfirmasi_riwayat: false }))} />
-                    {showOptional('lokasi_nyeri_gigi', 'durasi_keluhan_gigi') && <div className="grid min-w-0 gap-4 md:grid-cols-2">{text('lokasi_nyeri_gigi', 'Lokasi nyeri gigi / gusi')}{text('durasi_keluhan_gigi', 'Pola dan durasi episode nyeri')}</div>}
-                    {showOptional('pemicu_nyeri_gigi') && <ChoiceGroup error={form.errors.pemicu_nyeri_gigi} label="Pemicu nyeri gigi (opsional)" name="pemicu_nyeri_gigi" options={ [['dingin', 'Dingin'], ['manis', 'Manis'], ['mengunyah', 'Mengunyah'], ['panas', 'Panas'], ['spontan', 'Spontan'], ['lainnya', 'Lainnya'], ['tidak_ada', 'Tidak ada pemicu']] } selected={form.data.pemicu_nyeri_gigi} onChange={(value) => form.setData('pemicu_nyeri_gigi', value)} />}
-                    {showOptional('riwayat_infeksi_gigi') && <ChoiceGroup error={form.errors.riwayat_infeksi_gigi} label="Riwayat infeksi yang diketahui (opsional)" name="riwayat_infeksi_gigi" options={ [['hepatitis', 'Hepatitis'], ['hiv', 'HIV'], ['infeksi_lain', 'Infeksi lain'], ['tidak_ada', 'Tidak ada riwayat yang diketahui']] } selected={form.data.riwayat_infeksi_gigi} onChange={(value) => form.setData('riwayat_infeksi_gigi', value)} />}
-                    {text('catatan_medis_gigi', 'Catatan / hal yang perlu dikonfirmasi dokter gigi', form.data.risiko_medis_gigi.includes('belum_diketahui'), true)}
-                </>)}
+                {isDental && section('dental', '6. Pengkajian khusus gigi & mulut', 'Keluhan gigi dan mulut, risiko medis, serta informasi untuk dokter gigi.', dentalAssessment)}
 
-                {showOptional('skala_nyeri', 'skrining_gizi', 'riwayat_penyakit_keluarga', 'pemeriksaan_fisik') && section('additional', `${isDental ? '7' : '6'}. Pengkajian tambahan`, 'Opsional sesuai kebutuhan pasien. Jawaban kosong berarti belum dikaji, bukan hasil normal.', <div className="grid gap-4 md:grid-cols-2"><Field error={form.errors.skala_nyeri} htmlFor="skala_nyeri" label="Skala nyeri (0–10)"><Select id="skala_nyeri" value={form.data.skala_nyeri} onChange={(event) => update('skala_nyeri', event.target.value)}><option value="">Belum dikaji</option>{Array.from({ length: 11 }, (_, value) => <option key={value} value={value}>{value}{value === 0 ? ' · Tidak nyeri' : ''}</option>)}</Select></Field><Field error={form.errors.skrining_gizi} htmlFor="skrining_gizi" label="Hasil pengkajian gizi"><Select id="skrining_gizi" value={form.data.skrining_gizi} onChange={(event) => update('skrining_gizi', event.target.value)}><option value="">Belum dikaji</option><option value="normal">Normal</option><option value="kurang">Gizi kurang</option><option value="lebih">Gizi lebih</option></Select></Field>{text('riwayat_penyakit_keluarga', 'Riwayat penyakit keluarga', false, true)}{text('pemeriksaan_fisik', 'Observasi / catatan pemeriksaan awal', false, true)}</div>)}
+                {showOptional('skala_nyeri', 'skrining_gizi', 'riwayat_penyakit_keluarga', 'pemeriksaan_fisik') && section('additional', `${isDental ? '7' : '6'}. Pengkajian tambahan`, 'Opsional sesuai kebutuhan pasien. Jawaban kosong berarti belum dikaji, bukan hasil normal.', <div className="grid gap-4 md:grid-cols-2">{!isDental && painScale}<Field error={form.errors.skrining_gizi} htmlFor="skrining_gizi" label="Hasil pengkajian gizi"><Select id="skrining_gizi" value={form.data.skrining_gizi} onChange={(event) => update('skrining_gizi', event.target.value)}><option value="">Belum dikaji</option><option value="normal">Normal</option><option value="kurang">Gizi kurang</option><option value="lebih">Gizi lebih</option></Select></Field>{text('riwayat_penyakit_keluarga', 'Riwayat penyakit keluarga', false, true)}{text('pemeriksaan_fisik', 'Observasi / catatan pemeriksaan awal', false, true)}</div>)}
                 </>}
                 </fieldset>
                 </TabsContent>
