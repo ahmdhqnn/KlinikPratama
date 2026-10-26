@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
@@ -142,6 +142,10 @@ export const TOOTH_TYPES_INFO: Record<ToothType, {
     },
 };
 
+export function toothMetadata(fdi: string): ToothMeta | undefined {
+    return [...ADULT_TEETH, ...PRIMARY_TEETH].find((tooth) => tooth.fdi === fdi);
+}
+
 export const FINDING_CLASSES: Record<string, string> = {
     sound: 'tooth-sound',
     caries: 'tooth-caries',
@@ -166,7 +170,9 @@ export function OdontogramFdi({
     const teethList = dentition === 'adult' ? ADULT_TEETH : PRIMARY_TEETH;
     const selectedMeta = teethList.find((t) => t.fdi === selectedTooth);
     const hoveredMeta = teethList.find((t) => t.fdi === hoveredTooth);
-    const activeMeta = hoveredMeta ?? selectedMeta;
+    const activeMeta = selectedMeta ?? hoveredMeta;
+    const toothTypes = (['incisor', 'canine', 'premolar', 'molar'] as ToothType[]).filter((type) => teethList.some((tooth) => tooth.type === type));
+    useEffect(() => { setActiveTypeFilter(null); setHoveredTooth(null); }, [dentition]);
     const activeFindings = activeMeta ? findings.filter((finding) => finding.toothFdi === activeMeta.fdi) : [];
 
     function getToothFinding(fdi: string): DentalFinding | undefined {
@@ -195,23 +201,21 @@ export function OdontogramFdi({
     }
 
     return (
-        <div className="odontogram-fdi space-y-4">
+        <div className="odontogram-fdi min-w-0 space-y-5">
             {/* Layout Utama: 2 Kolom Seimbang (Lengkung Gigi di Kiri, Visualisasi Tipe & Oklusi di Kanan) */}
-            <div className="grid gap-5 xl:grid-cols-12">
+            <div className="grid min-w-0 items-start gap-5 xl:grid-cols-12">
                 {/* Panel Kiri: Peta Lengkung Gigi FDI (Dental Arch) - 7 Kolom */}
-                <div className="rounded-2xl border border-neutral-200/90 bg-surface p-4 shadow-xs transition-colors sm:p-5 xl:col-span-7">
+                <div className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 transition-colors sm:p-5 xl:col-span-7">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-3">
                         <div>
                             <div className="flex items-center gap-2">
                                 <h4 className="text-base font-bold tracking-tight text-neutral-900">
-                                    Lengkung Oklusal FDI ({dentition === 'adult' ? '32 Gigi Permanen' : '20 Gigi Desidui'})
+                                    Peta gigi FDI ({dentition === 'adult' ? '32 gigi permanen' : '20 gigi susu'})
                                 </h4>
-                                <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-neutral-700">
-                                    ISO 3950
-                                </span>
+
                             </div>
                             <p className="mt-1 text-sm leading-6 text-neutral-600">
-                                Klik gigi untuk menautkan temuan diagnosis dan tindakan medis. Sisi kiri peta = sisi kanan pasien.
+                                {disabled ? 'Tinjau temuan yang sudah dicatat. Kanan dan kiri mengikuti sisi pasien.' : 'Pilih gigi untuk mencatat temuan. Kanan dan kiri mengikuti sisi pasien.'}
                             </p>
                         </div>
                         {activeTypeFilter && (
@@ -222,7 +226,7 @@ export function OdontogramFdi({
                                 variant="ghost"
                                 className="h-7 text-xs text-neutral-600 hover:text-neutral-900"
                             >
-                                Reset filter ({activeTypeFilter})
+                                Hapus sorotan jenis gigi
                             </Button>
                         )}
                     </div>
@@ -241,22 +245,11 @@ export function OdontogramFdi({
 
                             {/* Label Kuadran Medis */}
                             <g className="arch-label" fontSize="13" fontWeight="700" textAnchor="middle">
-                                <text x="260" y="28">RAHANG ATAS · MAXILLA</text>
-                                <text x="260" y="704">RAHANG BAWAH · MANDIBULA</text>
-                                <text x="135" y="354">KANAN · DEXTER</text>
-                                <text x="385" y="354">KIRI · SINISTER</text>
+                                <text x="260" y="28">Rahang atas</text>
+                                <text x="260" y="704">Rahang bawah</text>
+                                <text x="135" y="354">Kanan pasien</text>
+                                <text x="385" y="354">Kiri pasien</text>
                             </g>
-
-                            {/* Lengkung Panduan dan Panah Sirkulasi Arah Jarum Jam Sesuai Referensi Gambar */}
-                            <path
-                                className="arch-loop-path"
-                                d="M 140 330 C 140 215, 192 125, 260 125 C 328 125, 380 215, 380 330 L 380 390 C 380 505, 328 595, 260 595 C 192 595, 140 505, 140 390"
-                            />
-                            {/* Ujung Panah (Arrowhead) di Lengkung Kiri Mengarah ke Atas */}
-                            <path
-                                className="arch-arrowhead"
-                                d="M 134 397 L 140 376 L 146 397 Z"
-                            />
 
                             {/* Elemen Setiap Gigi pada Lengkung */}
                             {teethList.map((tooth) => {
@@ -281,6 +274,7 @@ export function OdontogramFdi({
                                     <g
                                         aria-label={`Gigi FDI ${tooth.fdi} (${tooth.name}): ${findingSummary}`}
                                         aria-pressed={isSelected}
+                                        aria-disabled={disabled}
                                         className={`tooth-interactive ${toothClassName} ${disabled ? 'cursor-default' : 'cursor-pointer'}`}
                                         key={tooth.fdi}
                                         onClick={() => handleToothClick(tooth.fdi)}
@@ -307,7 +301,7 @@ export function OdontogramFdi({
                                                 stroke="currentColor"
                                                 strokeWidth="2.2"
                                                 strokeDasharray="4 3"
-                                                className="animate-pulse text-neutral-900"
+                                                className="tooth-selection-ring"
                                             />
                                         )}
 
@@ -332,22 +326,22 @@ export function OdontogramFdi({
 
                     {/* Catatan Kaki Lengkung */}
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 pt-3 text-sm leading-5 text-neutral-600">
-                        <span>Arah panah: Loop universal kuadran 1 → 2 → 3 → 4</span>
-                        <span>Klik jenis gigi pada panel kanan untuk highlight</span>
+                        <span>Nomor FDI menunjukkan gigi yang dipilih.</span>
+                        <span>Pilih jenis gigi untuk menyorot kelompoknya.</span>
                     </div>
                 </div>
 
                 {/* Panel Kanan: Visualisasi Tipe Gigi (Atas) & Oklusi Rahang Mulut (Bawah) - 5 Kolom */}
-                <div className="flex flex-col gap-5 xl:col-span-5">
+                <div className="flex min-w-0 flex-col gap-5 xl:col-span-5">
                     {/* Bagian Kanan Atas: 4 Tipe Anatomi Gigi (Akar & Mahkota) Sesuai Referensi Gambar */}
-                    <div className="rounded-2xl border border-neutral-200/90 bg-surface p-4 shadow-xs sm:p-5">
+                    <div className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 sm:p-5">
                         <div className="mb-3 flex items-center justify-between border-b border-neutral-100 pb-2.5">
                             <div>
                                 <h4 className="text-sm font-bold tracking-tight text-neutral-900">
-                                    Morfologi Tipe Gigi (Akar & Mahkota)
+                                    Jenis gigi
                                 </h4>
                                 <p className="text-xs text-neutral-500">
-                                    Struktur anatomis 4 kelompok gigi sesuai referensi
+                                    Bentuk mahkota dan akar gigi
                                 </p>
                             </div>
                             <span className="text-[11px] font-medium text-neutral-400">
@@ -356,8 +350,8 @@ export function OdontogramFdi({
                         </div>
 
                         {/* 4 Kolom Ilustrasi Anatomi Gigi */}
-                        <div className="grid grid-cols-4 gap-2">
-                            {(['incisor', 'canine', 'premolar', 'molar'] as ToothType[]).map((type) => {
+                        <div className={dentition === 'adult' ? 'grid grid-cols-2 gap-3 sm:grid-cols-4' : 'grid grid-cols-3 gap-3'}>
+                            {toothTypes.map((type) => {
                                 const info = TOOTH_TYPES_INFO[type];
                                 const isCurrentSelectedType = selectedMeta?.type === type;
                                 const isFilterActive = activeTypeFilter === type;
@@ -366,6 +360,7 @@ export function OdontogramFdi({
                                     <button
                                         key={type}
                                         type="button"
+                                        aria-pressed={isFilterActive}
                                         onClick={() => setActiveTypeFilter((cur) => (cur === type ? null : type))}
                                         className={`group flex flex-col items-center rounded-xl border p-2 transition-all ${
                                             isFilterActive
@@ -383,7 +378,7 @@ export function OdontogramFdi({
                                             {type === 'incisor' ? 'Seri' : type === 'canine' ? 'Taring' : type === 'premolar' ? 'Premolar' : 'Molar'}
                                         </span>
                                         <span className="font-mono text-[10px] text-neutral-500">
-                                            {info.countAdult} gigi
+                                            {teethList.filter((tooth) => tooth.type === type).length} gigi
                                         </span>
                                     </button>
                                 );
@@ -392,18 +387,18 @@ export function OdontogramFdi({
                     </div>
 
                     {/* Bagian Kanan Bawah: Tampilan Senyum / Oklusi Rahang & Gigi Sesuai Referensi Gambar */}
-                    <div className="flex-1 rounded-2xl border border-neutral-200/90 bg-surface p-4 shadow-xs sm:p-5">
+                    <div className="flex-1 min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 sm:p-5">
                         <div className="mb-2 flex items-center justify-between border-b border-neutral-100 pb-2.5">
                             <div>
                                 <h4 className="text-sm font-bold tracking-tight text-neutral-900">
-                                    Tampilan Oklusi Rahang & Gingiva
+                                    Tampilan gigi & gusi
                                 </h4>
                                 <p className="text-xs text-neutral-500">
-                                    Visual anterior tampak depan. Sinkron otomatis dengan status temuan klinis.
+                                    Pilihan gigi dan temuan sama dengan peta FDI.
                                 </p>
                             </div>
                             <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-700">
-                                Gingiva & Gigi
+                                Tampak depan
                             </span>
                         </div>
 
@@ -427,74 +422,74 @@ export function OdontogramFdi({
                                 {/* Gigi Rahang Atas (18 s/d 28) */}
                                 {dentition === 'adult' ? (
                                     <g>
-                                        <SmileUpperTooth fdi="18" d="M 87 130 C 89 123, 106 123, 108 130 L 108 145 L 97 146 L 87 145 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="17" d="M 109 127 C 111 120, 130 120, 132 127 L 132 146 L 120 148 L 109 146 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="16" d="M 133 125 C 135 117, 153 117, 155 125 L 155 148 L 144 151 L 133 148 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="15" d="M 156 122 C 158 114, 174 114, 176 122 L 176 150 L 166 154 L 156 150 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="14" d="M 177 118 C 180 110, 196 110, 198 118 L 198 152 L 187 156 L 177 152 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="13" d="M 199 114 C 202 105, 220 105, 222 114 L 222 154 L 210 162 L 199 154 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="12" d="M 223 110 C 226 102, 241 102, 244 110 L 244 156 C 244 158, 223 158, 223 156 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="11" d="M 245 106 C 248 98, 267 98, 270 106 L 270 159 C 270 161, 245 161, 245 159 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="18" d="M 87 130 C 89 123, 106 123, 108 130 L 108 145 L 97 146 L 87 145 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="17" d="M 109 127 C 111 120, 130 120, 132 127 L 132 146 L 120 148 L 109 146 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="16" d="M 133 125 C 135 117, 153 117, 155 125 L 155 148 L 144 151 L 133 148 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="15" d="M 156 122 C 158 114, 174 114, 176 122 L 176 150 L 166 154 L 156 150 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="14" d="M 177 118 C 180 110, 196 110, 198 118 L 198 152 L 187 156 L 177 152 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="13" d="M 199 114 C 202 105, 220 105, 222 114 L 222 154 L 210 162 L 199 154 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="12" d="M 223 110 C 226 102, 241 102, 244 110 L 244 156 C 244 158, 223 158, 223 156 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="11" d="M 245 106 C 248 98, 267 98, 270 106 L 270 159 C 270 161, 245 161, 245 159 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
 
-                                        <SmileUpperTooth fdi="21" d="M 271 106 C 274 98, 292 98, 295 106 L 295 159 C 295 161, 271 161, 271 159 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="22" d="M 296 110 C 299 102, 314 102, 317 110 L 317 156 C 317 158, 296 158, 296 156 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="23" d="M 318 114 C 320 105, 338 105, 341 114 L 341 154 L 330 162 L 318 154 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="24" d="M 342 118 C 344 110, 360 110, 363 118 L 363 152 L 353 156 L 342 152 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="25" d="M 364 122 C 366 114, 382 114, 384 122 L 384 150 L 374 154 L 364 150 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="26" d="M 385 125 C 387 117, 405 117, 407 125 L 407 148 L 396 151 L 385 148 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="27" d="M 408 127 C 410 120, 429 120, 431 127 L 431 146 L 420 148 L 408 146 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="28" d="M 432 130 C 434 123, 451 123, 453 130 L 453 145 L 442 146 L 432 145 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="21" d="M 271 106 C 274 98, 292 98, 295 106 L 295 159 C 295 161, 271 161, 271 159 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="22" d="M 296 110 C 299 102, 314 102, 317 110 L 317 156 C 317 158, 296 158, 296 156 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="23" d="M 318 114 C 320 105, 338 105, 341 114 L 341 154 L 330 162 L 318 154 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="24" d="M 342 118 C 344 110, 360 110, 363 118 L 363 152 L 353 156 L 342 152 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="25" d="M 364 122 C 366 114, 382 114, 384 122 L 384 150 L 374 154 L 364 150 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="26" d="M 385 125 C 387 117, 405 117, 407 125 L 407 148 L 396 151 L 385 148 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="27" d="M 408 127 C 410 120, 429 120, 431 127 L 431 146 L 420 148 L 408 146 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="28" d="M 432 130 C 434 123, 451 123, 453 130 L 453 145 L 442 146 L 432 145 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
                                     </g>
                                 ) : (
                                     <g>
-                                        <SmileUpperTooth fdi="55" d="M 133 125 C 135 117, 160 117, 162 125 L 162 149 L 147 152 L 133 149 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="54" d="M 165 120 C 168 112, 195 112, 198 120 L 198 153 L 181 156 L 165 153 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="53" d="M 201 114 C 204 105, 222 105, 224 114 L 224 154 L 212 162 L 201 154 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="52" d="M 226 110 C 229 102, 244 102, 247 110 L 247 156 C 247 158, 226 158, 226 156 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="51" d="M 248 106 C 251 98, 269 98, 270 106 L 270 159 L 248 159 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="55" d="M 133 125 C 135 117, 160 117, 162 125 L 162 149 L 147 152 L 133 149 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="54" d="M 165 120 C 168 112, 195 112, 198 120 L 198 153 L 181 156 L 165 153 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="53" d="M 201 114 C 204 105, 222 105, 224 114 L 224 154 L 212 162 L 201 154 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="52" d="M 226 110 C 229 102, 244 102, 247 110 L 247 156 C 247 158, 226 158, 226 156 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="51" d="M 248 106 C 251 98, 269 98, 270 106 L 270 159 L 248 159 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
 
-                                        <SmileUpperTooth fdi="61" d="M 271 106 C 272 98, 290 98, 293 106 L 293 159 L 271 159 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="62" d="M 295 110 C 298 102, 313 102, 316 110 L 316 156 C 316 158, 295 158, 295 156 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="63" d="M 318 114 C 320 105, 338 105, 341 114 L 341 154 L 330 162 L 318 154 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="64" d="M 344 120 C 347 112, 374 112, 377 120 L 377 153 L 361 156 L 344 153 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileUpperTooth fdi="65" d="M 380 125 C 382 117, 407 117, 409 125 L 409 149 L 394 152 L 380 149 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="61" d="M 271 106 C 272 98, 290 98, 293 106 L 293 159 L 271 159 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="62" d="M 295 110 C 298 102, 313 102, 316 110 L 316 156 C 316 158, 295 158, 295 156 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="63" d="M 318 114 C 320 105, 338 105, 341 114 L 341 154 L 330 162 L 318 154 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="64" d="M 344 120 C 347 112, 374 112, 377 120 L 377 153 L 361 156 L 344 153 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="65" d="M 380 125 C 382 117, 407 117, 409 125 L 409 149 L 394 152 L 380 149 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
                                     </g>
                                 )}
 
                                 {/* Gigi Rahang Bawah (48 s/d 38) */}
                                 {dentition === 'adult' ? (
                                     <g>
-                                        <SmileLowerTooth fdi="48" d="M 103 148 L 114 145 L 125 148 L 125 188 C 122 196, 106 196, 103 188 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="47" d="M 126 150 L 137 146 L 148 150 L 148 190 C 145 198, 129 198, 126 190 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="46" d="M 149 152 L 160 148 L 170 152 L 170 192 C 167 200, 152 200, 149 192 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="45" d="M 171 154 L 181 150 L 191 154 L 191 195 C 188 203, 174 203, 171 195 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="44" d="M 192 156 L 202 152 L 212 156 L 212 198 C 209 206, 195 206, 192 198 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="43" d="M 213 158 L 223 153 L 232 158 L 232 202 C 229 210, 216 210, 213 202 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="42" d="M 233 159 L 251 159 L 251 204 C 248 212, 236 212, 233 204 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="41" d="M 252 161 L 270 161 L 270 206 C 267 214, 255 214, 252 206 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="48" d="M 103 148 L 114 145 L 125 148 L 125 188 C 122 196, 106 196, 103 188 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="47" d="M 126 150 L 137 146 L 148 150 L 148 190 C 145 198, 129 198, 126 190 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="46" d="M 149 152 L 160 148 L 170 152 L 170 192 C 167 200, 152 200, 149 192 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="45" d="M 171 154 L 181 150 L 191 154 L 191 195 C 188 203, 174 203, 171 195 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="44" d="M 192 156 L 202 152 L 212 156 L 212 198 C 209 206, 195 206, 192 198 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="43" d="M 213 158 L 223 153 L 232 158 L 232 202 C 229 210, 216 210, 213 202 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="42" d="M 233 159 L 251 159 L 251 204 C 248 212, 236 212, 233 204 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="41" d="M 252 161 L 270 161 L 270 206 C 267 214, 255 214, 252 206 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
 
-                                        <SmileLowerTooth fdi="31" d="M 271 161 L 289 161 L 289 206 C 286 214, 274 214, 271 206 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="32" d="M 290 159 L 308 159 L 308 204 C 305 212, 293 212, 290 204 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="33" d="M 309 158 L 319 153 L 328 158 L 328 202 C 325 210, 312 210, 309 202 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="34" d="M 329 156 L 339 152 L 349 156 L 349 198 C 346 206, 332 206, 329 198 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="35" d="M 350 154 L 360 150 L 370 154 L 370 195 C 367 203, 353 203, 350 195 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="36" d="M 371 152 L 382 148 L 392 152 L 392 192 C 389 200, 374 200, 371 192 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="37" d="M 393 150 L 404 146 L 415 150 L 415 190 C 412 198, 396 198, 393 190 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="38" d="M 416 148 L 427 145 L 438 148 L 438 188 C 435 196, 419 196, 416 188 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="31" d="M 271 161 L 289 161 L 289 206 C 286 214, 274 214, 271 206 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="32" d="M 290 159 L 308 159 L 308 204 C 305 212, 293 212, 290 204 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="33" d="M 309 158 L 319 153 L 328 158 L 328 202 C 325 210, 312 210, 309 202 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="34" d="M 329 156 L 339 152 L 349 156 L 349 198 C 346 206, 332 206, 329 198 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="35" d="M 350 154 L 360 150 L 370 154 L 370 195 C 367 203, 353 203, 350 195 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="36" d="M 371 152 L 382 148 L 392 152 L 392 192 C 389 200, 374 200, 371 192 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="37" d="M 393 150 L 404 146 L 415 150 L 415 190 C 412 198, 396 198, 393 190 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="38" d="M 416 148 L 427 145 L 438 148 L 438 188 C 435 196, 419 196, 416 188 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
                                     </g>
                                 ) : (
                                     <g>
-                                        <SmileLowerTooth fdi="85" d="M 133 152 L 148 148 L 163 152 L 163 192 C 160 200, 136 200, 133 192 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="84" d="M 166 155 L 182 151 L 198 155 L 198 196 C 195 204, 169 204, 166 196 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="83" d="M 201 158 L 213 153 L 224 158 L 224 202 C 221 210, 204 210, 201 202 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="82" d="M 226 159 L 247 159 L 247 204 C 244 212, 229 212, 226 204 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="81" d="M 249 161 L 270 161 L 270 206 C 267 214, 252 214, 249 206 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="85" d="M 133 152 L 148 148 L 163 152 L 163 192 C 160 200, 136 200, 133 192 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="84" d="M 166 155 L 182 151 L 198 155 L 198 196 C 195 204, 169 204, 166 196 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="83" d="M 201 158 L 213 153 L 224 158 L 224 202 C 221 210, 204 210, 201 202 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="82" d="M 226 159 L 247 159 L 247 204 C 244 212, 229 212, 226 204 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="81" d="M 249 161 L 270 161 L 270 206 C 267 214, 252 214, 249 206 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
 
-                                        <SmileLowerTooth fdi="71" d="M 271 161 L 292 161 L 292 206 C 289 214, 274 214, 271 206 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="72" d="M 294 159 L 315 159 L 315 204 C 312 212, 297 212, 294 204 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="73" d="M 317 158 L 328 153 L 340 158 L 340 202 C 337 210, 320 210, 317 202 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="74" d="M 343 155 L 359 151 L 375 155 L 375 196 C 372 204, 346 204, 343 196 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
-                                        <SmileLowerTooth fdi="75" d="M 378 152 L 393 148 L 408 152 L 408 192 C 405 200, 381 200, 378 192 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="71" d="M 271 161 L 292 161 L 292 206 C 289 214, 274 214, 271 206 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="72" d="M 294 159 L 315 159 L 315 204 C 312 212, 297 212, 294 204 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="73" d="M 317 158 L 328 153 L 340 158 L 340 202 C 337 210, 320 210, 317 202 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="74" d="M 343 155 L 359 151 L 375 155 L 375 196 C 372 204, 346 204, 343 196 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
+                                        <SmileTooth fdi="75" d="M 378 152 L 393 148 L 408 152 L 408 192 C 405 200, 381 200, 378 192 Z" getToothClass={getToothClass} onClick={handleToothClick} onHover={setHoveredTooth} selectedTooth={selectedTooth} disabled={disabled} />
                                     </g>
                                 )}
 
@@ -515,20 +510,15 @@ export function OdontogramFdi({
 
             {/* Panel Ringkasan Gigi Terpilih (Active Tooth Detail Banner) */}
             <div className="flex flex-col justify-between gap-3 rounded-xl border border-neutral-200/90 bg-neutral-50/70 p-3.5 transition-colors sm:flex-row sm:items-center">
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                     <div aria-label={activeMeta ? `Gigi FDI ${activeMeta.fdi}` : 'Belum ada gigi dipilih'} className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900 font-mono text-base font-black text-neutral-50" role="img">
                         {activeMeta ? activeMeta.fdi : <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 5C9.5 3 6 3 4.5 5.5 2.5 9 5 13 5.5 16c.3 2 1.2 5 2.5 5 1.5 0 1-7 4-7s2.5 7 4 7c1.3 0 2.2-3 2.5-5 .5-3 3-7 1-10.5C18 3 14.5 3 12 5Z" /></svg>}
                     </div>
                     <div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-bold text-neutral-900">
-                                {activeMeta ? activeMeta.name : 'Pilih gigi pada diagram atau senyum rahang'}
+                            <span className="break-words text-sm font-semibold text-neutral-900">
+                                {activeMeta ? activeMeta.name : disabled ? 'Ringkasan temuan gigi' : 'Pilih gigi pada peta atau gambar'}
                             </span>
-                            {activeMeta?.universal && (
-                                <Badge variant="default" className="font-mono text-xs">
-                                    Universal #{activeMeta.universal}
-                                </Badge>
-                            )}
                             {activeMeta && (
                                 <span className="text-xs text-neutral-500">
                                     · {activeMeta.quadrantLabel}
@@ -546,7 +536,7 @@ export function OdontogramFdi({
                                     ))}
                                 </span>
                             ) : (
-                                <span>{activeMeta ? 'Belum ada temuan tercatat pada gigi ini.' : 'Pilih gigi pada peta untuk melihat rincian temuan.'}</span>
+                                <span>{activeMeta ? 'Belum ada temuan tercatat pada gigi ini.' : disabled ? 'Rincian temuan tersedia pada tabel odontogram.' : 'Pilih gigi pada peta untuk melihat rincian temuan.'}</span>
                             )}
                         </p>
                     </div>
@@ -556,29 +546,29 @@ export function OdontogramFdi({
                     {selectedMeta && (
                         <span className="inline-flex items-center gap-1 rounded-md bg-neutral-100 px-2 py-1 text-xs font-semibold text-neutral-700">
                             <Check className="size-3.5" />
-                            Gigi {selectedMeta.fdi} aktif di form
+                            Gigi {selectedMeta.fdi} terpilih
                         </span>
                     )}
                 </div>
             </div>
 
-            {/* Legenda status memakai warna netral; merah menandai karies. */}
+            {/* Legenda menggunakan palet yang sama dengan peta dan gambar gigi. */}
             <div aria-label="Legenda status klinis odontogram" className="flex flex-wrap items-center justify-center gap-2 text-sm">
                 {[
-                    { label: 'Belum dicatat', class: 'bg-surface border-neutral-300 dark:bg-[#262626]' },
-                    { label: 'Sehat (Sound)', class: 'bg-surface border-neutral-400 dark:bg-[#262626]' },
-                    { label: 'Karies (Caries)', class: 'bg-red-100 border-red-600 dark:bg-[#3b1414] dark:border-red-500' },
-                    { label: 'Restorasi (Restored)', class: 'bg-neutral-200 border-neutral-600 dark:bg-[#404040]' },
-                    { label: 'Hilang (Missing)', class: 'bg-transparent border-dashed border-neutral-400 dark:bg-transparent' },
-                    { label: 'Belum erupsi', class: 'bg-neutral-50 border-dotted border-neutral-400 dark:bg-[#1c1c1f]' },
-                    { label: 'Fraktur mahkota', class: 'bg-neutral-100 border-dashed border-neutral-700 dark:bg-[#262626]' },
-                    { label: 'Sisa akar', class: 'bg-neutral-300 border-neutral-700 dark:bg-[#3f3f46]' },
+                    { label: 'Belum dicatat', class: 'tooth-unrecorded' },
+                    { label: 'Sehat', class: 'tooth-sound' },
+                    { label: 'Karies', class: 'tooth-caries' },
+                    { label: 'Restorasi', class: 'tooth-restored' },
+                    { label: 'Hilang', class: 'tooth-missing border-dashed' },
+                    { label: 'Belum erupsi', class: 'tooth-unerupted border-dotted' },
+                    { label: 'Fraktur mahkota', class: 'tooth-fractured_crown border-dashed' },
+                    { label: 'Sisa akar', class: 'tooth-root_remnant' },
                 ].map((item) => (
                     <span
                         key={item.label}
                         className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-surface px-3 py-1.5 text-sm font-medium text-neutral-700 shadow-2xs"
                     >
-                        <span aria-hidden="true" className={`size-2.5 rounded-full border ${item.class}`} />
+                        <span aria-hidden="true" className={`tooth-status-dot size-3 rounded-full border ${item.class}`} />
                         {item.label}
                     </span>
                 ))}
@@ -733,16 +723,8 @@ function ToothTypeIllustration({ type }: { type: ToothType }) {
     }
 }
 
-// Sub-komponen Gigi Atas pada Tampilan Oklusi Senyum
-function SmileUpperTooth({
-    fdi,
-    d,
-    getToothClass,
-    onClick,
-    onHover,
-    selectedTooth,
-    disabled,
-}: {
+// Both arches share selection, clinical colors, and keyboard behavior.
+function SmileTooth({ fdi, d, getToothClass, onClick, onHover, selectedTooth, disabled }: {
     fdi: string;
     d: string;
     getToothClass: (fdi: string, type: ToothType) => string;
@@ -751,76 +733,16 @@ function SmileUpperTooth({
     selectedTooth: string;
     disabled: boolean;
 }) {
+    const tooth = toothMetadata(fdi);
+    if (!tooth) return null;
     const isSelected = selectedTooth === fdi;
-    const type: ToothType = fdi.endsWith('1') || fdi.endsWith('2') ? 'incisor' : fdi.endsWith('3') ? 'canine' : fdi.endsWith('4') || fdi.endsWith('5') ? 'premolar' : 'molar';
-    const toothClassName = getToothClass(fdi, type);
-
-    return (
-        <g
-            className={`tooth-interactive ${toothClassName} ${disabled ? 'cursor-default' : 'cursor-pointer'}`}
-            onClick={() => onClick(fdi)}
-            onMouseEnter={() => onHover(fdi)}
-            onMouseLeave={() => onHover(null)}
-            role="button"
-            tabIndex={disabled ? -1 : 0}
-        >
-            <title>{`Gigi FDI ${fdi}`}</title>
-            <path className="tooth-shape" d={d} />
-            {isSelected && (
-                <path
-                    d={d}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    className="text-neutral-900"
-                />
-            )}
-        </g>
-    );
-}
-
-// Sub-komponen Gigi Bawah pada Tampilan Oklusi Senyum
-function SmileLowerTooth({
-    fdi,
-    d,
-    getToothClass,
-    onClick,
-    onHover,
-    selectedTooth,
-    disabled,
-}: {
-    fdi: string;
-    d: string;
-    getToothClass: (fdi: string, type: ToothType) => string;
-    onClick: (fdi: string) => void;
-    onHover: (fdi: string | null) => void;
-    selectedTooth: string;
-    disabled: boolean;
-}) {
-    const isSelected = selectedTooth === fdi;
-    const type: ToothType = fdi.endsWith('1') || fdi.endsWith('2') ? 'incisor' : fdi.endsWith('3') ? 'canine' : fdi.endsWith('4') || fdi.endsWith('5') ? 'premolar' : 'molar';
-    const toothClassName = getToothClass(fdi, type);
-
-    return (
-        <g
-            className={`tooth-interactive ${toothClassName} ${disabled ? 'cursor-default' : 'cursor-pointer'}`}
-            onClick={() => onClick(fdi)}
-            onMouseEnter={() => onHover(fdi)}
-            onMouseLeave={() => onHover(null)}
-            role="button"
-            tabIndex={disabled ? -1 : 0}
-        >
-            <title>{`Gigi FDI ${fdi}`}</title>
-            <path className="tooth-shape" d={d} />
-            {isSelected && (
-                <path
-                    d={d}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    className="text-neutral-900"
-                />
-            )}
-        </g>
-    );
+    return <g className={'tooth-interactive ' + getToothClass(fdi, tooth.type) + (disabled ? ' cursor-default' : ' cursor-pointer')}
+        aria-label={'Gigi FDI ' + fdi + ' (' + tooth.name + ')'} aria-pressed={isSelected} aria-disabled={disabled}
+        onClick={() => { if (!disabled) onClick(fdi); }} onMouseEnter={() => onHover(fdi)} onMouseLeave={() => onHover(null)}
+        onKeyDown={(event) => { if (!disabled && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onClick(fdi); } }}
+        role="button" tabIndex={disabled ? -1 : 0}>
+        <title>{'Gigi FDI ' + fdi + ' - ' + tooth.name}</title>
+        <path className="tooth-shape" d={d} />
+        {isSelected && <path d={d} fill="none" stroke="currentColor" strokeWidth="2.2" className="tooth-selection-ring" />}
+    </g>;
 }

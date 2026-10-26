@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 export const visitStatusLabels: Record<string, string> = {
     menunggu: 'Menunggu pengkajian awal',
     screening: 'Pengkajian awal berlangsung',
-    pemeriksaan: 'Pemeriksaan dokter',
+    pemeriksaan: 'Menunggu pemeriksaan',
     farmasi: 'Pelayanan farmasi',
     kasir: 'Perlu penyelesaian kunjungan',
     selesai: 'Kunjungan selesai',
@@ -34,9 +34,18 @@ const variants: Record<string, 'waiting' | 'screening' | 'examination' | 'pharma
     batal: 'cancelled',
 };
 
-export function StatusBadge({ status, reservation = false, context = 'visit' }: { status: string; reservation?: boolean; context?: 'visit' | 'pharmacy' | 'laboratory' }) {
+export const visitStatusFilterLabels: Record<string, string> = {
+    ...visitStatusLabels,
+    pemeriksaan: 'Menunggu / sedang diperiksa',
+};
+
+export function StatusBadge({ status, reservation = false, context = 'visit', examinationStarted = false }: { status: string; examinationStarted?: boolean; reservation?: boolean; context?: 'visit' | 'pharmacy' | 'laboratory' }) {
     if (reservation) {
         return <Badge variant="default">Reservasi</Badge>;
+    }
+
+    if (context === 'visit' && status === 'pemeriksaan' && examinationStarted) {
+        return <Badge className="justify-center text-center leading-4" variant="examination">Sedang diperiksa</Badge>;
     }
 
     const labels = { visit: visitStatusLabels, pharmacy: pharmacyStatusLabels, laboratory: laboratoryStatusLabels }[context];

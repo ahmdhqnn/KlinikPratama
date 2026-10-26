@@ -49,6 +49,7 @@ interface AppUser {
 }
 
 interface SharedPageProps extends PageProps {
+    modules?: Partial<Record<'laboratory' | 'medicine_depots' | 'medical_equipment' | 'medical_treatments', boolean>>;
     auth: { user: AppUser | null };
     flash: { success?: string | null; error?: string | null };
 }
@@ -57,6 +58,7 @@ interface NavigationItem extends NavigationTarget {
     label: string;
     href: string;
     icon: typeof LayoutDashboard;
+    module?: 'laboratory' | 'medicine_depots' | 'medical_equipment' | 'medical_treatments';
 }
 
 interface NavigationGroup {
@@ -81,12 +83,12 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             label: 'Data Master',
             items: [
                 { label: 'Poliklinik', href: '/master/poliklinik', icon: Boxes },
-                { label: 'Tindakan medis', href: '/master/tindakan', icon: HeartPulse },
+                { label: 'Tindakan medis', href: '/master/tindakan', module: 'medical_treatments', icon: HeartPulse },
                 { label: 'Terminologi klinis', href: '/master/terminologi-klinis', icon: ClipboardList },
-                { label: 'Laboratorium', href: '/master/laboratorium', icon: Activity },
+                { label: 'Laboratorium', href: '/master/laboratorium', module: 'laboratory', icon: Activity },
                 { label: 'Obat & BHP', href: '/master/obat', icon: Pill },
-                { label: 'Depo obat', href: '/master/depo-obat', icon: Pill },
-                { label: 'Alat kesehatan', href: '/master/alkes', icon: HeartPulse },
+                { label: 'Depo obat', href: '/master/depo-obat', module: 'medicine_depots', icon: Pill },
+                { label: 'Alat kesehatan', href: '/master/alkes', module: 'medical_equipment', icon: HeartPulse },
                 { label: 'Tenaga kesehatan', href: '/master/nakes', icon: UsersRound },
             ],
         },
@@ -105,7 +107,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             items: [
                 { label: 'Kunjungan', href: '/laporan/kunjungan', icon: ClipboardList },
                 { label: 'Stok', href: '/laporan/stok', icon: Boxes },
-                { label: 'Laboratorium', href: '/laporan/laboratorium', icon: Activity },
+                { label: 'Laboratorium', href: '/laporan/laboratorium', module: 'laboratory', icon: Activity },
             ],
         },
     ],
@@ -185,7 +187,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             items: [
                 { label: 'Laporan Kunjungan', href: '/laporan/kunjungan', icon: ClipboardList },
                 { label: 'Laporan Stok', href: '/laporan/stok', icon: Boxes },
-                { label: 'Laporan Laboratorium', href: '/laporan/laboratorium', icon: Activity },
+                { label: 'Laporan Laboratorium', href: '/laporan/laboratorium', module: 'laboratory', icon: Activity },
             ],
         },
     ],
@@ -394,7 +396,7 @@ function AccountAvatar({ user }: { user: AppUser | null }) {
 
 export default function AppLayout({ children }: { children: ReactNode }) {
     const page = usePage<SharedPageProps>();
-    const { auth, flash } = page.props;
+    const { auth, flash, modules } = page.props;
     const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -403,10 +405,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const groups: NavigationGroup[] = [
         ...(navigationByRole[user?.role ?? ''] ?? []).map((group) => ({
             ...group,
-            items: group.items.map((item) => user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
+            items: group.items.filter((item) => !item.module || modules?.[item.module] === true).map((item) => user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
                 ? { ...item, label: user.clinicType === 'gigi' ? 'Pemeriksaan Gigi & Mulut' : user.clinicType === 'umum' ? 'Pemeriksaan Umum' : item.label }
                 : item),
-        })),
+        })).filter((group) => group.items.length > 0),
         { label: 'Akun', items: [{ label: 'Profil Saya', href: '/profile', icon: UserRound }] },
     ];
     const pathname = page.url.split(/[?#]/, 1)[0];

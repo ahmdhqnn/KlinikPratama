@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pelayanan;
 
 use App\ClinicalAuditRecorder;
+use App\CorrespondenceService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreScreeningRequest;
 use App\Models\KlinikSetting;
@@ -176,20 +177,23 @@ class ScreeningController extends Controller
         return redirect()->route('pelayanan.screening.show', $kunjungan)->with('success', 'Pengkajian awal dimulai. Pastikan identitas pasien sesuai sebelum melakukan pemeriksaan.');
     }
 
-    public function print(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): HttpResponse
+    public function print(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder, CorrespondenceService $correspondence): HttpResponse
     {
-        $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'screening.petugas']);
+        $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'screening.petugas.user']);
         if ($request->user()->role === 'perawat') {
             abort_unless((int) $kunjungan->poliklinik_id === $this->perawatClinicResolver->clinicId($request->user()), 404);
         }
         abort_unless($kunjungan->screening && in_array($kunjungan->poliklinik?->jenis, ['umum', 'gigi'], true), 404);
         $auditRecorder->record($request, 'screening.print', $kunjungan->pasien_id, $kunjungan->id);
 
+        $isDraft = $kunjungan->screening->submitted_at === null && ($kunjungan->screening->started_at !== null || in_array($kunjungan->status, ['menunggu', 'screening'], true));
+
         return response()->view('screening.print', [
             'visit' => $kunjungan,
             'screening' => $kunjungan->screening,
             'clinic' => KlinikSetting::first(),
-            'isDraft' => $kunjungan->screening->submitted_at === null && ($kunjungan->screening->started_at !== null || in_array($kunjungan->status, ['menunggu', 'screening'], true)),
+            'isDraft' => $isDraft,
+            'signatureDataUrl' => $isDraft ? null : $correspondence->signatureDataUrl($kunjungan->screening->petugas?->user),
         ])->header('Cache-Control', 'private, no-store');
     }
 

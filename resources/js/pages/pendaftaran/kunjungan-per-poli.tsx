@@ -4,7 +4,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Activity, CalendarDays, Clock3, ClipboardCheck, Search, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { StatusBadge, visitStatusLabels } from '@/components/dashboard/status-badge';
+import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -29,6 +29,7 @@ interface Visit {
     date: string;
     clinic: string;
     status: string;
+    examinationStarted?: boolean;
     isReservation?: boolean;
     actionUrl: string;
     actionLabel: string;
@@ -46,7 +47,7 @@ interface Props {
     recentVisits: PaginationData & { data: Visit[] };
 }
 
-const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusLabels[status]]);
+const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusFilterLabels[status]]);
 
 export default function ClinicVisits({ filters: initialFilters, clinics, stats, access, visits, recentVisits }: Props) {
     const [filters, setFilters] = useState(initialFilters);
@@ -106,7 +107,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                             <TableCell className="font-mono text-xs text-neutral-600">{visit.number}<p className="mt-1 text-xs text-neutral-500">{visit.date} · {visit.clinic}</p></TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
-                                            <TableCell><StatusBadge reservation={visit.isReservation} status={visit.status} /></TableCell>
+                                            <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
                                             <TableCell><VisitActions manageVisits={access.manageVisits} visit={visit} /></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty description={clinics.length ? 'Coba sesuaikan filter tanggal untuk melihat kunjungan.' : 'Aktifkan poliklinik agar daftar kunjungan dapat ditampilkan.'} size="compact" title={clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'} /></TableCell></TableRow>}
@@ -134,7 +135,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                             <TableCell className="font-mono text-xs text-neutral-600">{visit.number}<p className="mt-1 text-xs text-neutral-500">{visit.date} · {visit.clinic}</p></TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
-                                            <TableCell><StatusBadge reservation={visit.isReservation} status={visit.status} /></TableCell>
+                                            <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
                                             <TableCell><VisitActions manageVisits={access.manageVisits} visit={visit} /></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty description="Belum ada kunjungan terbaru untuk poliklinik ini." size="compact" title="Belum ada data kunjungan." /></TableCell></TableRow>}

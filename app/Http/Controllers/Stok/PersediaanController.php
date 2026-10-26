@@ -35,7 +35,8 @@ class PersediaanController extends Controller
 
     public function show(Obat $obat): Response
     {
-        $obat->load('batches.depo');
+        $depotsEnabled = config('clinic.modules.medicine_depots', false);
+        $obat->load($depotsEnabled ? 'batches.depo' : 'batches');
         $movements = $obat->stokMutasi()->with(['batch', 'actor'])->latest('id')->paginate(10)->withQueryString()
             ->through(fn (StokMutasi $movement): array => [
                 'id' => $movement->id, 'date' => $movement->created_at->format('d/m/Y H:i'), 'type' => $movement->jenis,
@@ -50,11 +51,12 @@ class PersediaanController extends Controller
             'batches' => $obat->batches->map(fn (ObatBatch $batch): array => [
                 'id' => $batch->id, 'number' => $batch->nomor_batch, 'expiry' => $batch->expired_at?->toDateString(),
                 'stock' => (float) $batch->stok, 'status' => $batch->status, 'source' => $batch->sumber,
-                'depot' => $batch->depo?->nama, 'reference' => $batch->referensi,
+                'depot' => $depotsEnabled ? $batch->depo?->nama : null, 'reference' => $batch->referensi,
                 'expired' => $batch->expired_at?->lte(today()) ?? false,
                 'nearExpiry' => $batch->expired_at?->between(today()->addDay(), today()->addDays(90)) ?? false,
             ]),
-            'depots' => DepoObat::where('is_active', true)->orderBy('nama')->get(['id', 'nama']),
+            'depotsEnabled' => $depotsEnabled,
+            'depots' => $depotsEnabled ? DepoObat::where('is_active', true)->orderBy('nama')->get(['id', 'nama']) : [],
             'movements' => $this->pageData($movements), 'today' => today()->toDateString(),
         ]);
     }
@@ -117,7 +119,8 @@ class PersediaanController extends Controller
     private function batchRules(): array
     {
         return [
-            'depo_id' => $this->depotRules(), 'nomor_batch' => ['required', 'string', 'max:100'],
+            'depo_id' => config('clinic.modules.medicine_depots', false) ? $this->depotRules() : ['exclude'],
+            'nomor_batch' => ['required', 'string', 'max:100'],
             'expired_at' => ['required', 'date_format:Y-m-d', 'after:today'],
             'jumlah' => ['required', 'numeric', 'min:0.01', 'max:99999999.99', 'decimal:0,2'],
             'referensi' => ['required', 'string', 'min:5', 'max:255'],

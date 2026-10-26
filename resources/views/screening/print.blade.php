@@ -419,12 +419,14 @@
         </section>
 
         {{-- Signatures Block (matches persuratan/cetak.tsx footer style) --}}
-        <div class="mt-14 grid grid-cols-2 gap-8 text-center text-sm print:mt-10">
+        <div class="mt-14 grid break-inside-avoid grid-cols-2 gap-8 text-center text-sm print:mt-10">
             <div>
                 <p class="text-neutral-700 print:text-neutral-800">{{ $visit->poliklinik?->nama ?? 'Poliklinik' }}, {{ $printDate }}</p>
                 <p class="mt-1 text-neutral-600 print:text-neutral-700">Petugas pengkajian awal,</p>
                 <div class="h-20 flex items-center justify-center">
-                    {{-- Space for manual signature --}}
+                    @if ($signatureDataUrl)
+                        <img alt="Tanda tangan {{ $screening->petugas?->nama }}" class="h-20 max-w-48 bg-white object-contain" src="{{ $signatureDataUrl }}" />
+                    @endif
                 </div>
                 <p class="font-semibold underline underline-offset-2 text-neutral-900 print:text-black">
                     {{ $screening->petugas?->nama ?? '________________________' }}

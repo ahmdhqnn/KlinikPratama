@@ -13,6 +13,7 @@ use App\Models\Poliklinik;
 use App\PatientAllergyHistory;
 use App\PerawatClinicResolver;
 use App\VisitQueryService;
+use App\VisitSchedulingService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,13 +21,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class KunjunganController extends Controller
 {
-    public function __construct(private JadwalPraktikResolver $schedule, private PerawatClinicResolver $perawatClinicResolver, private \App\VisitSchedulingService $scheduling) {}
+    public function __construct(private JadwalPraktikResolver $schedule, private PerawatClinicResolver $perawatClinicResolver, private VisitSchedulingService $scheduling) {}
 
     public function index(Request $request, VisitQueryService $visits): Response
     {
@@ -35,7 +35,7 @@ class KunjunganController extends Controller
             : null;
         $filters = $visits->filters($request);
         $kunjungan = $visits->filtered($filters, $assignedClinicId)
-            ->with(['pasien', 'poliklinik', 'dokter'])
+            ->with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan'])
             ->latest('created_at')->latest('id')
             ->paginate(10)
             ->withQueryString();
@@ -59,6 +59,7 @@ class KunjunganController extends Controller
                     'doctor' => $visit->dokter?->nama,
                     'eligibility' => $visit->verified_at ? 'Terverifikasi' : 'Belum diverifikasi',
                     'status' => $visit->status,
+                    'examinationStarted' => $visit->pemeriksaan !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                 ])->values(),
                 'currentPage' => $kunjungan->currentPage(),
@@ -82,7 +83,7 @@ class KunjunganController extends Controller
 
     public function antrian(): Response
     {
-        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'dokter'])
+        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan'])
             ->whereDate('tanggal', today())
             ->whereNotIn('status', ['selesai', 'batal'])
             ->latest('created_at')->latest('id')
@@ -95,6 +96,7 @@ class KunjunganController extends Controller
             'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
             'doctor' => $visit->dokter?->nama,
             'status' => $visit->status,
+            'examinationStarted' => $visit->pemeriksaan !== null,
             'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
         ]);
 
@@ -238,6 +240,7 @@ class KunjunganController extends Controller
                 'number' => $kunjungan->no_kunjungan,
                 'date' => $kunjungan->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
                 'status' => $kunjungan->status,
+                'examinationStarted' => $kunjungan->pemeriksaan !== null,
                 'isReservation' => $kunjungan->tanggal->isFuture() && $kunjungan->status === 'menunggu',
                 'clinic' => $kunjungan->poliklinik?->nama ?? 'Belum diisi',
                 'doctor' => $kunjungan->dokter?->nama,

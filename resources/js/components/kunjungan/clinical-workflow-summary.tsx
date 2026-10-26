@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { BodyExaminationRecord } from '@/components/anatomy/body-examination-record';
+import { hasBodyMapContent, type BodyMapData } from '@/lib/body-map';
 import { ClipboardPlus, Stethoscope } from 'lucide-react';
 import { ActionButton } from '@/components/ui/action-button';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +25,7 @@ interface DentalExaminationSummaryProps extends SummaryProps {
 
 interface DiagnosisSummaryProps extends SummaryProps {
     id?: string;
-    diagnoses: Array<{ id: number; code: string; codeSystem?: string; name: string; type: string }>;
+    diagnoses: Array<{ id: number; code: string | null; codeSystem?: string; name: string; note?: string | null; type: string }>;
     differentialDiagnosis: string | null | undefined;
     codeSystems: Array<{ value: string; label: string }>;
 }
@@ -74,16 +76,17 @@ interface GeneralExaminationSummaryProps extends SummaryProps {
     anamnesis: string | null | undefined;
     physicalExam: string | null | undefined;
     physicalSystems: Record<string, string>;
+    bodyMap?: BodyMapData | null;
 }
 
-export function GeneralExaminationSummary({ anamnesis, physicalExam, physicalSystems, hasUnsavedChanges, onReview }: GeneralExaminationSummaryProps) {
+export function GeneralExaminationSummary({ anamnesis, physicalExam, physicalSystems, bodyMap, hasUnsavedChanges, onReview }: GeneralExaminationSummaryProps) {
     const recordedSystems = Object.entries(physicalSystems)
         .map(([system, value]) => ({ system, value: normalizeClinicalAnswer(value) }))
         .filter(({ value }) => value !== null);
 
     return (
         <WorkflowSummary
-            counts={<Badge>{recordedSystems.length} sistem dicatat</Badge>}
+            counts={<Badge>{new Set([...recordedSystems.map(({ system }) => system), ...(bodyMap?.findings.map((finding) => finding.category) ?? [])]).size} sistem dicatat</Badge>}
             description="Hasil pemeriksaan tersimpan pada kunjungan ini sebagai acuan penetapan diagnosis."
             hasUnsavedChanges={hasUnsavedChanges}
             icon={Stethoscope}
@@ -97,11 +100,12 @@ export function GeneralExaminationSummary({ anamnesis, physicalExam, physicalSys
                 <SummaryValue label="Keluhan utama" value={anamnesis} />
                 <SummaryValue label="Ringkasan pemeriksaan fisik" value={physicalExam} />
             </dl>
+            {hasBodyMapContent(bodyMap) && <BodyExaminationRecord data={bodyMap} />}
             <div className="space-y-3 border-t border-neutral-200 pt-4">
                 <h3 className="text-sm font-semibold text-neutral-900">Temuan per sistem</h3>
                 {recordedSystems.length > 0 ? <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {recordedSystems.map(({ system, value }) => <SummaryValue key={system} label={system} value={value} />)}
-                </dl> : <p className="text-sm text-neutral-500">Belum ada temuan per sistem tersimpan.</p>}
+                </dl> : <p className="text-sm text-neutral-500">{hasBodyMapContent(bodyMap) ? 'Tidak ada catatan tambahan per sistem.' : 'Belum ada temuan per sistem tersimpan.'}</p>}
             </div>
         </WorkflowSummary>
     );
@@ -127,17 +131,17 @@ export function DiagnosisSummary({ id = 'diagnosis-summary', diagnoses, differen
                 <div className="overflow-x-auto rounded-xl border border-neutral-200">
                     <Table aria-label="Ringkasan diagnosis tercatat" className="min-w-[36rem] table-fixed">
                         <TableHeader><TableRow>
-                            <TableHead className="w-24 px-4 py-3 text-left">Kode</TableHead>
-                            <TableHead className="w-36 px-4 py-3 text-left">Sistem kode</TableHead>
-                            <TableHead className="px-4 py-3 text-left">Diagnosis</TableHead>
-                            <TableHead className="w-28 px-4 py-3 text-left">Jenis</TableHead>
+                            <TableHead className="w-24 px-4 py-3 text-center">Kode</TableHead>
+                            <TableHead className="w-36 px-4 py-3 text-center">Sistem kode</TableHead>
+                            <TableHead className="px-4 py-3 text-center">Diagnosis</TableHead>
+                            <TableHead className="w-28 px-4 py-3 text-center">Jenis</TableHead>
                         </TableRow></TableHeader>
                         <TableBody>{orderedDiagnoses.map((diagnosis) => (
                             <TableRow key={diagnosis.id}>
-                                <TableCell className="break-words px-4 py-3 text-left align-top font-mono font-semibold">{diagnosis.code}</TableCell>
-                                <TableCell className="break-words px-4 py-3 text-left align-top">{codeSystems.find((system) => system.value === diagnosis.codeSystem)?.label ?? diagnosis.codeSystem ?? optionalAnswers.notRecorded}</TableCell>
-                                <TableCell className="whitespace-pre-wrap break-words px-4 py-3 text-left align-top font-medium">{diagnosis.name}</TableCell>
-                                <TableCell className="px-4 py-3 text-left align-top"><Badge variant={diagnosis.type === 'utama' ? 'examination' : 'default'}>{diagnosis.type === 'utama' ? 'Utama' : 'Tambahan'}</Badge></TableCell>
+                                <TableCell className="break-words px-4 py-3 text-center align-middle font-mono font-semibold">{diagnosis.code || 'Manual'}</TableCell>
+                                <TableCell className="break-words px-4 py-3 text-center align-middle">{diagnosis.codeSystem === 'manual' || !diagnosis.code ? 'Manual' : codeSystems.find((system) => system.value === diagnosis.codeSystem)?.label ?? diagnosis.codeSystem ?? optionalAnswers.notRecorded}</TableCell>
+                                <TableCell className="whitespace-pre-wrap break-words px-4 py-3 text-center align-middle font-medium"><p>{diagnosis.name}</p>{diagnosis.note && <p className="mt-1 font-normal text-neutral-600">{diagnosis.note}</p>}</TableCell>
+                                <TableCell className="px-4 py-3 text-center align-middle"><Badge variant={diagnosis.type === 'utama' ? 'examination' : 'default'}>{diagnosis.type === 'utama' ? 'Utama' : 'Tambahan'}</Badge></TableCell>
                             </TableRow>
                         ))}</TableBody>
                     </Table>

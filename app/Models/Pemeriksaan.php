@@ -15,6 +15,7 @@ class Pemeriksaan extends Model
         'signed_at' => 'datetime',
         'started_at' => 'datetime',
         'pemeriksaan_fisik_terstruktur' => 'array',
+        'body_map' => 'array',
         'oral_hygiene_index' => 'decimal:2',
     ];
 
@@ -24,7 +25,7 @@ class Pemeriksaan extends Model
         'status', 'signed_by_user_id', 'signed_at', 'latest_note_hash',
         'started_at', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu',
         'riwayat_penyakit_keluarga', 'riwayat_alergi', 'pemeriksaan_fisik_terstruktur',
-        'pemeriksaan_ekstraoral', 'oral_hygiene_index', 'diagnosis_banding',
+        'pemeriksaan_ekstraoral', 'oral_hygiene_index', 'diagnosis_banding', 'body_map',
     ];
 
     protected static function booted(): void

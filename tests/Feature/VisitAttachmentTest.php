@@ -43,7 +43,7 @@ class VisitAttachmentTest extends TestCase
         [$nurse, $visit] = $this->context();
         $this->actingAs($nurse);
         foreach ([
-            UploadedFile::fake()->createWithContent('script.pdf', '<script>alert(1)</script>'),
+            UploadedFile::fake()->createWithContent('script.pdf', '<script>alert(1)</script>')->mimeType('text/html'),
             UploadedFile::fake()->createWithContent('script.php', "%PDF-1.4\nDocument\n%%EOF"),
             UploadedFile::fake()->create('large.pdf', 5121, 'application/pdf'),
         ] as $file) {

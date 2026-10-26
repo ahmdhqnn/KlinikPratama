@@ -1,5 +1,5 @@
 import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
-import { visitStatusLabels } from '@/components/dashboard/status-badge';
+import { visitStatusFilterLabels } from '@/components/dashboard/status-badge';
 import { Head, Link } from '@inertiajs/react';
 import {
     ArrowUpRight,
@@ -88,7 +88,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
         kasir: todayReportUrl,
         selesai: todayReportUrl,
         batal: todayReportUrl,
-    } : Object.fromEntries(Object.keys(visitStatusLabels).map((status) => [status, todayReportUrl]));
+    } : Object.fromEntries(Object.keys(visitStatusFilterLabels).map((status) => [status, todayReportUrl]));
 
     return (
         <>
@@ -151,7 +151,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                             <CardDescription>Pergerakan pasien di setiap tahap pelayanan.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                            {Object.entries(visitStatusLabels).map(([status, label]) => (
+                            {Object.entries(visitStatusFilterLabels).map(([status, label]) => (
                                 <Link aria-label={`${label}: ${formatNumber(visitStatuses[status] ?? 0)}. Lihat daftar terkait`} className="flex items-center justify-between gap-3 rounded-lg p-1 transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" href={visitStatusUrls[status]} key={status}>
                                     <div className="flex items-center gap-3">
                                         <span className={`size-2 rounded-full ${status === 'selesai' ? 'bg-emerald-500' : status === 'batal' ? 'bg-red-500' : 'bg-neutral-500'}`} />

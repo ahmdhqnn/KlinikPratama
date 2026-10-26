@@ -12,6 +12,5 @@ export function DataScope({ todayLabel }: { todayLabel: string }) {
             <Button asChild variant={today ? 'secondary' : 'default'}><Link aria-current={!today ? 'page' : undefined} href={path}><List className="size-4" />Daftar kunjungan</Link></Button>
             <Button asChild variant={today ? 'default' : 'secondary'}><Link aria-current={today ? 'page' : undefined} href={`${path}?scope=today`}><CalendarDays className="size-4" />{todayLabel}</Link></Button>
         </nav>
-        <p className="text-xs text-neutral-500">{today ? 'Data hari ini · tidak menggunakan filter' : 'Semua periode · filter tersedia'}</p>
     </div>;
 }

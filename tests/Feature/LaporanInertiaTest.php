@@ -63,6 +63,8 @@ class LaporanInertiaTest extends TestCase
                 ->where('medicines.data.0.name', 'Paracetamol')
             );
 
+        config(['clinic.modules.laboratory' => true]);
+
         $this->get(route('laporan.laboratorium', [
             'dari' => today()->toDateString(),
             'sampai' => today()->toDateString(),

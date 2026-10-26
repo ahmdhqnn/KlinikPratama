@@ -304,6 +304,91 @@ class ClinicalProcedureFlowTest extends TestCase
         $this->get(route('pelayanan.icd9cm.search', ['q' => '23']))->assertRedirect(route('login'));
     }
 
+    #[TestWith(['umum'])]
+    #[TestWith(['gigi'])]
+    public function test_manual_diagnoses_and_treatments_round_trip_to_signed_rme_without_inventing_codes(string $clinicType): void
+    {
+        [$user, $visit] = $this->clinicalContext($clinicType);
+        $this->procedure();
+        ClinicalTerminology::create(['code_system' => 'icd10_who', 'release' => '2026', 'code' => 'Z00.0', 'display' => 'General examination', 'code_type' => 'diagnosis', 'is_active' => true]);
+        if ($clinicType === 'gigi') {
+            OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46']);
+        }
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), [
+            'is_manual' => true, 'kode_icd10' => '', 'code_system' => 'manual', 'code_release' => '',
+            'nama_diagnosa' => '  Diagnosis   naratif dokter  ', 'keterangan' => 'Keterangan diagnosis dokter', 'jenis' => 'utama',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $diagnosis = Diagnosa::sole();
+        $this->assertNull($diagnosis->kode_icd10);
+        $this->assertSame('manual', $diagnosis->code_system);
+        $this->assertSame('Diagnosis naratif dokter', $diagnosis->nama_diagnosa);
+        $this->assertSame('Keterangan diagnosis dokter', $diagnosis->keterangan);
+        $this->assertNull($diagnosis->code_release);
+        $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.diagnoses.0.code', null)->where('visit.diagnoses.0.codeSystem', 'manual'));
+
+        $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), [
+            'nama_tindakan_manual' => 'Tindakan manual dokter', 'jumlah' => 1, 'catatan' => 'Catatan tindakan',
+            'tooth_fdis' => $clinicType === 'gigi' ? ['46'] : [],
+        ])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasNoErrors();
+        $final = ClinicalNoteVersion::sole();
+        $this->assertNull($final->payload['diagnoses'][0]['code']);
+        $this->assertSame('manual', $final->payload['diagnoses'][0]['code_system']);
+        $this->assertSame('Keterangan diagnosis dokter', $final->payload['diagnoses'][0]['note']);
+        $this->assertSame('Tindakan manual dokter', $final->payload['treatments'][0]['name']);
+        $this->assertNull($final->payload['treatments'][0]['code']);
+        $this->assertSame($clinicType === 'gigi' ? '46' : null, $final->payload['treatments'][0]['tooth_fdi']);
+        $diagnosis->update(['nama_diagnosa' => 'Perubahan di luar catatan final', 'keterangan' => 'Keterangan diubah setelah final']);
+        $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.diagnoses.0.name', 'Diagnosis naratif dokter')->where('visit.diagnoses.0.codeSystem', 'manual')
+            ->where('visit.diagnoses.0.note', 'Keterangan diagnosis dokter'));
+        $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien_id))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.0.examination.diagnoses.0.code', null)
+            ->where('visits.0.examination.diagnoses.0.codeSystem', 'manual')
+            ->where('visits.0.examination.diagnoses.0.name', 'Diagnosis naratif dokter')
+            ->where('visits.0.examination.diagnoses.0.note', 'Keterangan diagnosis dokter')
+            ->where('visits.0.treatments.0.name', 'Tindakan manual dokter'));
+        $this->assertTrue(app(ClinicalNoteRecorder::class)->verify($visit->pemeriksaan->fresh()));
+        $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), [
+            'is_manual' => true, 'nama_diagnosa' => 'Diagnosis setelah finalisasi', 'jenis' => 'tambahan',
+        ])->assertUnprocessable();
+    }
+
+    public function test_manual_diagnosis_duplicates_and_invalid_inputs_do_not_replace_the_primary_diagnosis(): void
+    {
+        [$user, $visit] = $this->clinicalContext('umum');
+        $payload = ['is_manual' => true, 'nama_diagnosa' => 'Diagnosis naratif dokter', 'jenis' => 'utama'];
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), $payload)->assertSessionHasNoErrors();
+        foreach (['  DIAGNOSIS   NARATIF DOKTER  ', '', 'Belum dicatat'] as $name) {
+            $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), array_replace($payload, ['nama_diagnosa' => $name]))->assertSessionHasErrors('nama_diagnosa');
+        }
+        $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), $payload + ['kode_icd10' => 'Z00.0'])->assertSessionHasErrors('kode_icd10');
+        $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), array_replace($payload, ['is_manual' => false]))->assertSessionHasErrors('kode_icd10');
+        $this->assertDatabaseCount('diagnosa', 1);
+        $this->assertSame('utama', Diagnosa::sole()->jenis);
+        $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), array_replace($payload, ['nama_diagnosa' => 'Diagnosis naratif kedua']))->assertSessionHasNoErrors();
+        $this->assertSame(1, Diagnosa::where('jenis', 'utama')->count());
+        $this->assertSame('Diagnosis naratif kedua', Diagnosa::where('jenis', 'utama')->sole()->nama_diagnosa);
+    }
+
+    public function test_manual_diagnosis_obeys_visit_ownership_and_manual_treatment_requires_a_meaningful_name(): void
+    {
+        [$owner, $visit] = $this->clinicalContext('umum');
+        [$other] = $this->clinicalContext('umum', 'OTHER');
+        $this->actingAs($other)->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), [
+            'is_manual' => true, 'nama_diagnosa' => 'Diagnosis tidak berwenang', 'jenis' => 'utama',
+        ])->assertForbidden();
+        $this->assertDatabaseCount('diagnosa', 0);
+        $this->actingAs($owner);
+        foreach (['Belum dicatat', '  x  '] as $name) {
+            $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), [
+                'nama_tindakan_manual' => $name, 'jumlah' => 1,
+            ])->assertSessionHasErrors('nama_tindakan_manual');
+        }
+        $this->assertDatabaseCount('tindakan_kunjungan', 0);
+    }
+
     /** @return array{User, Kunjungan} */
     private function clinicalContext(string $clinicType, string $suffix = 'PRIMARY'): array
     {

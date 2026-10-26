@@ -40,6 +40,7 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            'modules' => config('clinic.modules'),
             'auth' => [
                 'user' => $request->user() ? [
                     ...$request->user()->only('id', 'name', 'email', 'role'),

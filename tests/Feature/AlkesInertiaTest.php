@@ -12,6 +12,13 @@ class AlkesInertiaTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['clinic.modules.medical_equipment' => true]);
+    }
+
     public function test_admin_can_manage_medical_supplies_from_the_inertia_page(): void
     {
         $admin = User::create([

@@ -24,6 +24,9 @@ use App\Models\Tindakan;
 use App\Models\TindakanKunjungan;
 use App\PatientAllergyHistory;
 use App\PersediaanRecorder;
+use App\Rules\BodyMapPayload;
+use App\VisitQueryService;
+use App\VisitSchedulingService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -40,7 +43,7 @@ class PemeriksaanController extends Controller
 
     public function index(Request $request): Response
     {
-        $filters = (new \App\VisitQueryService)->filters($request);
+        $filters = (new VisitQueryService)->filters($request);
         $doctorId = auth()->user()->role === 'dokter' ? $this->currentDoctorId() : null;
         $date = $filters['tanggal'] ?? '';
         $claimDate = $date ?: today()->toDateString();
@@ -53,6 +56,10 @@ class PemeriksaanController extends Controller
             ->orderByDesc('created_at')
             ->paginate(10)
             ->withQueryString();
+
+        $recordPatientIds = Kunjungan::query()->where('dokter_id', $doctorId)
+            ->whereIn('pasien_id', $kunjungan->getCollection()->pluck('pasien_id'))
+            ->distinct()->pluck('pasien_id')->map(fn ($id): int => (int) $id)->all();
 
         return Inertia::render('pelayanan/pemeriksaan/index', [
             'visits' => [
@@ -67,7 +74,9 @@ class PemeriksaanController extends Controller
                     'doctor' => $visit->dokter?->nama,
                     'canClaim' => $doctorId !== null && $visit->dokter_id === null,
                     'status' => $visit->status,
+                    'examinationStarted' => $visit->pemeriksaan !== null,
                     'diagnosisCount' => $visit->pemeriksaan?->diagnosa->count() ?? 0,
+                    'recordUrl' => in_array((int) $visit->pasien_id, $recordPatientIds, true) ? route('pelayanan.pasien.rekam-medis', $visit->pasien_id) : null,
                 ])->values(),
                 'currentPage' => $kunjungan->currentPage(),
                 'lastPage' => $kunjungan->lastPage(),
@@ -96,7 +105,9 @@ class PemeriksaanController extends Controller
         $dokterList = auth()->user()->role === 'dokter'
             ? Nakes::whereKey($this->currentDoctorId())->get()
             : Nakes::where('jabatan', 'dokter')->where('is_active', true)->orderBy('nama')->get();
-        $tindakanList = Tindakan::where('is_active', true)->where('poliklinik_id', $kunjungan->poliklinik_id)->orderBy('nama')->get();
+        $tindakanList = Tindakan::where('is_active', true)->where('poliklinik_id', $kunjungan->poliklinik_id)
+            ->when(! config('clinic.modules.laboratory', false), fn ($query) => $query->where('kategori', 'medis'))
+            ->orderBy('nama')->get();
         $diagnosisCodeSystems = collect([
             ['value' => 'icd10_who', 'label' => 'ICD-10 WHO'],
             ['value' => 'icd10_cm', 'label' => 'ICD-10-CM'],
@@ -157,8 +168,11 @@ class PemeriksaanController extends Controller
                 'attachments' => $kunjungan->attachmentSummaries(),
                 'number' => $kunjungan->no_kunjungan,
                 'status' => $kunjungan->status,
+                'examinationStarted' => $kunjungan->pemeriksaan !== null,
                 'doctorId' => $kunjungan->dokter_id,
                 'canClaim' => auth()->user()->role === 'dokter' && $kunjungan->dokter_id === null,
+                'isReservation' => $kunjungan->status === 'menunggu' && $kunjungan->tanggal?->isAfter(today()),
+                'recordUrl' => (auth()->user()->role !== 'dokter' || $kunjungan->pasien->kunjungan()->where('dokter_id', $this->currentDoctorId())->exists()) ? route('pelayanan.pasien.rekam-medis', $kunjungan->pasien_id) : null,
                 'clinicId' => $kunjungan->poliklinik_id,
                 'clinicType' => $kunjungan->poliklinik?->jenis,
                 'clinic' => $kunjungan->poliklinik?->nama ?? 'Belum diisi',
@@ -208,6 +222,7 @@ class PemeriksaanController extends Controller
                     'allergyHistory' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $kunjungan->pemeriksaan->riwayat_alergi),
                     'physicalExam' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $kunjungan->pemeriksaan->pemeriksaan_fisik),
                     'physicalSystems' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik_terstruktur'] ?? []) : ($kunjungan->pemeriksaan->pemeriksaan_fisik_terstruktur ?? []),
+                    'bodyMap' => is_array($effectiveNote) ? ($effectiveNote['body_map'] ?? null) : $kunjungan->pemeriksaan->body_map,
                     'extraoralExam' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_ekstraoral'] ?? null) : $kunjungan->pemeriksaan->pemeriksaan_ekstraoral,
                     'oralHygieneIndex' => is_numeric($oralHygieneIndex) ? (float) $oralHygieneIndex : null,
                     'differentialDiagnosis' => is_array($effectiveNote) ? ($effectiveNote['diagnosis_banding'] ?? null) : $kunjungan->pemeriksaan->diagnosis_banding,
@@ -226,6 +241,7 @@ class PemeriksaanController extends Controller
                         'recordedAt' => $version->recorded_at?->locale('id')->isoFormat('D MMMM Y HH:mm'),
                         'anamnesis' => $version->payload['anamnesis'] ?? null,
                         'physicalExam' => $version->payload['pemeriksaan_fisik'] ?? null,
+                        'bodyMap' => $version->payload['body_map'] ?? null,
                         'notes' => $version->payload['catatan'] ?? null,
                         'education' => $version->payload['edukasi'] ?? null,
                         'odontogram' => collect($version->payload['odontogram'] ?? [])->map(fn (array $finding): array => [
@@ -236,14 +252,15 @@ class PemeriksaanController extends Controller
                         ])->values()->all(),
                     ])->values(),
                 ] : null,
-                'diagnoses' => $kunjungan->pemeriksaan?->diagnosa->map(fn (Diagnosa $diagnosis) => [
-                    'id' => $diagnosis->id,
-                    'code' => $diagnosis->kode_icd10,
-                    'codeSystem' => $diagnosis->code_system,
-                    'codeRelease' => $diagnosis->code_release,
-                    'name' => $diagnosis->nama_diagnosa,
-                    'type' => $diagnosis->jenis,
-                ])->values() ?? collect(),
+                'diagnoses' => collect(is_array($effectiveNote) ? ($effectiveNote['diagnoses'] ?? []) : ($noteIntegrityValid === false ? [] : $kunjungan->pemeriksaan?->diagnosa))->values()->map(fn ($diagnosis, int $index): array => [
+                    'id' => is_array($diagnosis) ? ($diagnosis['id'] ?? $index + 1) : $diagnosis->id,
+                    'code' => is_array($diagnosis) ? ($diagnosis['code'] ?? null) : $diagnosis->kode_icd10,
+                    'codeSystem' => is_array($diagnosis) ? ($diagnosis['code_system'] ?? null) : $diagnosis->code_system,
+                    'codeRelease' => is_array($diagnosis) ? ($diagnosis['code_release'] ?? null) : $diagnosis->code_release,
+                    'name' => is_array($diagnosis) ? $diagnosis['name'] : $diagnosis->nama_diagnosa,
+                    'note' => is_array($diagnosis) ? ($diagnosis['note'] ?? null) : $diagnosis->keterangan,
+                    'type' => is_array($diagnosis) ? $diagnosis['type'] : $diagnosis->jenis,
+                ]),
                 'treatments' => collect(is_array($effectiveNote) ? ($effectiveNote['treatments'] ?? []) : ($noteIntegrityValid === false ? [] : $kunjungan->tindakanKunjungan))->values()->map(fn ($item, int $index): array => [
                     'id' => is_array($item) ? ($item['id'] ?? $index + 1) : $item->id,
                     'name' => is_array($item) ? $item['name'] : ($item->nama_tindakan ?? $item->nama_tindakan_manual ?? $item->tindakan?->nama ?? 'Tindakan dihapus'),
@@ -327,13 +344,44 @@ class PemeriksaanController extends Controller
         ]);
     }
 
+    public function start(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): RedirectResponse
+    {
+        DB::transaction(function () use ($request, $kunjungan, $auditRecorder): void {
+            $visit = Kunjungan::query()->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            app(VisitSchedulingService::class)->ensureServiceDate($visit);
+            $this->authorizeVisit($visit);
+            $doctorId = $this->currentDoctorId();
+
+            if ($visit->dokter_id === null) {
+                $visit->update(['dokter_id' => $doctorId]);
+                $visit->pemeriksaan()->update(['dokter_id' => $doctorId]);
+                $auditRecorder->record($request, 'clinical_examination.visit_claim', $visit->pasien_id, $visit->id);
+            }
+
+            $this->authorizeMutableVisit($visit);
+            $examination = $visit->pemeriksaan()->firstOrCreate(
+                ['kunjungan_id' => $visit->id],
+                ['dokter_id' => $doctorId, 'status' => 'draft', 'started_at' => now()],
+            );
+
+            if ($examination->wasRecentlyCreated || $examination->started_at === null) {
+                if ($examination->started_at === null) {
+                    $examination->update(['started_at' => now()]);
+                }
+                $auditRecorder->record($request, 'clinical_examination.started', $visit->pasien_id, $visit->id);
+            }
+        });
+
+        return redirect()->route('pelayanan.pemeriksaan.show', $kunjungan)->with('success', 'Pemeriksaan telah dimulai. Silakan lengkapi catatan pemeriksaan pasien.');
+    }
+
     public function claim(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): RedirectResponse
     {
         $doctorId = $this->currentDoctorId();
 
         DB::transaction(function () use ($request, $kunjungan, $auditRecorder, $doctorId): void {
             $lockedVisit = Kunjungan::query()->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
-            app(\App\VisitSchedulingService::class)->ensureServiceDate($lockedVisit);
+            app(VisitSchedulingService::class)->ensureServiceDate($lockedVisit);
             abort_unless($lockedVisit->status === 'pemeriksaan', 422, 'Kunjungan belum berada pada tahap pemeriksaan dokter.');
 
             if ($lockedVisit->dokter_id === $doctorId) {
@@ -397,39 +445,60 @@ class PemeriksaanController extends Controller
             $this->authorizeMutableVisit($kunjungan);
             app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.storeDiagnosa', $kunjungan->pasien_id, $kunjungan->id);
             $this->authorizeMutableVisit($kunjungan);
+            $manual = $request->boolean('is_manual');
             $data = $request->validate([
-                'kode_icd10' => ['required', 'string'],
+                'is_manual' => ['sometimes', 'boolean'],
+                'kode_icd10' => [$manual ? 'prohibited' : 'required', 'nullable', 'string', 'max:100'],
                 'code_system' => ['sometimes', 'nullable', 'string', 'max:100'],
                 'code_release' => ['sometimes', 'nullable', 'string', 'max:100'],
-                'nama_diagnosa' => ['required', 'string'],
+                'nama_diagnosa' => ['required', 'string', 'max:255'],
+                'keterangan' => ['nullable', 'string', 'max:2000'],
                 'jenis' => ['required', 'in:utama,tambahan'],
             ]);
-            $codeSystem = $data['code_system'] ?? 'icd10_who';
-            $catalog = ClinicalTerminology::query()->where('code_system', $codeSystem)->where('code_type', 'diagnosis')->where('is_active', true);
-            if ($codeSystem === 'icd9cm_procedure') {
-                throw ValidationException::withMessages(['code_system' => 'Kode prosedur ICD-9-CM harus dicatat pada tindakan, bukan diagnosis.']);
+            $data['nama_diagnosa'] = ClinicalAnswer::normalize(preg_replace('/\s+/u', ' ', trim($data['nama_diagnosa'])));
+            if ($data['nama_diagnosa'] === null) {
+                throw ValidationException::withMessages(['nama_diagnosa' => 'Tuliskan diagnosis yang ditetapkan dokter.']);
             }
-            if (in_array($codeSystem, ['icd10_who', 'icd10_cm'], true) && preg_match('/^[A-Z]/i', $data['kode_icd10']) !== 1) {
-                throw ValidationException::withMessages(['kode_icd10' => 'Kode diagnosis ICD-10 harus diawali huruf. Catat kode prosedur ICD-9-CM pada tindakan.']);
-            }
-            if (! in_array($codeSystem, ['icd10_who', 'icd10_cm', 'icd9cm_diagnosis'], true) && ! $catalog->exists()) {
-                throw ValidationException::withMessages(['code_system' => 'Sistem kode belum memiliki katalog diagnosis yang dapat digunakan.']);
-            }
-            if ($catalog->exists()) {
-                $canonical = (clone $catalog)->where('code', $data['kode_icd10'])
-                    ->when($data['code_release'] ?? null, fn ($query, string $release) => $query->where('release', $release))
-                    ->orderByDesc('updated_at')->first();
-                if (! $canonical) {
-                    throw ValidationException::withMessages(['kode_icd10' => 'Kode tidak ditemukan pada katalog terminologi yang dipilih.']);
+            $codeSystem = $manual ? 'manual' : ($data['code_system'] ?? 'icd10_who');
+            if ($manual) {
+                $data['kode_icd10'] = null;
+                $data['code_release'] = null;
+            } else {
+                if ($codeSystem === 'manual') {
+                    throw ValidationException::withMessages(['code_system' => 'Gunakan pilihan input diagnosis manual untuk diagnosis tanpa kode.']);
                 }
-                $data['nama_diagnosa'] = $canonical->display;
-                $data['code_release'] = $canonical->release;
+                $catalog = ClinicalTerminology::query()->where('code_system', $codeSystem)->where('code_type', 'diagnosis')->where('is_active', true);
+                if ($codeSystem === 'icd9cm_procedure') {
+                    throw ValidationException::withMessages(['code_system' => 'Kode prosedur ICD-9-CM harus dicatat pada tindakan, bukan diagnosis.']);
+                }
+                if (in_array($codeSystem, ['icd10_who', 'icd10_cm'], true) && preg_match('/^[A-Z]/i', $data['kode_icd10']) !== 1) {
+                    throw ValidationException::withMessages(['kode_icd10' => 'Kode diagnosis ICD-10 harus diawali huruf. Catat kode prosedur ICD-9-CM pada tindakan.']);
+                }
+                if (! in_array($codeSystem, ['icd10_who', 'icd10_cm', 'icd9cm_diagnosis'], true) && ! $catalog->exists()) {
+                    throw ValidationException::withMessages(['code_system' => 'Sistem kode belum memiliki katalog diagnosis yang dapat digunakan.']);
+                }
+                if ($catalog->exists()) {
+                    $canonical = (clone $catalog)->where('code', $data['kode_icd10'])
+                        ->when($data['code_release'] ?? null, fn ($query, string $release) => $query->where('release', $release))
+                        ->orderByDesc('updated_at')->first();
+                    if (! $canonical) {
+                        throw ValidationException::withMessages(['kode_icd10' => 'Kode tidak ditemukan pada katalog terminologi yang dipilih.']);
+                    }
+                    $data['nama_diagnosa'] = $canonical->display;
+                    $data['code_release'] = $canonical->release;
+                }
             }
 
             $pemeriksaan = $kunjungan->pemeriksaan()->firstOrCreate(['kunjungan_id' => $kunjungan->id], ['status' => 'draft', 'dokter_id' => $kunjungan->dokter_id]);
 
-            if ($pemeriksaan->diagnosa()->where('code_system', $codeSystem)->where('kode_icd10', $data['kode_icd10'])->exists()) {
-                throw ValidationException::withMessages(['kode_icd10' => 'Diagnosis ini sudah tercatat. Hapus entri sebelumnya jika perlu dikoreksi.']);
+            $duplicate = $pemeriksaan->diagnosa()->where('code_system', $codeSystem);
+            if ($manual) {
+                $duplicate->whereRaw('LOWER(nama_diagnosa) = ?', [mb_strtolower($data['nama_diagnosa'])]);
+            } else {
+                $duplicate->where('kode_icd10', $data['kode_icd10']);
+            }
+            if ($duplicate->exists()) {
+                throw ValidationException::withMessages([$manual ? 'nama_diagnosa' : 'kode_icd10' => 'Diagnosis ini sudah tercatat. Hapus entri sebelumnya jika perlu dikoreksi.']);
             }
             if ($data['jenis'] === 'utama') {
                 $pemeriksaan->diagnosa()->where('jenis', 'utama')->update(['jenis' => 'tambahan']);
@@ -440,6 +509,7 @@ class PemeriksaanController extends Controller
                 'code_system' => $codeSystem,
                 'code_release' => $data['code_release'] ?? null,
                 'nama_diagnosa' => $data['nama_diagnosa'],
+                'keterangan' => ClinicalAnswer::normalize($data['keterangan'] ?? null),
                 'jenis' => $data['jenis'],
             ]);
 
@@ -599,13 +669,16 @@ class PemeriksaanController extends Controller
             $treatmentName = $terminology?->display;
             if ($hasClinicTreatment) {
                 $tindakan = Tindakan::query()->where('is_active', true)->findOrFail($data['tindakan_id']);
+                if ($tindakan->kategori === 'lab' && ! config('clinic.modules.laboratory', false)) {
+                    throw ValidationException::withMessages(['tindakan_id' => 'Layanan laboratorium tidak tersedia. Pilih tindakan klinik yang aktif.']);
+                }
                 abort_unless($tindakan->poliklinik_id === $kunjungan->poliklinik_id, 422, 'Tindakan tidak tersedia di poliklinik kunjungan ini.');
                 $tindakanId = $tindakan->id;
                 $treatmentName ??= $tindakan->nama;
             } elseif ($hasManualName) {
-                $manualName = trim($data['nama_tindakan_manual']);
-                if ($manualName === '') {
-                    throw ValidationException::withMessages(['nama_tindakan_manual' => 'Nama tindakan manual tidak boleh kosong.']);
+                $manualName = ClinicalAnswer::normalize(preg_replace('/\s+/u', ' ', trim($data['nama_tindakan_manual'])));
+                if ($manualName === null || mb_strlen($manualName) < 3) {
+                    throw ValidationException::withMessages(['nama_tindakan_manual' => 'Tuliskan tindakan yang dilakukan, minimal 3 karakter.']);
                 }
             }
 
@@ -720,7 +793,7 @@ class PemeriksaanController extends Controller
                 throw ValidationException::withMessages(['surat_template_id' => 'Pilih template rujukan internal.']);
             }
 
-            $kunjungan->loadMissing(['pasien', 'dokter', 'poliklinik']);
+            $kunjungan->loadMissing(['pasien', 'dokter', 'poliklinik', 'pemeriksaan']);
             $date = Carbon::parse($kunjungan->tanggal);
             $number = $template ? $correspondence->nextNumber($template, $date) : null;
             $content = filled($data['konten_surat'] ?? null) ? $data['konten_surat'] : $template?->isi;
@@ -836,6 +909,7 @@ class PemeriksaanController extends Controller
             'pemeriksaan_fisik' => ['sometimes', 'nullable', 'string'],
             'pemeriksaan_fisik_terstruktur' => ['sometimes', Rule::excludeIf(! $isGeneralClinic), 'nullable', 'array'],
             'pemeriksaan_fisik_terstruktur.*' => ['nullable', 'string', 'max:3000'],
+            'body_map' => ['sometimes', Rule::excludeIf(! $isGeneralClinic), 'nullable', new BodyMapPayload],
             'pemeriksaan_ekstraoral' => ['sometimes', Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'diagnosis_banding' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'catatan' => ['sometimes', 'nullable', 'string'],
@@ -845,7 +919,7 @@ class PemeriksaanController extends Controller
         $fields = array_intersect_key($data, array_flip([
             'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu',
             'riwayat_penyakit_keluarga', 'riwayat_alergi', 'pemeriksaan_fisik',
-            'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral',
+            'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'body_map',
             'diagnosis_banding', 'catatan', 'edukasi', 'kontrol_berikutnya',
         ]));
         if ($fields === []) {
@@ -877,6 +951,9 @@ class PemeriksaanController extends Controller
                     throw ValidationException::withMessages([$field => 'Bagian klinis utama tidak boleh dikosongkan.']);
                 }
 
+                if ($field === 'body_map' && is_array($normalized)) {
+                    $normalized = BodyMapPayload::normalize($normalized);
+                }
                 $payload[$field] = blank($normalized) ? null : $normalized;
             }
 
@@ -1111,17 +1188,22 @@ class PemeriksaanController extends Controller
 
     private function authorizeMutableVisit(Kunjungan $kunjungan): void
     {
-        app(\App\VisitSchedulingService::class)->ensureServiceDate($kunjungan);
+        app(VisitSchedulingService::class)->ensureServiceDate($kunjungan);
         $this->authorizeVisit($kunjungan);
 
         if (auth()->user()->role === 'dokter') {
-            abort_unless($kunjungan->dokter_id === $this->currentDoctorId(), 409, 'Ambil kunjungan terlebih dahulu sebelum mencatat pemeriksaan.');
+            abort_unless($kunjungan->dokter_id === $this->currentDoctorId(), 409, 'Mulai pemeriksaan terlebih dahulu sebelum mencatat pemeriksaan.');
         }
 
         abort_unless(
-            $kunjungan->status === 'pemeriksaan' && $kunjungan->pemeriksaan?->status !== 'selesai',
+            $kunjungan->status === 'pemeriksaan' && $kunjungan->pemeriksaan?->status !== 'selesai' && ! $kunjungan->pemeriksaan?->signed_at,
             422,
-            'Pemeriksaan sudah selesai dan tidak dapat diubah.'
+            match (true) {
+                (bool) $kunjungan->pemeriksaan?->signed_at, $kunjungan->pemeriksaan?->status === 'selesai' => 'Pemeriksaan telah difinalisasi dan tidak dapat diubah langsung.',
+                $kunjungan->status === 'menunggu', $kunjungan->status === 'screening' => 'Selesaikan pengkajian awal sebelum mencatat pemeriksaan dokter.',
+                $kunjungan->status === 'batal' => 'Kunjungan dibatalkan dan tidak dapat dilanjutkan.',
+                default => 'Kunjungan tidak berada pada tahap pemeriksaan dokter.',
+            }
         );
     }
 
@@ -1144,6 +1226,7 @@ class PemeriksaanController extends Controller
             'pemeriksaan_fisik' => ['nullable', 'string', 'max:10000'],
             'pemeriksaan_fisik_terstruktur' => [Rule::excludeIf(! $isGeneralClinic), 'nullable', 'array'],
             'pemeriksaan_fisik_terstruktur.*' => ['nullable', 'string', 'max:3000'],
+            'body_map' => ['sometimes', Rule::excludeIf(! $isGeneralClinic), 'nullable', new BodyMapPayload],
             'pemeriksaan_ekstraoral' => [Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'diagnosis_banding' => ['nullable', 'string', 'max:5000'],
             'catatan' => ['nullable', 'string', 'max:5000'],
@@ -1156,7 +1239,7 @@ class PemeriksaanController extends Controller
         if ($section !== null) {
             $sectionFields = match ($section) {
                 'anamnesis' => ['dokter_id', 'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu', 'riwayat_penyakit_keluarga', 'riwayat_alergi'],
-                'pemeriksaan' => ['pemeriksaan_fisik', 'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral'],
+                'pemeriksaan' => ['pemeriksaan_fisik', 'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'body_map'],
                 'diagnosis' => ['diagnosis_banding'],
                 'rencana' => ['kontrol_berikutnya', 'catatan', 'edukasi'],
             };
@@ -1164,6 +1247,9 @@ class PemeriksaanController extends Controller
         }
 
         foreach ($data as $field => $value) {
+            if ($field === 'body_map' && is_array($value)) {
+                $data[$field] = BodyMapPayload::normalize($value);
+            }
             if (is_string($value)) {
                 $data[$field] = ClinicalAnswer::normalize($value);
             }

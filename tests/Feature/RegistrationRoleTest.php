@@ -270,8 +270,8 @@ class RegistrationRoleTest extends TestCase
         $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/pasien/rekam-medis'));
         $this->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
-            ->where('visits.0.actionUrl', route('pelayanan.pasien.rekam-medis', $patient))
-            ->where('visits.0.actionLabel', 'Lihat RME'));
+            ->where('visits.data.0.actionUrl', route('pelayanan.pasien.rekam-medis', $patient))
+            ->where('visits.data.0.actionLabel', 'Lihat RME'));
         $this->actingAs($user)->get(route('pendaftaran.pendaftaran-baru'))->assertForbidden();
         $this->actingAs($user)->get(route('users.index'))->assertForbidden();
     }
@@ -484,10 +484,11 @@ class RegistrationRoleTest extends TestCase
             'no_kunjungan' => 'KNJ-RECENT-01', 'pasien_id' => $patientToday->id, 'poliklinik_id' => $clinic->id,
             'tanggal' => '2026-10-19', 'status' => 'menunggu', 'jenis_pasien' => 'lama',
         ]);
-        Kunjungan::create([
+        $previousVisit = Kunjungan::create([
             'no_kunjungan' => 'KNJ-RECENT-02', 'pasien_id' => $patientPrevious->id, 'poliklinik_id' => $clinic->id,
             'tanggal' => '2026-10-18', 'status' => 'selesai', 'jenis_pasien' => 'lama',
         ]);
+        $previousVisit->forceFill(['created_at' => now()->subDay()])->save();
 
         $this->actingAs($user)->get(route('pendaftaran.kunjungan-per-poli', ['poliklinik_id' => $clinic->id]))
             ->assertInertia(fn (Assert $page) => $page

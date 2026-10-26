@@ -14,6 +14,7 @@ interface Visit {
     clinic: string;
     doctor: string | null;
     status: string;
+    examinationStarted?: boolean;
 }
 
 const queues = [
@@ -31,7 +32,7 @@ export default function VisitQueue({ visits, today }: { visits: PaginationData &
                 <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">{queues.map((queue) => {
                     const queueVisits = visits.data.filter((visit) => queue.statuses.includes(visit.status));
                     return <Card className="flex min-w-0 flex-col overflow-hidden" key={queue.title}><CardHeader className={`border-b px-5 py-4 ${queue.color}`}><div className="flex items-center justify-between gap-3"><CardTitle className="text-base leading-6">{queue.title}</CardTitle><span className="shrink-0 rounded-full bg-surface px-2.5 py-1 text-sm font-bold text-neutral-800">{queueVisits.length}</span></div></CardHeader><CardContent className="max-h-[70vh] min-h-56 flex-1 space-y-3 overflow-y-auto p-4">
-                        {queueVisits.length ? queueVisits.map((visit) => <article className={`rounded-xl border p-4 ${queue.color}`} key={visit.id}><div className="flex flex-wrap items-start justify-between gap-2"><span className="break-all font-mono text-xs font-semibold text-neutral-700">{visit.number}</span><StatusBadge status={visit.status} /></div><p className="mt-3 break-words font-semibold leading-5 text-neutral-900">{visit.patient}</p><p className="mt-1 break-words text-xs leading-5 text-neutral-600">{visit.clinic}{visit.doctor ? ` · ${visit.doctor}` : ''}</p><div className="mt-4 flex justify-end border-t border-neutral-900/10 pt-3"><ActionButton asChild action="detail" label="Detail kunjungan →"><Link href={`/pelayanan/kunjungan/${visit.id}`} /></ActionButton></div></article>) : <div className="flex min-h-48 items-center justify-center"><Empty description="Pasien pada tahap ini akan muncul di antrean." icon={<Activity aria-hidden="true" className="size-5" />} size="compact" title="Tidak ada antrean" /></div>}
+                        {queueVisits.length ? queueVisits.map((visit) => <article className={`rounded-xl border p-4 ${queue.color}`} key={visit.id}><div className="flex flex-wrap items-start justify-between gap-2"><span className="break-all font-mono text-xs font-semibold text-neutral-700">{visit.number}</span><StatusBadge examinationStarted={visit.examinationStarted} status={visit.status} /></div><p className="mt-3 break-words font-semibold leading-5 text-neutral-900">{visit.patient}</p><p className="mt-1 break-words text-xs leading-5 text-neutral-600">{visit.clinic}{visit.doctor ? ` · ${visit.doctor}` : ''}</p><div className="mt-4 flex justify-end border-t border-neutral-900/10 pt-3"><ActionButton asChild action="detail" label="Detail kunjungan →"><Link href={`/pelayanan/kunjungan/${visit.id}`} /></ActionButton></div></article>) : <div className="flex min-h-48 items-center justify-center"><Empty description="Pasien pada tahap ini akan muncul di antrean." icon={<Activity aria-hidden="true" className="size-5" />} size="compact" title="Tidak ada antrean" /></div>}
                     </CardContent></Card>;
                 })}</div>
                 <Card><Pagination pagination={visits} /></Card>

@@ -179,14 +179,14 @@ export default function Cetak({ document }: Props) {
                         </section>
                     )}
 
-                    <footer className="mt-14 flex justify-end">
+                    <footer className="mt-14 flex break-inside-avoid justify-end">
                         <div className="min-w-56 text-center text-sm">
                             <p className="text-neutral-700 dark:text-neutral-300 print:text-neutral-800">{document.clinicName}, {printDate}</p>
                             <p className="mt-1 text-neutral-600 dark:text-neutral-400 print:text-neutral-700">Dokter pemeriksa,</p>
                             {document.doctor.signatureDataUrl ? (
                                 <img
                                     alt={`Tanda tangan ${document.doctor.name}`}
-                                    className="mx-auto my-2 h-20 max-w-48 object-contain dark:brightness-0 dark:invert dark:opacity-90 print:filter-none"
+                                    className="mx-auto my-2 h-20 max-w-48 bg-white object-contain"
                                     src={document.doctor.signatureDataUrl}
                                 />
                             ) : (

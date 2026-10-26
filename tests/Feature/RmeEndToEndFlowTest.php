@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\DepoObat;
 use App\Models\JadwalDokter;
 use App\Models\Kepesertaan;
 use App\Models\Kunjungan;
@@ -43,8 +42,7 @@ class RmeEndToEndFlowTest extends TestCase
             'is_active' => true,
         ]);
 
-        $depo = DepoObat::create(['kode' => 'APT', 'nama' => 'Apotek Utama', 'is_active' => true]);
-        $poli = Poliklinik::create(['kode' => 'PU', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'depo_obat_id' => $depo->id, 'is_active' => true]);
+        $poli = Poliklinik::create(['kode' => 'PU', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
         Nakes::create([
             'kode' => 'PRW-E2E',
             'nama' => $nurse->name,
@@ -73,7 +71,7 @@ class RmeEndToEndFlowTest extends TestCase
             'jenis' => 'obat',
             'is_active' => true,
         ]);
-        ObatBatch::factory()->create(['obat_id' => $obat->id, 'stok' => 100, 'depo_id' => $depo->id]);
+        ObatBatch::factory()->create(['obat_id' => $obat->id, 'stok' => 100]);
         $member = Kepesertaan::factory()->create(['nama' => 'Ahmad Pasien', 'nik' => '3201234567890001']);
         $tindakan = Tindakan::create([
             'kode' => 'TDK01',
@@ -118,8 +116,10 @@ class RmeEndToEndFlowTest extends TestCase
             'td_sistole' => 120,
             'td_diastole' => 80,
             'nadi' => 78,
-            'suhu' => 36.6,
+            'suhu' => 36.6, 'respirasi' => 18,
             'keluhan' => 'Demam dan sakit kepala ringan',
+            'lama_keluhan' => 'Dua hari', 'sumber_informasi' => 'pasien',
+            'status_alergi' => 'tidak_ada', 'status_riwayat_penyakit' => 'tidak_ada', 'konfirmasi_riwayat' => true,
             'nyeri_dada' => 'tidak',
             'kondisi_psikiatri' => 'normal',
             'nadi_teraba' => 'teraba',
@@ -128,7 +128,7 @@ class RmeEndToEndFlowTest extends TestCase
             'kesadaran' => 'sadar',
             'risiko_jatuh_visual' => 'rendah',
         ]);
-        $resScreening->assertRedirect();
+        $resScreening->assertRedirect()->assertSessionHasNoErrors();
         $kunjungan->refresh();
         $this->assertEquals('pemeriksaan', $kunjungan->status);
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $kunjungan->id, 'td_sistole' => 120]);

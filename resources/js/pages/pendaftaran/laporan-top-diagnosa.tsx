@@ -14,7 +14,7 @@ import { Pagination, type PaginationData } from '@/components/dashboard/paginati
 
 interface Diagnosis {
     rank: number;
-    code: string;
+    code: string | null;
     name: string;
     count: number;
     percentage: number;
@@ -71,7 +71,7 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
                                     {diagnoses.data.length > 0 ? diagnoses.data.map((diagnosis) => (
                                         <TableRow key={`${diagnosis.code}-${diagnosis.name}`}>
                                             <TableCell className="text-center"><span className={`inline-flex size-8 items-center justify-center rounded-full text-xs font-bold ${diagnosis.rank <= 3 ? 'bg-neutral-100 text-neutral-800' : 'bg-neutral-100 text-neutral-600'}`}>{diagnosis.rank}</span></TableCell>
-                                            <TableCell className="font-mono text-xs font-semibold text-neutral-700">{diagnosis.code}</TableCell>
+                                            <TableCell className="font-mono text-xs font-semibold text-neutral-700">{diagnosis.code || 'Manual'}</TableCell>
                                             <TableCell className="font-medium text-neutral-800">{diagnosis.name}</TableCell>
                                             <TableCell className="text-center font-semibold tabular-nums text-neutral-900">{new Intl.NumberFormat('id-ID').format(diagnosis.count)}</TableCell>
                                             <TableCell>

@@ -16,6 +16,7 @@ interface Visit {
     clinic: string;
     doctor: string;
     status: string;
+    examinationStarted?: boolean;
     isReservation?: boolean;
 }
 
@@ -80,7 +81,7 @@ export default function PatientDetail({ patient, permissions }: { patient: Patie
                     <Card className="overflow-hidden">
                         <CardHeader className="border-b border-neutral-100"><CardTitle>Riwayat kunjungan</CardTitle><CardDescription>Menampilkan hingga 20 kunjungan terakhir pasien.</CardDescription></CardHeader>
                         <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[720px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Poli</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead></tr></TableHeader><TableBody>
-                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={visit.url}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? 'Belum diisi'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge reservation={visit.isReservation} status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada riwayat kunjungan." /></TableCell></TableRow>}
+                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={visit.url}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? 'Belum diisi'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada riwayat kunjungan." /></TableCell></TableRow>}
                         </TableBody></Table></div></CardContent>
                     </Card>
                 </div>

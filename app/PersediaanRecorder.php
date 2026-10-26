@@ -18,7 +18,7 @@ class PersediaanRecorder
             $medicine = Obat::whereKey($medicineId)->lockForUpdate()->firstOrFail();
             $this->assertBalance($medicine);
             $batch = $medicine->batches()->create([
-                'depo_id' => $data['depo_id'], 'nomor_batch' => $data['nomor_batch'],
+                'depo_id' => $data['depo_id'] ?? null, 'nomor_batch' => $data['nomor_batch'],
                 'expired_at' => $data['expired_at'],
                 'stok' => 0, 'status' => 'tersedia', 'sumber' => $data['sumber'], 'referensi' => $data['referensi'],
             ]);
@@ -76,7 +76,7 @@ class PersediaanRecorder
                 throw ValidationException::withMessages(['jumlah' => 'Verifikasi hanya dapat menggunakan saldo karantina yang tersedia.']);
             }
             $verified = $medicine->batches()->create([
-                'depo_id' => $data['depo_id'], 'nomor_batch' => $data['nomor_batch'], 'expired_at' => $data['expired_at'],
+                'depo_id' => $data['depo_id'] ?? $batch->depo_id, 'nomor_batch' => $data['nomor_batch'], 'expired_at' => $data['expired_at'],
                 'stok' => 0, 'status' => 'tersedia',
                 'sumber' => 'verifikasi', 'referensi' => $data['referensi'],
             ]);

@@ -58,6 +58,7 @@ class RedirectRegistrationRole
             'pelayanan.kunjungan.show',
             'pelayanan.kunjungan.index',
             'pelayanan.kunjungan.screening.store',
+            'pelayanan.kunjungan.attachments.*',
             'pelayanan.pasien.index',
             'pelayanan.pasien.show',
             'pelayanan.pasien.rekam-medis',
@@ -73,10 +74,12 @@ class RedirectRegistrationRole
     {
         return $request->routeIs(
             'dokter.*',
+            'pendaftaran.jadwal-praktik',
             'persuratan.*',
             'pelayanan.pemeriksaan.*',
             'pelayanan.icd10.search',
             'pelayanan.icd9cm.search',
+            'pelayanan.kunjungan.attachments.show',
             'pelayanan.pasien.index',
             'pelayanan.pasien.show',
             'pelayanan.pasien.rekam-medis',

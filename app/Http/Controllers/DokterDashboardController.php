@@ -32,7 +32,7 @@ class DokterDashboardController extends Controller
             ->whereIn('status', ['farmasi', 'kasir', 'selesai'])->count();
         $jadwalHariIni = $this->schedule->doctorSchedule($dokterId, $today);
 
-        $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik', 'screening'])
+        $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan'])
             ->whereDate('tanggal', $today)
             ->orderByDesc('created_at')
             ->paginate(10)
@@ -54,13 +54,16 @@ class DokterDashboardController extends Controller
                     'medicalRecordNumber' => $visit->pasien->no_rm,
                     'clinic' => $visit->poliklinik->nama,
                     'status' => $visit->status,
+                    'examinationStarted' => $visit->pemeriksaan !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'triage' => $visit->screening?->kesimpulan_triase,
                     'priority' => $visit->screening?->prioritas_layanan,
                     'actionUrl' => $visit->status === 'pemeriksaan'
                         ? route('pelayanan.pemeriksaan.show', $visit)
                         : route('pelayanan.pasien.rekam-medis', $visit->pasien),
-                    'actionLabel' => $visit->status === 'pemeriksaan' ? 'Pemeriksaan' : 'Lihat RME',
+                    'actionLabel' => $visit->status === 'pemeriksaan'
+                        ? ($visit->pemeriksaan ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan')
+                        : 'Lihat RME',
                     'actionType' => $visit->status === 'pemeriksaan' ? 'examination' : 'detail',
                 ])->values(),
                 'currentPage' => $kunjunganTerkini->currentPage(),
@@ -78,7 +81,7 @@ class DokterDashboardController extends Controller
     {
         $period = DateRangeFilter::fromRequest($request);
         $kunjungan = $period->apply($this->doctorVisits())
-            ->with(['pasien', 'poliklinik', 'screening'])
+            ->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan'])
             ->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
 
         return Inertia::render('dokter/appointments', [
@@ -95,10 +98,12 @@ class DokterDashboardController extends Controller
                     'medicalRecordNumber' => $visit->pasien->no_rm,
                     'clinic' => $visit->poliklinik->nama,
                     'status' => $visit->status,
+                    'examinationStarted' => $visit->pemeriksaan !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'triage' => $visit->screening?->kesimpulan_triase,
                     'priority' => $visit->screening?->prioritas_layanan,
                     'examinationUrl' => route('pelayanan.pemeriksaan.show', $visit),
+                    'recordUrl' => route('pelayanan.pasien.rekam-medis', $visit->pasien_id),
                 ])->values(),
                 'currentPage' => $kunjungan->currentPage(),
                 'lastPage' => $kunjungan->lastPage(),

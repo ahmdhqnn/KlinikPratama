@@ -91,7 +91,7 @@ class ObatController extends Controller
         $data['is_active'] = $request->boolean('is_active');
         Obat::create($data);
 
-        return back()->with('success', 'Obat berhasil ditambahkan.');
+        return back()->with('success', 'Item obat/BHP berhasil ditambahkan.');
     }
 
     public function update(Request $request, Obat $obat): RedirectResponse
@@ -113,14 +113,14 @@ class ObatController extends Controller
         $data['is_active'] = $request->boolean('is_active');
         $obat->update($data);
 
-        return back()->with('success', 'Obat berhasil diperbarui.');
+        return back()->with('success', 'Item obat/BHP berhasil diperbarui.');
     }
 
     public function destroy(Obat $obat): RedirectResponse
     {
         $obat->delete();
 
-        return back()->with('success', 'Obat berhasil dihapus.');
+        return back()->with('success', 'Item obat/BHP berhasil dihapus.');
     }
 
     public function stok(Obat $obat): Response
@@ -180,7 +180,7 @@ class ObatController extends Controller
         try {
             Excel::import(new ObatImport, $request->file('file'));
 
-            return back()->with('success', 'Data obat berhasil diimpor.');
+            return back()->with('success', 'Data obat dan BHP berhasil diimpor.');
         } catch (\Exception $e) {
             return back()->with('error', 'Gagal mengimpor data: '.$e->getMessage());
         }

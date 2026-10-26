@@ -178,6 +178,7 @@ class DoctorExaminationFlowTest extends TestCase
             ->where('filters.sampai', today()->addDay()->toDateString())
             ->has('visits.data', 1)
             ->where('visits.data.0.number', $visit->no_kunjungan)
+            ->where('visits.data.0.recordUrl', route('pelayanan.pasien.rekam-medis', $patient))
         );
         $this->actingAs($user)->get(route('dokter.janji-kunjungan', [
             'dari' => 'invalid-date',
@@ -207,10 +208,12 @@ class DoctorExaminationFlowTest extends TestCase
             ->has('visits.data', 1)
             ->where('visits.data.0.number', $visit->no_kunjungan)
             ->where('visits.data.0.diagnosisCount', 1)
+            ->where('visits.data.0.recordUrl', route('pelayanan.pasien.rekam-medis', $patient))
         );
         $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/pemeriksaan/show')
             ->where('visit.patient.name', 'Pasien Satu')
+            ->where('visit.recordUrl', route('pelayanan.pasien.rekam-medis', $patient))
             ->where('visit.examination.startedAt', $examination->created_at->locale('id')->isoFormat('D MMMM Y HH:mm'))
             ->where('visit.screening.complaint', 'Demam sejak kemarin')
             ->where('visit.screening.medicalHistory', 'Asma')
@@ -353,16 +356,19 @@ class DoctorExaminationFlowTest extends TestCase
             ->where('stats.waitingExaminations', 1)
             ->where('recentVisits.data.0.number', $visit->no_kunjungan)
             ->where('recentVisits.data.0.actionUrl', route('pelayanan.pemeriksaan.show', $visit))
-            ->where('recentVisits.data.0.actionLabel', 'Pemeriksaan')
+            ->where('recentVisits.data.0.actionLabel', 'Lanjutkan pemeriksaan')
+            ->where('recentVisits.data.0.examinationStarted', true)
         );
         $this->get(route('pelayanan.pemeriksaan.index'))->assertInertia(fn (Assert $page) => $page
             ->has('visits.data', 1)
             ->where('visits.data.0.number', $visit->no_kunjungan)
             ->where('visits.data.0.canClaim', true)
+            ->where('visits.data.0.recordUrl', null)
         );
         $this->get(route('pelayanan.pemeriksaan.index', ['tanggal' => 'not-a-date']))->assertSessionHasErrors('tanggal');
         $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('visit.canClaim', true)
+            ->where('visit.recordUrl', null)
             ->where('visit.doctorId', null)
             ->where('visit.screening.complaint', 'Nyeri gigi saat mengunyah')
         );
@@ -381,6 +387,7 @@ class DoctorExaminationFlowTest extends TestCase
         ]);
         $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('visit.canClaim', false)
+            ->where('visit.recordUrl', route('pelayanan.pasien.rekam-medis', $patient))
             ->where('visit.doctorId', $doctor->id)
         );
 
@@ -548,7 +555,7 @@ class DoctorExaminationFlowTest extends TestCase
     {
         [$user, $visit, $examination] = $this->examinationWithSections('gigi');
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'K02.9', 'nama_diagnosa' => 'Karies', 'jenis' => 'utama']);
-        OdontogramFinding::create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries']);
+        OdontogramFinding::create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'recorded_by_user_id' => $user->id]);
 
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.store', $visit), [
             'section' => 'anamnesis', 'anamnesis' => 'Nyeri gigi',
@@ -623,6 +630,43 @@ class DoctorExaminationFlowTest extends TestCase
         );
     }
 
+    #[TestWith(['umum', 'menunggu', 'Selesaikan pengkajian awal sebelum mencatat pemeriksaan dokter.'])]
+    #[TestWith(['gigi', 'screening', 'Selesaikan pengkajian awal sebelum mencatat pemeriksaan dokter.'])]
+    #[TestWith(['umum', 'batal', 'Kunjungan dibatalkan dan tidak dapat dilanjutkan.'])]
+    public function test_blocked_examination_explains_the_actual_visit_stage(string $clinicType, string $status, string $message): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections($clinicType);
+        $visit->update(['status' => $status]);
+
+        $this->actingAs($user)->postJson(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => 'anamnesis', 'anamnesis' => 'Tidak boleh tersimpan',
+        ])->assertUnprocessable()->assertJsonPath('message', $message);
+        $this->assertSame('Keluhan awal', $examination->fresh()->anamnesis);
+    }
+
+    public function test_signed_examination_cannot_be_overwritten_even_if_its_status_is_still_draft(): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections('gigi');
+        $examination->forceFill(['status' => 'draft', 'signed_at' => now()])->save();
+
+        $this->actingAs($user)->putJson(route('pelayanan.pemeriksaan.update', $visit), [
+            'section' => 'anamnesis', 'anamnesis' => 'Tidak boleh menimpa catatan bertanda tangan',
+        ])->assertUnprocessable()->assertJsonPath('message', 'Pemeriksaan telah difinalisasi dan tidak dapat diubah langsung.');
+        $this->assertSame('Keluhan awal', $examination->fresh()->anamnesis);
+    }
+
+    public function test_future_dental_reservation_has_context_and_its_own_patient_record_link(): void
+    {
+        [$user, $visit] = $this->examinationWithSections('gigi');
+        $visit->update(['tanggal' => today()->addDay(), 'status' => 'menunggu']);
+
+        $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.isReservation', true)
+            ->where('visit.status', 'menunggu')
+            ->where('visit.recordUrl', route('pelayanan.pasien.rekam-medis', $visit->pasien_id))
+        );
+    }
+
     /**
      * @return array{User, Kunjungan, Pemeriksaan}
      */
@@ -648,5 +692,4 @@ class DoctorExaminationFlowTest extends TestCase
 
         return [$user, $visit, $examination];
     }
-
 }

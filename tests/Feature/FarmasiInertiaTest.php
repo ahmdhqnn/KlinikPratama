@@ -273,7 +273,7 @@ class FarmasiInertiaTest extends TestCase
 
         $this->actingAs($pharmacist)->get(route('pelayanan.farmasi.show', $visit))
             ->assertInertia(fn (Assert $page) => $page
-                ->where('visit.patient.allergies', 'Tidak ada riwayat alergi')
+                ->where('visit.patient.allergies', 'Alergi udang')
                 ->where('visit.patient.screeningAllergies', 'Alergi udang')
                 ->where('visit.pharmacy', null)
             );

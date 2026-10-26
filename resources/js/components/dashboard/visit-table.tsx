@@ -12,6 +12,7 @@ export interface DashboardVisit {
     medicalRecordNumber: string;
     clinic: string;
     status: string;
+    examinationStarted?: boolean;
     isReservation?: boolean;
     triage?: string | null;
     priority?: string | null;
@@ -48,7 +49,7 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                             </TableCell>
                             <TableCell className="text-center">
                                 <div className="flex flex-col items-center gap-1.5">
-                                    <StatusBadge context={visit.actionType === 'pharmacy' ? 'pharmacy' : 'visit'} reservation={visit.isReservation} status={visit.status} />
+                                    <StatusBadge examinationStarted={visit.examinationStarted} context={visit.actionType === 'pharmacy' ? 'pharmacy' : 'visit'} reservation={visit.isReservation} status={visit.status} />
                                 </div>
                             </TableCell>
                             <TableCell className="text-center">
