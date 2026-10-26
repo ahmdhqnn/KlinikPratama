@@ -9,60 +9,77 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer components {
-    .odontogram-fdi .tooth-shape {
-        fill: #ffffff;
-        stroke: #64748b;
-        stroke-width: 1.5;
-        vector-effect: non-scaling-stroke;
-        transition: stroke 0.15s ease-out, fill 0.15s ease-out, opacity 0.2s ease-out;
+    .odontogram-fdi {
+        --dental-enamel: #fff5df;
+        --dental-outline: #a38b72;
+        --dental-sound: #fffdf5;
+        --dental-sound-line: #4c8a70;
+        --dental-caries: #f7ceca;
+        --dental-caries-line: #b94f4a;
+        --dental-restored: #dce8f5;
+        --dental-restored-line: #6085ac;
+        --dental-muted: #eef1f4;
+        --dental-muted-line: #8a929e;
+        --dental-fracture: #f9dfba;
+        --dental-fracture-line: #b77b43;
+        --dental-root: #dfc09d;
+        --dental-root-line: #956945;
+        --dental-gum: #e8aba5;
+        --dental-gum-line: #b87875;
+        --dental-selection: #2563eb;
+        --tooth-fill: var(--dental-enamel);
+        --tooth-stroke: var(--dental-outline);
     }
-
-    .odontogram-fdi .tooth-sound .tooth-shape { fill: #ffffff; stroke: #64748b; stroke-width: 1.6; }
-    .odontogram-fdi .tooth-caries .tooth-shape { fill: #fee2e2; stroke: #dc2626; stroke-width: 1.8; }
-    .odontogram-fdi .tooth-restored .tooth-shape { fill: #e2e8f0; stroke: #475569; stroke-width: 1.8; }
-    .odontogram-fdi .tooth-missing .tooth-shape { fill: transparent; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 3 2; opacity: 0.6; }
-    .odontogram-fdi .tooth-unerupted .tooth-shape { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 2 2; }
-    .odontogram-fdi .tooth-fractured_crown .tooth-shape { fill: #f1f5f9; stroke: #334155; stroke-width: 1.8; stroke-dasharray: 4 2; }
-    .odontogram-fdi .tooth-root_remnant .tooth-shape { fill: #cbd5e1; stroke: #334155; stroke-width: 1.8; }
-
-    .dark .odontogram-fdi .tooth-shape { fill: #262626; stroke: #52525b; stroke-width: 1.5; }
-    .dark .odontogram-fdi .tooth-sound .tooth-shape { fill: #262626; stroke: #52525b; stroke-width: 1.6; }
-    .dark .odontogram-fdi .tooth-caries .tooth-shape { fill: #3b1414; stroke: #ef4444; stroke-width: 1.8; }
-    .dark .odontogram-fdi .tooth-restored .tooth-shape { fill: #404040; stroke: #a1a1aa; stroke-width: 1.8; }
-    .dark .odontogram-fdi .tooth-missing .tooth-shape { fill: transparent; stroke: #52525b; stroke-width: 1.5; stroke-dasharray: 3 2; opacity: 0.45; }
-    .dark .odontogram-fdi .tooth-unerupted .tooth-shape { fill: #1c1c1f; stroke: #52525b; stroke-width: 1.5; stroke-dasharray: 2 2; }
-    .dark .odontogram-fdi .tooth-fractured_crown .tooth-shape { fill: #262626; stroke: #d4d4d8; stroke-width: 1.8; stroke-dasharray: 4 2; }
-    .dark .odontogram-fdi .tooth-root_remnant .tooth-shape { fill: #3f3f46; stroke: #d4d4d8; stroke-width: 1.8; }
-
-    .odontogram-fdi .tooth-fissure { fill: none; stroke: #94a3b8; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; opacity: 0.7; }
-    .dark .odontogram-fdi .tooth-fissure { stroke: #71717a; opacity: 0.7; }
-    .odontogram-fdi .tooth-caries .tooth-fissure { stroke: #dc2626; opacity: 0.85; }
-    .dark .odontogram-fdi .tooth-caries .tooth-fissure { stroke: #f87171; opacity: 0.85; }
-    .odontogram-fdi .tooth-missing .tooth-fissure { opacity: 0.15; }
-    .dark .odontogram-fdi .tooth-missing .tooth-fissure { opacity: 0.1; }
-
-    .odontogram-fdi .tooth-interactive:hover .tooth-shape { stroke: #0f172a; stroke-width: 2.2; }
-    .dark .odontogram-fdi .tooth-interactive:hover .tooth-shape { stroke: #f4f4f5; stroke-width: 2.2; }
-    .odontogram-fdi .tooth-interactive.is-selected .tooth-shape { stroke: #09090b !important; stroke-width: 2.4 !important; }
-    .dark .odontogram-fdi .tooth-interactive.is-selected .tooth-shape { stroke: #ffffff !important; stroke-width: 2.4 !important; }
-
-    .odontogram-fdi .gingiva-tissue { fill: #f5ecec; stroke: #d4b8b8; stroke-width: 1.4; }
-    .odontogram-fdi .gingiva-contour { fill: none; stroke: #b89898; stroke-width: 1; stroke-linecap: round; opacity: 0.4; }
-    .dark .odontogram-fdi .gingiva-tissue { fill: #2a1c1d; stroke: #4e3032; stroke-width: 1.4; }
-    .dark .odontogram-fdi .gingiva-contour { stroke: #6e464a; opacity: 0.35; }
-
-    .odontogram-fdi .arch-loop-path { fill: none; stroke: #cbd5e1; stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 4 4; }
-    .dark .odontogram-fdi .arch-loop-path { stroke: #3f3f46; }
-    .odontogram-fdi .arch-arrowhead { fill: #94a3b8; stroke: none; }
-    .dark .odontogram-fdi .arch-arrowhead { fill: #52525b; }
-    .odontogram-fdi .arch-divider { stroke: #e2e8f0; stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.8; }
-    .dark .odontogram-fdi .arch-divider { stroke: #27272a; opacity: 0.8; }
-    .odontogram-fdi .arch-label { fill: #64748b; font-family: var(--font-sans); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; }
-    .dark .odontogram-fdi .arch-label { fill: #71717a; }
-    .odontogram-fdi .fdi-number { fill: #334155; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; font-weight: 700; text-anchor: middle; dominant-baseline: central; user-select: none; }
-    .dark .odontogram-fdi .fdi-number { fill: #a1a1aa; }
-    .odontogram-fdi .fdi-number.is-active { fill: #0f172a; font-size: 15px; font-weight: 900; }
-    .dark .odontogram-fdi .fdi-number.is-active { fill: #fafafa; }
+    .dark .odontogram-fdi {
+        --dental-enamel: #dfcfb4;
+        --dental-outline: #a59078;
+        --dental-sound: #eee2cc;
+        --dental-sound-line: #7fb89c;
+        --dental-caries: #b97470;
+        --dental-caries-line: #f3aca5;
+        --dental-restored: #aebfd2;
+        --dental-restored-line: #86b5e3;
+        --dental-muted: #69717b;
+        --dental-muted-line: #abb2bc;
+        --dental-fracture: #c6a277;
+        --dental-fracture-line: #f2c58b;
+        --dental-root: #ad8a64;
+        --dental-root-line: #d6ad7d;
+        --dental-gum: #925e61;
+        --dental-gum-line: #c58e8e;
+        --dental-selection: #93c5fd;
+    }
+    .odontogram-fdi .tooth-shape {
+        fill: var(--tooth-fill);
+        stroke: var(--tooth-stroke);
+        stroke-width: 1.5;
+        stroke-dasharray: var(--tooth-dash, none);
+        opacity: var(--tooth-opacity, 1);
+        vector-effect: non-scaling-stroke;
+        transition: stroke-width 0.15s ease-out, fill 0.15s ease-out, opacity 0.15s ease-out;
+    }
+    .odontogram-fdi .tooth-sound { --tooth-fill: var(--dental-sound); --tooth-stroke: var(--dental-sound-line); }
+    .odontogram-fdi .tooth-caries { --tooth-fill: var(--dental-caries); --tooth-stroke: var(--dental-caries-line); }
+    .odontogram-fdi .tooth-restored { --tooth-fill: var(--dental-restored); --tooth-stroke: var(--dental-restored-line); }
+    .odontogram-fdi .tooth-missing { --tooth-fill: transparent; --tooth-stroke: var(--dental-muted-line); --tooth-dash: 3 2; --tooth-opacity: 0.6; }
+    .odontogram-fdi .tooth-unerupted { --tooth-fill: var(--dental-muted); --tooth-stroke: var(--dental-muted-line); --tooth-dash: 2 2; }
+    .odontogram-fdi .tooth-fractured_crown { --tooth-fill: var(--dental-fracture); --tooth-stroke: var(--dental-fracture-line); --tooth-dash: 4 2; }
+    .odontogram-fdi .tooth-root_remnant { --tooth-fill: var(--dental-root); --tooth-stroke: var(--dental-root-line); }
+    .odontogram-fdi .tooth-status-dot { background: var(--tooth-fill); border-color: var(--tooth-stroke); }
+    .odontogram-fdi .tooth-fissure { fill: none; stroke: var(--tooth-stroke); stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; opacity: 0.55; }
+    .odontogram-fdi .tooth-missing .tooth-fissure { opacity: 0.1; }
+    .odontogram-fdi .tooth-interactive { outline: none; }
+    .odontogram-fdi .tooth-interactive:not([aria-disabled="true"]):hover .tooth-shape,
+    .odontogram-fdi .tooth-interactive:focus-visible .tooth-shape { stroke-width: 2.2; }
+    .odontogram-fdi .tooth-interactive:focus-visible { filter: drop-shadow(0 0 2px var(--dental-selection)); }
+    .odontogram-fdi .tooth-interactive.is-selected .tooth-shape { stroke-width: 2.2; }
+    .odontogram-fdi .tooth-selection-ring { color: var(--dental-selection); }
+    .odontogram-fdi .gingiva-tissue { fill: var(--dental-gum); stroke: var(--dental-gum-line); stroke-width: 1.4; }
+    .odontogram-fdi .gingiva-contour { fill: none; stroke: var(--dental-gum-line); stroke-width: 1; stroke-linecap: round; opacity: 0.6; }
+    .odontogram-fdi .arch-divider { stroke: var(--color-neutral-300); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.7; }
+    .odontogram-fdi .arch-label { fill: var(--color-neutral-600); font-family: var(--font-sans); font-size: 12px; font-weight: 500; }
+    .odontogram-fdi .fdi-number { fill: var(--color-neutral-700); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: central; user-select: none; }
+    .odontogram-fdi .fdi-number.is-active { fill: var(--dental-selection); font-weight: 700; }
 
     /* Anatomy Body Map Styles for General Practice */
     .anatomy-body-map .body-silhouette {

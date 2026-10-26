@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\ClinicalAuditRecorder;
+use App\CorrespondenceService;
+use App\DoctorAccessService;
 use App\Models\CorrespondenceTemplate;
 use App\Models\KlinikSetting;
 use App\Models\Kunjungan;
+use App\Models\Nakes;
 use App\Models\RujukanInternal;
 use App\Models\SuratMedis;
 use App\Models\User;
@@ -19,7 +22,7 @@ use Inertia\Response;
 
 class PersuratanController extends Controller
 {
-    public function __construct(private \App\DoctorAccessService $doctorAccess) {}
+    public function __construct(private DoctorAccessService $doctorAccess, private CorrespondenceService $correspondence) {}
 
     public function index(Request $request): Response
     {
@@ -134,7 +137,7 @@ class PersuratanController extends Controller
     public function printPrescription(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): Response
     {
         $this->authorizeVisitDocument($request->user(), $kunjungan);
-        $kunjungan->load(['pasien', 'poliklinik', 'dokter.user', 'resep.resepObat']);
+        $kunjungan->load(['pasien', 'poliklinik', 'dokter.user', 'resep.dokter.user', 'resep.resepObat']);
         abort_unless($kunjungan->resep && $kunjungan->resep->resepObat->isNotEmpty(), 404);
         $auditRecorder->record($request, 'prescription.print', $kunjungan->pasien_id, $kunjungan->id);
 
@@ -142,7 +145,7 @@ class PersuratanController extends Controller
         abort_unless($items->isNotEmpty(), 404, 'Resep luar belum tersedia untuk dicetak.');
 
         return Inertia::render('persuratan/cetak', [
-            'document' => $this->baseDocument($kunjungan, 'resep_luar') + [
+            'document' => $this->baseDocument($kunjungan, 'resep_luar', $kunjungan->resep->dokter_id ? $kunjungan->resep->dokter : $kunjungan->dokter) + [
                 'number' => $kunjungan->resep->no_resep,
                 'date' => $kunjungan->tanggal?->locale('id')->isoFormat('D MMMM Y'),
                 'items' => $items->map(fn ($item): array => [
@@ -159,14 +162,14 @@ class PersuratanController extends Controller
 
     public function printLetter(Request $request, SuratMedis $suratMedis, ClinicalAuditRecorder $auditRecorder): Response
     {
-        $suratMedis->load(['kunjungan.pasien', 'kunjungan.poliklinik', 'kunjungan.dokter.user']);
+        $suratMedis->load(['kunjungan.pasien', 'kunjungan.poliklinik', 'kunjungan.dokter.user', 'dokter.user']);
         $visit = $suratMedis->kunjungan;
         abort_unless($visit, 404);
         $this->authorizeVisitDocument($request->user(), $visit);
         $auditRecorder->record($request, 'medical_letter.print', $visit->pasien_id, $visit->id, ['document_id' => $suratMedis->id]);
 
         return Inertia::render('persuratan/cetak', [
-            'document' => $this->baseDocument($visit, 'surat') + [
+            'document' => $this->baseDocument($visit, 'surat', $suratMedis->dokter_id ? $suratMedis->dokter : $visit->dokter) + [
                 'number' => $suratMedis->nomor_surat,
                 'type' => $suratMedis->jenis,
                 'date' => $suratMedis->tanggal?->locale('id')->isoFormat('D MMMM Y'),
@@ -184,7 +187,7 @@ class PersuratanController extends Controller
         $auditRecorder->record($request, 'internal_referral.print', $visit->pasien_id, $visit->id, ['document_id' => $rujukanInternal->id]);
 
         return Inertia::render('persuratan/cetak', [
-            'document' => $this->baseDocument($visit, 'rujukan_internal') + [
+            'document' => $this->baseDocument($visit, 'rujukan_internal', $visit->dokter) + [
                 'number' => $rujukanInternal->nomor_surat,
                 'date' => $visit->tanggal?->locale('id')->isoFormat('D MMMM Y'),
                 'fromClinic' => $rujukanInternal->dariPoli?->nama,
@@ -211,10 +214,9 @@ class PersuratanController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function baseDocument(Kunjungan $visit, string $kind): array
+    private function baseDocument(Kunjungan $visit, string $kind, ?Nakes $doctor): array
     {
         $visit->loadMissing(['pasien', 'poliklinik', 'dokter.user']);
-        $doctor = $visit->dokter;
         $user = $doctor?->user;
         $settings = KlinikSetting::query()->first();
 
@@ -240,21 +242,9 @@ class PersuratanController extends Controller
                 'name' => $doctor?->nama ?? 'Dokter klinik',
                 'sip' => $doctor?->no_sip,
                 'str' => $doctor?->no_str,
-                'signatureDataUrl' => $this->signatureDataUrl($user),
+                'signatureDataUrl' => $this->correspondence->signatureDataUrl($user),
             ],
         ];
-    }
-
-    private function signatureDataUrl(?User $user): ?string
-    {
-        $path = $user?->signature_path;
-        if (! $path || ! Storage::disk('local')->exists($path)) {
-            return null;
-        }
-
-        $mime = Storage::disk('local')->mimeType($path) ?? 'image/png';
-
-        return 'data:'.$mime.';base64,'.base64_encode(Storage::disk('local')->get($path));
     }
 
     /** @return array{backUrl: string, backLabel: string} */

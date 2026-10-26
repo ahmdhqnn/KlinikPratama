@@ -12,6 +12,13 @@ class DepoObatInertiaTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['clinic.modules.medicine_depots' => true]);
+    }
+
     public function test_admin_can_manage_depots_from_the_inertia_page(): void
     {
         $admin = User::create([

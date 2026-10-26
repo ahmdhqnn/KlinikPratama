@@ -28,6 +28,7 @@ use App\Http\Controllers\SettingController;
 use App\Http\Controllers\Stok\PersediaanController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\EnsureAdminRole;
+use App\Http\Middleware\EnsureModuleEnabled;
 use App\Http\Middleware\EnsureRegistrationRole;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\RedirectRegistrationRole;
@@ -96,7 +97,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::post('persediaan/{obat}/terima', [PersediaanController::class, 'receive'])->name('persediaan.receive');
         Route::post('batch/{batch}/opname', [PersediaanController::class, 'adjust'])->name('batch.adjust');
         Route::post('batch/{batch}/verifikasi', [PersediaanController::class, 'reconcile'])->name('batch.reconcile');
-        Route::post('batch/{batch}/mutasi', [PersediaanController::class, 'transfer'])->name('batch.transfer');
+        Route::post('batch/{batch}/mutasi', [PersediaanController::class, 'transfer'])->middleware(EnsureModuleEnabled::class.':medicine_depots')->name('batch.transfer');
         Route::post('mutasi/{mutasi}/retur', [PersediaanController::class, 'returnDispensing'])->name('mutasi.return');
     });
 
@@ -106,21 +107,25 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('terminologi-klinis/detail', [ClinicalTerminologyController::class, 'show'])->name('terminologi.show');
         Route::post('terminologi-klinis/import', [ClinicalTerminologyController::class, 'import'])->name('terminologi.import');
         Route::delete('terminologi-klinis', [ClinicalTerminologyController::class, 'destroy'])->name('terminologi.destroy');
-        Route::resource('depo-obat', DepoObatController::class);
+        Route::resource('depo-obat', DepoObatController::class)->middleware(EnsureModuleEnabled::class.':medicine_depots');
         Route::resource('poliklinik', PoliklinikController::class);
         Route::post('poliklinik/{poliklinik}/ruang', [PoliklinikController::class, 'storeRuang'])->name('poliklinik.ruang.store');
         Route::delete('poliklinik/ruang/{ruang}', [PoliklinikController::class, 'destroyRuang'])->name('poliklinik.ruang.destroy');
 
-        Route::get('tindakan-terminologi', [TindakanController::class, 'searchTerminology'])->name('tindakan.terminologi');
-        Route::resource('tindakan', TindakanController::class);
-        Route::post('tindakan/{tindakan}/bhp', [TindakanController::class, 'storeBhp'])->name('tindakan.bhp.store');
-        Route::delete('tindakan/bhp/{bhp}', [TindakanController::class, 'destroyBhp'])->name('tindakan.bhp.destroy');
+        Route::middleware(EnsureModuleEnabled::class.':medical_treatments')->group(function (): void {
+            Route::get('tindakan-terminologi', [TindakanController::class, 'searchTerminology'])->name('tindakan.terminologi');
+            Route::resource('tindakan', TindakanController::class);
+            Route::post('tindakan/{tindakan}/bhp', [TindakanController::class, 'storeBhp'])->name('tindakan.bhp.store');
+            Route::delete('tindakan/bhp/{bhp}', [TindakanController::class, 'destroyBhp'])->name('tindakan.bhp.destroy');
+        });
 
-        Route::resource('laboratorium', LaboratoriumController::class);
-        Route::post('laboratorium/{laboratorium}/indikator', [LaboratoriumController::class, 'storeIndikator'])->name('laboratorium.indikator.store');
-        Route::delete('laboratorium/indikator/{indikator}', [LaboratoriumController::class, 'destroyIndikator'])->name('laboratorium.indikator.destroy');
-        Route::post('laboratorium/{laboratorium}/bhp', [LaboratoriumController::class, 'storeBhp'])->name('laboratorium.bhp.store');
-        Route::delete('laboratorium/bhp/{bhp}', [LaboratoriumController::class, 'destroyBhp'])->name('laboratorium.bhp.destroy');
+        Route::middleware(EnsureModuleEnabled::class.':laboratory')->group(function (): void {
+            Route::resource('laboratorium', LaboratoriumController::class);
+            Route::post('laboratorium/{laboratorium}/indikator', [LaboratoriumController::class, 'storeIndikator'])->name('laboratorium.indikator.store');
+            Route::delete('laboratorium/indikator/{indikator}', [LaboratoriumController::class, 'destroyIndikator'])->name('laboratorium.indikator.destroy');
+            Route::post('laboratorium/{laboratorium}/bhp', [LaboratoriumController::class, 'storeBhp'])->name('laboratorium.bhp.store');
+            Route::delete('laboratorium/bhp/{bhp}', [LaboratoriumController::class, 'destroyBhp'])->name('laboratorium.bhp.destroy');
+        });
 
         Route::resource('nakes', NakesController::class);
 
@@ -131,7 +136,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('obat/{obat}/stok', [ObatController::class, 'stok'])->name('obat.stok');
         Route::post('obat/{obat}/tambah-stok', [ObatController::class, 'tambahStok'])->name('obat.tambah-stok');
 
-        Route::resource('alkes', AlkesController::class);
+        Route::resource('alkes', AlkesController::class)->middleware(EnsureModuleEnabled::class.':medical_equipment');
     });
 
     // Pelayanan
@@ -188,6 +193,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::middleware(EnsureRole::class.':dokter')->group(function (): void {
             Route::get('pemeriksaan', [PemeriksaanController::class, 'index'])->name('pemeriksaan.index');
             Route::get('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'show'])->name('pemeriksaan.show');
+            Route::post('pemeriksaan/{kunjungan}/mulai', [PemeriksaanController::class, 'start'])->name('pemeriksaan.start');
             Route::post('pemeriksaan/{kunjungan}/ambil', [PemeriksaanController::class, 'claim'])->name('pemeriksaan.claim');
             Route::post('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'store'])->name('pemeriksaan.store');
             Route::put('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'update'])->name('pemeriksaan.update');
@@ -223,7 +229,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     Route::prefix('laporan')->name('laporan.')->middleware(EnsureRole::class.':admin,manajemen')->group(function () {
         Route::get('kunjungan', [LaporanController::class, 'kunjungan'])->name('kunjungan');
         Route::get('stok', [LaporanController::class, 'stok'])->name('stok');
-        Route::get('laboratorium', [LaporanController::class, 'laboratorium'])->name('laboratorium');
+        Route::get('laboratorium', [LaporanController::class, 'laboratorium'])->middleware(EnsureModuleEnabled::class.':laboratory')->name('laboratorium');
         Route::get('kunjungan/export', [LaporanController::class, 'exportKunjungan'])->name('kunjungan.export');
     });
 

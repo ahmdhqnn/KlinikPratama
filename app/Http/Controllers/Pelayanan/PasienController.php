@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers\Pelayanan;
 
-use App\ClinicDocumentNumber;
 use App\ClinicalAnswer;
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
+use App\ClinicDocumentNumber;
+use App\CorrespondenceService;
+use App\DateRangeFilter;
+use App\DoctorAccessService;
 use App\Exports\PasienExport;
 use App\HakLayananVerifier;
 use App\Http\Controllers\Controller;
 use App\KepesertaanRegistry;
 use App\Models\Kepesertaan;
-use App\Models\Nakes;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
 use App\PatientRegistrationService;
@@ -28,7 +30,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PasienController extends Controller
 {
-    public function __construct(private \App\DoctorAccessService $doctorAccess) {}
+    public function __construct(private DoctorAccessService $doctorAccess) {}
 
     public function index(Request $request, ClinicalAuditRecorder $auditRecorder, PerawatClinicResolver $perawatClinicResolver): Response
     {
@@ -254,7 +256,7 @@ class PasienController extends Controller
         $pasien->load(['kepesertaan', 'kunjungan' => fn ($q) => $q
             ->when(auth()->user()->role === 'dokter', fn ($visits) => $visits->where('dokter_id', $this->doctorId()))
             ->when($clinicId, fn ($visits) => $visits->where('poliklinik_id', $clinicId))
-            ->with(['poliklinik', 'dokter'])->latest()->limit(10)]);
+            ->with(['poliklinik', 'dokter', 'pemeriksaan'])->latest()->limit(10)]);
 
         return Inertia::render('pelayanan/pasien/show', [
             'permissions' => [
@@ -295,6 +297,7 @@ class PasienController extends Controller
                     'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
                     'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'status' => $visit->status,
+                    'examinationStarted' => $visit->pemeriksaan !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                 ]),
             ],
@@ -387,7 +390,7 @@ class PasienController extends Controller
         return redirect()->route('pelayanan.pasien.index')->with('success', 'Data pasien berhasil dihapus.');
     }
 
-    public function rekamMedis(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, ClinicalNoteRecorder $noteRecorder, PerawatClinicResolver $perawatClinicResolver): Response
+    public function rekamMedis(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, ClinicalNoteRecorder $noteRecorder, PerawatClinicResolver $perawatClinicResolver, CorrespondenceService $correspondence): Response
     {
         $this->authorizeDoctorPatient($pasien);
         $clinicId = $request->user()->role === 'perawat'
@@ -398,12 +401,12 @@ class PasienController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
-            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,farmasi,selesai,batal'],
+            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,farmasi,kasir,selesai,batal'],
             'dari' => ['nullable', 'date_format:Y-m-d'],
             'sampai' => ['nullable', 'date_format:Y-m-d'],
         ]);
 
-        \App\DateRangeFilter::fromRequest($request);
+        DateRangeFilter::fromRequest($request);
         $authorizedVisits = $pasien->kunjungan()
             ->when(auth()->user()->role === 'dokter', fn ($visits) => $visits->where('dokter_id', $this->doctorId()))
             ->when($clinicId, fn ($visits) => $visits->where('poliklinik_id', $clinicId));
@@ -492,7 +495,7 @@ class PasienController extends Controller
                 'previousUrl' => $visits->previousPageUrl(),
                 'nextUrl' => $visits->nextPageUrl(),
             ],
-            'visits' => $visits->getCollection()->map(function ($visit) use ($noteRecorder): array {
+            'visits' => $visits->getCollection()->map(function ($visit) use ($noteRecorder, $correspondence): array {
                 $versions = $visit->pemeriksaan?->clinicalNoteVersions->sortBy('version') ?? collect();
                 $integrityValid = $visit->pemeriksaan?->signed_at ? $noteRecorder->verify($visit->pemeriksaan) : null;
                 $effectiveNote = $integrityValid ? $versions->last()->payload : null;
@@ -515,6 +518,7 @@ class PasienController extends Controller
                     'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'date' => $visit->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
                     'status' => $visit->status,
+                    'examinationStarted' => $visit->pemeriksaan !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'attachments' => $visit->attachmentSummaries(),
                     'screening' => $visit->screening ? [
@@ -549,6 +553,7 @@ class PasienController extends Controller
                         'allergyHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $visit->pemeriksaan->riwayat_alergi, 'Belum dicatat'),
                         'physicalExamination' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $visit->pemeriksaan->pemeriksaan_fisik,
                         'physicalSystems' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik_terstruktur'] ?? []) : ($visit->pemeriksaan->pemeriksaan_fisik_terstruktur ?? []),
+                        'bodyMap' => is_array($effectiveNote) ? ($effectiveNote['body_map'] ?? null) : $visit->pemeriksaan->body_map,
                         'extraoralExamination' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_ekstraoral'] ?? null) : $visit->pemeriksaan->pemeriksaan_ekstraoral, 'Belum diperiksa'),
                         'oralHygieneIndex' => is_numeric($oralHygieneIndex) ? (float) $oralHygieneIndex : null,
                         'differentialDiagnosis' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['diagnosis_banding'] ?? null) : $visit->pemeriksaan->diagnosis_banding, 'Belum dicatat'),
@@ -559,6 +564,7 @@ class PasienController extends Controller
                             : $visit->pemeriksaan->kontrol_berikutnya?->format('d/m/Y'),
                         'signedAt' => $visit->pemeriksaan->signed_at?->locale('id')->isoFormat('D MMMM Y HH:mm'),
                         'signedBy' => $visit->pemeriksaan->signedBy?->name,
+                        'signatureDataUrl' => $integrityValid === true ? $correspondence->signatureDataUrl($visit->pemeriksaan->signedBy) : null,
                         'integrityValid' => $integrityValid,
                         'versions' => $versions->map(fn ($version): array => [
                             'version' => $version->version,
@@ -573,6 +579,7 @@ class PasienController extends Controller
                             'allergyHistory' => $clinicalAnswer($version->payload['riwayat_alergi'] ?? null, 'Belum dicatat'),
                             'physicalExamination' => $version->payload['pemeriksaan_fisik'] ?? null,
                             'physicalSystems' => $version->payload['pemeriksaan_fisik_terstruktur'] ?? [],
+                            'bodyMap' => $version->payload['body_map'] ?? null,
                             'extraoralExamination' => $clinicalAnswer($version->payload['pemeriksaan_ekstraoral'] ?? null, 'Belum diperiksa'),
                             'oralHygieneIndex' => is_numeric($version->payload['oral_hygiene_index'] ?? null) ? (float) $version->payload['oral_hygiene_index'] : null,
                             'differentialDiagnosis' => $clinicalAnswer($version->payload['diagnosis_banding'] ?? null, 'Belum dicatat'),
@@ -585,7 +592,9 @@ class PasienController extends Controller
                         ])->values()->all(),
                         'diagnoses' => collect(is_array($effectiveNote) ? ($effectiveNote['diagnoses'] ?? []) : ($integrityValid === false ? [] : $visit->pemeriksaan->diagnosa))->map(fn ($diagnosis): array => [
                             'code' => is_array($diagnosis) ? $diagnosis['code'] : $diagnosis->kode_icd10,
+                            'codeSystem' => is_array($diagnosis) ? ($diagnosis['code_system'] ?? null) : $diagnosis->code_system,
                             'name' => is_array($diagnosis) ? $diagnosis['name'] : $diagnosis->nama_diagnosa,
+                            'note' => is_array($diagnosis) ? ($diagnosis['note'] ?? null) : $diagnosis->keterangan,
                             'type' => is_array($diagnosis) ? $diagnosis['type'] : $diagnosis->jenis,
                         ])->all(),
                     ] : null,

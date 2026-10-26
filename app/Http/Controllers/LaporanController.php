@@ -27,7 +27,7 @@ class LaporanController extends Controller
         $dari = $period->from ?? '';
         $sampai = $period->to ?? '';
         $summary = $visits->filtered($filters, period: $period);
-        $kunjungan = (clone $summary)->with(['pasien', 'poliklinik', 'dokter'])
+        $kunjungan = (clone $summary)->with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan'])
             ->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
 
         $totalKunjungan = (clone $summary)->count();
@@ -57,6 +57,7 @@ class LaporanController extends Controller
                 'doctor' => $visit->dokter?->nama,
                 'unit' => $visit->unit_kerja ?? 'Belum dicatat',
                 'status' => $visit->status,
+                'examinationStarted' => $visit->pemeriksaan !== null,
             ]),
         ]);
     }

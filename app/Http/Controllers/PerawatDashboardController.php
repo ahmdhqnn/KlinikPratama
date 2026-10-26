@@ -31,7 +31,7 @@ class PerawatDashboardController extends Controller
                 ->count(),
         ];
 
-        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'screening'])
+        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'screening', 'pemeriksaan'])
             ->whereDate('tanggal', $today)
             ->where('poliklinik_id', $clinicId)
             ->whereIn('status', ['menunggu', 'screening', 'pemeriksaan'])
@@ -44,23 +44,24 @@ class PerawatDashboardController extends Controller
             'stats' => $stats,
             'visits' => [
                 'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit): array => [
-                'id' => $visit->id,
-                'number' => $visit->no_kunjungan,
-                'patient' => $visit->pasien->nama,
-                'medicalRecordNumber' => $visit->pasien->no_rm,
-                'clinic' => $visit->poliklinik->nama,
-                'status' => $visit->status,
-                'triage' => $visit->screening?->kesimpulan_triase,
-                'priority' => $visit->screening?->prioritas_layanan,
-                'actionUrl' => in_array($visit->status, ['menunggu', 'screening'], true)
-                    ? route('pelayanan.screening.show', $visit)
-                    : route('pelayanan.pasien.rekam-medis', $visit->pasien),
-                'actionLabel' => match ($visit->status) {
-                    'menunggu' => 'Mulai pengkajian',
-                    'screening' => 'Lanjutkan pengkajian',
-                    default => 'Lihat RME',
-                },
-                'actionType' => in_array($visit->status, ['menunggu', 'screening'], true) ? 'screening' : 'detail',
+                    'id' => $visit->id,
+                    'number' => $visit->no_kunjungan,
+                    'patient' => $visit->pasien->nama,
+                    'medicalRecordNumber' => $visit->pasien->no_rm,
+                    'clinic' => $visit->poliklinik->nama,
+                    'status' => $visit->status,
+                    'examinationStarted' => $visit->pemeriksaan !== null,
+                    'triage' => $visit->screening?->kesimpulan_triase,
+                    'priority' => $visit->screening?->prioritas_layanan,
+                    'actionUrl' => in_array($visit->status, ['menunggu', 'screening'], true)
+                        ? route('pelayanan.screening.show', $visit)
+                        : route('pelayanan.pasien.rekam-medis', $visit->pasien),
+                    'actionLabel' => match ($visit->status) {
+                        'menunggu' => 'Mulai pengkajian',
+                        'screening' => 'Lanjutkan pengkajian',
+                        default => 'Lihat RME',
+                    },
+                    'actionType' => in_array($visit->status, ['menunggu', 'screening'], true) ? 'screening' : 'detail',
                 ])->values(),
                 'currentPage' => $kunjungan->currentPage(),
                 'lastPage' => $kunjungan->lastPage(),

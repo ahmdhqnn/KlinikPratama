@@ -12,7 +12,9 @@ use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -23,6 +25,10 @@ class ClinicalNoteVersionFlowTest extends TestCase
     public function test_finalization_requires_clinical_content_and_addendum_preserves_signed_note(): void
     {
         $doctorUser = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        Storage::fake('local');
+        $path = UploadedFile::fake()->image('doctor.png')->store('signatures', 'local');
+        $doctorUser->update(['signature_path' => $path]);
+        $signature = 'data:image/png;base64,'.base64_encode(Storage::disk('local')->get($path));
         $doctor = Nakes::create([
             'kode' => 'DOK-VERSION', 'nama' => 'dr. Versi', 'kategori' => 'medis',
             'jabatan' => 'dokter', 'user_id' => $doctorUser->id, 'is_active' => true,
@@ -38,6 +44,8 @@ class ClinicalNoteVersionFlowTest extends TestCase
 
         $this->actingAs($doctorUser)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertUnprocessable();
         $this->assertDatabaseCount('clinical_note_versions', 0);
+        $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.0.examination.signatureDataUrl', null));
 
         $examination->update(['anamnesis' => 'Demam dua hari', 'pemeriksaan_fisik' => 'Suhu 38 C']);
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertUnprocessable();
@@ -108,6 +116,7 @@ class ClinicalNoteVersionFlowTest extends TestCase
         );
         $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
             ->where('visits.0.examination.anamnesis', 'Demam tiga hari')
+            ->where('visits.0.examination.signatureDataUrl', $signature)
             ->where('visits.0.examination.versions.0.anamnesis', 'Demam dua hari')
         );
 
@@ -120,6 +129,10 @@ class ClinicalNoteVersionFlowTest extends TestCase
             ->where('visit.examination.integrityValid', false)
             ->where('visit.examination.anamnesis', 'Demam dua hari')
         );
+
+        $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.0.examination.integrityValid', false)
+            ->where('visits.0.examination.signatureDataUrl', null));
 
         DB::table('clinical_note_versions')->where('id', $addendum->id)->update(['reason' => 'Pasien mengoreksi lama demam']);
         $this->assertTrue((new ClinicalNoteRecorder)->verify($examination));

@@ -21,9 +21,10 @@ class TindakanController extends Controller
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'kategori' => ['nullable', 'in:medis,lab'],
+            'kategori' => ['nullable', Rule::in(config('clinic.modules.laboratory', false) ? ['medis', 'lab'] : ['medis'])],
         ]);
         $tindakan = Tindakan::with('poliklinik')
+            ->when(! config('clinic.modules.laboratory', false), fn ($query) => $query->where('kategori', 'medis'))
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(function ($query) use ($search): void {
                 $query->where('nama', 'like', "%{$search}%")
                     ->orWhere('kode', 'like', "%{$search}%");
@@ -33,7 +34,9 @@ class TindakanController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
+        $poliklinikList = Poliklinik::where('is_active', true)
+            ->when(! config('clinic.modules.laboratory', false), fn ($query) => $query->where('jenis', '!=', 'lab'))
+            ->orderBy('nama')->get();
 
         return Inertia::render('master/tindakan/index', [
             'treatments' => [
@@ -63,7 +66,7 @@ class TindakanController extends Controller
             ])->values(),
             'categories' => [
                 ['value' => 'medis', 'label' => 'Medis'],
-                ['value' => 'lab', 'label' => 'Laboratorium'],
+                ...(config('clinic.modules.laboratory', false) ? [['value' => 'lab', 'label' => 'Laboratorium']] : []),
             ],
             'procedureCatalogAvailable' => ClinicalTerminology::query()->where('code_system', 'icd9cm_procedure')->where('code_type', 'procedure')->where('is_active', true)->exists(),
         ]);
@@ -90,8 +93,12 @@ class TindakanController extends Controller
 
     public function show(Tindakan $tindakan): Response
     {
+        abort_if($tindakan->kategori === 'lab' && ! config('clinic.modules.laboratory', false), 404);
+
         $tindakan->load(['poliklinik', 'bhp.obat']);
-        $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
+        $poliklinikList = Poliklinik::where('is_active', true)
+            ->when(! config('clinic.modules.laboratory', false), fn ($query) => $query->where('jenis', '!=', 'lab'))
+            ->orderBy('nama')->get();
         $obatList = Obat::where('is_active', true)->where('jenis', 'bhp')->orderBy('nama')->get();
 
         return Inertia::render('master/tindakan/show', [
@@ -121,8 +128,9 @@ class TindakanController extends Controller
             'kode' => ['required', 'string', 'max:30', 'unique:tindakan,kode'],
             'kode_icd9' => ['nullable', 'string', 'max:20', 'regex:/^\d{2}(?:\.\d{1,3})?$/'],
             'nama' => ['required', 'string', 'max:200'],
-            'kategori' => ['required', 'in:medis,lab'],
-            'poliklinik_id' => ['nullable', 'exists:poliklinik,id'],
+            'kategori' => ['required', Rule::in(config('clinic.modules.laboratory', false) ? ['medis', 'lab'] : ['medis'])],
+            'poliklinik_id' => ['nullable', Rule::exists('poliklinik', 'id')->whereNull('deleted_at')
+                ->when(! config('clinic.modules.laboratory', false), fn ($rule) => $rule->whereNot('jenis', 'lab'))],
             'is_active' => ['boolean'],
         ]);
 
@@ -134,12 +142,15 @@ class TindakanController extends Controller
 
     public function update(Request $request, Tindakan $tindakan): RedirectResponse
     {
+        abort_if($tindakan->kategori === 'lab' && ! config('clinic.modules.laboratory', false), 404);
+
         $data = $request->validate([
             'kode' => ['required', 'string', 'max:30', "unique:tindakan,kode,{$tindakan->id}"],
             'kode_icd9' => ['nullable', 'string', 'max:20', 'regex:/^\d{2}(?:\.\d{1,3})?$/'],
             'nama' => ['required', 'string', 'max:200'],
-            'kategori' => ['required', 'in:medis,lab'],
-            'poliklinik_id' => ['nullable', 'exists:poliklinik,id'],
+            'kategori' => ['required', Rule::in(config('clinic.modules.laboratory', false) ? ['medis', 'lab'] : ['medis'])],
+            'poliklinik_id' => ['nullable', Rule::exists('poliklinik', 'id')->whereNull('deleted_at')
+                ->when(! config('clinic.modules.laboratory', false), fn ($rule) => $rule->whereNot('jenis', 'lab'))],
             'is_active' => ['boolean'],
         ]);
 
@@ -151,6 +162,8 @@ class TindakanController extends Controller
 
     public function destroy(Tindakan $tindakan): RedirectResponse
     {
+        abort_if($tindakan->kategori === 'lab' && ! config('clinic.modules.laboratory', false), 404);
+
         $tindakan->delete();
 
         return back()->with('success', 'Tindakan berhasil dihapus.');
@@ -158,6 +171,8 @@ class TindakanController extends Controller
 
     public function storeBhp(Request $request, Tindakan $tindakan): RedirectResponse
     {
+        abort_if($tindakan->kategori === 'lab' && ! config('clinic.modules.laboratory', false), 404);
+
         $request->validate([
             'obat_id' => ['required', Rule::exists('obat', 'id')->where('jenis', 'bhp')->where('is_active', true)->whereNull('deleted_at')],
             'jumlah' => ['required', 'numeric', 'min:0.01'],
@@ -173,6 +188,8 @@ class TindakanController extends Controller
 
     public function destroyBhp(TindakanBhp $bhp): RedirectResponse
     {
+        abort_if($bhp->tindakan?->kategori === 'lab' && ! config('clinic.modules.laboratory', false), 404);
+
         $bhp->delete();
 
         return back()->with('success', 'BHP berhasil dihapus.');

@@ -9,6 +9,8 @@ use App\Models\Poliklinik;
 use App\Models\Screening;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -162,6 +164,28 @@ class ScreeningWorkflowTest extends TestCase
             ->where('visit.progress.1.note', null)
             ->where('visit.patient.allergies', 'Tidak ada riwayat alergi menurut pasien')
             ->where('permissions.processScreening', false));
+    }
+
+    public function test_assessment_print_only_signs_completed_records_using_the_nurses_profile(): void
+    {
+        Storage::fake('local');
+        [$nurse, $visit] = $this->context();
+        $path = UploadedFile::fake()->image('nurse.jpg', 80, 30)->store('signatures', 'local');
+        $nurse->update(['signature_path' => $path]);
+        $signature = 'data:image/jpeg;base64,'.base64_encode(Storage::disk('local')->get($path));
+        $viewerPath = UploadedFile::fake()->image('viewer.png')->store('signatures', 'local');
+        $viewer = User::factory()->create(['role' => 'admin', 'is_active' => true, 'signature_path' => $viewerPath]);
+        $viewerSignature = 'data:image/png;base64,'.base64_encode(Storage::disk('local')->get($viewerPath));
+
+        $this->actingAs($nurse)->post(route('pelayanan.screening.start', $visit))->assertRedirect();
+        $this->get(route('pelayanan.screening.print', $visit))->assertOk()
+            ->assertSee('BELUM DITERUSKAN KE DOKTER')->assertDontSee($signature, false);
+        $this->post(route('pelayanan.screening.store', $visit), $this->payload())->assertSessionHasNoErrors();
+
+        $this->actingAs($viewer)->get(route('pelayanan.screening.print', $visit))->assertOk()
+            ->assertDontSee('BELUM DITERUSKAN KE DOKTER')->assertSee($signature, false)->assertDontSee($viewerSignature, false);
+        Storage::disk('local')->delete($path);
+        $this->get(route('pelayanan.screening.print', $visit))->assertOk()->assertDontSee($signature, false);
     }
 
     /** @return array{User, Kunjungan, Nakes} */

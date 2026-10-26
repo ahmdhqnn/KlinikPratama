@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Pendaftaran;
 
-use App\ClinicDocumentNumber;
 use App\ClinicalAuditRecorder;
+use App\ClinicDocumentNumber;
 use App\DateRangeFilter;
 use App\DoctorAccessService;
 use App\HakLayananVerifier;
@@ -19,6 +19,7 @@ use App\PerawatClinicResolver;
 use App\PracticeScheduleAccess;
 use App\VisitOverviewService;
 use App\VisitQueryService;
+use App\VisitSchedulingService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -31,7 +32,7 @@ use Inertia\Response;
 
 class RegistrationController extends Controller
 {
-    public function __construct(private JadwalPraktikResolver $schedule, private PerawatClinicResolver $perawatClinicResolver, private \App\VisitSchedulingService $scheduling, private PracticeScheduleAccess $scheduleAccess) {}
+    public function __construct(private JadwalPraktikResolver $schedule, private PerawatClinicResolver $perawatClinicResolver, private VisitSchedulingService $scheduling, private PracticeScheduleAccess $scheduleAccess) {}
 
     public function dashboard(): Response
     {
@@ -59,7 +60,7 @@ class RegistrationController extends Controller
     {
         $visits = new VisitQueryService;
         $filters = $visits->filters($request);
-        $kunjungan = $visits->filtered($filters)->with(['pasien', 'poliklinik', 'dokter'])
+        $kunjungan = $visits->filtered($filters)->with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan'])
             ->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
 
         $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
@@ -85,6 +86,7 @@ class RegistrationController extends Controller
                     'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'date' => $visit->tanggal?->format('d/m/Y') ?? 'Belum diisi',
                     'status' => $visit->status,
+                    'examinationStarted' => $visit->pemeriksaan !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'ticketUrl' => $visit->status !== 'batal' ? route('pendaftaran.cetak-antrian', $visit) : null,
                     'editUrl' => $visit->status === 'menunggu'
@@ -365,9 +367,9 @@ class RegistrationController extends Controller
             ->when($selectedPoli, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId))
             ->when($filters['tanggal'] ?? null, fn ($query, string $date) => $query->whereDate('tanggal', $date))
             ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status));
-        $kunjungan = (clone $visitsQuery)->with(['pasien', 'dokter', 'poliklinik'])
+        $kunjungan = (clone $visitsQuery)->with(['pasien', 'dokter', 'poliklinik', 'pemeriksaan'])
             ->latest('created_at')->latest('id')->paginate(10)->withQueryString();
-        $kunjunganTerbaru = Kunjungan::with(['pasien', 'dokter', 'poliklinik'])->whereDate('tanggal', today())
+        $kunjunganTerbaru = Kunjungan::with(['pasien', 'dokter', 'poliklinik', 'pemeriksaan'])->whereDate('tanggal', today())
             ->when($assignedClinicId, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId))
             ->latest('tanggal')->latest('created_at')->latest('id')
             ->paginate(10, ['*'], 'recent_page')
@@ -381,6 +383,7 @@ class RegistrationController extends Controller
             'date' => $visit->tanggal->format('d/m/Y'),
             'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
             'status' => $visit->status,
+            'examinationStarted' => $visit->pemeriksaan !== null,
             'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
             'actionUrl' => $role === 'perawat' && ! $visit->tanggal->isFuture()
                 ? (in_array($visit->status, ['menunggu', 'screening'], true)
@@ -801,7 +804,7 @@ class RegistrationController extends Controller
         abort_if($kunjungan->status === 'batal', 422, 'Kunjungan yang dibatalkan tidak memiliki tiket antrian.');
 
         $auditRecorder->record($request, 'queue_ticket.print', $kunjungan->pasien_id, $kunjungan->id);
-        $kunjungan->load(['pasien', 'poliklinik', 'dokter']);
+        $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'pemeriksaan']);
         $antrian = Kunjungan::where('poliklinik_id', $kunjungan->poliklinik_id)
             ->whereDate('tanggal', $kunjungan->tanggal)
             ->where('status', '!=', 'batal')
@@ -832,7 +835,7 @@ class RegistrationController extends Controller
     {
         abort_unless($kunjungan->status === 'menunggu', 422, 'Kunjungan yang sudah dilayani tidak dapat diubah dari pendaftaran.');
 
-        $kunjungan->load(['pasien', 'poliklinik', 'dokter']);
+        $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'pemeriksaan']);
         $data = $this->registrationFormData();
         $data['kunjungan'] = $kunjungan;
         $data['day'] = strtolower($kunjungan->tanggal->locale('id')->dayName);

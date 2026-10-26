@@ -14,6 +14,13 @@ class TindakanInertiaTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['clinic.modules.medical_treatments' => true]);
+    }
+
     public function test_master_treatment_can_search_procedure_catalog_and_keep_manual_entry_available(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);

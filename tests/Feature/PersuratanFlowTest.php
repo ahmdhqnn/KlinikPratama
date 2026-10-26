@@ -13,6 +13,8 @@ use App\Models\RujukanInternal;
 use App\Models\SuratMedis;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -44,6 +46,11 @@ class PersuratanFlowTest extends TestCase
     public function test_doctor_can_issue_numbered_letter_and_internal_referral_then_print_them(): void
     {
         [$doctorUser, $doctor, $visit, $origin, $target, $patient] = $this->visitFixture();
+        Storage::fake('local');
+        $this->actingAs($doctorUser)->post(route('profile.signature.upload'), [
+            'signature' => UploadedFile::fake()->image('signature.png'),
+        ])->assertSessionHasNoErrors();
+        $signature = 'data:image/png;base64,'.base64_encode(Storage::disk('local')->get($doctorUser->fresh()->signature_path));
         $letterTemplate = CorrespondenceTemplate::factory()->create([
             'jenis' => 'sakit', 'prefix' => 'SKS', 'nomor_berikutnya' => 7,
             'isi' => 'Pasien [pasien] diperiksa oleh [dokter] pada [tanggal].',
@@ -68,11 +75,11 @@ class PersuratanFlowTest extends TestCase
         $this->assertSame('Mohon konsultasi '.$patient->nama.' ke '.$target->nama.'.', $referral->konten_surat);
 
         $this->get(route('persuratan.surat.cetak', $letter))->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('persuratan/cetak')->where('document.kind', 'surat')->where('document.number', $letter->nomor_surat)->where('document.backUrl', route('persuratan.index')));
+            ->assertInertia(fn (Assert $page) => $page->component('persuratan/cetak')->where('document.kind', 'surat')->where('document.doctor.signatureDataUrl', $signature)->where('document.number', $letter->nomor_surat)->where('document.backUrl', route('persuratan.index')));
         $this->get(route('persuratan.surat.cetak', $letter).'?asal=pemeriksaan')->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('persuratan/cetak')->where('document.backUrl', route('pelayanan.pemeriksaan.show', $visit).'?tab=surat')->where('document.backLabel', 'Kembali ke surat medis'));
         $this->get(route('persuratan.rujukan.cetak', $referral))->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('persuratan/cetak')->where('document.kind', 'rujukan_internal')->where('document.toClinic', $target->nama)->where('document.backUrl', route('persuratan.index')));
+            ->assertInertia(fn (Assert $page) => $page->component('persuratan/cetak')->where('document.kind', 'rujukan_internal')->where('document.doctor.signatureDataUrl', $signature)->where('document.toClinic', $target->nama)->where('document.backUrl', route('persuratan.index')));
         $this->get(route('persuratan.rujukan.cetak', $referral).'?asal=pemeriksaan')->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('persuratan/cetak')->where('document.backUrl', route('pelayanan.pemeriksaan.show', $visit).'?tab=rujukan'));
         $this->assertDatabaseHas('clinical_audit_events', ['action' => 'medical_letter.print', 'kunjungan_id' => $visit->id]);
@@ -100,6 +107,51 @@ class PersuratanFlowTest extends TestCase
         $this->get(route('persuratan.resep.cetak', $visit).'?asal=pemeriksaan')->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('persuratan/cetak')->where('document.backUrl', route('pelayanan.pemeriksaan.show', $visit).'?tab=resep-luar'));
         $this->get(route('persuratan.resep.cetak', $otherVisit))->assertNotFound();
+    }
+
+    public function test_print_uses_the_recorded_issuer_signature_instead_of_the_current_doctor_or_viewer(): void
+    {
+        Storage::fake('local');
+        [$issuer, $doctor, $visit] = $this->visitFixture();
+        $signaturePath = UploadedFile::fake()->image('issuer.png', 80, 30)->store('signatures', 'local');
+        $issuer->update(['signature_path' => $signaturePath]);
+        $signature = 'data:image/png;base64,'.base64_encode(Storage::disk('local')->get($signaturePath));
+        $viewer = User::factory()->create([
+            'role' => 'admin', 'is_active' => true,
+            'signature_path' => UploadedFile::fake()->image('viewer.png', 30, 30)->store('signatures', 'local'),
+        ]);
+        $replacementUser = User::factory()->create([
+            'role' => 'dokter', 'is_active' => true, 'signature_path' => $viewer->signature_path,
+        ]);
+        $replacementDoctor = $this->createDoctor($replacementUser, 'DOK-REPLACEMENT');
+        $replacementDoctor->update(['nama' => 'dr. Pengganti']);
+        $letter = SuratMedis::create([
+            'kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id, 'jenis' => 'sakit',
+            'tanggal' => today(), 'konten' => 'Surat diterbitkan dokter awal.',
+        ]);
+        $prescription = Resep::create([
+            'kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id,
+            'no_resep' => 'RSP-SIGNATURE', 'status' => 'menunggu',
+        ]);
+        ResepObat::create([
+            'resep_id' => $prescription->id, 'nama_obat' => 'Paracetamol', 'jumlah' => 5,
+            'satuan' => 'tablet', 'jenis' => 'jadi', 'is_resep_luar' => true, 'stok_dikurangi' => false,
+        ]);
+        $visit->update(['dokter_id' => $replacementDoctor->id]);
+
+        $this->actingAs($viewer);
+        foreach ([route('persuratan.surat.cetak', $letter), route('persuratan.resep.cetak', $visit)] as $url) {
+            $this->get($url)->assertOk()->assertInertia(fn (Assert $page) => $page
+                ->where('document.doctor.name', $doctor->nama)
+                ->where('document.doctor.signatureDataUrl', $signature));
+        }
+
+        Storage::disk('local')->delete($signaturePath);
+        $this->get(route('persuratan.surat.cetak', $letter))->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('document.doctor.signatureDataUrl', null));
+        $issuer->update(['signature_path' => null]);
+        $this->get(route('persuratan.resep.cetak', $visit))->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('document.doctor.signatureDataUrl', null));
     }
 
     /** @return array{User, Nakes, Kunjungan, Poliklinik, Poliklinik, Pasien} */

@@ -4,7 +4,7 @@ import { Head, router } from '@inertiajs/react';
 import { CalendarDays, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
-import { StatusBadge, visitStatusLabels } from '@/components/dashboard/status-badge';
+import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -29,6 +29,7 @@ interface Visit {
     doctor: string;
     date: string;
     status: string;
+    examinationStarted?: boolean;
     isReservation?: boolean;
     ticketUrl: string | null;
     editUrl: string | null;
@@ -49,7 +50,7 @@ interface Props {
     visits: PaginationData & { data: Visit[] };
 }
 
-const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusLabels[status]]);
+const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusFilterLabels[status]]);
 
 export default function RegistrationVisitReport({ filters: initialFilters, clinics, visits }: Props) {
     const [filters, setFilters] = useState(initialFilters);
@@ -118,7 +119,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
                                             <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
-                                            <TableCell><StatusBadge reservation={visit.isReservation} status={visit.status} /></TableCell>
+                                            <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
                                             <TableCell>
                                                 <div className="flex items-center justify-center gap-2">
                                                     {visit.ticketUrl && <ActionButton asChild action="print" label="Cetak nomor antrean"><a href={visit.ticketUrl} /></ActionButton>}

@@ -1,6 +1,6 @@
 import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { CalendarDays, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
@@ -21,10 +21,12 @@ interface Visit {
     medicalRecordNumber: string;
     clinic: string;
     status: string;
+    examinationStarted?: boolean;
     isReservation?: boolean;
     triage?: string | null;
     priority?: string | null;
     examinationUrl: string;
+    recordUrl: string;
 }
 
 interface Props {
@@ -74,7 +76,7 @@ export default function DoctorAppointments({ filters, visits }: Props) {
                                         <TableHead>Poliklinik</TableHead>
                                         <TableHead className="text-center">Status</TableHead>
                                         <TableHead className="text-center">Prioritas</TableHead>
-                                        <TableHead className="text-center">Tindakan</TableHead>
+                                        <TableHead className="text-center">Aksi</TableHead>
                                     </tr>
                                 </TableHeader>
                                 <TableBody>
@@ -83,9 +85,9 @@ export default function DoctorAppointments({ filters, visits }: Props) {
                                             <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber} · {visit.number}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
-                                            <TableCell className="text-center"><StatusBadge reservation={visit.isReservation} status={visit.status} /></TableCell>
+                                            <TableCell className="text-center"><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
                                             <TableCell className="text-center"><PriorityBadge triage={visit.triage} priority={visit.priority} /></TableCell>
-                                            <TableCell className="text-center"><ActionButton asChild action="examination" label="Pemeriksaan"><a href={visit.examinationUrl} /></ActionButton></TableCell>
+                                            <TableCell className="text-center"><div className="flex items-center justify-center gap-2"><ActionButton asChild action="examination" label={visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan'}><Link href={visit.examinationUrl} /></ActionButton><ActionButton asChild action="rme" label="Rekam medis"><Link href={visit.recordUrl} /></ActionButton></div></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty size="compact" title="Belum ada kunjungan pada rentang tanggal ini." /></TableCell></TableRow>}
                                 </TableBody>

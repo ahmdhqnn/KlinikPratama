@@ -24,6 +24,7 @@ class ClinicalNoteRecorder
             'riwayat_alergi' => ClinicalAnswer::normalize($examination->riwayat_alergi),
             'pemeriksaan_fisik' => ClinicalAnswer::normalize($examination->pemeriksaan_fisik),
             'pemeriksaan_fisik_terstruktur' => $examination->pemeriksaan_fisik_terstruktur ?? [],
+            'body_map' => $examination->body_map,
             'pemeriksaan_ekstraoral' => ClinicalAnswer::normalize($examination->pemeriksaan_ekstraoral),
             'oral_hygiene_index' => $examination->oral_hygiene_index,
             'diagnosis_banding' => ClinicalAnswer::normalize($examination->diagnosis_banding),
@@ -31,8 +32,12 @@ class ClinicalNoteRecorder
             'edukasi' => ClinicalAnswer::normalize($examination->edukasi),
             'kontrol_berikutnya' => $examination->kontrol_berikutnya?->toDateString(),
             'diagnoses' => $examination->diagnosa->sortBy('id')->map(fn ($diagnosis): array => [
+                'id' => $diagnosis->id,
                 'code' => $diagnosis->kode_icd10,
+                'code_system' => $diagnosis->code_system,
+                'code_release' => $diagnosis->code_release,
                 'name' => $diagnosis->nama_diagnosa,
+                'note' => $diagnosis->keterangan,
                 'type' => $diagnosis->jenis,
             ])->values()->all(),
             'treatments' => $visit->tindakanKunjungan->sortBy('id')->map(fn ($treatment): array => [

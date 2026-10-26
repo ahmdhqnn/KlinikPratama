@@ -15,6 +15,13 @@ class LaboratoriumInertiaTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['clinic.modules.laboratory' => true]);
+    }
+
     public function test_admin_can_manage_laboratories_indicators_and_supplies_from_inertia_pages(): void
     {
         $admin = User::create([

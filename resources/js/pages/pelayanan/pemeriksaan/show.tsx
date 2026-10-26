@@ -2,7 +2,7 @@ import { confirmedAbsentHistory, normalizeClinicalAnswer } from '@/lib/clinical-
 import { selectedOdontogramTeeth } from '@/lib/odontogram-selection';
 import { isReportedAllergy } from '@/lib/allergy-status';
 import { ActionButton } from '@/components/ui/action-button';
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { AlertTriangle, ArrowLeft, Check, ChevronDown, ClipboardPlus, FileText, HeartPulse, Pill, Plus, Search, Stethoscope, UserRound } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -24,12 +24,17 @@ import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescript
 import { toast } from 'sonner';
 import { OdontogramFdi } from '@/components/odontogram/odontogram-fdi';
 import { DentalExaminationSummary, DiagnosisSummary, GeneralExaminationSummary } from '@/components/kunjungan/clinical-workflow-summary';
-import { AnatomyBodyMap } from '@/components/anatomy/anatomy-body-map';
+import { PhysicalExaminationWorkspace } from '@/components/anatomy/physical-examination-workspace';
+import { emptyBodyFinding } from '@/lib/body-examination';
+import { emptyBodyMap, type BodyMapData } from '@/lib/body-map';
+import { BodyExaminationRecord } from '@/components/anatomy/body-examination-record';
+import { examinationState } from '@/lib/examination-state';
+import { StatusBadge } from '@/components/dashboard/status-badge';
 import { optionalAnswers } from '@/lib/optional-answers';
 import { VisitAttachments, type ClinicalAttachment } from '@/components/kunjungan/visit-attachments';
 
 interface Option { id: number; name: string; }
-interface Diagnosis { id: number; code: string; codeSystem?: string; name: string; type: string; }
+interface Diagnosis { id: number; code: string | null; codeSystem?: string; name: string; note?: string | null; type: string; }
 interface Treatment { id: number; name: string; code: string | null; codeSystem: string | null; codeRelease: string | null; quantity: number; toothFdi: string | null; note: string | null; }
 interface ProcedureSuggestion { id: number; code: string; display: string; release: string; }
 interface DentalFinding { toothFdi: string; surface: string; findingCode: string; notes: string | null; }
@@ -48,6 +53,7 @@ interface Examination {
     allergyHistory: string | null;
     physicalExam: string | null;
     physicalSystems: Record<string, string>;
+    bodyMap?: BodyMapData | null;
     extraoralExam: string | null;
     differentialDiagnosis: string | null;
     followUpDate: string | null;
@@ -57,9 +63,11 @@ interface Examination {
     integrityValid: boolean | null;
     signedAt: string | null;
     signedBy: string | null;
-    versions: Array<{ version: number; kind: string; reason: string | null; actor: string | null; recordedAt: string | null; anamnesis: string | null; physicalExam: string | null; notes: string | null; education: string | null; odontogram: DentalFinding[] }>;
+    versions: Array<{ version: number; kind: string; reason: string | null; actor: string | null; recordedAt: string | null; anamnesis: string | null; physicalExam: string | null; bodyMap?: BodyMapData | null; notes: string | null; education: string | null; odontogram: DentalFinding[] }>;
 }
 interface Visit {
+    isReservation?: boolean;
+    recordUrl?: string | null;
     attachments?: ClinicalAttachment[];
     id: number;
     number: string;
@@ -98,15 +106,15 @@ interface IcdSuggestion { kode: string; nama: string; code_system: string; relea
 type Tab = 'pemeriksaan' | 'odontogram' | 'anamnesis' | 'diagnosa' | 'tindakan' | 'resep' | 'resep-luar' | 'surat' | 'rujukan';
 
 
-const commonTabs: { id: Tab; label: string; icon: typeof Stethoscope }[] = [
+const commonTabs: { id: Tab; label: string; icon: typeof Stethoscope; optional?: boolean }[] = [
     { id: 'anamnesis', label: 'Anamnesis', icon: Stethoscope },
     { id: 'pemeriksaan', label: 'Pemeriksaan fisik', icon: HeartPulse },
     { id: 'diagnosa', label: 'Diagnosis', icon: ClipboardPlus },
     { id: 'tindakan', label: 'Tindakan', icon: HeartPulse },
     { id: 'resep', label: 'Resep klinik', icon: Pill },
-    { id: 'resep-luar', label: 'Resep luar', icon: Pill },
-    { id: 'surat', label: 'Surat medis', icon: FileText },
-    { id: 'rujukan', label: 'Rujukan internal', icon: ArrowLeft },
+    { id: 'resep-luar', label: 'Resep luar', icon: Pill, optional: true },
+    { id: 'surat', label: 'Surat medis', icon: FileText, optional: true },
+    { id: 'rujukan', label: 'Rujukan internal', icon: ArrowLeft, optional: true },
 ];
 
 export default function ExaminationDetail({ visit, initialTab, doctors, treatments, medicines, clinics, diagnosisCodeSystems, procedureCatalogAvailable, procedureSearchUrl, dentalOptions, today, correspondenceTemplates }: Props) {
@@ -136,8 +144,10 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
     const [selectedProcedure, setSelectedProcedure] = useState<ProcedureSuggestion | null>(null);
     const [selectedDentalFindingKeys, setSelectedDentalFindingKeys] = useState<string[]>([]);
     const [undoFinding, setUndoFinding] = useState<DentalFinding | null>(null);
-    const [selectedBodySystem, setSelectedBodySystem] = useState('Thorax');
-    const [selectedBodyOrganId, setSelectedBodyOrganId] = useState('lungs');
+    const [bodyFindingDraft, setBodyFindingDraft] = useState({ ...emptyBodyFinding });
+    const [addendumBodyDraft, setAddendumBodyDraft] = useState({ ...emptyBodyFinding });
+    const [bodyFindingPending, setBodyFindingPending] = useState(false);
+    const [addendumBodyPending, setAddendumBodyPending] = useState(false);
     const defaultPhysicalSystems: Record<string, string> = {
         'Kepala dan leher': visit.examination?.physicalSystems?.['Kepala dan leher'] ?? '',
         Thorax: visit.examination?.physicalSystems?.Thorax ?? '',
@@ -159,6 +169,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
         section: 'pemeriksaan',
         pemeriksaan_fisik: normalizeClinicalAnswer(visit.examination?.physicalExam) ?? '',
         pemeriksaan_fisik_terstruktur: { ...defaultPhysicalSystems },
+        body_map: visit.examination?.bodyMap ?? emptyBodyMap(),
         pemeriksaan_ekstraoral: normalizeClinicalAnswer(visit.examination?.extraoralExam) ?? '',
     });
     const differentialForm = useForm({ section: 'diagnosis', diagnosis_banding: normalizeClinicalAnswer(visit.examination?.differentialDiagnosis) ?? '' });
@@ -168,7 +179,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
         catatan: normalizeClinicalAnswer(visit.examination?.notes) ?? '',
         edukasi: normalizeClinicalAnswer(visit.examination?.education) ?? '',
     });
-    const diagnosisForm = useForm({ kode_icd10: '', code_system: 'icd10_who', code_release: '', nama_diagnosa: '', jenis: visit.diagnoses.some((diagnosis) => diagnosis.type === 'utama') ? 'tambahan' : 'utama' });
+    const diagnosisForm = useForm({ is_manual: false, kode_icd10: '', code_system: 'icd10_who', code_release: '', nama_diagnosa: '', keterangan: '', jenis: visit.diagnoses.some((diagnosis) => diagnosis.type === 'utama') ? 'tambahan' : 'utama' });
     const treatmentForm = useForm({ terminology_id: '', tindakan_id: '', nama_tindakan_manual: '', jumlah: '1', tooth_fdis: [] as string[], catatan: '' });
     const dentalForm = useForm({ tooth_fdi: '', surface: 'W', finding_code: '', notes: '', reason: '' });
     const odontogramUndoForm = useForm({ tooth_fdi: '', surface: '', reason: '' });
@@ -177,7 +188,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
     const letterForm = useForm({ jenis: 'sakit', nomor_surat: '', surat_template_id: '', tanggal: today, konten: '' });
     const referralForm = useForm({ ke_poli_id: '', surat_template_id: '', catatan: '', konten_surat: '' });
     const signatureForm = useForm({ signature_password: '' });
-    const addendumForm = useForm({
+    const addendumDefaults = {
         reason: '',
         anamnesis: normalizeClinicalAnswer(visit.examination?.anamnesis) ?? '',
         riwayat_penyakit_sekarang: normalizeClinicalAnswer(visit.examination?.currentHistory) ?? '',
@@ -186,12 +197,14 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
         riwayat_alergi: normalizeClinicalAnswer(visit.examination?.allergyHistory) ?? '',
         pemeriksaan_fisik: normalizeClinicalAnswer(visit.examination?.physicalExam) ?? '',
         pemeriksaan_fisik_terstruktur: { ...defaultPhysicalSystems },
+        body_map: visit.examination?.bodyMap ?? emptyBodyMap(),
         pemeriksaan_ekstraoral: normalizeClinicalAnswer(visit.examination?.extraoralExam) ?? '',
         diagnosis_banding: normalizeClinicalAnswer(visit.examination?.differentialDiagnosis) ?? '',
         catatan: normalizeClinicalAnswer(visit.examination?.notes) ?? '',
         edukasi: normalizeClinicalAnswer(visit.examination?.education) ?? '',
         kontrol_berikutnya: visit.examination?.followUpDate ?? '',
-    });
+    };
+    const addendumForm = useForm(addendumDefaults);
 
     useEffect(() => {
         const query = icdQuery.trim();
@@ -246,12 +259,15 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
     }, [procedureQuery, procedureSearchUrl, treatmentMode, procedureCatalogAvailable, selectedProcedure]);
 
     function changeTreatmentMode(mode: 'icd9cm' | 'clinic' | 'manual') {
-        setTreatmentMode(mode);
-        setSelectedProcedure(null);
-        setProcedureQuery('');
-        setProcedureResults([]);
-        treatmentForm.clearErrors();
-        treatmentForm.setData((data) => ({ ...data, terminology_id: '', tindakan_id: '', nama_tindakan_manual: '' }));
+        const apply = () => {
+            setTreatmentMode(mode);
+            setSelectedProcedure(null);
+            setProcedureQuery('');
+            setProcedureResults([]);
+            treatmentForm.clearErrors();
+            treatmentForm.setData((data) => ({ ...data, terminology_id: '', tindakan_id: '', nama_tindakan_manual: '' }));
+        };
+        if (treatmentForm.data.terminology_id || treatmentForm.data.tindakan_id || treatmentForm.data.nama_tindakan_manual.trim()) confirmAction('Ganti cara pencatatan dan kosongkan pilihan atau nama tindakan yang belum ditambahkan?', apply, 'Ganti cara pencatatan'); else apply();
     }
 
     function navigateSection(section: Tab | 'rencana'): void {
@@ -272,6 +288,10 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
 
     function submitClinicalSection(event: FormEvent<HTMLFormElement>, section: 'anamnesis' | 'pemeriksaan' | 'diagnosis' | 'rencana'): void {
         event.preventDefault();
+        if (section === 'pemeriksaan' && bodyFindingPending) {
+            toast.error('Tambahkan temuan lokasi ke pemeriksaan atau kosongkan isiannya sebelum menyimpan.');
+            return;
+        }
         const sections = {
             anamnesis: { form: examinationForm, label: 'Simpan anamnesis', saved: () => examinationForm.setDefaults(examinationForm.data) },
             pemeriksaan: { form: physicalForm, label: 'Simpan pemeriksaan fisik', saved: () => physicalForm.setDefaults(physicalForm.data) },
@@ -279,7 +299,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
             rencana: { form: followUpForm, label: 'Simpan rencana tindak lanjut', saved: () => followUpForm.setDefaults(followUpForm.data) },
         };
         const selected = sections[section];
-        if (selected.form.processing) return;
+        if (!sectionSaveAllowed[section]) return;
 
         confirmSave(selected.label, () => selected.form.post(`/pelayanan/pemeriksaan/${visit.id}`, {
             preserveScroll: true,
@@ -290,7 +310,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
 
     function submitForm(event: FormEvent<HTMLFormElement>, form: typeof diagnosisForm | typeof treatmentForm | typeof prescriptionForm | typeof externalPrescriptionForm | typeof letterForm | typeof referralForm, url: string): void {
         event.preventDefault();
-        if (form.processing) return;
+        if (!canSubmitEntry(form)) return;
         const label = form === diagnosisForm ? 'Tambah diagnosis'
             : form === treatmentForm ? 'Tambah tindakan'
                 : form === prescriptionForm ? 'Tambah obat resep klinik'
@@ -299,7 +319,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
 
         confirmSave(label, () => form.post(url, { preserveScroll: true, preserveState: true, onSuccess: () => {
             if (form === diagnosisForm) {
-                const data = { kode_icd10: '', code_system: diagnosisCodeSystem, code_release: '', nama_diagnosa: '', jenis: 'tambahan' };
+                const data = { is_manual: diagnosisForm.data.is_manual, kode_icd10: '', code_system: diagnosisForm.data.is_manual ? 'manual' : diagnosisCodeSystem, code_release: '', nama_diagnosa: '', keterangan: '', jenis: 'tambahan' };
                 diagnosisForm.setData(data);
                 diagnosisForm.setDefaults(data);
             }
@@ -315,6 +335,48 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
             if (form === letterForm) letterForm.reset();
             if (form === referralForm) referralForm.reset();
         } }));
+    }
+
+    function canSubmitEntry(form: typeof diagnosisForm | typeof treatmentForm | typeof prescriptionForm | typeof externalPrescriptionForm | typeof letterForm | typeof referralForm): boolean {
+        if (!canEdit || saving || form.processing || !form.isDirty) return false;
+        if (form === diagnosisForm) return Boolean(normalizeClinicalAnswer(diagnosisForm.data.nama_diagnosa) && (diagnosisForm.data.is_manual || diagnosisForm.data.kode_icd10.trim()));
+        if (form === treatmentForm) return Number.isInteger(Number(treatmentForm.data.jumlah)) && Number(treatmentForm.data.jumlah) > 0 && Boolean(
+            treatmentMode === 'icd9cm' ? treatmentForm.data.terminology_id
+                : treatmentMode === 'clinic' ? treatmentForm.data.tindakan_id
+                    : normalizeClinicalAnswer(treatmentForm.data.nama_tindakan_manual) && treatmentForm.data.nama_tindakan_manual.trim().length >= 3,
+        );
+        if (form === prescriptionForm) return prescriptionEditable && Boolean(prescriptionForm.data.obat_id) && Number.isInteger(Number(prescriptionForm.data.jumlah)) && Number(prescriptionForm.data.jumlah) > 0;
+        if (form === externalPrescriptionForm) return prescriptionEditable && Boolean(normalizeClinicalAnswer(externalPrescriptionForm.data.nama_obat)) && Number(externalPrescriptionForm.data.jumlah) >= 0.01;
+        if (form === letterForm) return Boolean(letterForm.data.tanggal);
+        return Boolean(referralForm.data.ke_poli_id && referralForm.data.ke_poli_id !== String(visit.clinicId));
+    }
+
+    function submitAddendum(event: FormEvent<HTMLFormElement>): void {
+        event.preventDefault();
+        if (!canSaveAddendum) return;
+        confirmSave('Simpan addendum', () => addendumForm.post(`/pelayanan/pemeriksaan/${visit.id}/addendum`, {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                const saved = { ...addendumForm.data, reason: '' };
+                addendumForm.setData(saved);
+                addendumForm.setDefaults(saved);
+            },
+        }));
+    }
+
+    function submitDentalFinding(event: FormEvent<HTMLFormElement>): void {
+        event.preventDefault();
+        if (!canSaveDentalFinding) return;
+        confirmSave(canEdit ? 'Simpan temuan odontogram' : 'Simpan addendum odontogram', () => dentalForm.post(`/pelayanan/pemeriksaan/${visit.id}/odontogram${canEdit ? '' : '/addendum'}`, {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                const saved = { ...dentalForm.data, reason: '' };
+                dentalForm.setData(saved);
+                dentalForm.setDefaults(saved);
+            },
+        }));
     }
 
     function selectDentalRecord(tooth: string, surface = dentalForm.data.surface): void {
@@ -364,7 +426,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
     }
 
     function undoDentalFinding(): void {
-        if (!undoFinding) return;
+        if (!undoFinding || saving || (!canEdit && !canCorrect) || (canCorrect && odontogramUndoForm.data.reason.trim().length < 10)) return;
 
         odontogramUndoForm.delete(`/pelayanan/pemeriksaan/${visit.id}/odontogram`, {
             preserveScroll: true,
@@ -384,15 +446,29 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
     }
 
     function renderTabNavigation(tab: Tab, nextTab?: Tab, nextLabel?: string) {
-        const tabIndex = tabs.findIndex((item) => item.id === tab);
-        const previousTab = tabIndex > 0 ? tabs[tabIndex - 1].id : null;
+        const mainTabs = tabs.filter((item) => !item.optional);
+        const tabIndex = mainTabs.findIndex((item) => item.id === tab);
+        const previousTab = tabIndex > 0 ? mainTabs[tabIndex - 1].id : tabIndex === -1 ? 'resep' : null;
+        const showFinish = ['tindakan', 'resep', 'resep-luar', 'surat', 'rujukan'].includes(tab);
 
-        if (!previousTab && !nextTab) return null;
+        if (!previousTab && !nextTab && !showFinish) return null;
 
-        return <div className="flex flex-col justify-between gap-3 border-t border-neutral-200 pt-4 sm:flex-row sm:items-center">
+        return <div className="flex flex-col justify-between gap-3 border-t border-neutral-200 pt-4 sm:flex-row sm:items-center" aria-label="Navigasi pemeriksaan">
             {previousTab ? <Button onClick={() => navigateSection(previousTab)} size="sm" type="button" variant="secondary"><ArrowLeft className="size-4" />Kembali ke {tabLabels[previousTab]}</Button> : <span />}
-            {nextTab && <Button className="sm:ml-auto" onClick={() => navigateSection(nextTab)} size="sm" type="button">{nextLabel ?? `Lanjut ke ${tabLabels[nextTab]}`}<ArrowLeft className="size-4 rotate-180" /></Button>}
+            <div className="flex flex-wrap justify-end gap-2 sm:ml-auto">
+                {showFinish && <Button disabled={!canEdit || saving} onClick={finishExamination} size="sm" type="button" variant={nextTab ? 'secondary' : 'default'}><Check className="size-4" />Selesai periksa</Button>}
+                {nextTab && <Button onClick={() => navigateSection(nextTab)} size="sm" type="button">{nextLabel ?? `Lanjut ke ${tabLabels[nextTab]}`}<ArrowLeft className="size-4 rotate-180" /></Button>}
+            </div>
         </div>;
+    }
+
+    function renderTabTrigger({ id, icon: Icon, label }: (typeof tabs)[number]) {
+        return <TabsTrigger className="min-h-12 px-3 sm:px-4" key={id} value={id}>
+            <Icon aria-hidden="true" className="size-4" />{label}
+            {id === 'diagnosa' && <Badge>{visit.diagnoses.length}</Badge>}
+            {id === 'tindakan' && <Badge>{visit.treatments.length}</Badge>}
+            {(id === 'resep' || id === 'resep-luar') && <Badge>{visit.prescription.items.filter((item) => item.external === (id === 'resep-luar')).length}</Badge>}
+        </TabsTrigger>;
     }
 
     function chooseDiagnosis(code: string, name: string, codeSystem = diagnosisCodeSystem, release = '') {
@@ -402,13 +478,14 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
     }
 
     function deleteItem(url: string, confirmation: string) {
-        confirmAction(confirmation, () => { router.delete(url, { preserveScroll: true }); }, 'Lanjutkan');
+        if (!canEdit || saving) return;
+        confirmAction(confirmation, () => { deleteForm.delete(url, { preserveScroll: true }); }, 'Hapus');
     }
 
     function discardSection(tab: Tab | 'rencana'): void {
         confirmAction('Batalkan isian yang belum disimpan pada bagian ini? Data yang sudah tersimpan tetap tersedia.', () => {
             if (tab === 'anamnesis') examinationForm.resetAndClearErrors();
-            if (tab === physicalTab) { physicalForm.resetAndClearErrors(); dentalForm.resetAndClearErrors(); }
+            if (tab === physicalTab) { physicalForm.resetAndClearErrors(); dentalForm.resetAndClearErrors(); setBodyFindingDraft({ ...emptyBodyFinding }); }
             if (tab === 'diagnosa') { diagnosisForm.resetAndClearErrors(); differentialForm.resetAndClearErrors(); }
             if (tab === 'rencana') followUpForm.resetAndClearErrors();
             if (tab === 'tindakan') { treatmentForm.resetAndClearErrors(); setSelectedProcedure(null); setProcedureQuery(''); setSelectedDentalFindingKeys([]); }
@@ -436,6 +513,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
 
     function signExamination(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (!canEdit || !signatureForm.data.signature_password || signatureForm.processing) return;
         if (unsavedSections.length > 0 || saving || readiness.some((item) => !item.complete)) {
             setSignatureDialogOpen(false);
             finishExamination();
@@ -450,16 +528,39 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
         });
     }
 
-    const canEdit = !visit.canClaim && visit.examination?.integrityValid !== false && visit.status === 'pemeriksaan' && visit.examination?.status !== 'selesai';
+    const { canStart, canEdit, canCorrect, notice: examinationNotice } = examinationState(visit);
+    const medicalRecordUrl = visit.recordUrl ?? (!visit.canClaim ? `/pelayanan/pasien/${visit.patient.id}/rekam-medis` : null);
+    const startForm = useForm({});
+    const deleteForm = useForm({});
     const prescriptionEditable = canEdit && (!visit.prescription.status || visit.prescription.status === 'menunggu');
-    const canCorrect = !visit.canClaim && Boolean(visit.examination?.signedAt) && visit.examination?.integrityValid === true && ['farmasi', 'kasir', 'selesai'].includes(visit.status);
-    const saving = [examinationForm, physicalForm, differentialForm, followUpForm, diagnosisForm, treatmentForm, dentalForm, prescriptionForm, externalPrescriptionForm, letterForm, referralForm, odontogramUndoForm].some((form) => form.processing);
+    const saving = [examinationForm, physicalForm, differentialForm, followUpForm, diagnosisForm, treatmentForm, dentalForm, prescriptionForm, externalPrescriptionForm, letterForm, referralForm, odontogramUndoForm, signatureForm, addendumForm, startForm, deleteForm].some((form) => form.processing);
+    const savedAnamnesis = {
+        anamnesis: normalizeClinicalAnswer(visit.examination?.anamnesis) ?? '',
+        riwayat_penyakit_sekarang: normalizeClinicalAnswer(visit.examination?.currentHistory) ?? '',
+        riwayat_penyakit_dahulu: normalizeClinicalAnswer(visit.examination?.pastHistory) ?? '',
+        riwayat_penyakit_keluarga: normalizeClinicalAnswer(visit.examination?.familyHistory) ?? '',
+        riwayat_alergi: normalizeClinicalAnswer(visit.examination?.allergyHistory) ?? '',
+    };
+    const anamnesisChanged = examinationForm.isDirty || Object.entries(savedAnamnesis).some(([key, value]) => (normalizeClinicalAnswer(examinationForm.data[key as keyof typeof savedAnamnesis]) ?? '') !== value);
+    const sectionSaveAllowed = {
+        anamnesis: canEdit && !saving && anamnesisChanged,
+        pemeriksaan: canEdit && !saving && physicalForm.isDirty && !bodyFindingPending,
+        diagnosis: canEdit && !saving && differentialForm.isDirty,
+        rencana: canEdit && !saving && followUpForm.isDirty,
+    };
+    const addendumChanged = Object.entries(addendumForm.data).some(([key, value]) => key !== 'reason' && JSON.stringify(value) !== JSON.stringify(addendumDefaults[key as keyof typeof addendumDefaults]));
+    const canSaveAddendum = canCorrect && !saving && addendumForm.isDirty && addendumChanged && addendumForm.data.reason.trim().length >= 10 && !addendumBodyPending;
+    const selectedDentalRecord = visit.odontogram.find((finding) => finding.toothFdi === dentalForm.data.tooth_fdi && finding.surface === dentalForm.data.surface);
+    const dentalFindingChanged = !selectedDentalRecord || selectedDentalRecord.findingCode !== dentalForm.data.finding_code || (selectedDentalRecord.notes ?? '').trim() !== dentalForm.data.notes.trim();
+    const canSaveDentalFinding = (canEdit || canCorrect) && !saving && dentalForm.isDirty && dentalFindingChanged && Boolean(dentalForm.data.tooth_fdi && dentalForm.data.finding_code) && (!canCorrect || dentalForm.data.reason.trim().length >= 10);
+    const hasDiagnosisDraft = Boolean(diagnosisForm.data.kode_icd10.trim() || diagnosisForm.data.nama_diagnosa.trim() || diagnosisForm.data.keterangan.trim());
     const unsavedSections: { tab: Tab | 'rencana'; label: string }[] = [
-        ...(examinationForm.isDirty ? [{ tab: 'anamnesis' as Tab, label: 'Anamnesis' }] : []),
+        ...(anamnesisChanged ? [{ tab: 'anamnesis' as Tab, label: 'Anamnesis' }] : []),
+        ...(!isDental && bodyFindingPending ? [{ tab: physicalTab, label: 'Temuan lokasi tubuh' }] : []),
         ...(physicalForm.isDirty ? [{ tab: physicalTab, label: isDental ? 'Pemeriksaan gigi & mulut' : 'Pemeriksaan fisik' }] : []),
         ...(followUpForm.isDirty ? [{ tab: 'rencana' as const, label: 'Rencana tindak lanjut & kontrol' }] : []),
         ...(isDental && dentalForm.isDirty ? [{ tab: 'odontogram' as Tab, label: 'Odontogram' }] : []),
-        ...((diagnosisForm.isDirty || differentialForm.isDirty) ? [{ tab: 'diagnosa' as Tab, label: 'Diagnosis' }] : []),
+        ...((hasDiagnosisDraft || differentialForm.isDirty) ? [{ tab: 'diagnosa' as Tab, label: 'Diagnosis' }] : []),
         ...((treatmentForm.data.terminology_id || treatmentForm.data.tindakan_id || treatmentForm.data.nama_tindakan_manual.trim() || treatmentForm.data.catatan.trim()) ? [{ tab: 'tindakan' as Tab, label: 'Tindakan' }] : []),
         ...(prescriptionForm.isDirty ? [{ tab: 'resep' as Tab, label: 'Resep klinik' }] : []),
         ...(externalPrescriptionForm.isDirty ? [{ tab: 'resep-luar' as Tab, label: 'Resep luar' }] : []),
@@ -481,8 +582,8 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
             <div className="space-y-6">
                 <Card><CardContent className="space-y-4 p-5 sm:p-6">
                     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                        <div className="flex min-w-0 items-center gap-3"><span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-lg font-bold text-neutral-800">{visit.patient.name.slice(0, 1).toLocaleUpperCase()}</span><div className="min-w-0 text-left"><p className="text-xs font-medium text-neutral-500">{visit.number} · {visit.clinic}</p><h2 className="mt-0.5 text-lg font-semibold text-neutral-950">{visit.patient.name}</h2><p className="mt-1 text-sm text-neutral-600">{visit.patient.medicalRecordNumber} · {visit.patient.gender === 'L' ? 'Laki-laki' : visit.patient.gender === 'P' ? 'Perempuan' : 'Belum diketahui'} · {visit.patient.age === null ? 'umur belum diketahui' : `${visit.patient.age} th`} · Gol. {visit.patient.bloodType ?? 'Belum diketahui'}</p>{visit.examination?.startedAt && <p className="mt-1 text-xs text-neutral-500">Pemeriksaan dimulai {visit.examination.startedAt}</p>}</div></div>
-                        <div className="flex shrink-0 flex-wrap justify-start gap-2 sm:justify-end"><Button asChild size="sm" variant="secondary"><Link href={`/pelayanan/pasien/${visit.patient.id}/rekam-medis`}><UserRound className="size-4" />Riwayat RME</Link></Button>{visit.canClaim && <Button onClick={() => router.post(`/pelayanan/pemeriksaan/${visit.id}/ambil`, {}, { preserveScroll: true })} size="sm"><Stethoscope className="size-4" />Ambil kunjungan</Button>}<Button disabled={!canEdit || saving} onClick={finishExamination} size="sm"><Check className="size-4" />Selesai periksa</Button></div>
+                        <div className="flex min-w-0 items-center gap-3"><span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-lg font-bold text-neutral-800">{visit.patient.name.slice(0, 1).toLocaleUpperCase()}</span><div className="min-w-0 text-left"><p className="text-xs font-medium text-neutral-500">{visit.number} · {visit.clinic}</p><h2 className="mt-0.5 text-lg font-semibold text-neutral-950">{visit.patient.name}</h2><p className="mt-1 text-sm text-neutral-600">{visit.patient.medicalRecordNumber} · {visit.patient.gender === 'L' ? 'Laki-laki' : visit.patient.gender === 'P' ? 'Perempuan' : 'Belum diketahui'} · {visit.patient.age === null ? 'umur belum diketahui' : `${visit.patient.age} th`} · Gol. {visit.patient.bloodType ?? 'Belum diketahui'}</p><div className="mt-2"><StatusBadge examinationStarted={Boolean(visit.examination)} reservation={visit.isReservation} status={visit.status} /></div>{visit.examination?.startedAt && <p className="mt-1 text-xs text-neutral-500">Pemeriksaan dimulai {visit.examination.startedAt}</p>}</div></div>
+                        <div className="flex shrink-0 flex-wrap justify-start gap-2 sm:justify-end">{medicalRecordUrl ? <Button asChild size="sm" variant="secondary"><Link href={medicalRecordUrl}><UserRound className="size-4" />Riwayat RME</Link></Button> : <Button size="sm" variant="secondary" disabled title="Mulai pemeriksaan terlebih dahulu untuk membuka rekam medis"><UserRound className="size-4" />Riwayat RME</Button>}{canStart && <Button disabled={startForm.processing} onClick={() => confirmAction('Mulai pemeriksaan pasien ini?', () => startForm.post(`/pelayanan/pemeriksaan/${visit.id}/mulai`, { preserveScroll: true }), 'Mulai pemeriksaan', 'Mulai pemeriksaan')} size="sm"><Stethoscope className="size-4" />Mulai pemeriksaan</Button>}<Button disabled={!canEdit || saving} onClick={finishExamination} size="sm"><Check className="size-4" />Selesai periksa</Button></div>
                     </div>
                     {allergyWarning && <Alert className="text-left" variant="destructive"><AlertTriangle aria-hidden="true" /><AlertTitle>Peringatan alergi</AlertTitle><AlertDescription>{allergyWarning}</AlertDescription></Alert>}
                 </CardContent></Card>
@@ -491,21 +592,25 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                     <div className="flex flex-wrap gap-2">{readiness.map((item) => <Button key={item.label} onClick={() => navigateSection(item.tab)} size="sm" type="button" variant="secondary"><Badge variant={item.complete ? 'complete' : 'waiting'}>{item.complete ? 'Lengkap' : 'Belum lengkap'}</Badge>{item.label}</Button>)}</div>
                     {unsavedSections.length > 0 && <Alert><AlertTitle>Isian belum disimpan</AlertTitle><AlertDescription>{unsavedSections.map((item) => item.label).join(', ')}. Simpan atau kosongkan isian tersebut sebelum finalisasi.<div className="mt-2 flex flex-wrap gap-2">{unsavedSections.map((item) => <Button disabled={saving} key={item.label} onClick={() => discardSection(item.tab)} size="sm" type="button" variant="secondary">Batalkan isian {item.label}</Button>)}</div></AlertDescription></Alert>}
                 </CardContent></Card>}
-                {visit.canClaim && <Alert><AlertTitle>Kunjungan belum ditugaskan</AlertTitle><AlertDescription>Anda memiliki jadwal aktif pada poli dan tanggal kunjungan ini. Ambil kunjungan untuk menugaskannya ke akun Anda sebelum mengisi pemeriksaan.</AlertDescription></Alert>}
 
-                <Card><CardHeader><CardTitle>Ringkasan pengkajian awal perawat</CardTitle><CardDescription>Data pengkajian {visit.clinicType === 'gigi' ? 'Poli Gigi dan Mulut' : 'Poli Umum'} menjadi konteks awal pemeriksaan dokter.</CardDescription></CardHeader><CardContent className="space-y-4">
+                <Card><CardHeader><div className="flex items-start gap-3"><span className="rounded-xl bg-neutral-100 p-3 text-neutral-600"><Stethoscope className="size-5" /></span><div className="min-w-0 space-y-1"><CardTitle>Ringkasan pengkajian awal perawat</CardTitle><CardDescription>Data pengkajian {isDental ? 'Poli Gigi dan Mulut' : 'Poli Umum'} sebagai konteks pemeriksaan dokter.</CardDescription></div></div></CardHeader><CardContent className="space-y-5">
                     {visit.screening ? <>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
-                            ['Tekanan darah', formatBloodPressure(visit.screening.systolic, visit.screening.diastolic)], ['Nadi', formatMeasurement(visit.screening.pulse, 'x/menit')], ['Suhu', formatMeasurement(visit.screening.temperature, '°C')], ['SpO₂', formatMeasurement(visit.screening.oxygenSaturation, '%')], ['Respirasi', formatMeasurement(visit.screening.respiration, 'x/menit')], ['Berat / tinggi', `${formatMeasurement(visit.screening.weight, 'kg')} / ${formatMeasurement(visit.screening.height, 'cm')}`], ['IMT', visit.screening.bmi === null ? 'Belum dihitung' : `${visit.screening.bmi} kg/m²`], ['Nyeri / jatuh', `${visit.screening.painScale === null ? 'Belum dinilai' : `${visit.screening.painScale} / 10`} · ${visit.screening.fallRisk ?? 'Belum dinilai'}`],
-                        ].map(([label, value]) => <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-left" key={label}><p className="text-xs text-neutral-500">{label}</p><p className="mt-1 text-sm font-semibold text-neutral-900">{value}</p></div>)}</div>
-                        <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2 text-sm"><div className="space-y-2">{Object.entries(visit.screening.summary ?? {}).map(([label, value]) => <p key={label}><strong>{label}:</strong> {value || optionalAnswers.notRecorded}</p>)}</div><p><strong>Keluhan awal:</strong> {visit.screening.complaint || optionalAnswers.notRecorded}</p><p><strong>Riwayat penyakit:</strong> {visit.screening.medicalHistory || optionalAnswers.notRecorded}</p><p><strong>Riwayat keluarga:</strong> {visit.screening.familyHistory || optionalAnswers.notRecorded}</p><p><strong>Riwayat alergi:</strong> {visit.screening.allergyHistory || visit.patient.allergies || optionalAnswers.notRecorded}</p><p><strong>Kebutuhan respons awal:</strong> {triageSummary ?? 'Belum ditentukan'} / {prioritySummary ?? 'Belum ditentukan'}</p></div>
-                            {visit.clinicType === 'gigi' && <div className="space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm"><p className="font-semibold text-neutral-900">Pengkajian gigi dan mulut</p><p><strong>Lokasi nyeri:</strong> {visit.screening.dentalPainLocation || optionalAnswers.notRecorded}</p><p><strong>Pemicu:</strong> {displayDentalValues(visit.screening.dentalPainTriggers, optionalAnswers.notRecorded)}</p><p><strong>Durasi:</strong> {visit.screening.dentalPainDuration || optionalAnswers.notRecorded}</p><p><strong>Risiko sistemik:</strong> {displayDentalValues(visit.screening.dentalMedicalRisks, optionalAnswers.notRecorded)}</p><p><strong>Riwayat infeksi:</strong> {displayDentalValues(visit.screening.dentalInfectionHistory, optionalAnswers.notRecorded)}</p><p><strong>Catatan perawat:</strong> {visit.screening.dentalNotes || optionalAnswers.notRecorded}</p></div>}
+                        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
+                            ['Tekanan darah', formatBloodPressure(visit.screening.systolic, visit.screening.diastolic)], ['Nadi', formatMeasurement(visit.screening.pulse, 'x/menit')], ['Suhu', formatMeasurement(visit.screening.temperature, '°C')], ['SpO₂', formatMeasurement(visit.screening.oxygenSaturation, '%')], ['Respirasi', formatMeasurement(visit.screening.respiration, 'x/menit')], ['Berat / tinggi', formatMeasurement(visit.screening.weight, 'kg') + ' / ' + formatMeasurement(visit.screening.height, 'cm')], ['IMT', visit.screening.bmi == null ? 'Belum dihitung' : visit.screening.bmi + ' kg/m²'], ['Nyeri / jatuh', (visit.screening.painScale == null ? 'Belum dinilai' : visit.screening.painScale + ' / 10') + ' - ' + (visit.screening.fallRisk ?? 'Belum dinilai')],
+                        ].map(([label, value]) => <div className="min-w-0 rounded-xl border border-neutral-200 bg-neutral-50 p-3" key={label}><p className="text-xs text-neutral-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-neutral-900">{value}</p></div>)}</div>
+                        <div className={'grid min-w-0 items-start gap-4 md:grid-cols-2 ' + (isDental ? 'xl:grid-cols-3' : '')}>
+                            <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 p-4"><h3 className="text-sm font-semibold text-neutral-900">Keluhan & riwayat pasien</h3><dl className="space-y-3">{[
+                                ['Keluhan awal', visit.screening.complaint], ['Riwayat penyakit', visit.screening.medicalHistory], ['Riwayat keluarga', visit.screening.familyHistory], ['Riwayat alergi', visit.screening.allergyHistory || visit.patient.allergies],
+                            ].map(([label, value]) => <AssessmentNote key={label} label={label ?? ''} value={value} />)}</dl></section>
+                            <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 p-4"><h3 className="text-sm font-semibold text-neutral-900">Catatan pengkajian</h3><dl className="space-y-3">{Object.entries(visit.screening.summary ?? {}).filter(([, value]) => normalizeClinicalAnswer(value)).map(([label, value]) => <AssessmentNote key={label} label={label} value={value} />)}<AssessmentNote label="Kebutuhan respons awal" value={(triageSummary ?? 'Belum ditentukan') + ' / ' + (prioritySummary ?? 'Belum ditentukan')} /></dl></section>
+                            {isDental && <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 p-4"><h3 className="text-sm font-semibold text-neutral-900">Pengkajian gigi dan mulut</h3><dl className="space-y-3">{[
+                                ['Lokasi nyeri', visit.screening.dentalPainLocation], ['Pemicu', displayDentalValues(visit.screening.dentalPainTriggers, optionalAnswers.notRecorded)], ['Durasi', visit.screening.dentalPainDuration], ['Risiko sistemik', displayDentalValues(visit.screening.dentalMedicalRisks, optionalAnswers.notRecorded)], ['Riwayat infeksi', displayDentalValues(visit.screening.dentalInfectionHistory, optionalAnswers.notRecorded)], ['Catatan perawat', visit.screening.dentalNotes],
+                            ].map(([label, value]) => <AssessmentNote key={label} label={label ?? ''} value={value} />)}</dl></section>}
                         </div>
                     </> : <Empty className="min-h-0 py-5" title="Pengkajian awal perawat belum tercatat" />}
                 </CardContent></Card>
 
-                {!canEdit && !visit.canClaim && <Alert><AlertTitle>Pemeriksaan terkunci</AlertTitle><AlertDescription>Data kunjungan ini sudah melewati tahap pemeriksaan. Koreksi dicatat sebagai addendum beralasan tanpa mengubah versi final.</AlertDescription></Alert>}
-                {visit.examination?.integrityValid === false && <Alert variant="destructive"><AlertTriangle aria-hidden="true" /><AlertTitle>Integritas catatan perlu diperiksa</AlertTitle><AlertDescription>Rantai versi catatan tidak cocok. Addendum dihentikan sampai data diperiksa oleh pengelola rekam medis.</AlertDescription></Alert>}
+                {examinationNotice && <Alert variant={examinationNotice.destructive ? 'destructive' : 'default'}>{examinationNotice.destructive && <AlertTriangle aria-hidden="true" />}<AlertTitle>{examinationNotice.title}</AlertTitle><AlertDescription>{examinationNotice.description}</AlertDescription></Alert>}
 
                 <AlertDialog onOpenChange={(open) => { if (!open) { setUndoFinding(null); odontogramUndoForm.reset(); } }} open={undoFinding !== null}>
                     <AlertDialogContent>
@@ -518,165 +623,47 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                             <AlertDialogCancel asChild>
                                 <Button type="button" variant="secondary">Kembali</Button>
                             </AlertDialogCancel>
-                            <Button disabled={odontogramUndoForm.processing || (Boolean(visit.examination?.signedAt) && odontogramUndoForm.data.reason.trim().length < 10)} onClick={undoDentalFinding} type="button" variant="destructive">Batalkan temuan</Button>
+                            <Button disabled={saving || (Boolean(visit.examination?.signedAt) && odontogramUndoForm.data.reason.trim().length < 10)} onClick={undoDentalFinding} type="button" variant="destructive">Batalkan temuan</Button>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
 
                 {visit.examination?.signedAt && <Card><CardHeader><CardTitle>Finalisasi dan riwayat koreksi</CardTitle><CardDescription>Difinalisasi oleh {visit.examination.signedBy ?? 'dokter'} pada {visit.examination.signedAt}. Setiap versi menyimpan penulis, waktu, dan alasan koreksi.</CardDescription></CardHeader><CardContent className="space-y-5">
-                    <div className="space-y-3">{visit.examination.versions.map((version) => <article className="rounded-xl border border-neutral-200 p-4" key={version.version}><div className="flex flex-wrap items-center gap-2"><Badge variant={version.kind === 'addendum' ? 'waiting' : 'complete'}>Versi {version.version} · {version.kind === 'addendum' ? 'Addendum' : 'Final'}</Badge><span className="text-xs text-neutral-600">{version.actor ?? 'Dokter'} · {version.recordedAt ?? 'Belum diisi'}</span></div>{version.reason && <p className="mt-2 text-sm font-medium text-neutral-800">Alasan: {version.reason}</p>}<div className="mt-3 grid gap-2 text-sm text-neutral-700 md:grid-cols-2"><p className="whitespace-pre-wrap"><strong>Anamnesis:</strong> {version.anamnesis || 'Belum diisi'}</p><p className="whitespace-pre-wrap"><strong>Pemeriksaan fisik:</strong> {version.physicalExam || 'Belum diisi'}</p><p className="whitespace-pre-wrap"><strong>Catatan:</strong> {version.notes || 'Belum diisi'}</p><p className="whitespace-pre-wrap"><strong>Edukasi:</strong> {version.education || 'Belum diisi'}</p></div>{visit.clinicType === 'gigi' && version.odontogram.length > 0 && <p className="mt-3 text-sm text-neutral-700"><strong>Odontogram:</strong> {version.odontogram.map((finding) => `${finding.toothFdi} ${dentalOptions.surfaces[finding.surface] ?? finding.surface}: ${dentalOptions.findings[finding.findingCode] ?? finding.findingCode}`).join('; ')}</p>}</article>)}</div>
-                    {canCorrect && <fieldset className="min-w-0" disabled={addendumForm.processing}><form className="space-y-6 border-t border-neutral-200 pt-5" onSubmit={(event) => { event.preventDefault(); if (addendumForm.processing) return; confirmSave('Simpan addendum', () => addendumForm.post(`/pelayanan/pemeriksaan/${visit.id}/addendum`, { preserveScroll: true, preserveState: true, onSuccess: () => addendumForm.reset('reason') })); }}>
+                    <div className="space-y-3">{visit.examination.versions.map((version) => <article className="rounded-xl border border-neutral-200 p-4" key={version.version}><div className="flex flex-wrap items-center gap-2"><Badge variant={version.kind === 'addendum' ? 'waiting' : 'complete'}>Versi {version.version} · {version.kind === 'addendum' ? 'Addendum' : 'Final'}</Badge><span className="text-xs text-neutral-600">{version.actor ?? 'Dokter'} · {version.recordedAt ?? 'Belum diisi'}</span></div>{version.reason && <p className="mt-2 text-sm font-medium text-neutral-800">Alasan: {version.reason}</p>}<div className="mt-3 grid gap-2 text-sm text-neutral-700 md:grid-cols-2"><p className="whitespace-pre-wrap"><strong>Anamnesis:</strong> {version.anamnesis || 'Belum diisi'}</p><p className="whitespace-pre-wrap"><strong>Pemeriksaan fisik:</strong> {version.physicalExam || 'Belum diisi'}</p><p className="whitespace-pre-wrap"><strong>Catatan:</strong> {version.notes || 'Belum diisi'}</p><p className="whitespace-pre-wrap"><strong>Edukasi:</strong> {version.education || 'Belum diisi'}</p></div>{!isDental && version.bodyMap && <div className="mt-4"><BodyExaminationRecord data={version.bodyMap} /></div>}{visit.clinicType === 'gigi' && version.odontogram.length > 0 && <p className="mt-3 text-sm text-neutral-700"><strong>Odontogram:</strong> {version.odontogram.map((finding) => `${finding.toothFdi} ${dentalOptions.surfaces[finding.surface] ?? finding.surface}: ${dentalOptions.findings[finding.findingCode] ?? finding.findingCode}`).join('; ')}</p>}</article>)}</div>
+                    {canCorrect && <fieldset className="min-w-0" disabled={saving}><form className="space-y-6 border-t border-neutral-200 pt-5" onSubmit={submitAddendum}>
                         <div><h3 className="text-sm font-semibold text-neutral-950">Buat addendum</h3><p className="mt-1 text-sm text-neutral-600">Ubah bagian yang perlu dikoreksi. Nilai versi sebelumnya tetap tersimpan.</p></div>
                         <Field error={addendumForm.errors.reason} htmlFor="addendum-reason" label="Alasan koreksi" required><Textarea id="addendum-reason" placeholder="Contoh: koreksi setelah verifikasi ulang" minLength={10} onChange={(event) => addendumForm.setData('reason', event.target.value)} required rows={2} value={addendumForm.data.reason} /></Field>
                         <section className="space-y-4" aria-labelledby="addendum-history-title"><h4 className="font-semibold text-neutral-900" id="addendum-history-title">Anamnesis</h4><div className="grid gap-4 md:grid-cols-2"><Field error={addendumForm.errors.anamnesis} htmlFor="addendum-anamnesis" label="Keluhan utama"><Textarea id="addendum-anamnesis" placeholder="Keluhan utama yang disampaikan pasien" onChange={(event) => addendumForm.setData('anamnesis', event.target.value)} rows={3} value={addendumForm.data.anamnesis} /></Field><Field error={addendumForm.errors.riwayat_penyakit_sekarang} htmlFor="addendum-rps" label="Riwayat penyakit sekarang"><Textarea id="addendum-rps" placeholder="Awal keluhan, durasi, dan perkembangannya" onChange={(event) => addendumForm.setData('riwayat_penyakit_sekarang', event.target.value)} rows={3} value={addendumForm.data.riwayat_penyakit_sekarang} /></Field><ConfirmedHistoryField error={addendumForm.errors.riwayat_penyakit_dahulu} id="addendum-rpd" kind="past" label="Riwayat penyakit dahulu" onChange={(value) => addendumForm.setData('riwayat_penyakit_dahulu', value)} placeholder="Riwayat penyakit, operasi, dan pengobatan rutin." value={addendumForm.data.riwayat_penyakit_dahulu} /><ConfirmedHistoryField error={addendumForm.errors.riwayat_penyakit_keluarga} id="addendum-riwayat-keluarga" kind="family" label="Riwayat penyakit keluarga" onChange={(value) => addendumForm.setData('riwayat_penyakit_keluarga', value)} placeholder="Riwayat penyakit keluarga yang relevan." value={addendumForm.data.riwayat_penyakit_keluarga} /><ConfirmedHistoryField error={addendumForm.errors.riwayat_alergi} id="addendum-alergi" kind="allergy" label="Riwayat alergi" onChange={(value) => addendumForm.setData('riwayat_alergi', value)} placeholder="Obat, makanan, dan reaksi alergi." value={addendumForm.data.riwayat_alergi} /></div></section>
-                        <section className="space-y-4 border-t border-neutral-200 pt-5" aria-labelledby="addendum-exam-title"><h4 className="font-semibold text-neutral-900" id="addendum-exam-title">{isDental ? 'Pemeriksaan gigi & mulut' : 'Pemeriksaan fisik'}</h4><div className="grid gap-4 md:grid-cols-2"><Field error={addendumForm.errors.pemeriksaan_fisik} htmlFor="addendum-fisik" label={visit.clinicType === 'gigi' ? 'Pemeriksaan intraoral' : 'Ringkasan pemeriksaan fisik'}><Textarea id="addendum-fisik" placeholder="Ringkasan temuan pemeriksaan fisik" onChange={(event) => addendumForm.setData('pemeriksaan_fisik', event.target.value)} rows={3} value={addendumForm.data.pemeriksaan_fisik} /></Field>{isDental && <Field error={addendumForm.errors.pemeriksaan_ekstraoral} htmlFor="addendum-extraoral" label="Pemeriksaan ekstraoral"><Textarea id="addendum-extraoral" placeholder="Catat temuan ekstraoral yang diperiksa" onChange={(event) => addendumForm.setData('pemeriksaan_ekstraoral', event.target.value)} rows={3} value={addendumForm.data.pemeriksaan_ekstraoral} /></Field>}</div>{visit.clinicType === 'umum' && <div className="grid gap-4 md:grid-cols-2">{Object.entries(addendumForm.data.pemeriksaan_fisik_terstruktur).map(([system, value]) => <Field htmlFor={`addendum-system-${system}`} key={system} label={`Temuan · ${system}`}><Textarea id={`addendum-system-${system}`} onChange={(event) => addendumForm.setData('pemeriksaan_fisik_terstruktur', { ...addendumForm.data.pemeriksaan_fisik_terstruktur, [system]: event.target.value })} rows={2} value={value} /></Field>)}</div>}</section>
+                        <section className="space-y-4 border-t border-neutral-200 pt-5" aria-labelledby="addendum-exam-title"><h4 className="font-semibold text-neutral-900" id="addendum-exam-title">{isDental ? 'Pemeriksaan gigi & mulut' : 'Pemeriksaan fisik'}</h4><div className="grid gap-4 md:grid-cols-2"><Field error={addendumForm.errors.pemeriksaan_fisik} htmlFor="addendum-fisik" label={visit.clinicType === 'gigi' ? 'Ringkasan pemeriksaan intraoral' : 'Ringkasan pemeriksaan fisik'}><Textarea id="addendum-fisik" placeholder="Ringkasan temuan pemeriksaan fisik" onChange={(event) => addendumForm.setData('pemeriksaan_fisik', event.target.value)} rows={3} value={addendumForm.data.pemeriksaan_fisik} /></Field>{isDental && <Field error={addendumForm.errors.pemeriksaan_ekstraoral} htmlFor="addendum-extraoral" label="Pemeriksaan ekstraoral"><Textarea id="addendum-extraoral" placeholder="Catat temuan ekstraoral yang diperiksa" onChange={(event) => addendumForm.setData('pemeriksaan_ekstraoral', event.target.value)} rows={3} value={addendumForm.data.pemeriksaan_ekstraoral} /></Field>}</div>{visit.clinicType === 'umum' && <details className="rounded-xl border border-neutral-200 p-4"><summary className="cursor-pointer text-sm font-semibold text-neutral-900">Koreksi peta tubuh, anotasi & temuan per sistem</summary><div className="mt-4"><PhysicalExaminationWorkspace idPrefix="addendum-" systems={addendumForm.data.pemeriksaan_fisik_terstruktur} onChange={(systems) => addendumForm.setData('pemeriksaan_fisik_terstruktur', systems)} bodyMap={addendumForm.data.body_map} onBodyMapChange={(data) => addendumForm.setData('body_map', data)} draft={addendumBodyDraft} onDraftChange={setAddendumBodyDraft} onPendingChange={setAddendumBodyPending} errors={addendumForm.errors} disabled={saving} gender={visit.patient.gender} /></div></details>}</section>
                         <section className="space-y-4 border-t border-neutral-200 pt-5" aria-labelledby="addendum-diagnosis-title"><h4 className="font-semibold text-neutral-900" id="addendum-diagnosis-title">Diagnosis</h4><Field error={addendumForm.errors.diagnosis_banding} htmlFor="addendum-diagnosis-banding" label="Diagnosis banding"><Textarea id="addendum-diagnosis-banding" placeholder="Diagnosis alternatif yang dipertimbangkan" onChange={(event) => addendumForm.setData('diagnosis_banding', event.target.value)} rows={3} value={addendumForm.data.diagnosis_banding} /></Field></section>
                         <section className="space-y-4 border-t border-neutral-200 pt-5" aria-labelledby="addendum-plan-title"><h4 className="font-semibold text-neutral-900" id="addendum-plan-title">Rencana tindak lanjut & kontrol</h4><div className="grid gap-4 md:grid-cols-2"><Field error={addendumForm.errors.kontrol_berikutnya} htmlFor="addendum-kontrol" label="Kontrol berikutnya"><DatePicker id="addendum-kontrol" onChange={(event) => addendumForm.setData('kontrol_berikutnya', event.target.value)} value={addendumForm.data.kontrol_berikutnya} /></Field><Field error={addendumForm.errors.catatan} htmlFor="addendum-catatan" label="Catatan dokter"><Textarea id="addendum-catatan" placeholder="Catatan klinis tambahan" onChange={(event) => addendumForm.setData('catatan', event.target.value)} rows={3} value={addendumForm.data.catatan} /></Field></div><Field error={addendumForm.errors.edukasi} htmlFor="addendum-edukasi" label="Edukasi pasien"><Textarea id="addendum-edukasi" placeholder="Anjuran atau edukasi yang diberikan" onChange={(event) => addendumForm.setData('edukasi', event.target.value)} rows={3} value={addendumForm.data.edukasi} /></Field></section>
-                        <div className="flex justify-end"><Button disabled={addendumForm.processing} type="submit">Simpan addendum</Button></div>
+                        <div className="flex justify-end"><Button disabled={!canSaveAddendum} type="submit">Simpan addendum</Button></div>
                     </form></fieldset>}
                 </CardContent></Card>}
 
                 {!!visit.attachments?.length && <Card><CardHeader><CardTitle>Lampiran pasien</CardTitle><CardDescription>Dokumen pendukung yang dibawa pasien pada kunjungan ini.</CardDescription></CardHeader><CardContent><VisitAttachments attachments={visit.attachments} /></CardContent></Card>}
                 <Card className="scroll-mt-6 overflow-hidden" id="pemeriksaan-sections">
                     <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)}>
-                    <TabsList aria-label="Bagian pemeriksaan">{tabs.map(({ id, icon: Icon, label }) => <TabsTrigger className="min-h-12 px-3 sm:px-4" key={id} value={id}><Icon aria-hidden="true" className="size-4" />{label}{id === 'diagnosa' && <Badge>{visit.diagnoses.length}</Badge>}{id === 'tindakan' && <Badge>{visit.treatments.length}</Badge>}{(id === 'resep' || id === 'resep-luar') && <Badge>{visit.prescription.items.filter((item) => item.external === (id === 'resep-luar')).length}</Badge>}</TabsTrigger>)}</TabsList>
+                    <TabsList aria-label="Bagian pemeriksaan">{tabs.map(renderTabTrigger)}</TabsList>
 
                     <TabsContent className="space-y-5 p-5 sm:p-6" value={physicalTab}>
                     <div><h3 className="text-base font-semibold text-neutral-950">{isDental ? 'Pemeriksaan gigi & mulut dan odontogram' : 'Pemeriksaan fisik'}</h3><p className="mt-1 text-sm text-neutral-500">Dokumentasikan temuan objektif yang diperiksa, lalu simpan hasil pemeriksaan.</p></div>
-                    <fieldset className="min-w-0" disabled={!canEdit || physicalForm.processing}><form className="space-y-5" onSubmit={(event) => submitClinicalSection(event, 'pemeriksaan')}>
-                        {visit.clinicType !== 'gigi' && (
-                    <Card>
-                        <CardHeader>
-                            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                                <div>
-                                    <CardTitle>Diagram Anatomi & Lokasi Keluhan Tubuh (Body Map)</CardTitle>
-                                    <CardDescription>
-                                        Catat temuan berdasarkan lokasi dan sistem organ yang diperiksa.
-                                    </CardDescription>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="space-y-5">
-                            <section aria-label="Diagram anatomi tubuh" className="space-y-4 rounded-2xl border border-neutral-200/90 bg-neutral-50/50 p-4 sm:p-5">
-                                <AnatomyBodyMap
-                                    disabled={!canEdit || physicalForm.processing}
-                                    onApplyToExam={(organ, findingNote) => {
-                                        const currentFinding = physicalForm.data.pemeriksaan_fisik_terstruktur[organ.physicalExamCategory] ?? '';
-                                        const nextFinding = currentFinding ? `${currentFinding}\n- ${findingNote}` : `- ${findingNote}`;
-                                        physicalForm.setData('pemeriksaan_fisik_terstruktur', {
-                                            ...physicalForm.data.pemeriksaan_fisik_terstruktur,
-                                            [organ.physicalExamCategory]: nextFinding,
-                                        });
-                                        toast.success(`Temuan klinis ditambahkan ke bagian ${organ.physicalExamCategory}`);
-                                    }}
-                                    onQuickSearchIcd={(query) => {
-                                        setIcdQuery(query);
-                                        setActiveTab('diagnosa');
-                                    }}
-                                    onSelectOrgan={(organ) => {
-                                        setSelectedBodyOrganId(organ.id);
-                                        setSelectedBodySystem(organ.physicalExamCategory);
-                                    }}
-                                    recordedFindings={physicalForm.data.pemeriksaan_fisik_terstruktur}
-                                    selectedOrganId={selectedBodyOrganId}
-                                />
-                            </section>
-                        </CardContent>
-                    </Card>
-                )}
-                        {visit.clinicType === 'umum' && (
-                                <section className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50/50 p-4 sm:p-5">
-                                    <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
-                                        <div>
-                                            <h4 className="text-sm font-semibold text-neutral-950">
-                                                Pemeriksaan fisik per sistem terarah
-                                            </h4>
-                                            <p className="mt-0.5 text-xs text-neutral-500">
-                                                Pilih kategori regio untuk mengisi temuan klinis terarah. Tersinkronisasi dengan Diagram Anatomi Tubuh di atas.
-                                            </p>
-                                        </div>
-                                        <Badge variant="default" className="w-fit text-xs font-medium">
-                                            {Object.values(physicalForm.data.pemeriksaan_fisik_terstruktur).filter((val) => val.trim()).length} dari 6 sistem terisi
-                                        </Badge>
-                                    </div>
-                                    <div className="grid gap-4 md:grid-cols-[14rem_minmax(0,1fr)]">
-                                        <div className="flex flex-col gap-1.5 rounded-lg border border-neutral-200/80 bg-surface p-2.5">
-                                            <span className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-                                                Daftar Regio / Sistem
-                                            </span>
-                                            {['Kepala dan leher', 'Thorax', 'Abdomen', 'Ekstremitas', 'Neurologis', 'Kulit'].map((system) => {
-                                                const hasFinding = Boolean(physicalForm.data.pemeriksaan_fisik_terstruktur[system]?.trim());
-                                                const isSelected = selectedBodySystem === system;
-                                                return (
-                                                    <button
-                                                        key={system}
-                                                        type="button"
-                                                        aria-pressed={isSelected}
-                                                        onClick={() => setSelectedBodySystem(system)}
-                                                        className={`flex items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors ${
-                                                            isSelected
-                                                                ? 'bg-neutral-900 text-neutral-50 shadow-2xs'
-                                                                : 'text-neutral-700 hover:bg-neutral-100'
-                                                        }`}
-                                                    >
-                                                        <span>{system}</span>
-                                                        <span
-                                                            className={`size-2 rounded-full ${
-                                                                hasFinding
-                                                                    ? isSelected
-                                                                        ? 'bg-emerald-400 dark:bg-emerald-600'
-                                                                        : 'bg-emerald-500 dark:bg-emerald-400'
-                                                                    : 'bg-neutral-200'
-                                                            }`}
-                                                            title={hasFinding ? 'Sudah ada catatan temuan' : 'Belum ada catatan'}
-                                                        />
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                        <div className="space-y-3">
-                                            <Field
-                                                error={physicalForm.errors[`pemeriksaan_fisik_terstruktur.${selectedBodySystem}` as keyof typeof physicalForm.errors]}
-                                                htmlFor="body-system-finding"
-                                                label={`Temuan Klinis · ${selectedBodySystem}`}
-                                            >
-                                                <Textarea
-                                                    id="body-system-finding"
-                                                    onChange={(event) =>
-                                                        physicalForm.setData('pemeriksaan_fisik_terstruktur', {
-                                                            ...physicalForm.data.pemeriksaan_fisik_terstruktur,
-                                                            [selectedBodySystem]: event.target.value,
-                                                        })
-                                                    }
-                                                    placeholder={`Dokumentasikan hasil inspeksi, palpasi, perkusi, auskultasi untuk ${selectedBodySystem.toLowerCase()}...`}
-                                                    rows={5}
-                                                    value={physicalForm.data.pemeriksaan_fisik_terstruktur[selectedBodySystem] ?? ''}
-                                                />
-                                            </Field>
-                                            <div className="flex flex-wrap gap-2">
-                                                {Object.entries(physicalForm.data.pemeriksaan_fisik_terstruktur)
-                                                    .filter(([, value]) => value.trim())
-                                                    .map(([system, value]) => (
-                                                        <button
-                                                            key={system}
-                                                            type="button"
-                                                            onClick={() => setSelectedBodySystem(system)}
-                                                            className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-surface px-2.5 py-1 text-xs text-neutral-700 shadow-2xs hover:border-neutral-400"
-                                                        >
-                                                            <span className="font-semibold text-neutral-900">{system}:</span>
-                                                            <span className="max-w-[200px] truncate text-neutral-500">
-                                                                {value}
-                                                            </span>
-                                                        </button>
-                                                    ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </section>
-                            )}
-                        <Field error={physicalForm.errors.pemeriksaan_fisik} htmlFor="pemeriksaan_fisik" label={visit.clinicType === 'gigi' ? 'Pemeriksaan intraoral' : 'Ringkasan pemeriksaan fisik'}><Textarea id="pemeriksaan_fisik" onChange={(event) => physicalForm.setData('pemeriksaan_fisik', event.target.value)} placeholder={visit.clinicType === 'gigi' ? 'Mukosa, gingiva, gigi, oklusi, dan temuan intraoral lain.' : 'Ringkasan temuan pemeriksaan fisik.'} rows={4} value={physicalForm.data.pemeriksaan_fisik} /></Field>
-{isDental && <Field error={physicalForm.errors.pemeriksaan_ekstraoral} htmlFor="extraoral" label="Pemeriksaan ekstraoral"><Textarea id="extraoral" onChange={(event) => physicalForm.setData('pemeriksaan_ekstraoral', event.target.value)} placeholder="Asimetri/pembengkakan wajah, bibir, kelenjar getah bening, bukaan mulut." rows={3} value={physicalForm.data.pemeriksaan_ekstraoral} /></Field>}
-                        <div className="flex justify-end"><Button disabled={!canEdit || physicalForm.processing} type="submit">Simpan pemeriksaan fisik</Button></div>
+                    <fieldset className="min-w-0" disabled={saving}><form className="space-y-5" onSubmit={(event) => submitClinicalSection(event, 'pemeriksaan')}>
+                        {!isDental && <PhysicalExaminationWorkspace
+                            bodyMap={physicalForm.data.body_map}
+                            onBodyMapChange={(data) => physicalForm.setData('body_map', data)}
+                            systems={physicalForm.data.pemeriksaan_fisik_terstruktur}
+                            onChange={(systems) => physicalForm.setData('pemeriksaan_fisik_terstruktur', systems)}
+                            draft={bodyFindingDraft}
+                            onDraftChange={setBodyFindingDraft}
+                            onPendingChange={setBodyFindingPending}
+                            errors={physicalForm.errors}
+                            disabled={!canEdit || saving}
+                            gender={visit.patient.gender}
+                        />}
+                        <Field error={physicalForm.errors.pemeriksaan_fisik} htmlFor="pemeriksaan_fisik" label={isDental ? 'Ringkasan pemeriksaan intraoral' : 'Ringkasan pemeriksaan fisik'}><Textarea disabled={!canEdit} id="pemeriksaan_fisik" onChange={(event) => physicalForm.setData('pemeriksaan_fisik', event.target.value)} placeholder={visit.clinicType === 'gigi' ? 'Temuan mukosa, gingiva, jaringan lunak, dan oklusi. Temuan per gigi dicatat pada odontogram.' : 'Ringkasan temuan pemeriksaan fisik.'} rows={4} value={physicalForm.data.pemeriksaan_fisik} /></Field>
+{isDental && <Field error={physicalForm.errors.pemeriksaan_ekstraoral} htmlFor="extraoral" label="Pemeriksaan ekstraoral"><Textarea disabled={!canEdit} id="extraoral" onChange={(event) => physicalForm.setData('pemeriksaan_ekstraoral', event.target.value)} placeholder="Asimetri/pembengkakan wajah, bibir, kelenjar getah bening, bukaan mulut." rows={3} value={physicalForm.data.pemeriksaan_ekstraoral} /></Field>}
+                        <div className="flex justify-end"><Button disabled={!sectionSaveAllowed.pemeriksaan} type="submit">Simpan pemeriksaan fisik</Button></div>
                     </form></fieldset>
                     {isDental && (
                 <Card className="space-y-5 border-0 shadow-none">
@@ -684,7 +671,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                             <div className="min-w-0 space-y-1.5">
                                 <CardTitle>Odontogram Kunjungan (Peta Gigi FDI)</CardTitle>
-                                <CardDescription>Catat nomor gigi FDI, permukaan, dan temuan. Koreksi setelah finalisasi membuat versi baru.</CardDescription>
+                                <CardDescription>{canEdit ? 'Pilih gigi dan permukaan untuk mencatat temuan pemeriksaan.' : canCorrect ? 'Tinjau temuan gigi. Koreksi disimpan sebagai addendum dengan alasan perubahan.' : 'Tinjau temuan gigi yang sudah tercatat pada kunjungan ini.'}</CardDescription>
                             </div>
                             <div className="flex shrink-0 flex-wrap gap-2">
                                 <Button onClick={() => changeDentition('adult')} size="sm" type="button" variant={dentition === 'adult' ? 'default' : 'secondary'}>Permanen · 32</Button>
@@ -696,7 +683,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                         <section aria-label="Diagram odontogram" className="space-y-4 rounded-2xl border border-neutral-200/90 bg-neutral-50/50 p-4 sm:p-5">
                             <OdontogramFdi
                                 dentition={dentition}
-                                disabled={!canEdit && !canCorrect}
+                                disabled={(!canEdit && !canCorrect) || saving}
                                 findingLabels={dentalOptions.findings}
                                 surfaceLabels={dentalOptions.surfaces}
                                 findings={visit.odontogram}
@@ -705,7 +692,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                             />
                         </section>
                         {(canEdit || canCorrect) && (
-                            <fieldset className="min-w-0" disabled={dentalForm.processing}><form className="space-y-4 border-t border-neutral-200 pt-5" onSubmit={(event) => { event.preventDefault(); if (dentalForm.processing) return; confirmSave(canEdit ? 'Simpan temuan odontogram' : 'Simpan addendum odontogram', () => dentalForm.post(`/pelayanan/pemeriksaan/${visit.id}/odontogram${canEdit ? '' : '/addendum'}`, { preserveScroll: true, preserveState: true, onSuccess: () => { const data = { tooth_fdi: '', surface: 'W', finding_code: '', notes: '', reason: '' }; dentalForm.setData(data); dentalForm.setDefaults(data); } })); }}>
+                            <fieldset className="min-w-0" disabled={saving}><form className="space-y-4 border-t border-neutral-200 pt-5" onSubmit={submitDentalFinding}>
                                 <div className="grid gap-4 md:grid-cols-3">
                                     <Field error={dentalForm.errors.tooth_fdi} htmlFor="dental-tooth" label="Nomor gigi FDI" required>
                                         <Select id="dental-tooth" onChange={(event) => selectDentalTooth(event.target.value)} required value={dentalForm.data.tooth_fdi}>
@@ -734,7 +721,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                                 )}
                                 <div className="flex flex-wrap justify-end gap-2">
                                     <Button disabled={dentalForm.processing} onClick={() => changeDentition(dentition)} type="button" variant="secondary">Kosongkan isian</Button>
-                                    <Button disabled={dentalForm.processing || !dentalForm.isDirty || !dentalForm.data.tooth_fdi || !dentalForm.data.finding_code} type="submit">{canEdit ? visit.odontogram.some((finding) => finding.toothFdi === dentalForm.data.tooth_fdi && finding.surface === dentalForm.data.surface) ? 'Perbarui temuan' : 'Simpan temuan' : 'Simpan addendum odontogram'}</Button>
+                                    <Button disabled={!canSaveDentalFinding} type="submit">{canEdit ? visit.odontogram.some((finding) => finding.toothFdi === dentalForm.data.tooth_fdi && finding.surface === dentalForm.data.surface) ? 'Perbarui temuan' : 'Simpan temuan' : 'Simpan addendum odontogram'}</Button>
                                 </div>
                             </form></fieldset>
                         )}
@@ -756,8 +743,8 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                                     <TableCell>{dentalOptions.findings[finding.findingCode] ?? finding.findingCode}</TableCell>
                                     <TableCell className="max-w-xs whitespace-pre-wrap break-words">{finding.notes || optionalAnswers.notRecorded}</TableCell>
                                     <TableCell><div className="flex justify-center gap-2">
-                                        <ActionButton action="edit" disabled={!canEdit && !canCorrect} label={`Ubah temuan gigi ${finding.toothFdi} permukaan ${finding.surface}`} onClick={() => selectDentalRecord(finding.toothFdi, finding.surface)} type="button" />
-                                        <ActionButton action="delete" disabled={!canEdit && !canCorrect} label={`Batalkan temuan gigi ${finding.toothFdi} permukaan ${finding.surface}`} onClick={() => { odontogramUndoForm.setData({ tooth_fdi: finding.toothFdi, surface: finding.surface, reason: '' }); setUndoFinding(finding); }} type="button" />
+                                        <ActionButton action="edit" disabled={(!canEdit && !canCorrect) || saving} label={`Ubah temuan gigi ${finding.toothFdi} permukaan ${finding.surface}`} onClick={() => selectDentalRecord(finding.toothFdi, finding.surface)} type="button" />
+                                        <ActionButton action="delete" disabled={(!canEdit && !canCorrect) || saving} label={`Batalkan temuan gigi ${finding.toothFdi} permukaan ${finding.surface}`} onClick={() => { odontogramUndoForm.setData({ tooth_fdi: finding.toothFdi, surface: finding.surface, reason: '' }); setUndoFinding(finding); }} type="button" />
                                     </div></TableCell>
                                 </TableRow>) : <TableRow><TableCell colSpan={6}><Empty size="compact" title="Belum ada temuan odontogram" description="Catat temuan melalui input FDI di atas sebelum finalisasi." /></TableCell></TableRow>}
                             </TableBody></Table></div>
@@ -769,15 +756,15 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                 {renderTabNavigation(physicalTab, 'diagnosa')}
                 </TabsContent>
 
-                    <fieldset className="min-w-0" disabled={!canEdit}>
+                    <fieldset className="min-w-0" disabled={!canEdit || saving}>
 
                     <TabsContent className="space-y-5 p-5 sm:p-6" value="anamnesis">
                         <div><h3 className="text-base font-semibold text-neutral-950" id="tab-anamnesis">Anamnesis</h3><p className="mt-1 text-sm text-neutral-500">Catat keluhan dan riwayat pasien. Riwayat yang belum diketahui boleh dikosongkan; pilih tidak ada riwayat hanya setelah dikonfirmasi.</p></div>
-                        <fieldset className="min-w-0" disabled={examinationForm.processing}><form className="space-y-5" onSubmit={(event) => submitClinicalSection(event, 'anamnesis')}>
+                        <fieldset className="min-w-0" disabled={saving}><form className="space-y-5" onSubmit={(event) => submitClinicalSection(event, 'anamnesis')}>
                             <Field error={examinationForm.errors.dokter_id} htmlFor="dokter_id" label="Dokter pemeriksa"><Select id="dokter_id" onChange={(event) => examinationForm.setData('dokter_id', event.target.value)} value={examinationForm.data.dokter_id}><option value="">Pilih dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}</Select></Field>
                             <div className="grid gap-4 md:grid-cols-2"><Field error={examinationForm.errors.anamnesis} htmlFor="anamnesis" label="Keluhan utama" required><Textarea id="anamnesis" onChange={(event) => examinationForm.setData('anamnesis', event.target.value)} placeholder="Catat keluhan utama yang disampaikan pasien." required rows={3} value={examinationForm.data.anamnesis} /></Field><Field error={examinationForm.errors.riwayat_penyakit_sekarang} htmlFor="rps" label="Riwayat penyakit sekarang"><Textarea id="rps" onChange={(event) => examinationForm.setData('riwayat_penyakit_sekarang', event.target.value)} placeholder="Awal keluhan, durasi, perkembangan, tingkat keparahan, faktor pemicu/pereda." rows={3} value={examinationForm.data.riwayat_penyakit_sekarang} /></Field></div>
                             <div className="grid gap-4 md:grid-cols-3"><ConfirmedHistoryField error={examinationForm.errors.riwayat_penyakit_dahulu} id="rpd" kind="past" label="Riwayat penyakit dahulu" onChange={(value) => examinationForm.setData('riwayat_penyakit_dahulu', value)} placeholder="Riwayat penyakit, operasi, dan pengobatan rutin." value={examinationForm.data.riwayat_penyakit_dahulu} /><ConfirmedHistoryField error={examinationForm.errors.riwayat_penyakit_keluarga} id="riwayat-keluarga" kind="family" label="Riwayat penyakit keluarga" onChange={(value) => examinationForm.setData('riwayat_penyakit_keluarga', value)} placeholder="Riwayat penyakit keluarga yang relevan." value={examinationForm.data.riwayat_penyakit_keluarga} /><ConfirmedHistoryField error={examinationForm.errors.riwayat_alergi} id="riwayat-alergi-dokter" kind="allergy" label="Riwayat alergi" onChange={(value) => examinationForm.setData('riwayat_alergi', value)} placeholder="Obat, makanan, dan reaksi alergi." value={examinationForm.data.riwayat_alergi} /></div>
-                            <div className="flex justify-end"><Button disabled={examinationForm.processing} type="submit">Simpan anamnesis</Button></div>
+                            <div className="flex justify-end"><Button disabled={!sectionSaveAllowed.anamnesis} type="submit">Simpan anamnesis</Button></div>
                         </form></fieldset>
                         {renderTabNavigation('anamnesis', physicalTab)}
                     </TabsContent>
@@ -795,21 +782,31 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                             anamnesis={visit.examination?.anamnesis}
                             physicalExam={visit.examination?.physicalExam}
                             physicalSystems={visit.examination?.physicalSystems ?? {}}
-                            hasUnsavedChanges={examinationForm.isDirty || physicalForm.isDirty}
+                            bodyMap={visit.examination?.bodyMap}
+                            hasUnsavedChanges={anamnesisChanged || physicalForm.isDirty || bodyFindingPending}
                             onReview={() => navigateSection('pemeriksaan')}
                         />}
-                        <div><h3 className="text-base font-semibold text-neutral-950" id="tab-diagnosa">Diagnosis terstandar</h3><p className="mt-1 text-sm text-neutral-500">Cari dan catat kode dari sistem terminologi yang sesuai dengan katalog klinik.</p></div>
-                                                <fieldset className="min-w-0" disabled={diagnosisForm.processing}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, diagnosisForm, `/pelayanan/pemeriksaan/${visit.id}/diagnosa`)}>
-                        <div className="grid gap-4 md:grid-cols-[16rem_minmax(0,1fr)]"><Field error={diagnosisForm.errors.code_system} htmlFor="diagnosis-code-system" label="Sistem kode"><Select id="diagnosis-code-system" onChange={(event) => { setDiagnosisCodeSystem(event.target.value); diagnosisForm.setData((data) => ({ ...data, code_system: event.target.value, code_release: '', kode_icd10: '', nama_diagnosa: '' })); }} value={diagnosisCodeSystem}>{diagnosisCodeSystems.map((system) => <option key={system.value} value={system.value}>{system.label}</option>)}</Select></Field><div className="relative"><Field htmlFor="icd-search" label="Cari kode atau uraian"><div className="relative"><Search className="absolute left-3 top-3 size-4 text-neutral-400" /><Input autoComplete="off" className="pl-9" id="icd-search" onChange={(event) => setIcdQuery(event.target.value)} placeholder="Ketik kode atau nama diagnosis" value={icdQuery} /></div></Field>{(icdResults.length > 0 || icdLoading) && <div className="absolute z-20 mt-1 max-h-52 w-full overflow-auto rounded-xl border border-neutral-200 bg-surface shadow-lg">{icdLoading && <p className="p-3 text-sm text-neutral-500">Mencari…</p>}{icdResults.map((result) => <Button className="h-auto w-full justify-between rounded-none border-b border-neutral-100 px-3 py-2 text-left font-normal hover:bg-neutral-50 hover:text-neutral-900" key={`${result.code_system}-${result.release}-${result.kode}`} onClick={() => chooseDiagnosis(result.kode, result.nama, result.code_system, result.release)} type="button" variant="ghost"><span className="font-mono font-semibold text-neutral-700">{result.kode}</span><span>{result.nama}</span></Button>)}</div>}</div></div>
-                            {icdSearchFailed && <p className="text-sm text-red-600" role="alert">Pencarian diagnosis gagal. Periksa koneksi dan coba kembali.</p>}
-                            {!icdLoading && !icdSearchFailed && icdQuery.trim().length >= 2 && icdResults.length === 0 && <p className="text-sm text-neutral-600" role="status">Tidak ada diagnosis yang cocok pada katalog terpilih.</p>}
-                            <div className="grid gap-4 md:grid-cols-3"><Field error={diagnosisForm.errors.kode_icd10} htmlFor="kode_icd10" label="Kode diagnosis" required><Input className="font-mono uppercase" id="kode_icd10" onChange={(event) => diagnosisForm.setData('kode_icd10', event.target.value.toUpperCase())} required value={diagnosisForm.data.kode_icd10} /></Field><Field error={diagnosisForm.errors.nama_diagnosa} htmlFor="nama_diagnosa" label="Nama diagnosis" required><Input id="nama_diagnosa" onChange={(event) => diagnosisForm.setData('nama_diagnosa', event.target.value)} required value={diagnosisForm.data.nama_diagnosa} /></Field><Field error={diagnosisForm.errors.jenis} htmlFor="jenis-diagnosa" label="Jenis diagnosis"><Select id="jenis-diagnosa" onChange={(event) => diagnosisForm.setData('jenis', event.target.value)} value={diagnosisForm.data.jenis}><option value="utama">Utama</option><option value="tambahan">Tambahan</option></Select></Field></div><p className="text-xs text-neutral-600">Memilih diagnosis utama baru akan memindahkan diagnosis utama sebelumnya menjadi diagnosis tambahan.</p>
-                            <div className="flex justify-end border-t border-neutral-200 pt-4"><Button disabled={diagnosisForm.processing || !diagnosisForm.data.kode_icd10 || !diagnosisForm.data.nama_diagnosa} type="submit"><Plus className="size-4" />Tambah diagnosis</Button></div>
+                        <div><h3 className="text-base font-semibold text-neutral-950" id="tab-diagnosa">Diagnosis</h3><p className="mt-1 text-sm text-neutral-500">Catat diagnosis melalui katalog atau tuliskan diagnosis secara manual.</p></div>
+                        <fieldset className="min-w-0" disabled={saving}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, diagnosisForm, `/pelayanan/pemeriksaan/${visit.id}/diagnosa`)}>
+                            {!diagnosisForm.data.is_manual && <>
+                                <div className="grid gap-4 md:grid-cols-[16rem_minmax(0,1fr)]"><Field error={diagnosisForm.errors.code_system} htmlFor="diagnosis-code-system" label="Sistem kode"><Select id="diagnosis-code-system" onChange={(event) => { setDiagnosisCodeSystem(event.target.value); diagnosisForm.setData((data) => ({ ...data, code_system: event.target.value, code_release: '', kode_icd10: '', nama_diagnosa: '' })); }} value={diagnosisForm.data.code_system}>{diagnosisCodeSystems.map((system) => <option key={system.value} value={system.value}>{system.label}</option>)}</Select></Field><div className="relative"><Field htmlFor="icd-search" label="Cari kode atau uraian"><div className="relative"><Search className="absolute left-3 top-3 size-4 text-neutral-400" /><Input autoComplete="off" className="pl-9" id="icd-search" onChange={(event) => setIcdQuery(event.target.value)} placeholder="Ketik kode atau nama diagnosis" value={icdQuery} /></div></Field>{(icdResults.length > 0 || icdLoading) && <div className="absolute z-20 mt-1 max-h-52 w-full overflow-auto rounded-xl border border-neutral-200 bg-surface shadow-lg">{icdLoading && <p className="p-3 text-sm text-neutral-500">Mencari...</p>}{icdResults.map((result) => <Button className="h-auto w-full justify-between rounded-none border-b border-neutral-100 px-3 py-2 text-left font-normal hover:bg-neutral-50 hover:text-neutral-900" key={result.code_system + '-' + result.release + '-' + result.kode} onClick={() => chooseDiagnosis(result.kode, result.nama, result.code_system, result.release)} type="button" variant="ghost"><span className="font-mono font-semibold text-neutral-700">{result.kode}</span><span>{result.nama}</span></Button>)}</div>}</div></div>
+                                {icdSearchFailed && <p className="text-sm text-red-600" role="alert">Pencarian diagnosis gagal. Periksa koneksi dan coba kembali.</p>}
+                                {!icdLoading && !icdSearchFailed && icdQuery.trim().length >= 2 && icdResults.length === 0 && <p className="text-sm text-neutral-600" role="status">Tidak ada diagnosis yang cocok pada katalog terpilih.</p>}
+                            </>}
+                            <div className={'grid gap-4 ' + (diagnosisForm.data.is_manual ? 'md:grid-cols-[minmax(0,1fr)_14rem]' : 'md:grid-cols-3')}>
+                                {!diagnosisForm.data.is_manual && <Field error={diagnosisForm.errors.kode_icd10} htmlFor="kode_icd10" label="Kode diagnosis" required><Input className="font-mono uppercase" id="kode_icd10" maxLength={100} onChange={(event) => diagnosisForm.setData('kode_icd10', event.target.value.toUpperCase())} required value={diagnosisForm.data.kode_icd10} /></Field>}
+                                <Field error={diagnosisForm.errors.nama_diagnosa} htmlFor="nama_diagnosa" label={diagnosisForm.data.is_manual ? 'Jenis diagnosis' : 'Nama diagnosis'} required><Input id="nama_diagnosa" maxLength={255} onChange={(event) => diagnosisForm.setData('nama_diagnosa', event.target.value)} placeholder={diagnosisForm.data.is_manual ? 'Tuliskan diagnosis yang ditetapkan' : 'Nama diagnosis'} required value={diagnosisForm.data.nama_diagnosa} /></Field>
+                                <Field error={diagnosisForm.errors.jenis} htmlFor="jenis-diagnosa" label="Kategori diagnosis"><Select id="jenis-diagnosa" onChange={(event) => diagnosisForm.setData('jenis', event.target.value)} value={diagnosisForm.data.jenis}><option value="utama">Utama</option><option value="tambahan">Tambahan</option></Select></Field>
+                            </div>
+                            <Field error={diagnosisForm.errors.keterangan} htmlFor="keterangan-diagnosis" label="Keterangan diagnosis"><Textarea id="keterangan-diagnosis" maxLength={2000} rows={3} value={diagnosisForm.data.keterangan} onChange={(event) => diagnosisForm.setData('keterangan', event.target.value)} placeholder="Rincian atau keterangan diagnosis yang ditetapkan." /></Field>
+                            {diagnosisForm.data.is_manual && <p className="text-xs text-neutral-500">Diagnosis manual dicatat tanpa kode ICD.</p>}
+                            <p className="text-xs text-neutral-600">Memilih diagnosis utama baru akan memindahkan diagnosis utama sebelumnya menjadi diagnosis tambahan.</p>
+                            <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3 border-t border-neutral-200 pt-4"><label className="flex w-fit cursor-pointer items-center gap-2 text-sm font-medium text-neutral-800" htmlFor="diagnosis-manual"><Checkbox id="diagnosis-manual" checked={diagnosisForm.data.is_manual} onCheckedChange={(checked) => { const manual = checked === true; diagnosisForm.setData((data) => ({ ...data, is_manual: manual, kode_icd10: '', code_release: '', code_system: manual ? 'manual' : diagnosisCodeSystem })); diagnosisForm.clearErrors(); setIcdQuery(''); setIcdResults([]); }} />Input diagnosis manual</label><Button disabled={!canSubmitEntry(diagnosisForm)} type="submit"><Plus className="size-4" />Tambah diagnosis</Button></div>
                         </form></fieldset>
-                        <div className="space-y-3"><h4 className="text-sm font-semibold text-neutral-900">Diagnosis tercatat</h4>{visit.diagnoses.length ? visit.diagnoses.map((diagnosis) => <div className="flex flex-col justify-between gap-3 rounded-xl border border-neutral-200 p-4 sm:flex-row sm:items-center" key={diagnosis.id}><div className="flex flex-wrap items-center gap-3"><Badge variant="examination">{diagnosis.code}</Badge><span className="text-sm font-medium text-neutral-900">{diagnosis.name}</span><Badge>{diagnosis.type === 'utama' ? 'Utama' : 'Tambahan'}</Badge></div><ActionButton onClick={() => deleteItem(`/pelayanan/pemeriksaan/diagnosa/${diagnosis.id}`, 'Hapus diagnosis ini?')} type="button" action="delete" label="Hapus" /></div>) : <Empty className="min-h-0 py-6" description="Diagnosis yang dicatat selama pemeriksaan akan tampil di sini." title="Belum ada diagnosis" />}</div>
-                        <fieldset className="min-w-0" disabled={differentialForm.processing}><form className="space-y-4 rounded-xl border border-neutral-200 p-4" onSubmit={(event) => submitClinicalSection(event, 'diagnosis')}>
+                        <div className="space-y-3"><h4 className="text-sm font-semibold text-neutral-900">Diagnosis tercatat</h4>{visit.diagnoses.length ? visit.diagnoses.map((diagnosis) => <div className="flex flex-col justify-between gap-3 rounded-xl border border-neutral-200 p-4 sm:flex-row sm:items-center" key={diagnosis.id}><div className="flex flex-wrap items-center gap-3"><Badge variant="examination">{diagnosis.code || 'Manual'}</Badge><div className="min-w-0"><p className="break-words text-sm font-medium text-neutral-900">{diagnosis.name}</p>{diagnosis.note && <p className="mt-1 whitespace-pre-wrap break-words text-sm text-neutral-600">{diagnosis.note}</p>}</div><Badge>{diagnosis.type === 'utama' ? 'Utama' : 'Tambahan'}</Badge></div><ActionButton disabled={saving} onClick={() => deleteItem(`/pelayanan/pemeriksaan/diagnosa/${diagnosis.id}`, 'Hapus diagnosis ini?')} type="button" action="delete" label="Hapus" /></div>) : <Empty className="min-h-0 py-6" description="Diagnosis yang dicatat selama pemeriksaan akan tampil di sini." title="Belum ada diagnosis" />}</div>
+                        <fieldset className="min-w-0" disabled={saving}><form className="space-y-4 rounded-xl border border-neutral-200 p-4" onSubmit={(event) => submitClinicalSection(event, 'diagnosis')}>
                             <Field error={differentialForm.errors.diagnosis_banding} htmlFor="diagnosis-banding" label="Diagnosis banding"><Textarea id="diagnosis-banding" onChange={(event) => differentialForm.setData('diagnosis_banding', event.target.value)} placeholder="Diagnosis alternatif atau kemungkinan lain yang dipertimbangkan." rows={2} value={differentialForm.data.diagnosis_banding} /></Field>
-                            <div className="flex justify-end"><Button disabled={differentialForm.processing} type="submit">Simpan diagnosis banding</Button></div>
+                            <div className="flex justify-end"><Button disabled={!sectionSaveAllowed.diagnosis} type="submit">Simpan diagnosis banding</Button></div>
                         </form></fieldset>
                         {renderTabNavigation('diagnosa', 'tindakan', 'Lanjut ke tindakan')}
                     </TabsContent>
@@ -820,21 +817,20 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                             diagnoses={visit.diagnoses}
                             differentialDiagnosis={visit.examination?.differentialDiagnosis}
                             codeSystems={diagnosisCodeSystems}
-                            hasUnsavedChanges={diagnosisForm.isDirty || differentialForm.isDirty}
+                            hasUnsavedChanges={hasDiagnosisDraft || differentialForm.isDirty}
                             onReview={() => navigateSection('diagnosa')}
                         />
                         <div><h3 className="text-base font-semibold text-neutral-950" id="tab-tindakan">Tindakan medis</h3><p className="mt-1 text-sm text-neutral-500">Cari kode atau uraian ICD-9-CM Volume 3, lalu catat tindakan yang sudah dilakukan. Input manual tersedia bila belum ada padanan kode.</p></div>
-                        <fieldset className="min-w-0" disabled={treatmentForm.processing}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, treatmentForm, `/pelayanan/pemeriksaan/${visit.id}/tindakan`)}>
-                            <div className="grid gap-4 md:grid-cols-3">
-                                <Field htmlFor="treatment-entry-mode" label="Sumber tindakan">
+                        <fieldset className="min-w-0" disabled={saving}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, treatmentForm, `/pelayanan/pemeriksaan/${visit.id}/tindakan`)}>
+                            <div className={"grid gap-4 " + (treatmentMode === 'manual' ? 'md:grid-cols-[minmax(0,1fr)_10rem]' : 'md:grid-cols-3')}>
+                                {treatmentMode !== 'manual' && <Field htmlFor="treatment-entry-mode" label="Sumber tindakan">
                                     <Select id="treatment-entry-mode" onChange={(event) => changeTreatmentMode(event.target.value as 'icd9cm' | 'clinic' | 'manual')} value={treatmentMode}>
                                         <option value="icd9cm">Terminologi ICD-9-CM</option>
                                         <option value="clinic">Daftar tindakan klinik</option>
-                                        <option value="manual">Input tindakan manual</option>
                                     </Select>
-                                </Field>
+                                </Field>}
                                 {treatmentMode === 'manual' ? (
-                                    <Field error={treatmentForm.errors.nama_tindakan_manual} htmlFor="nama-tindakan-manual" label="Nama tindakan" required>
+                                    <Field error={treatmentForm.errors.nama_tindakan_manual} htmlFor="nama-tindakan-manual" label="Jenis tindakan" required>
                                         <Input id="nama-tindakan-manual" maxLength={255} minLength={3} onChange={(event) => treatmentForm.setData('nama_tindakan_manual', event.target.value)} placeholder="Tuliskan tindakan yang dilakukan" required value={treatmentForm.data.nama_tindakan_manual} />
                                     </Field>
                                 ) : treatmentMode === 'clinic' ? (
@@ -897,55 +893,55 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                             )}
                             {isDental && <Button onClick={() => navigateSection('odontogram')} size="sm" type="button" variant="secondary">Pilih atau ubah temuan odontogram</Button>}
                             {treatmentForm.errors.tooth_fdis && <p className="text-sm text-red-600" role="alert">{treatmentForm.errors.tooth_fdis}</p>}
-                            <Field error={treatmentForm.errors.catatan} htmlFor="catatan-tindakan" label="Catatan tindakan (opsional)">
-                                <Textarea id="catatan-tindakan" maxLength={2000} onChange={(event) => treatmentForm.setData('catatan', event.target.value)} placeholder="Lokasi, teknik, hasil tindakan, atau catatan tambahan" rows={2} value={treatmentForm.data.catatan} />
+                            <Field error={treatmentForm.errors.catatan} htmlFor="catatan-tindakan" label="Keterangan tindakan">
+                                <Textarea id="catatan-tindakan" maxLength={2000} onChange={(event) => treatmentForm.setData('catatan', event.target.value)} placeholder="Lokasi, teknik, hasil tindakan, atau catatan tambahan" rows={3} value={treatmentForm.data.catatan} />
                             </Field>
-                            <div className="flex justify-end border-t border-neutral-200 pt-4">
-                                <Button disabled={treatmentForm.processing || (treatmentMode === 'icd9cm' && !selectedProcedure) || (treatmentMode === 'clinic' && !treatmentForm.data.tindakan_id) || (treatmentMode === 'manual' && treatmentForm.data.nama_tindakan_manual.trim().length < 3)} type="submit">
+                            <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3 border-t border-neutral-200 pt-4">
+                                <label className="flex w-fit cursor-pointer items-center gap-2 text-sm font-medium text-neutral-800" htmlFor="treatment-manual"><Checkbox id="treatment-manual" checked={treatmentMode === 'manual'} onCheckedChange={(checked) => changeTreatmentMode(checked === true ? 'manual' : 'icd9cm')} />Input tindakan manual</label>
+                                <Button disabled={!canSubmitEntry(treatmentForm)} type="submit">
                                     <Plus className="size-4" />
                                     Tambah tindakan
                                 </Button>
                             </div>
                         </form></fieldset>
-                        <div className="overflow-x-auto"><Table><TableHeader><tr><TableHead>Kode ICD-9-CM</TableHead><TableHead>Nama tindakan</TableHead><TableHead>Jumlah</TableHead><TableHead>Catatan</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>{visit.treatments.length ? visit.treatments.map((item) => <TableRow key={item.id}><TableCell><span className="font-mono font-medium">{item.code || 'Tanpa kode'}</span>{item.codeRelease && <span className="mt-1 block text-xs text-neutral-500">{item.codeRelease}</span>}</TableCell><TableCell className="whitespace-normal font-medium">{item.name}{item.toothFdi && <span className="ml-2 text-xs text-neutral-500">Gigi {item.toothFdi}</span>}</TableCell><TableCell>{item.quantity}x</TableCell><TableCell className="max-w-xs whitespace-pre-wrap text-sm text-neutral-600">{item.note || optionalAnswers.notRecorded}</TableCell><TableCell className="text-center"><ActionButton onClick={() => deleteItem(`/pelayanan/pemeriksaan/tindakan/${item.id}`, 'Hapus tindakan ini?')} type="button" action="delete" label="Hapus" /></TableCell></TableRow>) : <TableRow><TableCell colSpan={5}><Empty size="compact" title="Belum ada tindakan medis." /></TableCell></TableRow>}</TableBody></Table></div>
+                        <div className="overflow-x-auto"><Table><TableHeader><tr><TableHead>Kode ICD-9-CM</TableHead><TableHead>Nama tindakan</TableHead><TableHead>Jumlah</TableHead><TableHead>Catatan</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>{visit.treatments.length ? visit.treatments.map((item) => <TableRow key={item.id}><TableCell><span className="font-mono font-medium">{item.code || 'Tanpa kode'}</span>{item.codeRelease && <span className="mt-1 block text-xs text-neutral-500">{item.codeRelease}</span>}</TableCell><TableCell className="whitespace-normal font-medium">{item.name}{item.toothFdi && <span className="ml-2 text-xs text-neutral-500">Gigi {item.toothFdi}</span>}</TableCell><TableCell>{item.quantity}x</TableCell><TableCell className="max-w-xs whitespace-pre-wrap text-sm text-neutral-600">{item.note || optionalAnswers.notRecorded}</TableCell><TableCell className="text-center"><ActionButton disabled={saving} onClick={() => deleteItem(`/pelayanan/pemeriksaan/tindakan/${item.id}`, 'Hapus tindakan ini?')} type="button" action="delete" label="Hapus" /></TableCell></TableRow>) : <TableRow><TableCell colSpan={5}><Empty size="compact" title="Belum ada tindakan medis." /></TableCell></TableRow>}</TableBody></Table></div>
                         {renderTabNavigation('tindakan', 'resep', 'Lanjut ke resep klinik')}
                     </TabsContent>
 
                     <TabsContent className="space-y-6 p-5 sm:p-6" value="resep">
                         <div><h3 className="text-base font-semibold text-neutral-950" id="tab-resep">Resep obat klinik</h3><p className="mt-1 text-sm text-neutral-500">Pilih obat dari stok klinik; jumlah akan diperiksa sebelum disimpan.</p></div>
-                        <fieldset className="min-w-0" disabled={prescriptionForm.processing}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, prescriptionForm, `/pelayanan/pemeriksaan/${visit.id}/resep`)}>
+                        <fieldset className="min-w-0" disabled={saving}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, prescriptionForm, `/pelayanan/pemeriksaan/${visit.id}/resep`)}>
                             <div className="grid items-end gap-4 md:grid-cols-2 xl:grid-cols-4"><Field error={prescriptionForm.errors.jenis} htmlFor="jenis-resep" label="Jenis resep"><Select id="jenis-resep" onChange={(event) => prescriptionForm.setData('jenis', event.target.value)} value={prescriptionForm.data.jenis}><option value="jadi">Obat jadi</option><option value="racikan">Obat racikan</option></Select></Field><Field error={prescriptionForm.errors.obat_id} htmlFor="obat_id" label="Obat dari stok klinik" required><Select id="obat_id" onChange={(event) => { const medicine = medicines.find((item) => item.id.toString() === event.target.value); prescriptionForm.setData((data) => ({ ...data, obat_id: event.target.value, satuan: medicine?.unit ?? '' })); }} required value={prescriptionForm.data.obat_id}><option value="">Pilih obat</option>{medicines.map((medicine) => <option key={medicine.id} value={medicine.id}>{medicine.name} · stok {medicine.stock} {medicine.unit}</option>)}</Select></Field><Field error={prescriptionForm.errors.jumlah} htmlFor="jumlah-obat" label="Jumlah" required><Input id="jumlah-obat" min="1" onChange={(event) => prescriptionForm.setData('jumlah', event.target.value)} required type="number" value={prescriptionForm.data.jumlah} /></Field><Field error={prescriptionForm.errors.satuan} htmlFor="satuan-obat" label="Satuan"><Input id="satuan-obat" onChange={(event) => prescriptionForm.setData('satuan', event.target.value)} placeholder="tablet, kapsul, botol" value={prescriptionForm.data.satuan} /></Field></div>
                             <div className="grid gap-4 md:grid-cols-2"><Field error={prescriptionForm.errors.aturan_pakai} htmlFor="aturan_pakai" label="Aturan pakai"><Input id="aturan_pakai" onChange={(event) => prescriptionForm.setData('aturan_pakai', event.target.value)} placeholder="3 x 1 tablet setelah makan" value={prescriptionForm.data.aturan_pakai} /></Field><Field error={prescriptionForm.errors.catatan} htmlFor="catatan-resep" label="Catatan"><Input id="catatan-resep" onChange={(event) => prescriptionForm.setData('catatan', event.target.value)} placeholder="Habiskan, bila demam..." value={prescriptionForm.data.catatan} /></Field></div>
-                            <div className="flex justify-end border-t border-neutral-200 pt-4"><Button disabled={prescriptionForm.processing || !prescriptionEditable} type="submit"><Plus className="size-4" />Tambahkan resep klinik</Button></div>
+                            <div className="flex justify-end border-t border-neutral-200 pt-4"><Button disabled={!canSubmitEntry(prescriptionForm)} type="submit"><Plus className="size-4" />Tambahkan resep klinik</Button></div>
                         </form></fieldset>
-                        {renderPrescriptionItems(visit.prescription.items.filter((item) => !item.external), prescriptionEditable, deleteItem)}
-                        {renderTabNavigation('resep', 'resep-luar')}
+                        {renderPrescriptionItems(visit.prescription.items.filter((item) => !item.external), prescriptionEditable && !saving, deleteItem)}
+                        {renderTabNavigation('resep')}
                     </TabsContent>
 
                     <TabsContent className="space-y-6 p-5 sm:p-6" value="resep-luar">
                         <div><h3 className="text-base font-semibold text-neutral-950" id="tab-resep-luar">Resep luar</h3><p className="mt-1 text-sm text-neutral-500">Catat obat yang diresepkan untuk ditebus di luar klinik. Entri ini tidak mengurangi stok klinik.</p></div>
-                        <fieldset className="min-w-0" disabled={externalPrescriptionForm.processing}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, externalPrescriptionForm, `/pelayanan/pemeriksaan/${visit.id}/resep`)}>
+                        <fieldset className="min-w-0" disabled={saving}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, externalPrescriptionForm, `/pelayanan/pemeriksaan/${visit.id}/resep`)}>
                             <div className="grid items-end gap-4 md:grid-cols-2 xl:grid-cols-4"><Field error={externalPrescriptionForm.errors.jenis} htmlFor="jenis-resep-luar" label="Jenis resep"><Select id="jenis-resep-luar" onChange={(event) => externalPrescriptionForm.setData('jenis', event.target.value)} value={externalPrescriptionForm.data.jenis}><option value="jadi">Obat jadi</option><option value="racikan">Obat racikan</option></Select></Field><Field error={externalPrescriptionForm.errors.nama_obat} htmlFor="nama-obat-luar" label="Nama obat" required><Input id="nama-obat-luar" onChange={(event) => externalPrescriptionForm.setData('nama_obat', event.target.value)} required value={externalPrescriptionForm.data.nama_obat} /></Field><Field error={externalPrescriptionForm.errors.jumlah} htmlFor="jumlah-obat-luar" label="Jumlah" required><Input id="jumlah-obat-luar" min="0.01" onChange={(event) => externalPrescriptionForm.setData('jumlah', event.target.value)} required step="0.01" type="number" value={externalPrescriptionForm.data.jumlah} /></Field><Field error={externalPrescriptionForm.errors.satuan} htmlFor="satuan-obat-luar" label="Satuan"><Input id="satuan-obat-luar" onChange={(event) => externalPrescriptionForm.setData('satuan', event.target.value)} placeholder="tablet, kapsul, botol" value={externalPrescriptionForm.data.satuan} /></Field></div>
                             <div className="grid gap-4 md:grid-cols-2"><Field error={externalPrescriptionForm.errors.aturan_pakai} htmlFor="aturan-pakai-luar" label="Aturan pakai"><Input id="aturan-pakai-luar" onChange={(event) => externalPrescriptionForm.setData('aturan_pakai', event.target.value)} placeholder="3 x 1 tablet setelah makan" value={externalPrescriptionForm.data.aturan_pakai} /></Field><Field error={externalPrescriptionForm.errors.catatan} htmlFor="catatan-resep-luar" label="Catatan"><Input id="catatan-resep-luar" placeholder="Catatan khusus resep luar (opsional)" onChange={(event) => externalPrescriptionForm.setData('catatan', event.target.value)} value={externalPrescriptionForm.data.catatan} /></Field></div>
-                            <div className="flex justify-end border-t border-neutral-200 pt-4"><Button disabled={externalPrescriptionForm.processing || !prescriptionEditable} type="submit"><Plus className="size-4" />Simpan resep luar</Button></div>
+                            <div className="flex justify-end border-t border-neutral-200 pt-4"><Button disabled={!canSubmitEntry(externalPrescriptionForm)} type="submit"><Plus className="size-4" />Simpan resep luar</Button></div>
                         </form></fieldset>
                         {visit.prescription.items.some((item) => item.external) && <Button asChild variant="secondary"><a href={visit.prescription.printUrl ?? '#'} onClick={(event) => { if (!visit.prescription.printUrl) event.preventDefault(); }}><FileText className="size-4" />Cetak resep luar</a></Button>}
-                        {renderPrescriptionItems(visit.prescription.items.filter((item) => item.external), prescriptionEditable, deleteItem)}
-                        {renderTabNavigation('resep-luar', 'surat')}
+                        {renderPrescriptionItems(visit.prescription.items.filter((item) => item.external), prescriptionEditable && !saving, deleteItem)}
+                        {renderTabNavigation('resep-luar')}
                     </TabsContent>
                     <TabsContent className="space-y-6 p-5 sm:p-6" value="surat">
                         <div><h3 className="text-base font-semibold text-neutral-950" id="tab-surat">Surat medis</h3><p className="mt-1 text-sm text-neutral-500">Terbitkan surat keterangan yang berkaitan dengan kunjungan.</p></div>
-                        <fieldset className="min-w-0" disabled={letterForm.processing}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, letterForm, `/pelayanan/pemeriksaan/${visit.id}/surat`)}><div className="grid items-end gap-4 md:grid-cols-2 xl:grid-cols-3"><Field error={letterForm.errors.jenis} htmlFor="jenis-surat" label="Jenis surat" required><Select id="jenis-surat" onChange={(event) => { letterForm.setData((data) => ({ ...data, jenis: event.target.value, surat_template_id: '' })); }} value={letterForm.data.jenis}><option value="sakit">Surat keterangan sakit</option><option value="sehat">Surat keterangan sehat</option><option value="rujukan">Surat rujukan eksternal</option><option value="lainnya">Lainnya</option></Select></Field><Field error={letterForm.errors.surat_template_id} htmlFor="letter-template" label="Template surat"><Select id="letter-template" onChange={(event) => letterForm.setData('surat_template_id', event.target.value)} value={letterForm.data.surat_template_id}><option value="">Tanpa template</option>{correspondenceTemplates.filter((template) => template.type === letterForm.data.jenis).map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</Select></Field><Field error={letterForm.errors.tanggal} htmlFor="tanggal-surat" label="Tanggal surat" required><DatePicker id="tanggal-surat" onChange={(event) => letterForm.setData('tanggal', event.target.value)} required value={letterForm.data.tanggal} /></Field></div><p className="text-xs text-neutral-500">Nomor surat dibuat otomatis dari template yang dipilih. Kosongkan isi untuk menggunakan isi template.</p><Field error={letterForm.errors.konten} htmlFor="konten-surat" label="Isi keterangan"><Textarea id="konten-surat" placeholder="Kosongkan untuk menggunakan isi template" onChange={(event) => letterForm.setData('konten', event.target.value)} rows={4} value={letterForm.data.konten} /></Field><div className="flex justify-end"><Button disabled={letterForm.processing} type="submit"><Plus className="size-4" />Buat surat medis</Button></div></form></fieldset>
+                        <fieldset className="min-w-0" disabled={saving}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, letterForm, `/pelayanan/pemeriksaan/${visit.id}/surat`)}><div className="grid items-end gap-4 md:grid-cols-2 xl:grid-cols-3"><Field error={letterForm.errors.jenis} htmlFor="jenis-surat" label="Jenis surat" required><Select id="jenis-surat" onChange={(event) => { letterForm.setData((data) => ({ ...data, jenis: event.target.value, surat_template_id: '' })); }} value={letterForm.data.jenis}><option value="sakit">Surat keterangan sakit</option><option value="sehat">Surat keterangan sehat</option><option value="rujukan">Surat rujukan eksternal</option><option value="lainnya">Lainnya</option></Select></Field><Field error={letterForm.errors.surat_template_id} htmlFor="letter-template" label="Template surat"><Select id="letter-template" onChange={(event) => letterForm.setData('surat_template_id', event.target.value)} value={letterForm.data.surat_template_id}><option value="">Tanpa template</option>{correspondenceTemplates.filter((template) => template.type === letterForm.data.jenis).map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</Select></Field><Field error={letterForm.errors.tanggal} htmlFor="tanggal-surat" label="Tanggal surat" required><DatePicker id="tanggal-surat" onChange={(event) => letterForm.setData('tanggal', event.target.value)} required value={letterForm.data.tanggal} /></Field></div><p className="text-xs text-neutral-500">Nomor surat dibuat otomatis dari template yang dipilih. Kosongkan isi untuk menggunakan isi template.</p><Field error={letterForm.errors.konten} htmlFor="konten-surat" label="Isi keterangan"><Textarea id="konten-surat" placeholder="Kosongkan untuk menggunakan isi template" onChange={(event) => letterForm.setData('konten', event.target.value)} rows={4} value={letterForm.data.konten} /></Field><div className="flex justify-end"><Button disabled={!canSubmitEntry(letterForm)} type="submit"><Plus className="size-4" />Buat surat medis</Button></div></form></fieldset>
                         <div className="space-y-3"><h4 className="text-sm font-semibold text-neutral-900">Surat yang diterbitkan</h4>{visit.letters.length ? visit.letters.map((letter) => <article className="flex flex-col justify-between gap-2 rounded-xl border border-neutral-200 p-4 sm:flex-row sm:items-center" key={letter.id}><div><Badge variant="examination">{letter.type}</Badge><p className="mt-2 text-sm font-medium text-neutral-900">No: {letter.number ?? 'Belum diisi'}</p>{letter.content && <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-600">{letter.content}</p>}</div><div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end"><span className="text-xs text-neutral-500">{letter.date ?? 'Belum diisi'}</span><ActionButton asChild action="print" label="Cetak"><a href={letter.printUrl} /></ActionButton></div></article>) : <Empty className="min-h-0 py-6" description="Surat medis yang diterbitkan akan tercatat di sini." title="Belum ada surat medis" />}</div>
-                        {renderTabNavigation('surat', 'rujukan')}
+                        {renderTabNavigation('surat')}
                     </TabsContent>
 
                     <TabsContent className="space-y-6 p-5 sm:p-6" value="rujukan">
                         <div><h3 className="text-base font-semibold text-neutral-950" id="tab-rujukan">Rujukan internal</h3><p className="mt-1 text-sm text-neutral-500">Arahkan pasien untuk konsultasi ke poliklinik lain.</p></div>
-                        <fieldset className="min-w-0" disabled={referralForm.processing}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, referralForm, `/pelayanan/pemeriksaan/${visit.id}/rujukan`)}><div className="grid items-end gap-4 md:grid-cols-2"><Field error={referralForm.errors.ke_poli_id} htmlFor="ke_poli_id" label="Poliklinik tujuan" required><Select id="ke_poli_id" onChange={(event) => referralForm.setData('ke_poli_id', event.target.value)} required value={referralForm.data.ke_poli_id}><option value="">Pilih poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field><Field error={referralForm.errors.surat_template_id} htmlFor="referral-template" label="Template rujukan"><Select id="referral-template" onChange={(event) => referralForm.setData('surat_template_id', event.target.value)} value={referralForm.data.surat_template_id}><option value="">Tanpa template</option>{correspondenceTemplates.filter((template) => template.type === 'rujukan_internal').map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</Select></Field></div><Field error={referralForm.errors.konten_surat} htmlFor="referral-content" label="Isi surat rujukan"><Textarea id="referral-content" onChange={(event) => referralForm.setData('konten_surat', event.target.value)} placeholder="Kosongkan untuk menggunakan isi template" rows={4} value={referralForm.data.konten_surat} /></Field><Field error={referralForm.errors.catatan} htmlFor="catatan-rujukan" label="Catatan konsultasi"><Textarea id="catatan-rujukan" placeholder="Keterangan tambahan untuk konsultasi" onChange={(event) => referralForm.setData('catatan', event.target.value)} rows={3} value={referralForm.data.catatan} /></Field><div className="flex justify-end"><Button disabled={referralForm.processing} type="submit"><Plus className="size-4" />Kirim rujukan</Button></div></form></fieldset>
+                        <fieldset className="min-w-0" disabled={saving}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, referralForm, `/pelayanan/pemeriksaan/${visit.id}/rujukan`)}><div className="grid items-end gap-4 md:grid-cols-2"><Field error={referralForm.errors.ke_poli_id} htmlFor="ke_poli_id" label="Poliklinik tujuan" required><Select id="ke_poli_id" onChange={(event) => referralForm.setData('ke_poli_id', event.target.value)} required value={referralForm.data.ke_poli_id}><option value="">Pilih poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field><Field error={referralForm.errors.surat_template_id} htmlFor="referral-template" label="Template rujukan"><Select id="referral-template" onChange={(event) => referralForm.setData('surat_template_id', event.target.value)} value={referralForm.data.surat_template_id}><option value="">Tanpa template</option>{correspondenceTemplates.filter((template) => template.type === 'rujukan_internal').map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</Select></Field></div><Field error={referralForm.errors.konten_surat} htmlFor="referral-content" label="Isi surat rujukan"><Textarea id="referral-content" onChange={(event) => referralForm.setData('konten_surat', event.target.value)} placeholder="Kosongkan untuk menggunakan isi template" rows={4} value={referralForm.data.konten_surat} /></Field><Field error={referralForm.errors.catatan} htmlFor="catatan-rujukan" label="Catatan konsultasi"><Textarea id="catatan-rujukan" placeholder="Keterangan tambahan untuk konsultasi" onChange={(event) => referralForm.setData('catatan', event.target.value)} rows={3} value={referralForm.data.catatan} /></Field><div className="flex justify-end"><Button disabled={!canSubmitEntry(referralForm)} type="submit"><Plus className="size-4" />Kirim rujukan</Button></div></form></fieldset>
                         <div className="space-y-3"><h4 className="text-sm font-semibold text-neutral-900">Riwayat rujukan</h4>{visit.referrals.length ? visit.referrals.map((referral) => <article className="flex flex-col justify-between gap-2 rounded-xl border border-neutral-200 p-4 sm:flex-row sm:items-center" key={referral.id}><div><p className="text-sm font-medium text-neutral-900">{referral.fromClinic ?? 'Belum diisi'} → {referral.toClinic ?? 'Belum diisi'}</p><p className="mt-1 text-xs text-neutral-500">No: {referral.number ?? 'Belum diisi'}</p><p className="mt-1 text-sm text-neutral-600">{referral.notes ?? 'Belum diisi'}</p></div><div className="flex items-center justify-between gap-3"><Badge variant={referral.status === 'selesai' ? 'complete' : 'waiting'}>{referral.status}</Badge><ActionButton asChild action="print" label="Cetak"><a href={referral.printUrl} /></ActionButton></div></article>) : <Empty className="min-h-0 py-6" description="Rujukan internal untuk kunjungan ini akan muncul di sini." title="Belum ada rujukan" />}</div>
                         {renderTabNavigation('rujukan')}
-                        <div className="flex justify-end"><Button onClick={() => navigateSection('rencana')} type="button">Lanjut ke rencana tindak lanjut & kontrol</Button></div>
                     </TabsContent>
                     </fieldset>
                     </Tabs>
@@ -956,10 +952,10 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                         <span className="min-w-0 space-y-1.5"><span className="block text-base font-semibold tracking-tight text-neutral-950">Rencana tindak lanjut & kontrol</span><span className="block text-sm text-neutral-500">Tentukan jadwal kontrol bila diperlukan, catatan dokter, dan edukasi pasien.</span></span>
                         <ChevronDown aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-neutral-500 transition-transform group-open:rotate-180" />
                     </summary>
-                    <CardContent className="border-t border-neutral-100 pt-5 sm:pt-6" id="rencana-content"><fieldset className="min-w-0" disabled={!canEdit || followUpForm.processing}><form className="space-y-5" onSubmit={(event) => submitClinicalSection(event, 'rencana')}>
+                    <CardContent className="border-t border-neutral-100 pt-5 sm:pt-6" id="rencana-content"><fieldset className="min-w-0" disabled={!canEdit || saving}><form className="space-y-5" onSubmit={(event) => submitClinicalSection(event, 'rencana')}>
                         <div className="grid gap-4 md:grid-cols-2"><Field error={followUpForm.errors.kontrol_berikutnya} htmlFor="kontrol_berikutnya" label="Jadwal kontrol berikutnya"><DatePicker id="kontrol_berikutnya" onChange={(event) => followUpForm.setData('kontrol_berikutnya', event.target.value)}  value={followUpForm.data.kontrol_berikutnya} /></Field><Field error={followUpForm.errors.catatan} htmlFor="catatan" label="Catatan khusus dokter"><Input id="catatan" onChange={(event) => followUpForm.setData('catatan', event.target.value)} placeholder="Catatan internal" value={followUpForm.data.catatan} /></Field></div>
 <Field error={followUpForm.errors.edukasi} htmlFor="edukasi" label="Edukasi pasien"><Textarea id="edukasi" onChange={(event) => followUpForm.setData('edukasi', event.target.value)} placeholder="Anjuran, cara penggunaan obat, larangan, dan jadwal kontrol" rows={3} value={followUpForm.data.edukasi} /></Field>
-                        <div className="flex flex-wrap justify-end gap-2"><Button disabled={!canEdit || followUpForm.processing} type="submit" variant="secondary">Simpan rencana tindak lanjut</Button>{canEdit && <Button disabled={saving} onClick={finishExamination} type="button"><Check className="size-4" />Selesai periksa</Button>}</div>
+                        <div className="flex flex-wrap justify-end gap-2"><Button disabled={!sectionSaveAllowed.rencana} type="submit" variant="secondary">Simpan rencana tindak lanjut</Button>{canEdit && <Button disabled={saving} onClick={finishExamination} type="button"><Check className="size-4" />Selesai periksa</Button>}</div>
                     </form></fieldset></CardContent>
                     </details>
                 </Card>
@@ -967,9 +963,9 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
             <Dialog onOpenChange={setSignatureDialogOpen} open={signatureDialogOpen}>
                 <DialogContent>
                     <DialogHeader><DialogTitle>Tandatangani dan finalisasi</DialogTitle><DialogDescription>Masukkan kata sandi akun dokter untuk mengunci catatan, memberi cap waktu, dan membuat versi final yang tidak dapat ditimpa.</DialogDescription></DialogHeader>
-                    <fieldset className="min-w-0" disabled={signatureForm.processing}><form className="space-y-4" onSubmit={signExamination}><p className="rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">{visit.prescription.items.some((item) => !item.external) ? 'Pasien diteruskan ke farmasi untuk resep klinik.' : 'Kunjungan selesai setelah ditandatangani. Resep luar ditebus di luar klinik.'}</p>
+                    <fieldset className="min-w-0" disabled={saving}><form className="space-y-4" onSubmit={signExamination}><p className="rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">{visit.prescription.items.some((item) => !item.external) ? 'Pasien diteruskan ke farmasi untuk resep klinik.' : visit.prescription.items.some((item) => item.external) ? 'Kunjungan selesai setelah ditandatangani. Resep luar ditebus di luar klinik.' : 'Kunjungan selesai setelah ditandatangani tanpa resep obat.'}</p>
                         <Field error={signatureForm.errors.signature_password} htmlFor="signature-password" label="Kata sandi akun" required><Input autoComplete="current-password" id="signature-password" onChange={(event) => signatureForm.setData('signature_password', event.target.value)} required type="password" value={signatureForm.data.signature_password} /></Field>
-                        <div className="flex justify-end gap-2"><Button onClick={() => setSignatureDialogOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={signatureForm.processing} type="submit"><Check className="size-4" />Tandatangani pemeriksaan</Button></div>
+                        <div className="flex justify-end gap-2"><Button onClick={() => setSignatureDialogOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={saving || !canEdit || !signatureForm.data.signature_password} type="submit"><Check className="size-4" />Tandatangani pemeriksaan</Button></div>
                     </form></fieldset>
                 </DialogContent>
             </Dialog>
@@ -1050,4 +1046,8 @@ function displayDentalValues(values: string[], fallback: string): string {
     };
 
     return values.length > 0 ? values.map((value) => labels[value] ?? value).join(', ') : fallback;
+}
+
+function AssessmentNote({ label, value }: { label: string; value?: string | null }) {
+    return <div className="min-w-0"><dt className="text-xs font-medium text-neutral-500">{label}</dt><dd className="mt-1 whitespace-pre-wrap break-words text-sm text-neutral-800 [overflow-wrap:anywhere]">{normalizeClinicalAnswer(value) ?? optionalAnswers.notRecorded}</dd></div>;
 }
