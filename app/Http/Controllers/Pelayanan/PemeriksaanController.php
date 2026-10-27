@@ -23,6 +23,7 @@ use App\Models\ResepObat;
 use App\Models\Tindakan;
 use App\Models\TindakanKunjungan;
 use App\PatientAllergyHistory;
+use App\PatientClinicalHistory;
 use App\PersediaanRecorder;
 use App\Rules\BodyMapPayload;
 use App\VisitQueryService;
@@ -39,7 +40,7 @@ use Inertia\Response;
 
 class PemeriksaanController extends Controller
 {
-    public function __construct(private DoctorAccessService $doctorAccess, private PatientAllergyHistory $allergies) {}
+    public function __construct(private DoctorAccessService $doctorAccess, private PatientAllergyHistory $allergies, private PatientClinicalHistory $clinicalHistory) {}
 
     public function index(Request $request): Response
     {
@@ -61,7 +62,15 @@ class PemeriksaanController extends Controller
             ->whereIn('pasien_id', $kunjungan->getCollection()->pluck('pasien_id'))
             ->distinct()->pluck('pasien_id')->map(fn ($id): int => (int) $id)->all();
 
+        $todayVisits = $this->doctorAccess->visibleVisits($request->user(), today()->toDateString())->whereDate('tanggal', today());
+
         return Inertia::render('pelayanan/pemeriksaan/index', [
+            'stats' => [
+                'total' => (clone $todayVisits)->whereIn('status', ['pemeriksaan', 'farmasi', 'kasir', 'selesai'])->count(),
+                'waiting' => (clone $todayVisits)->where('status', 'pemeriksaan')->whereDoesntHave('pemeriksaan')->count(),
+                'inProgress' => (clone $todayVisits)->where('status', 'pemeriksaan')->whereHas('pemeriksaan', fn ($query) => $query->whereNull('signed_at'))->count(),
+                'completed' => (clone $todayVisits)->whereHas('pemeriksaan', fn ($query) => $query->whereNotNull('signed_at'))->count(),
+            ],
             'visits' => [
                 'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit) => [
                     'id' => $visit->id,
@@ -125,6 +134,7 @@ class PemeriksaanController extends Controller
         $noteIntegrityValid = $kunjungan->pemeriksaan?->signed_at ? $noteRecorder->verify($kunjungan->pemeriksaan) : null;
         $effectiveNote = $noteIntegrityValid ? $latestNote->payload : null;
         $allergyHistory = $this->allergies->forVisit($kunjungan)['riwayat_alergi'];
+        $clinicalHistory = $this->clinicalHistory->forVisit($kunjungan);
         $clinicalAnswer = static fn (?string $value, string $fallback): string => ClinicalAnswer::normalize($value) ?? $fallback;
         $firstRecordedValue = static function (?string ...$values): ?string {
             foreach ($values as $value) {
@@ -145,10 +155,10 @@ class PemeriksaanController extends Controller
                 : $kunjungan->pemeriksaan?->riwayat_penyakit_sekarang),
             'pastHistory' => is_array($effectiveNote)
                 ? ClinicalAnswer::normalize($effectiveNote['riwayat_penyakit_dahulu'] ?? null)
-                : $firstRecordedValue($kunjungan->pemeriksaan?->riwayat_penyakit_dahulu, $kunjungan->screening?->riwayat_penyakit),
+                : $clinicalHistory['riwayat_penyakit'],
             'familyHistory' => is_array($effectiveNote)
                 ? ClinicalAnswer::normalize($effectiveNote['riwayat_penyakit_keluarga'] ?? null)
-                : $firstRecordedValue($kunjungan->pemeriksaan?->riwayat_penyakit_keluarga, $kunjungan->screening?->riwayat_penyakit_keluarga),
+                : $clinicalHistory['riwayat_penyakit_keluarga'],
             'allergyHistory' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $allergyHistory),
         ];
         $oralHygieneIndex = is_array($effectiveNote) ? ($effectiveNote['oral_hygiene_index'] ?? null) : $kunjungan->pemeriksaan?->oral_hygiene_index;
@@ -1263,7 +1273,15 @@ class PemeriksaanController extends Controller
             }
         }
 
-        if (($section === null || $section === 'anamnesis') && ! array_key_exists('riwayat_alergi', $data)) {
+        if ($section === null || $section === 'anamnesis') {
+            $history = $this->clinicalHistory->forVisit($kunjungan);
+            foreach (['riwayat_penyakit_dahulu' => 'riwayat_penyakit', 'riwayat_penyakit_keluarga' => 'riwayat_penyakit_keluarga'] as $field => $source) {
+                if (blank($data[$field] ?? null)) {
+                    $data[$field] = $history[$source];
+                }
+            }
+        }
+        if (($section === null || $section === 'anamnesis') && blank($data['riwayat_alergi'] ?? null)) {
             $data['riwayat_alergi'] = $this->allergies->forVisit($kunjungan)['riwayat_alergi'];
         }
 

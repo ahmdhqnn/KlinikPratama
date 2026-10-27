@@ -23,7 +23,7 @@ class EnsureRegistrationRole
             return $next($request);
         }
 
-        if ($request->user()->role === 'dokter' && $request->isMethod('GET') && $request->routeIs('pendaftaran.jadwal-praktik')) {
+        if ($request->user()->role === 'dokter' && $request->routeIs('pendaftaran.jadwal-praktik', 'pendaftaran.store-jadwal-praktik', 'pendaftaran.update-jadwal-praktik', 'pendaftaran.destroy-jadwal-praktik', 'pendaftaran.jadwal-praktik.*')) {
             return $next($request);
         }
 

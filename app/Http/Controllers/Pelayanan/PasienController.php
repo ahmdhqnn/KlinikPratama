@@ -259,9 +259,13 @@ class PasienController extends Controller
             ->with(['poliklinik', 'dokter', 'pemeriksaan'])->latest()->limit(10)]);
 
         return Inertia::render('pelayanan/pasien/show', [
+            'backUrl' => route($request->user()->role === 'pendaftaran' ? 'pendaftaran.database-pasien' : 'pelayanan.pasien.index'),
+            'openVisitUrl' => $request->user()->role === 'pendaftaran'
+                ? route('pendaftaran.pendaftaran-baru', ['tab' => 'registered', 'pasien_id' => $pasien->id])
+                : route('pelayanan.kunjungan.create', ['pasien_id' => $pasien->id]),
             'permissions' => [
                 'viewRme' => in_array(auth()->user()->role, ['dokter', 'perawat'], true),
-                'editPatient' => auth()->user()->role === 'admin',
+                'editPatient' => in_array(auth()->user()->role, ['admin', 'pendaftaran'], true),
                 'openVisit' => in_array(auth()->user()->role, ['admin', 'pendaftaran'], true),
             ],
             'patient' => [
@@ -327,7 +331,7 @@ class PasienController extends Controller
                 'phone' => $pasien->telepon,
                 'address' => $pasien->kepesertaan?->alamat ?? $pasien->alamat,
                 'membershipId' => $pasien->kepesertaan_id,
-                'allergyHistory' => $pasien->riwayat_alergi,
+                'motherName' => $pasien->nama_ibu,
             ],
             'today' => today()->toDateString(),
         ]);
@@ -335,6 +339,12 @@ class PasienController extends Controller
 
     public function update(Request $request, Pasien $pasien, PatientRegistrationService $registrationService): RedirectResponse
     {
+        if ($request->user()->role === 'pendaftaran' || $request->input('registration_type') === 'manual') {
+            $registrationService->updateIdentity($request, $pasien);
+
+            return redirect()->route('pelayanan.pasien.show', $pasien)->with('success', 'Data pasien berhasil diperbarui.');
+        }
+
         if (! $pasien->kepesertaan_id && ! $request->filled('kepesertaan_id')) {
             $data = $registrationService->validateManual($request);
             DB::transaction(function () use ($pasien, $data): void {

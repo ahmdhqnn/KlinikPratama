@@ -1,4 +1,5 @@
-import { RegisteredPatientForm } from '@/components/pendaftaran/registered-patient-form';
+import { identityPlaceholders } from '@/lib/form-placeholders';
+import { RegisteredPatientForm, type PatientResult } from '@/components/pendaftaran/registered-patient-form';
 import { MembershipIdentityFields } from '@/components/pasien/membership-identity-fields';
 import { ManualPatientFields } from '@/components/pasien/manual-patient-fields';
 import { Head, Link, useForm } from '@inertiajs/react';
@@ -41,13 +42,14 @@ interface PatientForm extends VisitFormValues {
 }
 
 interface Props {
+    initialPatient: PatientResult | null;
     clinics: Option[];
     today: string;
     doctorsUrl: string;
     initialTab: 'manual' | 'directory' | 'registered';
 }
 
-export default function NewPatientRegistration({ clinics, today, doctorsUrl, initialTab }: Props) {
+export default function NewPatientRegistration({ clinics, today, doctorsUrl, initialTab, initialPatient }: Props) {
     const [registrationType, setRegistrationType] = useState<'directory' | 'manual' | 'registered'>(initialTab);
     const defaultData: PatientForm = {
         registration_type: 'directory', kepesertaan_id: '', nama: '', nik: '', nip: '', unit_kerja: '', tempat_lahir: '', tanggal_lahir: '', jenis_kelamin: '', golongan_darah: '',
@@ -91,7 +93,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                         <TabsTrigger value="registered">Pasien Terdaftar</TabsTrigger>
                         <TabsTrigger value="directory">Dari Kepesertaan</TabsTrigger>
                     </TabsList>
-                    {registrationType === 'registered' && <TabsContent value="registered"><RegisteredPatientForm clinics={clinics} today={today} doctorsUrl={doctorsUrl} /></TabsContent>}
+                    {registrationType === 'registered' && <TabsContent value="registered"><RegisteredPatientForm initialPatient={initialPatient} clinics={clinics} today={today} doctorsUrl={doctorsUrl} /></TabsContent>}
                     {registrationType !== 'registered' && <form className="space-y-6" onSubmit={submit}>
                 {registrationType === 'directory' && <TabsContent className="space-y-6" value="directory">
                 <Card>
@@ -123,14 +125,14 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                         />
                         <div className="grid gap-4 md:grid-cols-2">
                             <Field error={form.errors.nama_ibu} htmlFor="nama_ibu" label="Nama ibu kandung">
-                                <Input id="nama_ibu" onChange={(event) => updateField('nama_ibu', event.target.value)} value={form.data.nama_ibu} />
+                                <Input placeholder={identityPlaceholders.nama_ibu} id="nama_ibu" onChange={(event) => updateField('nama_ibu', event.target.value)} value={form.data.nama_ibu} />
                             </Field>
                             <Field error={form.errors.telepon} htmlFor="telepon" label="Nomor telepon">
-                                <Input autoComplete="tel" id="telepon" onChange={(event) => updateField('telepon', event.target.value)} placeholder="08xxxxxxxxxx" type="tel" value={form.data.telepon} />
+                                <Input autoComplete="tel" id="telepon" onChange={(event) => updateField('telepon', event.target.value)} placeholder={identityPlaceholders.telepon} type="tel" value={form.data.telepon} />
                             </Field>
                         </div>
                         <Field error={form.errors.riwayat_alergi} htmlFor="riwayat_alergi" label="Riwayat alergi">
-                            <Textarea id="riwayat_alergi" onChange={(event) => updateField('riwayat_alergi', event.target.value)} placeholder="Obat, makanan, atau alergi lainnya (opsional)" value={form.data.riwayat_alergi} />
+                            <Textarea id="riwayat_alergi" onChange={(event) => updateField('riwayat_alergi', event.target.value)} placeholder={identityPlaceholders.riwayat_alergi} value={form.data.riwayat_alergi} />
                         </Field>
                     </CardContent>
                 </Card>

@@ -2,6 +2,7 @@
 
 namespace App;
 
+use App\Models\Kepesertaan;
 use App\Models\Pasien;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 class PatientRegistrationService
 {
     /** @return array<string, mixed> */
-    public function validateManual(Request $request): array
+    public function validateManual(Request $request, bool $includeClinicalHistory = true): array
     {
         if ($request->boolean('grant_special_access')) {
             throw ValidationException::withMessages(['grant_special_access' => 'Verifikasi kepesertaan dilakukan oleh admin setelah pasien didaftarkan.']);
@@ -33,15 +34,43 @@ class PatientRegistrationService
             'kecamatan' => ['nullable', 'string', 'max:100'],
             'nama_ibu' => ['nullable', 'string', 'max:255'],
             'telepon' => ['nullable', 'string', 'max:20'],
-            'riwayat_alergi' => ['nullable', 'string', 'max:2000'],
+            'riwayat_alergi' => $includeClinicalHistory ? ['nullable', 'string', 'max:2000'] : ['exclude'],
         ];
 
         $data = Validator::make($request->all(), $rules)->validate();
-        $data['riwayat_alergi'] = filled($data['riwayat_alergi'] ?? null)
-            ? trim($data['riwayat_alergi'])
-            : null;
+        if ($includeClinicalHistory) {
+            $data['riwayat_alergi'] = filled($data['riwayat_alergi'] ?? null) ? trim($data['riwayat_alergi']) : null;
+        }
 
         return $data;
+    }
+
+    public function updateIdentity(Request $request, Pasien $patient): void
+    {
+        $data = $this->validateManual($request, includeClinicalHistory: false);
+        DB::transaction(function () use ($request, $patient, $data): void {
+            $patient = Pasien::whereKey($patient->id)->lockForUpdate()->firstOrFail();
+            $member = $patient->kepesertaan_id ? Kepesertaan::whereKey($patient->kepesertaan_id)->lockForUpdate()->firstOrFail() : null;
+            foreach (['nik', 'nip'] as $field) {
+                if ($member && array_key_exists($field, $data) && ($data[$field] ?? null) !== $member->getAttribute($field)) {
+                    throw ValidationException::withMessages([$field => strtoupper($field).' pasien terverifikasi harus sesuai dengan kepesertaan.']);
+                }
+                if (filled($data[$field] ?? null) && Pasien::withTrashed()->where($field, $data[$field])->whereKeyNot($patient->id)->exists()) {
+                    throw ValidationException::withMessages([$field => strtoupper($field).' sudah terhubung dengan pasien lain.']);
+                }
+            }
+            if ($member) {
+                $requiredFields = ['tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'agama', 'alamat', 'rt', 'rw', 'kelurahan', 'kecamatan'];
+                Validator::make($data, array_fill_keys($requiredFields, ['sometimes', 'required']))->validate();
+                $identity = array_intersect_key($data, array_flip(['nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'golongan_darah', 'agama', 'alamat', 'rt', 'rw', 'kelurahan', 'kecamatan']));
+                $member->update($identity);
+            }
+            $patient->fill($data);
+            $changedFields = array_keys($patient->getDirty());
+            $patient->save();
+            app(ClinicalAuditRecorder::class)->record($request, 'patient.identity_updated', $patient->id,
+                metadata: ['fields' => $changedFields, 'membership_id' => $patient->kepesertaan_id]);
+        });
     }
 
     /** @param array<string, mixed> $data */

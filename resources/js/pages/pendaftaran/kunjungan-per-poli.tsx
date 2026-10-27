@@ -41,7 +41,7 @@ interface Visit {
 interface Props {
     filters: { poliklinikId: number | ''; tanggal: string; status: string };
     clinics: Clinic[];
-    stats: { total: number; waiting: number; screening: number; examination: number };
+    stats: { total: number; waiting: number; screening: number; examination: number; completedToday: number };
     access: { manageVisits: boolean; monitorClinicalFlow: boolean; selectClinic: boolean };
     visits: PaginationData & { data: Visit[] };
     recentVisits: PaginationData & { data: Visit[] };
@@ -66,6 +66,41 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Kunjungan poli</h2>
                     <p className="mt-1 text-sm text-neutral-500">Daftar mencakup seluruh dokter. Pilih tanggal untuk melihat periode tertentu.</p>
                 </div>
+
+                <section aria-label="Ringkasan antrean poliklinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <StatCard description="Seluruh kunjungan sesuai akses poliklinik Anda" icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan" value={stats.total} />
+                    <StatCard description="Kunjungan sampai hari ini yang belum dikaji" icon={<Clock3 className="size-5" />} iconClassName="bg-amber-50 text-amber-700" label="Menunggu pengkajian awal" value={stats.waiting} />
+                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan dokter" value={stats.examination} />
+                    <StatCard description="Pelayanan selesai pada tanggal hari ini" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-emerald-50 text-emerald-700" label="Kunjungan selesai hari ini" value={stats.completedToday} />
+                </section>
+                <Card className="overflow-hidden">
+                    <CardHeader className="border-b border-neutral-100">
+                        <div className="flex items-start gap-3">
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Clock3 className="size-5" /></span>
+                            <div><CardTitle>Kunjungan hari ini</CardTitle><CardDescription className="mt-1">Seluruh kunjungan hari ini sesuai akses poliklinik Anda.</CardDescription></div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <Table className="min-w-[1120px]">
+                                <TableHeader><tr><TableHead>Tanggal</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                                <TableBody>
+                                    {recentVisits.data.length > 0 ? recentVisits.data.map((visit) => (
+                                        <TableRow key={visit.id}>
+                                            <TableCell className="text-neutral-600">{visit.date}</TableCell>
+                                            <TableCell className="font-mono text-xs text-neutral-600">{visit.number}<p className="mt-1 text-xs text-neutral-500">{visit.date} · {visit.clinic}</p></TableCell>
+                                            <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
+                                            <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
+                                            <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
+                                            <TableCell><VisitActions manageVisits={access.manageVisits} visit={visit} /></TableCell>
+                                        </TableRow>
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty description="Belum ada kunjungan terbaru untuk poliklinik ini." size="compact" title="Belum ada data kunjungan." /></TableCell></TableRow>}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                    <Pagination pagination={recentVisits} />
+                </Card>
                 <FilterPanel><form className={`grid gap-4 sm:items-end ${access.selectClinic ? 'sm:grid-cols-2 xl:grid-cols-2' : 'sm:grid-cols-2'}`} onSubmit={applyFilters}>
                             {access.selectClinic && <Field htmlFor="visits-by-clinic" label="Poliklinik">
                                 <Select id="visits-by-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
@@ -84,12 +119,6 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                             </Field>
                             <Button disabled={clinics.length === 0} type="submit"><Search className="size-4" />Terapkan filter</Button>
                         </form></FilterPanel>
-                <section aria-label="Ringkasan antrean poliklinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <StatCard description="Kunjungan pada periode dan pilihan layanan Anda" icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan" value={stats.total} />
-                    <StatCard description="Belum memulai pengkajian awal perawat" icon={<Clock3 className="size-5" />} iconClassName="bg-amber-50 text-amber-700" label="Menunggu pengkajian awal" value={stats.waiting} />
-                    <StatCard description="Sedang dalam pengkajian awal perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pengkajian awal berlangsung" value={stats.screening} />
-                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan dokter" value={stats.examination} />
-                </section>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
@@ -116,34 +145,6 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                         </div>
                     </CardContent>
                     <Pagination pagination={visits} />
-                </Card>
-                <Card className="overflow-hidden">
-                    <CardHeader className="border-b border-neutral-100">
-                        <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Clock3 className="size-5" /></span>
-                            <div><CardTitle>Kunjungan hari ini</CardTitle><CardDescription className="mt-1">Kunjungan terbaru di poliklinik.</CardDescription></div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <div className="overflow-x-auto">
-                            <Table className="min-w-[1120px]">
-                                <TableHeader><tr><TableHead>Tanggal</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
-                                <TableBody>
-                                    {recentVisits.data.length > 0 ? recentVisits.data.map((visit) => (
-                                        <TableRow key={visit.id}>
-                                            <TableCell className="text-neutral-600">{visit.date}</TableCell>
-                                            <TableCell className="font-mono text-xs text-neutral-600">{visit.number}<p className="mt-1 text-xs text-neutral-500">{visit.date} · {visit.clinic}</p></TableCell>
-                                            <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
-                                            <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
-                                            <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
-                                            <TableCell><VisitActions manageVisits={access.manageVisits} visit={visit} /></TableCell>
-                                        </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty description="Belum ada kunjungan terbaru untuk poliklinik ini." size="compact" title="Belum ada data kunjungan." /></TableCell></TableRow>}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </CardContent>
-                    <Pagination pagination={recentVisits} />
                 </Card>
             </div>
         </>

@@ -90,6 +90,100 @@ class PatientAllergyContinuityTest extends TestCase
             ->where('visit.screening.riwayat_alergi', 'Penisilin'));
     }
 
+    public function test_persistent_history_can_be_revalidated_by_nurse_and_doctor_for_the_next_visit(): void
+    {
+        [$nurse, $doctor, $patient, $visit, $previous] = $this->context();
+        Screening::create(['kunjungan_id' => $previous->id, 'riwayat_penyakit' => 'Hipertensi',
+            'riwayat_penyakit_keluarga' => 'Diabetes pada ibu', 'riwayat_obat' => 'Obat rutin dari dokter',
+            'keluhan' => 'Keluhan lama', 'td_sistole' => 160, 'berat_badan' => 70]);
+
+        $this->actingAs($nurse)->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.screening.riwayat_penyakit', 'Hipertensi')
+            ->where('visit.screening.riwayat_penyakit_keluarga', 'Diabetes pada ibu')
+            ->where('visit.screening.riwayat_obat', 'Obat rutin dari dokter')
+            ->where('visit.screening.keluhan', null)->where('visit.screening.td_sistole', null)->where('visit.screening.berat_badan', null));
+        $this->post(route('pelayanan.screening.store', $visit), [...$this->triage(),
+            'status_riwayat_penyakit' => 'ada', 'riwayat_penyakit' => 'Hipertensi terkontrol', 'riwayat_obat' => 'Obat rutin sudah diperbarui'])
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'riwayat_penyakit' => 'Hipertensi terkontrol',
+            'riwayat_penyakit_keluarga' => 'Diabetes pada ibu', 'riwayat_obat' => 'Obat rutin sudah diperbarui']);
+        $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.examinationFormDefaults.pastHistory', 'Hipertensi terkontrol')
+            ->where('visit.examinationFormDefaults.familyHistory', 'Diabetes pada ibu'));
+        $this->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'anamnesis',
+            'riwayat_penyakit_dahulu' => 'Hipertensi dan diabetes', 'riwayat_penyakit_keluarga' => 'Diabetes pada kedua orang tua'])
+            ->assertSessionHasNoErrors();
+        $exam = $visit->fresh()->pemeriksaan;
+        $exam->update(['status' => 'selesai']);
+        $visit->update(['status' => 'selesai']);
+        $this->travelTo('2026-10-21 09:00:00');
+        $next = Kunjungan::create([...$visit->only(['pasien_id', 'poliklinik_id', 'dokter_id']),
+            'no_kunjungan' => 'AL-NEXT', 'tanggal' => today(), 'status' => 'menunggu']);
+
+        $this->actingAs($nurse)->get(route('pelayanan.screening.show', $next))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.screening.riwayat_penyakit', 'Hipertensi dan diabetes')
+            ->where('visit.screening.riwayat_penyakit_keluarga', 'Diabetes pada kedua orang tua')
+            ->where('visit.screening.riwayat_obat', 'Obat rutin sudah diperbarui'));
+        $this->assertDatabaseHas('screening', ['kunjungan_id' => $previous->id, 'riwayat_penyakit' => 'Hipertensi']);
+    }
+
+    public function test_blank_history_submission_preserves_known_history_until_explicitly_revalidated(): void
+    {
+        [$nurse, $doctor, $patient, $visit, $previous] = $this->context();
+        Screening::create(['kunjungan_id' => $previous->id, 'riwayat_penyakit' => 'Hipertensi',
+            'riwayat_penyakit_keluarga' => 'Diabetes pada ibu', 'riwayat_obat' => 'Obat rutin', 'riwayat_alergi' => 'Udang']);
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [...$this->triage(),
+            'riwayat_penyakit' => '', 'riwayat_penyakit_keluarga' => '', 'riwayat_obat' => ''])
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'riwayat_penyakit' => 'Hipertensi',
+            'riwayat_penyakit_keluarga' => 'Diabetes pada ibu', 'riwayat_obat' => 'Obat rutin']);
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'anamnesis',
+            'riwayat_penyakit_dahulu' => '', 'riwayat_penyakit_keluarga' => '', 'riwayat_alergi' => ''])
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('pemeriksaan', ['kunjungan_id' => $visit->id, 'riwayat_penyakit_dahulu' => 'Hipertensi',
+            'riwayat_penyakit_keluarga' => 'Diabetes pada ibu', 'riwayat_alergi' => 'Udang']);
+    }
+
+    public function test_signed_history_uses_latest_verified_addendum(): void
+    {
+        [$nurse, $doctor, $patient, $visit, $previous] = $this->context();
+        $exam = Pemeriksaan::create(['kunjungan_id' => $previous->id, 'status' => 'selesai', 'riwayat_penyakit_dahulu' => 'Catatan lama']);
+        $notes = app(ClinicalNoteRecorder::class);
+        $notes->recordFinal($exam, ['riwayat_penyakit_dahulu' => 'Hipertensi'], $doctor->id);
+        $exam->update(['signed_by_user_id' => $doctor->id, 'signed_at' => now()]);
+        $notes->recordAddendum($exam, ['riwayat_penyakit_dahulu' => 'Hipertensi terkonfirmasi', 'riwayat_penyakit_keluarga' => 'Diabetes pada ibu'], $doctor->id, 'Hasil konfirmasi pasien');
+
+        $this->actingAs($nurse)->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.screening.riwayat_penyakit', 'Hipertensi terkonfirmasi')
+            ->where('visit.screening.riwayat_penyakit_keluarga', 'Diabetes pada ibu'));
+    }
+
+    public function test_draft_cancelled_future_and_other_patient_history_are_not_carried_forward(): void
+    {
+        [$nurse, $doctor, $patient, $visit, $previous] = $this->context();
+        Screening::create(['kunjungan_id' => $previous->id, 'riwayat_penyakit' => 'Draf belum divalidasi', 'started_at' => now()]);
+        $other = Pasien::create(['no_rm' => 'RM-MED-OTHER', 'nama' => 'Pasien lain']);
+        foreach ([['batal', '2026-10-19', $patient->id], ['menunggu', '2026-10-21', $patient->id], ['selesai', '2026-10-19', $other->id]] as $index => [$status, $date, $patientId]) {
+            $source = Kunjungan::create(['no_kunjungan' => 'INVALID-HISTORY-'.$index, 'pasien_id' => $patientId,
+                'poliklinik_id' => $visit->poliklinik_id, 'tanggal' => $date, 'status' => $status]);
+            Screening::create(['kunjungan_id' => $source->id, 'riwayat_penyakit' => 'Tidak boleh disalin', 'riwayat_obat' => 'Obat sumber lain']);
+        }
+        $this->actingAs($nurse)->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.screening.riwayat_penyakit', null)->where('visit.screening.riwayat_obat', null));
+    }
+
+    public function test_explicit_negative_history_replaces_previous_positive_history(): void
+    {
+        [$nurse, $doctor, $patient, $visit, $previous] = $this->context();
+        Screening::create(['kunjungan_id' => $previous->id, 'riwayat_penyakit' => 'Catatan perlu dikoreksi', 'riwayat_alergi' => 'Udang']);
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [...$this->triage(),
+            'status_riwayat_penyakit' => 'tidak_ada', 'status_alergi' => 'tidak_ada', 'riwayat_obat' => 'Tidak ada obat rutin'])
+            ->assertSessionHasNoErrors();
+        $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.examinationFormDefaults.pastHistory', 'Pasien menyangkal riwayat penyakit')
+            ->where('visit.examinationFormDefaults.allergyHistory', 'Tidak ada riwayat alergi menurut pasien'));
+    }
+
     /** @return array{User, User, Pasien, Kunjungan, Kunjungan} */
     private function context(): array
     {

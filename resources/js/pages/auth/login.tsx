@@ -1,3 +1,4 @@
+import { identityPlaceholders } from '@/lib/form-placeholders';
 import { Head, useForm } from '@inertiajs/react';
 import { ArrowRight, BriefcaseMedical, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
 import { FormEvent } from 'react';
@@ -84,7 +85,7 @@ export default function LoginPage() {
                                                 id="email"
                                                 name="email"
                                                 onChange={(event) => form.setData('email', event.target.value)}
-                                                placeholder="nama@klinik.com"
+                                                placeholder={identityPlaceholders.email}
                                                 required
                                                 type="email"
                                                 value={form.data.email}
@@ -101,7 +102,7 @@ export default function LoginPage() {
                                                 id="password"
                                                 name="password"
                                                 onChange={(event) => form.setData('password', event.target.value)}
-                                                placeholder="Masukkan password"
+                                                placeholder="Masukkan kata sandi akun Anda"
                                                 required
                                                 type="password"
                                                 value={form.data.password}

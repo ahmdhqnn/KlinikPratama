@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Pelayanan;
 
 use App\ClinicalAuditRecorder;
+use App\Exports\ScreeningExport;
+use App\ScreeningReportQuery;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use App\CorrespondenceService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreScreeningRequest;
@@ -12,6 +16,7 @@ use App\Models\Nakes;
 use App\Models\Poliklinik;
 use App\Models\Screening;
 use App\PatientAllergyHistory;
+use App\PatientClinicalHistory;
 use App\PerawatClinicResolver;
 use App\VisitSchedulingService;
 use Illuminate\Http\RedirectResponse;
@@ -24,7 +29,7 @@ use Inertia\Response;
 
 class ScreeningController extends Controller
 {
-    public function __construct(private PerawatClinicResolver $perawatClinicResolver, private VisitSchedulingService $scheduling, private PatientAllergyHistory $allergies) {}
+    public function __construct(private PerawatClinicResolver $perawatClinicResolver, private VisitSchedulingService $scheduling, private PatientAllergyHistory $allergies, private PatientClinicalHistory $clinicalHistory) {}
 
     public function index(Request $request): Response
     {
@@ -54,7 +59,18 @@ class ScreeningController extends Controller
             ? Poliklinik::registrable()->whereKey($assignedClinicId)->orderBy('nama')->get(['id', 'nama'])
             : Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama']);
 
+        $todayVisits = Kunjungan::whereDate('tanggal', today())
+            ->whereHas('poliklinik', fn ($query) => $query->whereIn('jenis', ['umum', 'gigi']))
+            ->when($selectedClinicId, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId));
+
         return Inertia::render('pelayanan/screening/index', [
+            'serviceName' => $assignedClinicId ? $clinics->first()?->nama : 'Semua poli',
+            'stats' => [
+                'total' => (clone $todayVisits)->count(),
+                'waiting' => (clone $todayVisits)->where('status', 'menunggu')->count(),
+                'inProgress' => (clone $todayVisits)->where('status', 'screening')->count(),
+                'submitted' => (clone $todayVisits)->whereHas('screening', fn ($query) => $query->whereNotNull('submitted_at'))->count(),
+            ],
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'tanggal' => $filters['tanggal'] ?? '',
@@ -99,24 +115,20 @@ class ScreeningController extends Controller
         $nurse = $isNurse ? $this->perawatClinicResolver->nakes($request->user()) : null;
         $assignedClinicId = $nurse?->poliklinik_id;
         $selectedClinicId = $assignedClinicId ?? ($filters['poliklinik_id'] ?? null);
-        $query = Screening::query()
-            ->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'petugas'])
-            ->whereHas('kunjungan', fn ($visits) => $visits
-                ->when($selectedClinicId, fn ($scopedVisits, int $clinicId) => $scopedVisits->where('poliklinik_id', $clinicId))
-                ->when($filters['tanggal'] ?? null, fn ($scopedVisits, string $date) => $scopedVisits->whereDate('tanggal', $date)))
-            ->when($nurse, fn ($screenings) => $screenings->where('petugas_id', $nurse->id))
-            ->when($filters['search'] ?? null, fn ($screenings, string $search) => $screenings->whereHas('kunjungan.pasien', fn ($patients) => $patients
-                ->where(fn ($patientQuery) => $patientQuery
-                    ->where('nama', 'like', "%{$search}%")
-                    ->orWhere('no_rm', 'like', "%{$search}%"))))
-            ->latest('created_at')->latest('id')
+        $query = (new ScreeningReportQuery)->query($filters, $nurse?->id, $selectedClinicId)
             ->paginate(10)
             ->withQueryString();
         $clinics = $assignedClinicId
             ? Poliklinik::registrable()->whereKey($assignedClinicId)->orderBy('nama')->get(['id', 'nama'])
             : Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama']);
 
+        $isReport = $request->routeIs('perawat.laporan-pengkajian');
+
         return Inertia::render('pelayanan/screening/history', [
+            'isReport' => $isReport,
+            'serviceName' => $nurse?->poliklinik?->nama ?? 'Semua poli',
+            'isDental' => $nurse?->poliklinik?->jenis === 'gigi',
+            'exportUrl' => $isReport ? route('perawat.laporan-pengkajian.export', $filters) : null,
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'tanggal' => $filters['tanggal'] ?? '',
@@ -133,6 +145,9 @@ class ScreeningController extends Controller
                     'medicalRecordNumber' => $screening->kunjungan?->pasien?->no_rm ?? 'Belum diisi',
                     'clinic' => $screening->kunjungan?->poliklinik?->nama ?? 'Belum diisi',
                     'staff' => $screening->petugas?->nama ?? 'Belum diisi',
+                    'complaint' => $screening->keluhan,
+                    'dentalPainLocation' => $screening->lokasi_nyeri_gigi,
+                    'submittedAt' => $screening->submitted_at?->format('d/m/Y H:i'),
                     'triage' => $screening->kesimpulan_triase,
                     'priority' => $screening->prioritas_layanan,
                     'visitUrl' => $screening->kunjungan ? route('pelayanan.kunjungan.show', $screening->kunjungan) : null,
@@ -148,6 +163,20 @@ class ScreeningController extends Controller
                 'nextUrl' => $query->nextPageUrl(),
             ],
         ]);
+    }
+
+    public function exportReport(Request $request, ClinicalAuditRecorder $auditRecorder): BinaryFileResponse
+    {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'tanggal' => ['nullable', 'date_format:Y-m-d'],
+            'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
+        ]);
+        $nurse = $this->perawatClinicResolver->nakes($request->user());
+
+        $auditRecorder->record($request, 'screening.report_export', metadata: ['clinic_id' => $nurse->poliklinik_id, 'staff_id' => $nurse->id, 'filters' => $filters]);
+
+        return Excel::download(new ScreeningExport($filters, $nurse), 'laporan-pengkajian-'.$nurse->poliklinik->jenis.'-'.today()->format('Y-m-d').'.xlsx');
     }
 
     public function start(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): RedirectResponse
@@ -226,7 +255,7 @@ class ScreeningController extends Controller
             $screeningFields,
             array_map(fn (string $field): mixed => $kunjungan->screening?->getAttribute($field), $screeningFields),
         );
-        foreach ($this->allergies->forVisit($kunjungan) as $field => $value) {
+        foreach ([...$this->allergies->forVisit($kunjungan), ...$this->clinicalHistory->forVisit($kunjungan)] as $field => $value) {
             if (blank($screeningValues[$field])) {
                 $screeningValues[$field] = $value;
             }
@@ -339,6 +368,11 @@ class ScreeningController extends Controller
             if (blank($data['riwayat_alergi'] ?? null)) {
                 foreach ($history as $field => $value) {
                     $data[$field] = filled($data[$field] ?? null) ? $data[$field] : $value;
+                }
+            }
+            foreach ($this->clinicalHistory->forVisit($lockedVisit) as $field => $value) {
+                if (blank($data[$field] ?? null)) {
+                    $data[$field] = $value;
                 }
             }
             Screening::updateOrCreate(['kunjungan_id' => $kunjungan->id], $data);

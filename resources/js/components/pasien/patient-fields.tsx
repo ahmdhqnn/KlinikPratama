@@ -1,3 +1,4 @@
+import { identityPlaceholders } from '@/lib/form-placeholders';
 import { MembershipIdentityFields } from '@/components/pasien/membership-identity-fields';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -54,7 +55,7 @@ export function PatientFields({ data, errors, onChange, showPhone = true }: Prop
             {showPhone && <section className="space-y-4">
                 <div><h3 className="text-sm font-semibold text-neutral-950">Kontak dan alamat</h3><p className="mt-1 text-sm text-neutral-500">Gunakan nomor telepon yang dapat dihubungi.</p></div>
                 <div className="grid gap-4 md:grid-cols-2">
-                    <Field error={errors.telepon} htmlFor="telepon" label="Nomor telepon"><Input id="telepon" value={data.telepon} onChange={(event) => onChange('telepon', event.target.value)} autoComplete="tel" type="tel" /></Field>
+                    <Field error={errors.telepon} htmlFor="telepon" label="Nomor telepon"><Input placeholder={identityPlaceholders.telepon} id="telepon" value={data.telepon} onChange={(event) => onChange('telepon', event.target.value)} autoComplete="tel" type="tel" /></Field>
                 </div>
             </section>}
         </div>

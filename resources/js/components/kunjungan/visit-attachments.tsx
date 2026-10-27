@@ -72,7 +72,7 @@ export function VisitAttachments({ attachments = [], uploadUrl, disabled = false
                     <p className="text-xs leading-5 text-neutral-500">PDF, JPG, PNG, atau WebP. Maksimal 5 MB per berkas dan 10 berkas per kunjungan ({attachments.length}/10).</p>
                 </div>
                 <Field htmlFor="attachment-note" label="Keterangan lampiran (opsional)" error={form.errors.note}>
-                    <Textarea id="attachment-note" className="min-h-20" maxLength={1000} placeholder="Contoh: Hasil lab dari fasilitas lain, 20 Oktober 2026" value={form.data.note} onChange={(event) => form.setData('note', event.target.value)} />
+                    <Textarea id="attachment-note" className="min-h-20" maxLength={1000} placeholder="Jenis dokumen, fasilitas penerbit, dan tanggal pemeriksaan" value={form.data.note} onChange={(event) => form.setData('note', event.target.value)} />
                 </Field>
             </div>
             {form.progress && <div className="space-y-1"><progress aria-label="Progres unggah lampiran" className="h-2 w-full" max={100} value={form.progress.percentage} /><p className="text-xs text-neutral-500">Mengunggah {form.progress.percentage}%</p></div>}

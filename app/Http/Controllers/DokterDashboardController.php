@@ -3,6 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\DateRangeFilter;
+use App\DoctorExaminationReport;
+use App\ClinicalAuditRecorder;
+use App\Exports\PemeriksaanExport;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use App\DoctorAccessService;
 use App\JadwalPraktikResolver;
 use App\Models\Diagnosa;
@@ -34,8 +39,8 @@ class DokterDashboardController extends Controller
 
         $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan'])
             ->whereDate('tanggal', $today)
-            ->orderByDesc('created_at')
-            ->paginate(10)
+            ->orderByDesc('created_at')->orderByDesc('id')
+            ->paginate(3)
             ->withQueryString();
 
         return Inertia::render('dokter/dashboard', [
@@ -80,12 +85,31 @@ class DokterDashboardController extends Controller
     public function appointments(Request $request): Response
     {
         $period = DateRangeFilter::fromRequest($request);
-        $kunjungan = $period->apply($this->doctorVisits())
-            ->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan'])
+        $isReport = $request->routeIs('dokter.laporan-pemeriksaan');
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $search = $filters['search'] ?? '';
+        $base = $isReport ? (new DoctorExaminationReport)->query($this->dokterId(), $period, $search) : $period->apply($this->doctorVisits());
+        $todayVisits = $this->doctorVisits()->whereDate('tanggal', today());
+        $kunjungan = (clone $base)
+            ->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan.diagnosa'])
             ->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
 
         return Inertia::render('dokter/appointments', [
+            'isReport' => $isReport,
+            'exportUrl' => $isReport ? route('dokter.laporan-pemeriksaan.export', ['dari' => $period->from, 'sampai' => $period->to, 'search' => $search]) : null,
+            'stats' => $isReport ? [
+                'total' => (clone $base)->count(),
+                'draft' => (clone $base)->whereHas('pemeriksaan', fn ($query) => $query->whereNull('signed_at'))->count(),
+                'final' => (clone $base)->whereHas('pemeriksaan', fn ($query) => $query->whereNotNull('signed_at'))->count(),
+                'patients' => (clone $base)->distinct()->count('pasien_id'),
+            ] : [
+                'total' => $this->doctorVisits()->count(),
+                'today' => (clone $todayVisits)->count(),
+                'waiting' => (clone $todayVisits)->whereIn('status', ['menunggu', 'screening'])->count(),
+                'completed' => (clone $todayVisits)->whereHas('pemeriksaan', fn ($query) => $query->whereNotNull('signed_at'))->count(),
+            ],
             'filters' => [
+                'search' => $search,
                 'dari' => $period->from ?? '',
                 'sampai' => $period->to ?? '',
             ],
@@ -98,6 +122,8 @@ class DokterDashboardController extends Controller
                     'medicalRecordNumber' => $visit->pasien->no_rm,
                     'clinic' => $visit->poliklinik->nama,
                     'status' => $visit->status,
+                    'diagnoses' => $visit->pemeriksaan?->diagnosa->map(fn ($diagnosis) => $diagnosis->kode_icd10.' - '.$diagnosis->nama_diagnosa)->implode('; ') ?? '',
+                    'finalizedAt' => $visit->pemeriksaan?->signed_at?->format('d/m/Y H:i'),
                     'examinationStarted' => $visit->pemeriksaan !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'triage' => $visit->screening?->kesimpulan_triase,
@@ -114,6 +140,16 @@ class DokterDashboardController extends Controller
                 'nextUrl' => $kunjungan->nextPageUrl(),
             ],
         ]);
+    }
+
+    public function exportExaminations(Request $request, ClinicalAuditRecorder $audit): BinaryFileResponse
+    {
+        $doctorId = $this->dokterId();
+        $period = DateRangeFilter::fromRequest($request);
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $audit->record($request, 'examination.report_export', metadata: ['doctor_id' => $doctorId, 'from' => $period->from, 'to' => $period->to]);
+
+        return Excel::download(new PemeriksaanExport($doctorId, $period, $filters['search'] ?? ''), 'laporan-pemeriksaan-'.today()->format('Y-m-d').'.xlsx');
     }
 
     public function patients(Request $request): Response

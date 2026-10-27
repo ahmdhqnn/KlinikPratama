@@ -118,7 +118,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             items: [
                 { label: 'Pendaftaran Pasien', href: '/pendaftaran/pendaftaran-baru', activePaths: ['/pendaftaran/pendaftaran-lama'], icon: UserRoundPlus },
                 { label: 'Kunjungan Poli', href: '/pendaftaran/kunjungan-per-poli', activePaths: ['/pendaftaran/kunjungan'], icon: BedDouble },
-                { label: 'Database Pasien', href: '/pendaftaran/database-pasien', icon: UsersRound },
+                { label: 'Database Pasien', href: '/pendaftaran/database-pasien', activePaths: ['/pelayanan/pasien'], icon: UsersRound },
             ],
         },
         {
@@ -153,7 +153,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
             ],
         },
-        { label: 'Laporan', items: [{ label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined }] },
+        { label: 'Laporan', items: [{ label: 'Laporan Pengkajian', href: '/perawat/laporan-pengkajian', icon: ClipboardCheck }, { label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined }] },
     ],
     dokter: [
         { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/dokter', icon: LayoutDashboard, exact: true }] },
@@ -173,7 +173,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Stok Obat', href: '/dokter/stok-obat', icon: Pill },
             ],
         },
-        { label: 'Laporan', items: [{ label: 'Top Diagnosis', href: '/dokter/laporan-top-diagnosa', icon: ChartNoAxesCombined }] },
+        { label: 'Laporan', items: [{ label: 'Laporan Pemeriksaan', href: '/dokter/laporan-pemeriksaan', icon: ClipboardCheck }, { label: 'Top Diagnosis', href: '/dokter/laporan-top-diagnosa', icon: ChartNoAxesCombined }] },
     ],
     farmasi: [
         { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/farmasi/dashboard', icon: LayoutDashboard, exact: true }] },
@@ -412,7 +412,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         { label: 'Akun', items: [{ label: 'Profil Saya', href: '/profile', icon: UserRound }] },
     ];
     const pathname = page.url.split(/[?#]/, 1)[0];
-    const pageTitle = getPageTitle(page.component);
+    const pageTitle = pathname === '/dokter/laporan-pemeriksaan' ? 'Laporan Pemeriksaan' : pathname === '/perawat/laporan-pengkajian' ? 'Laporan Pengkajian' : getPageTitle(page.component);
     const validHrefs = new Set(groups.flatMap((group) => group.items.map((item) => item.href)));
     const breadcrumbs = getBreadcrumbItems(pathname, pageTitle, validHrefs);
     const searchResults = groups.flatMap((group) => group.items
@@ -459,7 +459,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </DrawerContent>
             </Drawer>
 
-            <div className={`min-h-screen transition-[padding] duration-200 ${sidebarCollapsed ? 'lg:pl-[6.5rem]' : 'lg:pl-[19rem]'}`}>
+            <div className={`min-h-screen transition-[padding] duration-200 print:min-h-0 print:!pl-0 ${sidebarCollapsed ? 'lg:pl-[6.5rem]' : 'lg:pl-[19rem]'}`}>
                 <header className="sticky top-0 z-30 flex h-16 items-center gap-2 bg-canvas px-3 print:hidden sm:gap-3 sm:px-6 lg:top-4 lg:mt-4 lg:h-[4.5rem] lg:px-8 lg:before:pointer-events-none lg:before:absolute lg:before:inset-x-0 lg:before:-top-4 lg:before:h-4 lg:before:bg-canvas lg:before:content-['']">
                     <Button
                         aria-label="Buka navigasi"
@@ -513,7 +513,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                                     setSearchQuery('');
                                 }
                             }}
-                            placeholder="Cari menu…"
+                            placeholder="Cari menu"
                             role="combobox"
                             value={searchQuery}
                         />

@@ -1,0 +1,17 @@
+export const identityPlaceholders = {
+    nama: 'Nama lengkap sesuai identitas',
+    nik: '16 digit sesuai KTP',
+    nip: '8–30 digit sesuai data kepegawaian',
+    tempat_lahir: 'Contoh: Bandung',
+    nama_ibu: 'Nama lengkap ibu kandung',
+    telepon: 'Contoh: 081234567890',
+    email: 'Contoh: nama@instansi.go.id',
+    alamat: 'Jalan, nomor rumah, dan wilayah',
+    rt: 'Contoh: 001',
+    rw: 'Contoh: 002',
+    kelurahan: 'Nama kelurahan atau desa',
+    kecamatan: 'Nama kecamatan',
+    unit_kerja: 'Contoh: Bagian Umum',
+    referensi_bukti: 'Nomor surat atau versi daftar instansi',
+    riwayat_alergi: 'Obat, makanan, atau pemicu alergi yang diketahui',
+} as const;

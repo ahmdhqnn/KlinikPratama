@@ -18,6 +18,13 @@ class RedirectRegistrationRole
             abort(403, 'Unauthorized access.');
         }
 
+        if ($request->user()?->role === 'pendaftaran' && $request->routeIs('pelayanan.pasien.index')) {
+            return redirect()->route('pendaftaran.database-pasien');
+        }
+        if ($request->user()?->role === 'pendaftaran' && $request->routeIs('pelayanan.pasien.destroy', 'pelayanan.pasien.gabung')) {
+            abort(403, 'Unauthorized access.');
+        }
+
         if ($request->user()?->role === 'pendaftaran'
             && ! $request->is('pendaftaran', 'pendaftaran/*')) {
             return redirect()->route('pendaftaran.dashboard');
@@ -54,6 +61,8 @@ class RedirectRegistrationRole
     {
         return $request->routeIs(
             'perawat.dashboard',
+            'perawat.laporan-pengkajian',
+            'perawat.laporan-pengkajian.export',
             'pelayanan.screening.*',
             'pelayanan.kunjungan.show',
             'pelayanan.kunjungan.index',

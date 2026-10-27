@@ -112,6 +112,6 @@ export function BodyAnnotationEditor({ value, onChange, disabled = false, showNo
         </BodyAnnotationView>
         {!disabled && <p className="text-xs text-neutral-500">{tool === 'erase' ? 'Klik goresan yang ingin dihapus.' : 'Gambar pada referensi tubuh. Anotasi disimpan bersama pemeriksaan fisik.'} {value.strokes.length}/100 goresan.</p>}
         {message && <p role="alert" className="text-sm text-amber-700">{message}</p>}
-        {showNote && <Field htmlFor={id + '-annotation-note'} label="Keterangan anotasi"><Textarea id={id + '-annotation-note'} rows={3} maxLength={2000} disabled={disabled} value={value.note} onChange={(event) => onChange({ ...value, note: event.target.value })} placeholder="Jelaskan tanda, sisi tubuh pasien, ukuran, atau temuan pada gambar." /></Field>}
+        {showNote && <Field htmlFor={id + '-annotation-note'} label="Keterangan anotasi"><Textarea id={id + '-annotation-note'} rows={3} maxLength={2000} disabled={disabled} value={value.note} onChange={(event) => onChange({ ...value, note: event.target.value })} placeholder="Jelaskan tanda, sisi tubuh pasien, ukuran, atau temuan pada gambar" /></Field>}
     </section>;
 }

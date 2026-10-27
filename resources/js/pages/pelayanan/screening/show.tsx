@@ -21,6 +21,25 @@ type ScreeningValues = Record<ScalarField, string> & {
 };
 const scalarFields = ['petugas_id', 'keluhan', 'keluhan_tambahan', 'lama_keluhan', 'sumber_informasi', 'td_sistole', 'td_diastole', 'nadi', 'suhu', 'respirasi', 'spo2', 'berat_badan', 'tinggi_badan', 'lingkar_perut', 'alasan_pengukuran_tidak_lengkap', 'riwayat_alergi', 'status_alergi', 'alergi_jenis', 'alergi_reaksi', 'status_riwayat_penyakit', 'riwayat_penyakit', 'penyakit_nama', 'penyakit_keterangan', 'riwayat_obat', 'riwayat_penyakit_keluarga', 'skala_nyeri', 'skrining_gizi', 'pemeriksaan_fisik', 'nyeri_dada', 'kejang', 'nadi_teraba', 'pola_pernapasan', 'kesadaran', 'kondisi_psikiatri', 'risiko_jatuh_visual', 'catatan_triase', 'lokasi_nyeri_gigi', 'durasi_keluhan_gigi', 'catatan_medis_gigi'] as const;
 type ScalarField = typeof scalarFields[number];
+const assessmentPlaceholders = {
+    keluhan: 'Keluhan utama yang disampaikan pasien',
+    keluhan_tambahan: 'Keluhan lain yang menyertai keluhan utama',
+    lama_keluhan: 'Contoh: sejak kemarin atau selama 3 hari',
+    alasan_pengukuran_tidak_lengkap: 'Kendala pengukuran atau catatan pengkajian lainnya',
+    riwayat_alergi: 'Obat, makanan, atau pemicu alergi yang diketahui',
+    alergi_jenis: 'Nama obat, makanan, atau pemicu lainnya',
+    alergi_reaksi: 'Reaksi yang dialami setelah terpapar pemicu',
+    riwayat_penyakit: 'Penyakit yang pernah atau sedang dialami pasien',
+    penyakit_nama: 'Nama penyakit yang telah diketahui',
+    penyakit_keterangan: 'Sejak kapan, pengobatan, dan kondisi terakhir',
+    riwayat_obat: 'Nama obat, dosis, dan frekuensi penggunaan yang diketahui',
+    riwayat_penyakit_keluarga: 'Riwayat penyakit dan hubungan keluarga terkait',
+    pemeriksaan_fisik: 'Temuan objektif yang diperiksa saat pengkajian',
+    catatan_triase: 'Temuan penapisan dan tindak lanjut yang diperlukan',
+    lokasi_nyeri_gigi: 'Lokasi gigi atau gusi serta sisi yang dikeluhkan',
+    durasi_keluhan_gigi: 'Pola nyeri dan lama setiap episode',
+    catatan_medis_gigi: 'Informasi yang perlu dikonfirmasi kepada dokter gigi',
+} satisfies Partial<Record<ScalarField, string>>;
 type Option = [string, string];
 interface Visit {
     attachments?: ClinicalAttachment[]; attachmentUploadUrl?: string;
@@ -50,6 +69,9 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     if (!values.status_alergi && allergyHistory) {
         values.status_alergi = knownNoAllergy ? 'tidak_ada' : 'ada';
     }
+    if (!values.status_riwayat_penyakit && values.riwayat_penyakit) {
+        values.status_riwayat_penyakit = /^(pasien menyangkal|tidak ada)/i.test(values.riwayat_penyakit.trim()) ? 'tidak_ada' : 'ada';
+    }
     const list = (key: string): string[] => Array.isArray(visit.screening[key]) ? visit.screening[key].map(String) : [];
     const form = useForm<ScreeningValues>({ ...values, pemicu_nyeri_gigi: list('pemicu_nyeri_gigi'), risiko_medis_gigi: list('risiko_medis_gigi'), riwayat_infeksi_gigi: list('riwayat_infeksi_gigi'), konfirmasi_riwayat: false });
     const [expanded, setExpanded] = useState<Record<Section, boolean>>({ triage: false, complaint: false, history: false, vitals: true, anthropometry: false, dental: false, additional: false, ringkas: true, attachments: false });
@@ -65,7 +87,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     const triageComplete = triageFields.every(({ name }) => form.data[name] !== '');
     const triage = emergency ? 'merah' : priority ? 'kuning' : triageComplete ? 'hijau' : null;
     const responseLabel = triage === 'merah' ? 'Merah · perlu respons segera' : triage === 'kuning' ? 'Kuning · perlu penilaian lanjut' : 'Hijau · prioritas rutin';
-    const update = (name: ScalarField, value: string) => form.setData((data) => ({ ...data, [name]: value, ...(['status_alergi', 'riwayat_alergi', 'alergi_jenis', 'alergi_reaksi', 'status_riwayat_penyakit', 'riwayat_penyakit', 'penyakit_nama', 'penyakit_keterangan', 'riwayat_obat'].includes(name) ? { konfirmasi_riwayat: false } : {}) }));
+    const update = (name: ScalarField, value: string) => form.setData((data) => ({ ...data, [name]: value, ...(['status_alergi', 'riwayat_alergi', 'alergi_jenis', 'alergi_reaksi', 'status_riwayat_penyakit', 'riwayat_penyakit', 'penyakit_nama', 'penyakit_keterangan', 'riwayat_obat', 'riwayat_penyakit_keluarga'].includes(name) ? { konfirmasi_riwayat: false } : {}) }));
     const allSections = (open: boolean) => setExpanded(Object.fromEntries(sections.map((key) => [key, open])) as Record<Section, boolean>);
     const onError = () => { setMode('lengkap'); allSections(true); requestAnimationFrame(() => errorSummary.current?.focus()); };
     function save(action: 'draf' | 'kirim') {
@@ -80,8 +102,8 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     }
     const section = (id: Section, title: string, description: string, children: ReactNode) => <AssessmentSection id={id} title={title} description={description} open={expanded[id]} onToggle={() => setExpanded((state) => ({ ...state, [id]: !state[id] }))}>{children}</AssessmentSection>;
     const showOptional = (...names: (ScalarField | 'pemicu_nyeri_gigi' | 'risiko_medis_gigi' | 'riwayat_infeksi_gigi')[]) => mode === 'lengkap' || names.some((name) => Boolean(form.errors[name]) || form.data[name].length > 0);
-    const text = (name: ScalarField, label: string, required = false, multiline = false, visibleInCompact = false) => (required || visibleInCompact || showOptional(name)) && <Field error={form.errors[name]} htmlFor={name} label={label} required={required}>{multiline ? <Textarea id={name} maxLength={name === 'alasan_pengukuran_tidak_lengkap' ? 2000 : 5000} onChange={(event) => update(name, event.target.value)} placeholder={required ? 'Catat hasil pengkajian' : 'Belum dicatat (opsional)'} required={required} value={form.data[name]} /> : <Input id={name} maxLength={255} onChange={(event) => update(name, event.target.value)} placeholder={required ? 'Catat hasil pengkajian' : 'Belum dicatat (opsional)'} required={required} value={form.data[name]} />}</Field>;
-    const numeric = (name: ScalarField, label: string, unit: string, required = false, step = '1', max = 300, visibleInCompact = false) => (required || visibleInCompact || showOptional(name)) && <Field error={form.errors[name]} htmlFor={name} label={`${label} (${unit})`} required={required}><Input id={name} inputMode="decimal" min="0" max={max} onChange={(event) => update(name, event.target.value)} placeholder="Belum diukur" step={step} type="number" value={form.data[name]} /></Field>;
+    const text = (name: keyof typeof assessmentPlaceholders, label: string, required = false, multiline = false, visibleInCompact = false) => (required || visibleInCompact || showOptional(name)) && <Field error={form.errors[name]} htmlFor={name} label={label} required={required}>{multiline ? <Textarea id={name} maxLength={name === 'alasan_pengukuran_tidak_lengkap' ? 2000 : 5000} onChange={(event) => update(name, event.target.value)} placeholder={assessmentPlaceholders[name]} required={required} value={form.data[name]} /> : <Input id={name} maxLength={255} onChange={(event) => update(name, event.target.value)} placeholder={assessmentPlaceholders[name]} required={required} value={form.data[name]} />}</Field>;
+    const numeric = (name: ScalarField, label: string, unit: string, required = false, step = '1', max = 300, visibleInCompact = false) => (required || visibleInCompact || showOptional(name)) && <Field error={form.errors[name]} htmlFor={name} label={`${label} (${unit})`} required={required}><Input id={name} inputMode="decimal" min="0" max={max} onChange={(event) => update(name, event.target.value)} placeholder="Hasil pengukuran" step={step} type="number" value={form.data[name]} /></Field>;
     const single = (name: ScalarField, label: string, options: Option[], required = true) => <ChoiceGroup error={form.errors[name]} label={label} name={name} options={options} required={required} compact={!required} selected={form.data[name] ? [form.data[name]] : []} onChange={(value) => update(name, value[0] ?? '')} single />;
     const bloodPressure = () => <Field htmlFor="td_sistole" label="Tekanan darah (mmHg)" required error={[form.errors.td_sistole, form.errors.td_diastole].filter(Boolean).join(' ')}>
         <div role="group" aria-label="Tekanan darah dalam milimeter raksa" className="flex h-10 min-w-0 items-center overflow-hidden rounded-lg border border-neutral-200 bg-surface shadow-sm focus-within:ring-2 focus-within:ring-neutral-400">
@@ -146,7 +168,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
             {anthropometry}
         </section>
         <section className="space-y-4 border-t border-neutral-100 pt-5">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Riwayat kritis & alergi</h4><p className="mt-1 text-xs text-neutral-500">Konfirmasi alergi dan penyakit sebelum pengkajian diteruskan ke dokter.</p></div>
+            <div><h4 className="text-sm font-semibold text-neutral-900">Riwayat kritis & alergi</h4><p className="mt-1 text-xs text-neutral-500">Riwayat dari kunjungan sebelumnya dapat diperbarui. Konfirmasi kembali dengan pasien sebelum meneruskan ke dokter.</p></div>
             <div className="space-y-4">
                 {single('status_alergi', 'Status riwayat alergi', historyOptions)}
                 {form.data.status_alergi === 'ada' && <div className="grid min-w-0 gap-4 md:grid-cols-2"><div className="min-w-0 col-span-full">{text('riwayat_alergi', 'Rincian alergi obat / makanan / lainnya', true, true)}</div>{text('alergi_reaksi', 'Reaksi alergi', false, true)}{text('alergi_jenis', 'Jenis / pemicu alergi')}</div>}
@@ -283,8 +305,8 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                             {text('riwayat_penyakit', 'Riwayat penyakit sistemik', true, true)}
                             {text('penyakit_nama', 'Nama penyakit spesifik')}
                             {text('penyakit_keterangan', 'Keterangan riwayat penyakit', false, true)}
-                            {text('riwayat_obat', 'Obat rutin / sedang digunakan', false, true)}
                         </div>}
+                        {text('riwayat_obat', 'Obat rutin / sedang digunakan', false, true)}
                     </div>
                     {!isDental && historyConfirmation}
                 </>)}

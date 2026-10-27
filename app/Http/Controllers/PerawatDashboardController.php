@@ -35,8 +35,8 @@ class PerawatDashboardController extends Controller
             ->whereDate('tanggal', $today)
             ->where('poliklinik_id', $clinicId)
             ->whereIn('status', ['menunggu', 'screening', 'pemeriksaan'])
-            ->oldest('created_at')
-            ->paginate(10)
+            ->oldest('created_at')->oldest('id')
+            ->paginate(3)
             ->withQueryString();
 
         return Inertia::render('perawat/dashboard', [

@@ -1,6 +1,6 @@
 import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Search, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Empty } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Label } from '@/components/ui/label';
+import { Field } from '@/components/ui/field';
 
 interface Patient {
     id: number;
@@ -42,15 +42,15 @@ export default function DoctorPatients({ search, patients }: Props) {
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pasien yang pernah ditangani</h2>
                     <p className="mt-1 text-sm text-neutral-500">Daftar ini hanya mencakup pasien yang memiliki kunjungan dengan Anda.</p>
                 </div>
-                <Card>
-                    <CardContent className="p-5 sm:p-6">
-                        <FilterPanel><form className="flex flex-col gap-3 sm:flex-row" onSubmit={applySearch}>
-                            <Label className="sr-only" htmlFor="patient-search">Cari pasien</Label>
-                            <Input id="patient-search" onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, nomor rekam medis, atau NIK" value={query} />
-                            <Button className="sm:min-w-32" type="submit"><Search className="size-4" />Cari pasien</Button>
-                        </form></FilterPanel>
-                    </CardContent>
-                </Card>
+                <FilterPanel>
+                    <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={applySearch}>
+                        <Field className="w-full sm:max-w-md" htmlFor="patient-search" label="Cari pasien">
+                            <Input id="patient-search" onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, No. RM, atau NIK" value={query} />
+                        </Field>
+                        <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
+                        <Button asChild variant="secondary"><Link href="/dokter/pasien">Reset</Link></Button>
+                    </form>
+                </FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
