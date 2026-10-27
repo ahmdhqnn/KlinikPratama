@@ -49,7 +49,7 @@ export function MembershipPicker({ value, label, error, onClear, onSelect, regis
 
     return <div className="space-y-3">
         <Field error={error ?? failure} htmlFor="membership-search" label="NIP, NIK, atau nama peserta" required>
-            <div className="relative"><Input id="membership-search" autoComplete="off" maxLength={30} placeholder="NIP 8–30 digit · NIK 16 digit · nama peserta" value={query} onChange={(event) => {
+            <div className="relative"><Input id="membership-search" autoComplete="off" maxLength={30} placeholder="Cari NIP, NIK, atau nama peserta" value={query} onChange={(event) => {
                 if (value) {
                     onClear();
                     setSelected(null);

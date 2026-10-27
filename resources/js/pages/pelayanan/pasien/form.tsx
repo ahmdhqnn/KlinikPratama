@@ -1,3 +1,4 @@
+import { identityPlaceholders } from '@/lib/form-placeholders';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, Save, UserRoundPlus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -28,7 +29,7 @@ interface Patient {
     village: string | null;
     district: string | null;
     membershipId: number | null;
-    allergyHistory: string | null;
+    motherName: string | null;
 }
 
 interface FormData extends PatientFormData, ManualPatientIdentity {
@@ -43,18 +44,18 @@ interface Props {
 export default function PatientForm({ patient, today }: Props) {
     const [registrationType, setRegistrationType] = useState<'directory' | 'manual'>('directory');
     const form = useForm<FormData>({
-        registration_type: 'directory', kepesertaan_id: patient?.membershipId?.toString() ?? '',
+        registration_type: patient ? 'manual' : 'directory', kepesertaan_id: patient?.membershipId?.toString() ?? '',
         nama: patient?.name ?? '', nik: patient?.nik ?? '', nip: patient?.memberNip ?? '', unit_kerja: patient?.unit ?? '',
         tempat_lahir: patient?.birthPlace ?? '', tanggal_lahir: patient?.birthDate ?? '', jenis_kelamin: patient?.gender ?? '',
-        golongan_darah: patient?.bloodType ?? '', agama: patient?.religion ?? '', nama_ibu: '', telepon: patient?.phone ?? '',
+        golongan_darah: patient?.bloodType ?? '', agama: patient?.religion ?? '', nama_ibu: patient?.motherName ?? '', telepon: patient?.phone ?? '',
         alamat: patient?.address ?? '', rt: patient?.rt ?? '', rw: patient?.rw ?? '', kelurahan: patient?.village ?? '',
-        kecamatan: patient?.district ?? '', riwayat_alergi: patient?.allergyHistory ?? '',
+        kecamatan: patient?.district ?? '', riwayat_alergi: '',
     });
 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (patient) {
-            form.put(`/pelayanan/pasien/${patient.id}`);
+            form.put(`/pelayanan/pasien/${patient.id}`, { onSuccess: () => form.setDefaults() });
         } else {
             form.transform((data) => ({ ...data, registration_type: registrationType }));
             form.post('/pelayanan/pasien');
@@ -84,10 +85,10 @@ export default function PatientForm({ patient, today }: Props) {
                         </Card>
                     </TabsContent>}
                 </Tabs>}
-                {patient && <Card><CardHeader><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Informasi pasien</CardTitle><CardDescription className="mt-1">Kolom bertanda bintang wajib diisi.</CardDescription></div></div></CardHeader><CardContent>{patient.membershipId ? <PatientFields data={form.data} errors={form.errors} onChange={(field, value) => form.setData(field, value)} /> : <ManualPatientFields value={form.data} errors={form.errors} onChange={(field, value) => form.setData(field, value)} />}</CardContent></Card>}
+                {patient && <Card><CardHeader><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Informasi pasien</CardTitle><CardDescription className="mt-1">Kolom bertanda bintang wajib diisi.</CardDescription></div></div></CardHeader><CardContent><ManualPatientFields value={form.data} errors={form.errors} onChange={(field, value) => form.setData(field, value)} showAllergy={false} suggestExisting={false} lockIdentity={Boolean(patient.membershipId)} /></CardContent></Card>}
                 <div className="flex flex-col-reverse justify-end gap-3 border-t border-neutral-100 pt-5 sm:flex-row">
                     <Button asChild variant="secondary"><Link href={patient ? `/pelayanan/pasien/${patient.id}` : '/pelayanan/pasien'}>Batalkan</Link></Button>
-                    <Button disabled={form.processing} type="submit"><Save className="size-4" />{form.processing ? 'Menyimpan…' : patient ? 'Simpan perubahan' : 'Daftarkan pasien'}</Button>
+                    <Button disabled={form.processing || (Boolean(patient) && !form.isDirty) || !form.data.nama.trim()} type="submit"><Save className="size-4" />{form.processing ? 'Menyimpan…' : patient ? 'Simpan perubahan' : 'Daftarkan pasien'}</Button>
                 </div>
             </form>
         </>
@@ -103,10 +104,10 @@ function PatientIdentityCard({ form }: { form: ReturnType<typeof useForm<FormDat
                 <section className="space-y-4">
                     <div><h3 className="text-sm font-semibold text-neutral-950">Kontak dan riwayat kesehatan</h3><p className="mt-1 text-sm text-neutral-500">Gunakan nomor telepon yang dapat dihubungi dan catat alergi yang diketahui.</p></div>
                     <div className="grid gap-4 md:grid-cols-2">
-                        <Field error={form.errors.nama_ibu} htmlFor="admin-patient-mother" label="Nama ibu kandung"><Input id="admin-patient-mother" onChange={(event) => form.setData('nama_ibu', event.target.value)} value={form.data.nama_ibu} /></Field>
-                        <Field error={form.errors.telepon} htmlFor="admin-patient-phone" label="Nomor telepon"><Input autoComplete="tel" id="admin-patient-phone" onChange={(event) => form.setData('telepon', event.target.value)} type="tel" value={form.data.telepon} /></Field>
+                        <Field error={form.errors.nama_ibu} htmlFor="admin-patient-mother" label="Nama ibu kandung"><Input placeholder={identityPlaceholders.nama_ibu} id="admin-patient-mother" onChange={(event) => form.setData('nama_ibu', event.target.value)} value={form.data.nama_ibu} /></Field>
+                        <Field error={form.errors.telepon} htmlFor="admin-patient-phone" label="Nomor telepon"><Input placeholder={identityPlaceholders.telepon} autoComplete="tel" id="admin-patient-phone" onChange={(event) => form.setData('telepon', event.target.value)} type="tel" value={form.data.telepon} /></Field>
                     </div>
-                    <Field error={form.errors.riwayat_alergi} htmlFor="admin-patient-allergy" label="Riwayat alergi"><Textarea id="admin-patient-allergy" onChange={(event) => form.setData('riwayat_alergi', event.target.value)} placeholder="Contoh: alergi obat atau makanan; konfirmasi bila tidak ada alergi." value={form.data.riwayat_alergi} /></Field>
+                    <Field error={form.errors.riwayat_alergi} htmlFor="admin-patient-allergy" label="Riwayat alergi"><Textarea id="admin-patient-allergy" onChange={(event) => form.setData('riwayat_alergi', event.target.value)} placeholder={identityPlaceholders.riwayat_alergi} value={form.data.riwayat_alergi} /></Field>
                 </section>
             </CardContent>
         </Card>

@@ -65,6 +65,11 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         });
     });
 
+    Route::middleware(EnsureRole::class.':perawat')->group(function (): void {
+        Route::get('/perawat/laporan-pengkajian', [ScreeningController::class, 'history'])->name('perawat.laporan-pengkajian');
+        Route::get('/perawat/laporan-pengkajian/export', [ScreeningController::class, 'exportReport'])->name('perawat.laporan-pengkajian.export');
+    });
+
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/perawat/dashboard', PerawatDashboardController::class)
@@ -79,6 +84,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('janji-kunjungan', [DokterDashboardController::class, 'appointments'])->name('janji-kunjungan');
         Route::get('pasien', [DokterDashboardController::class, 'patients'])->name('pasien');
         Route::get('stok-obat', [DokterDashboardController::class, 'stock'])->name('stok-obat');
+        Route::get('laporan-pemeriksaan', [DokterDashboardController::class, 'appointments'])->name('laporan-pemeriksaan');
+        Route::get('laporan-pemeriksaan/export', [DokterDashboardController::class, 'exportExaminations'])->name('laporan-pemeriksaan.export');
         Route::get('laporan-top-diagnosa', [DokterDashboardController::class, 'topDiagnoses'])->name('laporan-top-diagnosa');
     });
 
@@ -151,10 +158,14 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::middleware(EnsureAdminRole::class)->group(function (): void {
             Route::post('pasien/{pasien}/verifikasi-kepesertaan', [PasienController::class, 'verifyMembership'])->name('pasien.verify-membership');
             Route::post('pasien/{pasien}/verifikasi-hak-khusus', [PasienController::class, 'verifyMembership'])->name('pasien.verify-special-access');
-            Route::resource('pasien', PasienController::class)->except(['index', 'show']);
+            Route::resource('pasien', PasienController::class)->except(['index', 'show', 'edit', 'update']);
+        });
+        Route::middleware(EnsureRole::class.':admin,pendaftaran')->withoutMiddleware(RedirectRegistrationRole::class)->group(function (): void {
+            Route::resource('pasien', PasienController::class)->only(['edit', 'update']);
         });
         Route::middleware(EnsureRole::class.':admin,perawat,pendaftaran,dokter')->group(function (): void {
-            Route::resource('pasien', PasienController::class)->only(['index', 'show']);
+            Route::resource('pasien', PasienController::class)->only(['index']);
+            Route::get('pasien/{pasien}', [PasienController::class, 'show'])->withoutMiddleware(RedirectRegistrationRole::class)->name('pasien.show');
         });
         Route::middleware(EnsureRole::class.':perawat,dokter')->group(function (): void {
             Route::get('pasien/{pasien}/rekam-medis', [PasienController::class, 'rekamMedis'])->name('pasien.rekam-medis');
@@ -250,6 +261,9 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     Route::prefix('pendaftaran')->name('pendaftaran.')->withoutMiddleware(RedirectRegistrationRole::class)->middleware(EnsureRegistrationRole::class)->group(function () {
         Route::get('/', [RegistrationController::class, 'dashboard'])->name('dashboard');
 
+        Route::get('sugesti-identitas', [RegistrationController::class, 'identitySuggestions'])->name('identity-suggestions');
+        Route::get('laporan-kunjungan/export', [RegistrationController::class, 'exportKunjungan'])->name('laporan-kunjungan.export');
+        Route::get('laporan-top-diagnosa/export', [RegistrationController::class, 'exportTopDiagnosa'])->name('laporan-top-diagnosa.export');
         Route::get('laporan-kunjungan', [RegistrationController::class, 'laporanKunjungan'])->name('laporan-kunjungan');
         Route::get('kunjungan/{kunjungan}', [KunjunganController::class, 'show'])->name('kunjungan.show');
         Route::get('kunjungan/{kunjungan}/cetak-antrian', [RegistrationController::class, 'cetakAntrian'])->name('cetak-antrian');

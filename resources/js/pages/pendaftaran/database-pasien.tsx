@@ -1,5 +1,6 @@
+import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Search, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
@@ -22,6 +23,8 @@ interface Patient {
     phone: string | null;
     membership: string;
     registeredAt: string;
+    viewUrl: string;
+    editUrl: string | null;
 }
 
 interface Props {
@@ -48,7 +51,7 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                 </div>
                 <FilterPanel><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
                             <Field htmlFor="patient-database-search" label="Cari pasien">
-                                <Input id="patient-database-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama, No. RM, NIK, NIP, atau telepon" value={filters.search} />
+                                <Input id="patient-database-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama, No. RM, NIK, NIP, atau telepon" value={filters.search} />
                             </Field>
                             <Field htmlFor="patient-database-gender" label="Jenis kelamin">
                                 <Select id="patient-database-gender" onChange={(event) => setFilters({ ...filters, jenisKelamin: event.target.value })} value={filters.jenisKelamin}>
@@ -67,7 +70,7 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[980px]">
-                                <TableHeader><tr><TableHead>No. RM</TableHead><TableHead>Nama</TableHead><TableHead>JK</TableHead><TableHead>Tanggal lahir</TableHead><TableHead>Telepon</TableHead><TableHead>Kepesertaan</TableHead><TableHead>Terdaftar</TableHead></tr></TableHeader>
+                                <TableHeader><tr><TableHead>No. RM</TableHead><TableHead>Nama</TableHead><TableHead>JK</TableHead><TableHead>Tanggal lahir</TableHead><TableHead>Telepon</TableHead><TableHead>Kepesertaan</TableHead><TableHead>Terdaftar</TableHead><TableHead>Aksi</TableHead></tr></TableHeader>
                                 <TableBody>
                                     {patients.data.length > 0 ? patients.data.map((patient) => (
                                         <TableRow key={patient.id}>
@@ -78,8 +81,9 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                                             <TableCell className="text-neutral-600">{patient.phone || 'Belum diisi'}</TableCell>
                                             <TableCell className="text-neutral-600">{patient.membership}</TableCell>
                                             <TableCell className="whitespace-nowrap text-neutral-500">{patient.registeredAt}</TableCell>
+                                            <TableCell><div className="flex justify-center gap-2"><ActionButton asChild action="detail" label={`Lihat ${patient.name}`}><Link href={patient.viewUrl} /></ActionButton>{patient.editUrl && <ActionButton asChild action="edit" label={`Edit ${patient.name}`}><Link href={patient.editUrl} /></ActionButton>}</div></TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada data pasien yang cocok." /></TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={8}><Empty size="compact" title="Tidak ada data pasien yang cocok." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

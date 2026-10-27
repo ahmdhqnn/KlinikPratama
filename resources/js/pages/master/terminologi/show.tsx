@@ -55,7 +55,7 @@ export default function ClinicalTerminologyShow({ catalog, codes, search: initia
                         <CardTitle>Daftar kode</CardTitle>
                         <CardDescription>Kode dan uraian asli dari sistem terminologi terpilih.</CardDescription>
                         <FilterPanel><form className="grid gap-3  sm:grid-cols-2 lg:grid-cols-4" onSubmit={applySearch}>
-                            <Input aria-label="Cari kode atau uraian" onChange={(event) => setSearch(event.target.value)} placeholder="Cari kode atau uraian…" value={search} />
+                            <Input aria-label="Cari kode atau uraian" onChange={(event) => setSearch(event.target.value)} placeholder="Cari kode atau uraian" value={search} />
                             <Button type="submit"><Search className="size-4" />Cari</Button>
                         </form></FilterPanel>
                     </CardHeader>

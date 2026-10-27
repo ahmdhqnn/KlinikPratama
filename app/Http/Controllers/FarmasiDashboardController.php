@@ -29,8 +29,8 @@ class FarmasiDashboardController extends Controller
             ->count();
         $recentVisits = (clone $pharmacyVisits)
             ->with(['pasien', 'poliklinik', 'farmasi'])
-            ->orderBy('created_at')
-            ->limit(8)
+            ->orderBy('created_at')->orderBy('id')
+            ->limit(3)
             ->get();
 
         return Inertia::render('farmasi/dashboard', [

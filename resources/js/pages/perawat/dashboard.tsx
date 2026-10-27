@@ -32,10 +32,10 @@ export default function NurseDashboard({ stats, visits, followUp }: Props) {
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ringkasan pengkajian awal</h2>
                     <p className="mt-1 text-sm text-neutral-500">Ringkasan menunjukkan seluruh kunjungan poli; antrean dan kebutuhan respons menampilkan kondisi hari ini.</p>
                 </div>
-                <section aria-label="Statistik keperawatan" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <section aria-label="Statistik keperawatan" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>a>section]:h-full [&>a>section>div]:h-full">
                     <StatCard description={`Menunggu atau dalam pengkajian${todayCountDescription(stats.menunggu_ttv_hari_ini)}`} href="/pelayanan/screening" icon={<HeartPulse className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pengkajian awal" value={stats.menunggu_ttv} />
                     <StatCard description={`Seluruh kunjungan poli${todayCountDescription(stats.total_kunjungan_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli" icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan poli" value={stats.total_kunjungan} />
-                    <StatCard description={`Menunggu atau sedang diperiksa dokter${todayCountDescription(stats.siap_dokter_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli?status=pemeriksaan" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan dokter" value={stats.siap_dokter} />
+                    <StatCard description={`Menunggu / sedang diperiksa${todayCountDescription(stats.siap_dokter_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli?status=pemeriksaan" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan dokter" value={stats.siap_dokter} />
                     <StatCard description="Memerlukan respons segera hari ini" href="/pelayanan/screening/riwayat" icon={<AlertTriangle className="size-5" />} iconClassName="bg-red-50 text-red-700" label="Perlu respons segera" value={stats.triase_darurat} />
                 </section>
                 <FollowUp data={followUp} />
@@ -60,6 +60,7 @@ export default function NurseDashboard({ stats, visits, followUp }: Props) {
                     </CardHeader>
                     <VisitTable visits={visits.data} />
                     <Pagination pagination={visits} />
+                    <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/screening">Lihat antrean pengkajian</Link></Button></div>
                 </Card>
             </div>
         </>

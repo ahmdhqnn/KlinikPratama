@@ -44,7 +44,7 @@ interface Patient {
     visits: Visit[];
 };
 
-export default function PatientDetail({ patient, permissions }: { patient: Patient; permissions: { viewRme: boolean; editPatient: boolean; openVisit: boolean } }) {
+export default function PatientDetail({ patient, permissions, backUrl, openVisitUrl }: { backUrl: string; openVisitUrl: string; patient: Patient; permissions: { viewRme: boolean; editPatient: boolean; openVisit: boolean } }) {
     return (
         <>
             <Head title={`Profil ${patient.name}`} />
@@ -52,10 +52,10 @@ export default function PatientDetail({ patient, permissions }: { patient: Patie
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div><p className="text-sm font-medium text-neutral-700">Profil pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{patient.name}</h2><p className="mt-1 font-mono text-sm text-neutral-500">{patient.medicalRecordNumber}</p></div>
                     <div className="flex flex-wrap gap-2">
-                        <Button asChild variant="secondary"><Link href="/pelayanan/pasien"><ArrowLeft className="size-4" />Kembali</Link></Button>
+                        <Button asChild variant="secondary"><Link href={backUrl}><ArrowLeft className="size-4" />Kembali</Link></Button>
                         {permissions.editPatient && <Button asChild variant="secondary"><Link href={`/pelayanan/pasien/${patient.id}/edit`}><Pencil className="size-4" />Edit data</Link></Button>}
                         {permissions.viewRme && <Button asChild variant="secondary"><Link href={`/pelayanan/pasien/${patient.id}/rekam-medis`}><HeartPulse className="size-4" />Rekam medis lengkap</Link></Button>}
-                        {permissions.openVisit && <Button asChild><Link href={`/pelayanan/kunjungan/create?pasien_id=${patient.id}`}><CalendarPlus className="size-4" />Buka kunjungan</Link></Button>}
+                        {permissions.openVisit && <Button asChild><Link href={openVisitUrl}><CalendarPlus className="size-4" />Buka kunjungan</Link></Button>}
                     </div>
                 </div>
                 <div className="grid gap-6 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.7fr)]">

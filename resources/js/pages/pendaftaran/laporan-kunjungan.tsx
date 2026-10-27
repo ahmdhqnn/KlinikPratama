@@ -1,7 +1,7 @@
 import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
-import { CalendarDays, Search } from 'lucide-react';
+import { CalendarDays, Search, Download } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/status-badge';
@@ -45,6 +45,7 @@ interface Filters {
 }
 
 interface Props {
+    exportUrl: string | null;
     filters: Filters;
     clinics: Clinic[];
     visits: PaginationData & { data: Visit[] };
@@ -52,7 +53,7 @@ interface Props {
 
 const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusFilterLabels[status]]);
 
-export default function RegistrationVisitReport({ filters: initialFilters, clinics, visits }: Props) {
+export default function RegistrationVisitReport({ filters: initialFilters, clinics, visits, exportUrl }: Props) {
     const [filters, setFilters] = useState(initialFilters);
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
@@ -74,10 +75,11 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Laporan kunjungan pasien</h2>
                     <p className="mt-1 text-sm text-neutral-500">Cari kunjungan, cetak nomor antrean, atau kelola kunjungan aktif.</p>
                 </div>
-                <FilterPanel><form className="space-y-4" onSubmit={applyFilters}>
+
+                <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}><form className="space-y-4" onSubmit={applyFilters}>
                             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                                 <Field htmlFor="registration-visits-search" label="Cari pasien">
-                                    <Input id="registration-visits-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama atau nomor RM" value={filters.search} />
+                                    <Input id="registration-visits-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama atau No. RM" value={filters.search} />
                                 </Field>
                                 <Field htmlFor="registration-visits-date" label="Tanggal">
                                     <DatePicker id="registration-visits-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} value={filters.tanggal} />

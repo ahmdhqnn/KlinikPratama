@@ -157,7 +157,7 @@ export function VisitFields({ existingVisit, clinics, today, doctorsUrl, values,
                 <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Fasilitas klinik internal</p><p className="mt-1 text-xs text-neutral-500">Pasien baru dapat langsung didaftarkan untuk kunjungan. Verifikasi kepesertaan dilakukan oleh admin.</p></div>
             </div>
             <Field error={errors.catatan} htmlFor="catatan" label="Catatan kunjungan">
-                <Textarea aria-describedby={errors.catatan ? 'catatan-error' : undefined} id="catatan" onChange={(event) => onChange({ catatan: event.target.value })} placeholder="Catatan tambahan (opsional)" value={values.catatan} />
+                <Textarea aria-describedby={errors.catatan ? 'catatan-error' : undefined} id="catatan" onChange={(event) => onChange({ catatan: event.target.value })} placeholder="Catatan khusus atau informasi rujukan awal" value={values.catatan} />
             </Field>
         </div>
     );

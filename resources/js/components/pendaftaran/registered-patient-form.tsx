@@ -44,18 +44,19 @@ export interface PatientResult {
 }
 
 interface Props {
+    initialPatient?: PatientResult | null;
     clinics: Option[];
     today: string;
     doctorsUrl: string;
 }
 
-export function RegisteredPatientForm({ clinics, today, doctorsUrl }: Props) {
+export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatient = null }: Props) {
     const form = useForm<PatientForm>({
-        pasien_id: '', poliklinik_id: clinics.find((clinic) => clinic.type === 'umum')?.id.toString() ?? '', dokter_id: '', tanggal: today, catatan: '',
+        pasien_id: initialPatient?.id.toString() ?? '', poliklinik_id: clinics.find((clinic) => clinic.type === 'umum')?.id.toString() ?? '', dokter_id: '', tanggal: today, catatan: '',
     });
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<PatientResult[]>([]);
-    const [selectedPatient, setSelectedPatient] = useState<PatientResult | null>(null);
+    const [selectedPatient, setSelectedPatient] = useState<PatientResult | null>(initialPatient);
     const [searching, setSearching] = useState(false);
     const [searchError, setSearchError] = useState('');
 
@@ -146,7 +147,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl }: Props) {
                                     setQuery(event.target.value);
                                     setSelectedPatient(null);
                                     form.setData((data) => ({ ...data, pasien_id: '', catatan: '' }));
-                                }} placeholder="Ketik nama, No. RM, NIK, atau NIP" value={query} />
+                                }} placeholder="Cari nama, No. RM, NIK, atau NIP" value={query} />
                                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400">
                                     {searching ? <Spinner label="Mencari pasien" /> : <Search className="size-4" />}
                                 </span>

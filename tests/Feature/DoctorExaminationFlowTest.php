@@ -575,7 +575,7 @@ class DoctorExaminationFlowTest extends TestCase
         );
     }
 
-    public function test_unanswered_doctor_allergy_stays_unknown_while_known_patient_allergy_remains_visible(): void
+    public function test_blank_doctor_allergy_preserves_current_history_and_patient_master_until_finalization(): void
     {
         [$user, $visit, $examination] = $this->examinationWithSections('umum');
 
@@ -583,11 +583,11 @@ class DoctorExaminationFlowTest extends TestCase
             'section' => 'anamnesis', 'anamnesis' => 'Keluhan awal', 'riwayat_alergi' => '',
         ])->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('pemeriksaan', ['id' => $examination->id, 'riwayat_alergi' => null]);
+        $this->assertDatabaseHas('pemeriksaan', ['id' => $examination->id, 'riwayat_alergi' => 'Penisilin']);
         $this->assertDatabaseHas('pasien', ['id' => $visit->pasien_id, 'riwayat_alergi' => 'Udang']);
         $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien_id))->assertInertia(fn (Assert $page) => $page
             ->where('patient.allergies', 'Udang')
-            ->where('visits.0.examination.allergyHistory', 'Belum dicatat')
+            ->where('visits.0.examination.allergyHistory', 'Penisilin')
         );
     }
 

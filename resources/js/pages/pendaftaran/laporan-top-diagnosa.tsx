@@ -1,7 +1,7 @@
 import { StatCard } from '@/components/dashboard/stat-card';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
-import { Activity, ClipboardList, Search } from 'lucide-react';
+import { Activity, ClipboardList, Search, Download } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,12 +21,13 @@ interface Diagnosis {
 }
 
 interface Props {
+    exportUrl: string | null;
     filters: { tanggalMulai: string; tanggalSelesai: string };
     summary: { diagnosisCount: number; caseCount: number };
     diagnoses: PaginationData & { data: Diagnosis[] };
 }
 
-export default function RegistrationTopDiagnoses({ filters: initialFilters, summary, diagnoses }: Props) {
+export default function RegistrationTopDiagnoses({ filters: initialFilters, summary, diagnoses, exportUrl }: Props) {
     const [filters, setFilters] = useState(initialFilters);
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
@@ -46,7 +47,8 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Laporan top diagnosis</h2>
                     <p className="mt-1 text-sm text-neutral-500">Ringkasan diagnosis pasien untuk periode yang dipilih.</p>
                 </div>
-                <FilterPanel><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
+
+                <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
                             <Field htmlFor="registration-diagnoses-period" label="Periode diagnosis">
                                 <DateRangePicker id="registration-diagnoses-period" from={filters.tanggalMulai} onChange={(range) => setFilters({ ...filters, tanggalMulai: range.from, tanggalSelesai: range.to })} to={filters.tanggalSelesai} />
                             </Field>

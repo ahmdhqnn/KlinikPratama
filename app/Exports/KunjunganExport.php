@@ -2,9 +2,8 @@
 
 namespace App\Exports;
 
-use App\VisitQueryService;
 use App\DateRangeFilter;
-use App\Models\Kunjungan;
+use App\VisitQueryService;
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -19,12 +18,14 @@ class KunjunganExport implements FromQuery, WithHeadings, WithMapping, WithStyle
         private readonly ?string $sampai = null,
         private readonly ?int $clinicId = null,
         private readonly ?string $status = null,
+        private readonly ?string $search = null,
+        private readonly ?string $date = null,
     ) {}
 
     public function query(): Builder
     {
         return (new VisitQueryService)->filtered(
-            ['poliklinik_id' => $this->clinicId, 'status' => $this->status],
+            ['poliklinik_id' => $this->clinicId, 'status' => $this->status, 'search' => $this->search, 'tanggal' => $this->date],
             period: new DateRangeFilter($this->dari, $this->sampai),
         )->with(['pasien', 'poliklinik', 'dokter'])->latest('tanggal')->latest('id');
     }

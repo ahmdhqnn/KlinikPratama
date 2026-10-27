@@ -10,7 +10,7 @@ final class PracticeScheduleAccess
 
     public function canManage(User $user): bool
     {
-        if ($user->hasRole('admin', 'pendaftaran')) {
+        if ($user->hasRole('admin', 'pendaftaran', 'dokter')) {
             return true;
         }
 

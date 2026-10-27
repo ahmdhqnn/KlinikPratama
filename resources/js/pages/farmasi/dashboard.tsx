@@ -49,6 +49,7 @@ export default function PharmacyDashboard({ stats, recentVisits, followUp }: Pro
                         <CardDescription>Urutan kunjungan tertua ditampilkan lebih dahulu untuk membantu pelayanan.</CardDescription>
                     </CardHeader>
                     <VisitTable visits={recentVisits} />
+                    <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/farmasi">Lihat antrean resep</Link></Button></div>
                 </Card>
             </div>
         </>

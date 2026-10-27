@@ -29,7 +29,7 @@ export default function Inventory({ medicines, filters }: { medicines: Paginatio
                     </div>
                 </div>
                 <FilterPanel><form className="grid gap-3  sm:grid-cols-2 lg:grid-cols-4 sm:items-center" onSubmit={(event) => { event.preventDefault(); router.get('/stok/persediaan', { search, jenis: type }, { preserveState: true, replace: true }); }}>
-                    <Input aria-label="Cari obat atau BHP" placeholder="Cari nama atau kode…" value={search} onChange={(event) => setSearch(event.target.value)} />
+                    <Input aria-label="Cari obat atau BHP" placeholder="Cari nama atau kode" value={search} onChange={(event) => setSearch(event.target.value)} />
                     <Select className="w-full" aria-label="Jenis persediaan" value={type} onChange={(event) => setType(event.target.value)}><option value="">Obat & BHP</option><option value="obat">Obat</option><option value="bhp">BHP</option></Select>
                     <Button className="w-full sm:w-auto" type="submit" variant="secondary"><Search className="size-4" />Cari</Button>
                 </form></FilterPanel>
