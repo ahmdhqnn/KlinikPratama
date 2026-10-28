@@ -21,13 +21,13 @@ final class VisitQueryService
         return $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'tanggal' => ['nullable', 'date_format:Y-m-d'],
-            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,farmasi,kasir,selesai,batal'],
+            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,tindakan,farmasi,kasir,selesai,batal'],
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
         ]);
     }
 
     /**
-     * @param array{search?: string|null, tanggal?: string|null, status?: string|null, poliklinik_id?: int|string|null} $filters
+     * @param  array{search?: string|null, tanggal?: string|null, status?: string|null, poliklinik_id?: int|string|null}  $filters
      * @return Builder<Kunjungan>
      */
     public function filtered(array $filters, ?int $assignedClinicId = null, ?DateRangeFilter $period = null): Builder

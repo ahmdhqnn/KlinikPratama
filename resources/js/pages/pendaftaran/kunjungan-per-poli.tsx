@@ -47,7 +47,7 @@ interface Props {
     recentVisits: PaginationData & { data: Visit[] };
 }
 
-const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusFilterLabels[status]]);
+const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'tindakan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusFilterLabels[status]]);
 
 export default function ClinicVisits({ filters: initialFilters, clinics, stats, access, visits, recentVisits }: Props) {
     const [filters, setFilters] = useState(initialFilters);
@@ -123,7 +123,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><CalendarDays className="size-5" /></span>
-                            <div><CardTitle>Daftar pasien</CardTitle><CardDescription className="mt-1">Daftar kunjungan di setiap poliklinik.</CardDescription></div>
+                            <div><CardTitle>Daftar kunjungan pasien</CardTitle><CardDescription className="mt-1">Seluruh kunjungan sesuai filter poliklinik, tanggal, dan status.</CardDescription></div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">

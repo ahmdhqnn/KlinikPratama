@@ -26,6 +26,8 @@ export interface PatientResult {
     nama: string;
     jenis_kelamin: string | null;
     tanggal_lahir: string | null;
+    tanggal_lahir_tampil: string | null;
+    umur: number | null;
     telepon: string | null;
     eligibilityReason: string | null;
     nik: string | null;
@@ -33,7 +35,6 @@ export interface PatientResult {
     tempat_lahir: string | null;
     golongan_darah: string | null;
     agama: string | null;
-    nama_ibu: string | null;
     alamat: string | null;
     rt: string | null;
     rw: string | null;
@@ -228,12 +229,12 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
 
 export function RegisteredPatientIdentity({ patient }: { patient: PatientResult }) {
     const fields = [
-        ['NIK', patient.nik], ['NIP', patient.nip], ['Tempat lahir', patient.tempat_lahir],
-        ['Tanggal lahir', patient.tanggal_lahir], ['Golongan darah', patient.golongan_darah],
-        ['Agama', patient.agama], ['Nama ibu kandung', patient.nama_ibu], ['Nomor telepon', patient.telepon],
+        ['NIK', patient.nik], ['NIP', patient.nip],
+        ['Jenis kelamin', patient.jenis_kelamin === 'L' ? 'Laki-laki' : patient.jenis_kelamin === 'P' ? 'Perempuan' : null],
+        ['Tempat, tanggal lahir', [patient.tempat_lahir, patient.tanggal_lahir_tampil || patient.tanggal_lahir].filter(Boolean).join(', ') + (patient.umur === null || patient.umur === undefined ? '' : ` (${patient.umur} tahun)`)],
+        ['Golongan darah', patient.golongan_darah],
+        ['Agama', patient.agama], ['Nomor telepon', patient.telepon],
         ['Kepesertaan', patient.membership], ['Unit kerja', patient.unit_kerja], ['Alamat', patient.alamat],
-        ['RT / RW', [patient.rt, patient.rw].filter(Boolean).join(' / ')],
-        ['Kelurahan / desa', patient.kelurahan], ['Kecamatan', patient.kecamatan],
     ];
 
     return <dl className="mt-4 grid gap-4 border-t border-neutral-200 pt-4 sm:grid-cols-2 lg:grid-cols-3">

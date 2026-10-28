@@ -3,7 +3,6 @@ export const identityPlaceholders = {
     nik: '16 digit sesuai KTP',
     nip: '8–30 digit sesuai data kepegawaian',
     tempat_lahir: 'Contoh: Bandung',
-    nama_ibu: 'Nama lengkap ibu kandung',
     telepon: 'Contoh: 081234567890',
     email: 'Contoh: nama@instansi.go.id',
     alamat: 'Jalan, nomor rumah, dan wilayah',

@@ -35,9 +35,9 @@ class RegistrationFlowEnhancementTest extends TestCase
         $this->get(route('pendaftaran.pendaftaran-baru', ['tab' => 'registered', 'pasien_id' => $patient->id]))
             ->assertInertia(fn (Assert $page) => $page->where('initialTab', 'registered')->where('initialPatient.id', $patient->id));
         $this->get(route('pelayanan.pasien.edit', $patient))->assertInertia(fn (Assert $page) => $page
-            ->where('patient.motherName', 'Ibu Pasien')->missing('patient.allergyHistory'));
+            ->missing('patient.motherName')->missing('patient.allergyHistory'));
         $this->put(route('pelayanan.pasien.update', $patient), [
-            'registration_type' => 'manual', 'nama' => 'Nama Diperbarui', 'nama_ibu' => 'Ibu Pasien', 'agama' => 'Lainnya',
+            'registration_type' => 'manual', 'nama' => 'Nama Diperbarui', 'nama_ibu' => 'Nama Sisipan', 'agama' => 'Lainnya',
             'telepon' => '08123456789', 'riwayat_alergi' => 'Tidak ada', 'no_rm' => 'RM-TAMPER', 'kepesertaan_id' => 999,
         ])->assertSessionHasNoErrors()->assertRedirect(route('pelayanan.pasien.show', $patient));
 

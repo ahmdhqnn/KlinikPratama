@@ -27,12 +27,12 @@ class PatientRegistrationService
             'jenis_kelamin' => ['nullable', 'in:L,P'],
             'golongan_darah' => ['nullable', 'in:A,B,AB,O'],
             'agama' => ['nullable', 'string', 'max:50'],
+            'unit_kerja' => ['nullable', 'string', 'max:200'],
             'alamat' => ['nullable', 'string', 'max:2000'],
             'rt' => ['nullable', 'string', 'max:5'],
             'rw' => ['nullable', 'string', 'max:5'],
             'kelurahan' => ['nullable', 'string', 'max:100'],
             'kecamatan' => ['nullable', 'string', 'max:100'],
-            'nama_ibu' => ['nullable', 'string', 'max:255'],
             'telepon' => ['nullable', 'string', 'max:20'],
             'riwayat_alergi' => $includeClinicalHistory ? ['nullable', 'string', 'max:2000'] : ['exclude'],
         ];
@@ -60,9 +60,14 @@ class PatientRegistrationService
                 }
             }
             if ($member) {
-                $requiredFields = ['tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'agama', 'alamat', 'rt', 'rw', 'kelurahan', 'kecamatan'];
+                $requiredFields = ['tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'agama', 'alamat', 'unit_kerja'];
                 Validator::make($data, array_fill_keys($requiredFields, ['sometimes', 'required']))->validate();
-                $identity = array_intersect_key($data, array_flip(['nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'golongan_darah', 'agama', 'alamat', 'rt', 'rw', 'kelurahan', 'kecamatan']));
+                foreach (['rt', 'rw', 'kelurahan', 'kecamatan'] as $field) {
+                    if (blank($data[$field] ?? null) && $member->{$field}) {
+                        $data[$field] = $member->{$field};
+                    }
+                }
+                $identity = array_intersect_key($data, array_flip(['nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'golongan_darah', 'agama', 'alamat', 'unit_kerja', 'rt', 'rw', 'kelurahan', 'kecamatan']));
                 $member->update($identity);
             }
             $patient->fill($data);
@@ -91,9 +96,9 @@ class PatientRegistrationService
                 'nama' => $data['nama'], 'nik' => $data['nik'] ?? null, 'nip' => $data['nip'] ?? null, 'kepesertaan_id' => null,
                 'tempat_lahir' => $data['tempat_lahir'] ?? null, 'tanggal_lahir' => $data['tanggal_lahir'] ?? null,
                 'jenis_kelamin' => $data['jenis_kelamin'] ?? null, 'golongan_darah' => $data['golongan_darah'] ?? null,
-                'agama' => $data['agama'] ?? null, 'alamat' => $data['alamat'] ?? null, 'rt' => $data['rt'] ?? null,
+                'agama' => $data['agama'] ?? null, 'unit_kerja' => $data['unit_kerja'] ?? null, 'alamat' => $data['alamat'] ?? null, 'rt' => $data['rt'] ?? null,
                 'rw' => $data['rw'] ?? null, 'kelurahan' => $data['kelurahan'] ?? null, 'kecamatan' => $data['kecamatan'] ?? null,
-                'nama_ibu' => $data['nama_ibu'] ?? null, 'telepon' => $data['telepon'] ?? null,
+                'telepon' => $data['telepon'] ?? null,
                 'riwayat_alergi' => $data['riwayat_alergi'] ?? null,
             ]);
         });

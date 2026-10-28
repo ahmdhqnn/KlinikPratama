@@ -48,7 +48,7 @@ class RegistrationController extends Controller
             'total_kunjungan_hari_ini' => Kunjungan::whereDate('tanggal', $today)->count(),
             'pasien_baru_hari_ini' => Pasien::whereDate('created_at', $today)->count(),
             'menunggu_screening' => Kunjungan::whereDate('tanggal', $today)->where('status', 'menunggu')->count(),
-            'sedang_pemeriksaan' => Kunjungan::whereDate('tanggal', $today)->whereIn('status', ['screening', 'pemeriksaan'])->count(),
+            'sedang_pemeriksaan' => Kunjungan::whereDate('tanggal', $today)->whereIn('status', ['screening', 'pemeriksaan', 'tindakan'])->count(),
         ];
 
         $schedules = Nakes::where('is_active', true)->where('jabatan', 'dokter')->orderBy('nama')->get(['id', 'nama'])
@@ -168,7 +168,6 @@ class RegistrationController extends Controller
         $validated = $request->validate([
             'registration_type' => ['required', 'in:directory,manual'],
             'kepesertaan_id' => ['exclude_unless:registration_type,directory', 'required', 'integer', 'exists:kepesertaan,id', 'unique:pasien,kepesertaan_id'],
-            'nama_ibu' => ['nullable', 'string', 'max:255'],
             'telepon' => ['nullable', 'string', 'max:20'],
             'riwayat_alergi' => ['nullable', 'string', 'max:2000'],
             'poliklinik_id' => ['required', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
@@ -210,7 +209,7 @@ class RegistrationController extends Controller
                     'jenis_kelamin' => $member->jenis_kelamin,
                     'golongan_darah' => $member->golongan_darah,
                     'agama' => $member->agama,
-                    'nama_ibu' => $validated['nama_ibu'] ?? null,
+                    'unit_kerja' => $member->unit_kerja,
                     'alamat' => $member->alamat,
                     'rt' => $member->rt,
                     'rw' => $member->rw,
@@ -302,9 +301,11 @@ class RegistrationController extends Controller
         $member = $patient->kepesertaan;
 
         return [
-            ...$patient->only(['id', 'no_rm', 'nama', 'nik', 'telepon', 'nama_ibu']),
+            ...$patient->only(['id', 'no_rm', 'nama', 'nik', 'telepon']),
             'nip' => $patient->nip ?? $member?->nip,
             'tanggal_lahir' => ($member?->tanggal_lahir ?? $patient->tanggal_lahir)?->toDateString(),
+            'tanggal_lahir_tampil' => ($member?->tanggal_lahir ?? $patient->tanggal_lahir)?->locale('id')->isoFormat('D MMMM Y'),
+            'umur' => ($member?->tanggal_lahir ?? $patient->tanggal_lahir)?->age,
             'jenis_kelamin' => $member?->jenis_kelamin ?? $patient->jenis_kelamin,
             'tempat_lahir' => $member?->tempat_lahir ?? $patient->tempat_lahir,
             'golongan_darah' => $member?->golongan_darah ?? $patient->golongan_darah,
@@ -314,7 +315,7 @@ class RegistrationController extends Controller
             'rw' => $member?->rw ?? $patient->rw,
             'kelurahan' => $member?->kelurahan ?? $patient->kelurahan,
             'kecamatan' => $member?->kecamatan ?? $patient->kecamatan,
-            'unit_kerja' => $member?->unit_kerja,
+            'unit_kerja' => $member?->unit_kerja ?? $patient->unit_kerja,
             'membership' => $member?->membershipLabel() ?? 'Menunggu verifikasi',
             'eligibilityReason' => app(HakLayananVerifier::class)->patientReason($patient),
         ];
@@ -424,7 +425,7 @@ class RegistrationController extends Controller
         $filters = $request->validate([
             'poliklinik_id' => ['nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'tanggal' => ['nullable', 'date'],
-            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,farmasi,selesai,batal'],
+            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,tindakan,farmasi,selesai,batal'],
         ]);
         $role = $request->user()->role;
         $assignedClinicId = $role === 'perawat'
@@ -458,18 +459,18 @@ class RegistrationController extends Controller
             'status' => $visit->status,
             'examinationStarted' => $visit->pemeriksaan !== null,
             'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
-            'actionUrl' => $role === 'perawat' && ! $visit->tanggal->isFuture()
+            'actionUrl' => $role === 'perawat' && $visit->status === 'tindakan' ? route('pelayanan.tindakan.show', $visit) : ($role === 'perawat' && ! $visit->tanggal->isFuture()
                 ? (in_array($visit->status, ['menunggu', 'screening'], true)
                     ? route('pelayanan.screening.show', $visit)
                     : ($visit->status === 'batal'
                         ? route('pelayanan.kunjungan.show', $visit)
                         : route('pelayanan.pasien.rekam-medis', $visit->pasien)))
-                : route($role === 'pendaftaran' ? 'pendaftaran.kunjungan.show' : 'pelayanan.kunjungan.show', $visit),
-            'actionLabel' => $role === 'perawat' && ! $visit->tanggal->isFuture()
+                : route($role === 'pendaftaran' ? 'pendaftaran.kunjungan.show' : 'pelayanan.kunjungan.show', $visit)),
+            'actionLabel' => $role === 'perawat' && $visit->status === 'tindakan' ? 'Laksanakan tindakan' : ($role === 'perawat' && ! $visit->tanggal->isFuture()
                 ? (in_array($visit->status, ['menunggu', 'screening'], true)
                     ? ($visit->status === 'screening' ? 'Lanjutkan pengkajian' : 'Mulai pengkajian')
                     : ($visit->status === 'batal' ? 'Detail' : 'Lihat RME'))
-                : 'Detail',
+                : 'Detail'),
             'ticketUrl' => $visit->status !== 'batal' && $request->user()->role !== 'perawat' ? route('pendaftaran.cetak-antrian', $visit) : null,
             'editUrl' => in_array($role, ['admin', 'pendaftaran'], true) && $visit->status === 'menunggu'
                 ? route('pendaftaran.edit-kunjungan', $visit)
@@ -622,7 +623,7 @@ class RegistrationController extends Controller
             ->orderBy('jam_mulai')
             ->paginate(10, ['*'], 'schedules_page')->withQueryString();
         $holidays = DB::table('hari_libur_praktik')->where('tanggal', '>=', today()->toDateString())
-            ->orderBy('tanggal')->paginate(10, ['*'], 'holidays_page')->withQueryString();
+            ->orderBy('tanggal')->paginate(4, ['*'], 'holidays_page')->withQueryString();
         $exceptions = DB::table('jadwal_khusus_dokter')->where('tanggal', '>=', today()->toDateString())
             ->when($filters['dokter_id'] ?? null, fn ($query, int $id) => $query->where('dokter_id', $id))
             ->when($assignedClinicId, fn ($query, int $id) => $query->where('poliklinik_id', $id))

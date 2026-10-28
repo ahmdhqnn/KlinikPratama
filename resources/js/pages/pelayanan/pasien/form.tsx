@@ -29,7 +29,6 @@ interface Patient {
     village: string | null;
     district: string | null;
     membershipId: number | null;
-    motherName: string | null;
 }
 
 interface FormData extends PatientFormData, ManualPatientIdentity {
@@ -47,7 +46,7 @@ export default function PatientForm({ patient, today }: Props) {
         registration_type: patient ? 'manual' : 'directory', kepesertaan_id: patient?.membershipId?.toString() ?? '',
         nama: patient?.name ?? '', nik: patient?.nik ?? '', nip: patient?.memberNip ?? '', unit_kerja: patient?.unit ?? '',
         tempat_lahir: patient?.birthPlace ?? '', tanggal_lahir: patient?.birthDate ?? '', jenis_kelamin: patient?.gender ?? '',
-        golongan_darah: patient?.bloodType ?? '', agama: patient?.religion ?? '', nama_ibu: patient?.motherName ?? '', telepon: patient?.phone ?? '',
+        golongan_darah: patient?.bloodType ?? '', agama: patient?.religion ?? '', telepon: patient?.phone ?? '',
         alamat: patient?.address ?? '', rt: patient?.rt ?? '', rw: patient?.rw ?? '', kelurahan: patient?.village ?? '',
         kecamatan: patient?.district ?? '', riwayat_alergi: '',
     });
@@ -104,7 +103,6 @@ function PatientIdentityCard({ form }: { form: ReturnType<typeof useForm<FormDat
                 <section className="space-y-4">
                     <div><h3 className="text-sm font-semibold text-neutral-950">Kontak dan riwayat kesehatan</h3><p className="mt-1 text-sm text-neutral-500">Gunakan nomor telepon yang dapat dihubungi dan catat alergi yang diketahui.</p></div>
                     <div className="grid gap-4 md:grid-cols-2">
-                        <Field error={form.errors.nama_ibu} htmlFor="admin-patient-mother" label="Nama ibu kandung"><Input placeholder={identityPlaceholders.nama_ibu} id="admin-patient-mother" onChange={(event) => form.setData('nama_ibu', event.target.value)} value={form.data.nama_ibu} /></Field>
                         <Field error={form.errors.telepon} htmlFor="admin-patient-phone" label="Nomor telepon"><Input placeholder={identityPlaceholders.telepon} autoComplete="tel" id="admin-patient-phone" onChange={(event) => form.setData('telepon', event.target.value)} type="tel" value={form.data.telepon} /></Field>
                     </div>
                     <Field error={form.errors.riwayat_alergi} htmlFor="admin-patient-allergy" label="Riwayat alergi"><Textarea id="admin-patient-allergy" onChange={(event) => form.setData('riwayat_alergi', event.target.value)} placeholder={identityPlaceholders.riwayat_alergi} value={form.data.riwayat_alergi} /></Field>

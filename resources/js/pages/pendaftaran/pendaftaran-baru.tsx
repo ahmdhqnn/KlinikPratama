@@ -31,7 +31,6 @@ interface PatientForm extends VisitFormValues {
     jenis_kelamin: string;
     golongan_darah: string;
     agama: string;
-    nama_ibu: string;
     telepon: string;
     alamat: string;
     rt: string;
@@ -53,7 +52,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
     const [registrationType, setRegistrationType] = useState<'directory' | 'manual' | 'registered'>(initialTab);
     const defaultData: PatientForm = {
         registration_type: 'directory', kepesertaan_id: '', nama: '', nik: '', nip: '', unit_kerja: '', tempat_lahir: '', tanggal_lahir: '', jenis_kelamin: '', golongan_darah: '',
-        agama: '', nama_ibu: '', telepon: '', alamat: '', rt: '', rw: '', kelurahan: '', kecamatan: '',
+        agama: '', telepon: '', alamat: '', rt: '', rw: '', kelurahan: '', kecamatan: '',
         riwayat_alergi: '', poliklinik_id: clinics.find((clinic) => clinic.type === 'umum')?.id.toString() ?? '', dokter_id: '', tanggal: today, catatan: '',
     };
     const manualForm = useForm<PatientForm>({ ...defaultData, registration_type: 'manual' });
@@ -117,16 +116,13 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                                 kelurahan: form.data.kelurahan || null, kecamatan: form.data.kecamatan || null,
                             }}
                             onSelect={(member) => form.setData((data) => ({
-                                ...data, nama_ibu: '', telepon: '', riwayat_alergi: '', kepesertaan_id: String(member.id), nama: member.name, nik: member.nik ?? '', nip: member.nip ?? '', unit_kerja: member.unit,
+                                ...data, telepon: '', riwayat_alergi: '', kepesertaan_id: String(member.id), nama: member.name, nik: member.nik ?? '', nip: member.nip ?? '', unit_kerja: member.unit,
                                 tempat_lahir: member.tempatLahir ?? '', tanggal_lahir: member.tanggalLahir ?? '', jenis_kelamin: member.jenisKelamin ?? '',
                                 golongan_darah: member.golonganDarah ?? '', agama: member.agama ?? '', alamat: member.alamat ?? '',
                                 rt: member.rt ?? '', rw: member.rw ?? '', kelurahan: member.kelurahan ?? '', kecamatan: member.kecamatan ?? '',
                             }))}
                         />
                         <div className="grid gap-4 md:grid-cols-2">
-                            <Field error={form.errors.nama_ibu} htmlFor="nama_ibu" label="Nama ibu kandung">
-                                <Input placeholder={identityPlaceholders.nama_ibu} id="nama_ibu" onChange={(event) => updateField('nama_ibu', event.target.value)} value={form.data.nama_ibu} />
-                            </Field>
                             <Field error={form.errors.telepon} htmlFor="telepon" label="Nomor telepon">
                                 <Input autoComplete="tel" id="telepon" onChange={(event) => updateField('telepon', event.target.value)} placeholder={identityPlaceholders.telepon} type="tel" value={form.data.telepon} />
                             </Field>

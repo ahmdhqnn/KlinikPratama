@@ -51,7 +51,7 @@ interface Props {
     visits: PaginationData & { data: Visit[] };
 }
 
-const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusFilterLabels[status]]);
+const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'tindakan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusFilterLabels[status]]);
 
 export default function RegistrationVisitReport({ filters: initialFilters, clinics, visits, exportUrl }: Props) {
     const [filters, setFilters] = useState(initialFilters);

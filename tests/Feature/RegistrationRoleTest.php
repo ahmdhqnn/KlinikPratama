@@ -233,12 +233,20 @@ class RegistrationRoleTest extends TestCase
         $this->actingAs($user)->get(route('pelayanan.screening.index'))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/screening/index')
             ->where('auth.user.role', 'perawat')
-            ->has('visits.data', 2)
+            ->has('todayVisits.data', 1)
+            ->where('todayVisits.data.0.patient', 'Pasien Skrining')
+            ->has('visits.data', 3)
             ->where('visits.data.1.patient', 'Pasien Pengkajian Draf')
             ->where('visits.data.1.status', 'screening')
             ->where('visits.data.1.hasScreening', true)
             ->where('visits.data.1.screeningUrl', route('pelayanan.screening.show', $draftVisit))
+            ->where('visits.data.2.patient', 'Pasien Riwayat')
+            ->where('visits.data.2.actionLabel', 'Lihat RME')
         );
+        $this->get(route('pelayanan.screening.index', ['tanggal' => today()->subDay()->toDateString()]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visits.total', 2)->where('todayVisits.total', 1)
+                ->where('visits.data.0.patient', 'Pasien Pengkajian Draf'));
         $this->actingAs($user)->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/screening/show')
             ->where('visit.patient.name', 'Pasien Skrining')
@@ -379,6 +387,7 @@ class RegistrationRoleTest extends TestCase
         $this->assertSame('Jl. Melati', $pasien->alamat);
         $this->assertSame('001', $pasien->rt);
         $this->assertSame('081234567890', $pasien->telepon);
+        $this->assertNull($pasien->nama_ibu);
         $this->assertDatabaseHas('kunjungan', [
             'pasien_id' => $pasien->id,
             'poliklinik_id' => $poliklinik->id,

@@ -44,15 +44,15 @@ class KepesertaanImport implements ToCollection, WithHeadingRow, WithMultipleShe
             if (! collect($data)->contains(fn ($value) => $value !== null && $value !== '')) {
                 continue;
             }
-            foreach (['nama', 'nik', 'nip', 'kategori', 'jenis_lainnya', 'status_kepegawaian', 'unit_kerja', 'nip_penanggung', 'hubungan_keluarga', 'hak_layanan', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'agama', 'golongan_darah', 'alamat', 'rt', 'rw', 'kelurahan', 'kecamatan'] as $header) {
+            foreach (['nama', 'nik', 'nip', 'kategori', 'jenis_lainnya', 'status_kepegawaian', 'unit_kerja', 'hak_layanan', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'agama', 'golongan_darah', 'alamat'] as $header) {
                 if (! array_key_exists($header, $data)) {
                     $this->fail($offset, "Kolom {$header} tidak ditemukan. Gunakan template tanpa mengubah nama kolom.");
                 }
             }
-            foreach (['nik', 'nip', 'nip_penanggung'] as $key) {
+            foreach (['nik', 'nip'] as $key) {
                 $data[$key] = ($data[$key] ?? '') === '' ? null : $data[$key];
                 if ($data[$key] !== null && ! is_string($data[$key])) {
-                    $column = ['nik' => 'B', 'nip' => 'C', 'nip_penanggung' => 'H'][$key];
+                    $column = ['nik' => 'B', 'nip' => 'C'][$key];
                     $coordinate = $column.($offset + 2);
                     $data[$key] = $this->numericIdentifiers[$coordinate] ?? null;
                     if ($data[$key] === null) {
@@ -74,7 +74,6 @@ class KepesertaanImport implements ToCollection, WithHeadingRow, WithMultipleShe
             if ($data['nip']) {
                 $seenNip[$data['nip']] = $offset + 2;
             }
-            $data['hubungan_keluarga'] = ($data['hubungan_keluarga'] ?? '') ?: null;
             $data['referensi_bukti'] = $this->reference;
             $pending[] = ['offset' => $offset, 'data' => $data];
         }
@@ -82,7 +81,6 @@ class KepesertaanImport implements ToCollection, WithHeadingRow, WithMultipleShe
             throw ValidationException::withMessages(['file' => 'Berkas tidak berisi data peserta. Gunakan template yang tersedia.']);
         }
 
-        usort($pending, fn (array $a, array $b): int => ($a['data']['jenis_lainnya'] === 'keluarga' ? 1 : 0) <=> ($b['data']['jenis_lainnya'] === 'keluarga' ? 1 : 0));
         foreach ($pending as $line) {
             $data = $line['data'];
             $byNik = $data['nik'] ? Kepesertaan::where('nik', $data['nik'])->lockForUpdate()->first() : null;
@@ -90,8 +88,6 @@ class KepesertaanImport implements ToCollection, WithHeadingRow, WithMultipleShe
             if ($byNik && $byNip && $byNik->id !== $byNip->id) {
                 $this->fail($line['offset'], 'NIP dan NIK menunjuk dua peserta berbeda. Periksa identitas sumber.');
             }
-            $data['pegawai_penanggung_id'] = $data['nip_penanggung']
-                ? Kepesertaan::where('nip', $data['nip_penanggung'])->value('id') : null;
             try {
                 app(KepesertaanRegistry::class)->save($data, $this->actor, $byNik ?? $byNip);
             } catch (ValidationException $exception) {
@@ -159,7 +155,7 @@ class KepesertaanImport implements ToCollection, WithHeadingRow, WithMultipleShe
             $identifiers = [];
             foreach ($sheet->xpath('/x:worksheet/x:sheetData/x:row/x:c') ?: [] as $cell) {
                 $coordinate = (string) $cell['r'];
-                if (! preg_match('/^(B|C|H)\d+$/', $coordinate) || ! in_array((string) $cell['t'], ['', 'n'], true)) {
+                if (! preg_match('/^(B|C)\d+$/', $coordinate) || ! in_array((string) $cell['t'], ['', 'n'], true)) {
                     continue;
                 }
 

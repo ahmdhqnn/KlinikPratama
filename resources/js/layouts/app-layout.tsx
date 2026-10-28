@@ -141,8 +141,8 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         {
             label: 'Operasional',
             items: [
-                { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
-                { label: 'Pengkajian saya', href: '/pelayanan/screening/riwayat', icon: ClipboardCheck },
+                { label: 'Pengkajian awal', href: '/pelayanan/screening', activePaths: ['/pelayanan/screening/riwayat'], icon: HeartPulse },
+                { label: 'Tindakan', href: '/pelayanan/tindakan-perawat', icon: ClipboardCheck },
                 { label: 'Pasien', href: '/pelayanan/pasien', icon: UsersRound },
             ],
         },
@@ -215,7 +215,7 @@ function getPageTitle(component: string): string {
         'dokter/patients': 'Pasien Dokter',
         'dokter/stock': 'Stok Obat',
         'dokter/top-diagnoses': 'Top Diagnosis',
-        'pelayanan/screening/index': 'Antrean Pengkajian Awal',
+        'pelayanan/screening/index': 'Pengkajian Awal',
         'pelayanan/screening/show': 'Pengkajian Awal',
         'pelayanan/screening/history': 'Pengkajian Saya',
         'pelayanan/pasien/index': 'Database Pasien',
@@ -230,6 +230,8 @@ function getPageTitle(component: string): string {
         'pelayanan/pemeriksaan/show': 'Pemeriksaan Klinis',
         'persuratan/index': 'Persuratan',
         'persuratan/cetak': 'Cetak Dokumen',
+        'pelayanan/tindakan/index': 'Tindakan Perawat',
+        'pelayanan/tindakan/show': 'Pelaksanaan Tindakan',
         'pelayanan/farmasi/index': 'Antrean Farmasi',
         'pelayanan/farmasi/show': 'Dispensing Obat',
         'farmasi/dashboard': 'Dashboard Farmasi',

@@ -11,7 +11,6 @@ use App\Http\Controllers\Controller;
 use App\Models\ClinicalTerminology;
 use App\Models\CorrespondenceTemplate;
 use App\Models\Diagnosa;
-use App\Models\Farmasi;
 use App\Models\Icd10;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
@@ -24,8 +23,8 @@ use App\Models\Tindakan;
 use App\Models\TindakanKunjungan;
 use App\PatientAllergyHistory;
 use App\PatientClinicalHistory;
-use App\PersediaanRecorder;
 use App\Rules\BodyMapPayload;
+use App\VisitCareWorkflow;
 use App\VisitQueryService;
 use App\VisitSchedulingService;
 use Carbon\Carbon;
@@ -53,7 +52,7 @@ class PemeriksaanController extends Controller
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->whereHas('pasien', fn ($patients) => $patients
                 ->where(fn ($names) => $names->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
             ->when($date, fn ($query) => $query->whereDate('tanggal', $date))
-            ->whereIn('status', ['pemeriksaan', 'farmasi', 'kasir', 'selesai'])
+            ->whereIn('status', ['pemeriksaan', 'tindakan', 'farmasi', 'kasir', 'selesai'])
             ->orderByDesc('created_at')
             ->paginate(10)
             ->withQueryString();
@@ -66,7 +65,7 @@ class PemeriksaanController extends Controller
 
         return Inertia::render('pelayanan/pemeriksaan/index', [
             'stats' => [
-                'total' => (clone $todayVisits)->whereIn('status', ['pemeriksaan', 'farmasi', 'kasir', 'selesai'])->count(),
+                'total' => (clone $todayVisits)->whereIn('status', ['pemeriksaan', 'tindakan', 'farmasi', 'kasir', 'selesai'])->count(),
                 'waiting' => (clone $todayVisits)->where('status', 'pemeriksaan')->whereDoesntHave('pemeriksaan')->count(),
                 'inProgress' => (clone $todayVisits)->where('status', 'pemeriksaan')->whereHas('pemeriksaan', fn ($query) => $query->whereNull('signed_at'))->count(),
                 'completed' => (clone $todayVisits)->whereHas('pemeriksaan', fn ($query) => $query->whereNotNull('signed_at'))->count(),
@@ -238,6 +237,7 @@ class PemeriksaanController extends Controller
                     'differentialDiagnosis' => is_array($effectiveNote) ? ($effectiveNote['diagnosis_banding'] ?? null) : $kunjungan->pemeriksaan->diagnosis_banding,
                     'followUpDate' => is_array($effectiveNote) ? ($effectiveNote['kontrol_berikutnya'] ?? null) : $kunjungan->pemeriksaan->kontrol_berikutnya?->toDateString(),
                     'notes' => is_array($effectiveNote) ? ($effectiveNote['catatan'] ?? null) : $kunjungan->pemeriksaan->catatan,
+                    'nonPharmacological' => is_array($effectiveNote) ? ($effectiveNote['non_farmakologis'] ?? null) : $kunjungan->pemeriksaan->non_farmakologis,
                     'education' => is_array($effectiveNote) ? ($effectiveNote['edukasi'] ?? null) : $kunjungan->pemeriksaan->edukasi,
                     'status' => $kunjungan->pemeriksaan->status,
                     'integrityValid' => $noteIntegrityValid,
@@ -254,6 +254,7 @@ class PemeriksaanController extends Controller
                         'bodyMap' => $version->payload['body_map'] ?? null,
                         'notes' => $version->payload['catatan'] ?? null,
                         'education' => $version->payload['edukasi'] ?? null,
+                        'nonPharmacological' => $version->payload['non_farmakologis'] ?? null,
                         'odontogram' => collect($version->payload['odontogram'] ?? [])->map(fn (array $finding): array => [
                             'toothFdi' => $finding['tooth_fdi'],
                             'surface' => $finding['surface'],
@@ -280,6 +281,7 @@ class PemeriksaanController extends Controller
                     'quantity' => is_array($item) ? $item['quantity'] : $item->jumlah,
                     'toothFdi' => is_array($item) ? ($item['tooth_fdi'] ?? null) : $item->tooth_fdi,
                     'note' => is_array($item) ? ($item['note'] ?? null) : $item->catatan,
+                    'executionRole' => is_array($item) ? ($item['execution_role'] ?? 'dokter') : $item->execution_role,
                 ])->values(),
                 'odontogram' => collect($odontogram)->map(fn (array $finding): array => [
                     'toothFdi' => $finding['tooth_fdi'],
@@ -631,6 +633,7 @@ class PemeriksaanController extends Controller
                 'terminology_id' => ['nullable', 'integer'],
                 'tindakan_id' => ['nullable', 'integer', 'exists:tindakan,id'],
                 'nama_tindakan_manual' => ['nullable', 'string', 'min:3', 'max:255'],
+                'execution_role' => ['sometimes', 'required', Rule::in(['perawat', 'dokter'])],
                 'jumlah' => ['required', 'integer', 'min:1'],
                 'catatan' => ['nullable', 'string', 'max:2000'],
                 'tooth_fdi' => ['nullable', Rule::in(OdontogramFinding::toothCodes())],
@@ -696,6 +699,8 @@ class PemeriksaanController extends Controller
                 $kunjungan->tindakanKunjungan()->create([
                     'tindakan_id' => $tindakanId,
                     'nama_tindakan_manual' => $manualName,
+                    'execution_role' => $data['execution_role'] ?? 'perawat',
+                    'execution_status' => 'pending',
                     'nama_tindakan' => $treatmentName ?? $manualName,
                     'kode_icd9cm' => $terminology?->code,
                     'code_system' => $terminology?->code_system,
@@ -856,25 +861,12 @@ class PemeriksaanController extends Controller
                 abort_unless($lockedVisit->odontogramFindings()->exists(), 422, 'Catat temuan odontogram sebelum finalisasi kunjungan gigi.');
             }
 
-            $procedures = $lockedVisit->tindakanKunjungan()->with('tindakan.bhp.obat')->orderBy('id')->lockForUpdate()->get();
-            $consumptions = [];
+            $procedures = $lockedVisit->tindakanKunjungan()->with('tindakan.bhp.obat')->where('execution_role', 'dokter')->orderBy('id')->lockForUpdate()->get();
+            $supplyIds = $procedures->flatMap(fn (TindakanKunjungan $procedure) => $procedure->tindakan?->bhp->pluck('obat_id') ?? collect())->unique()->sort()->values();
+            Obat::whereIn('id', $supplyIds)->orderBy('id')->lockForUpdate()->get();
             foreach ($procedures as $procedure) {
-                if (! $procedure->tindakan || $procedure->bhp_consumed_at) {
-                    continue;
-                }
-                foreach ($procedure->tindakan->bhp as $supply) {
-                    abort_unless($supply->obat?->jenis === 'bhp', 422, 'Komposisi BHP tindakan harus memakai master BHP.');
-                    $consumptions[] = ['medicine' => $supply->obat_id, 'quantity' => (float) $supply->jumlah * (float) $procedure->jumlah, 'procedure' => $procedure->id];
-                }
-            }
-            usort($consumptions, fn (array $a, array $b): int => $a['medicine'] <=> $b['medicine']);
-            foreach ($consumptions as $consumption) {
-                app(PersediaanRecorder::class)->issue($consumption['medicine'], $consumption['quantity'], $request->user(), $lockedVisit, 'TindakanBhp', $consumption['procedure']);
-            }
-            foreach ($procedures as $procedure) {
-                if ($procedure->tindakan) {
-                    $procedure->update(['bhp_consumed_at' => now()]);
-                }
+                app(VisitCareWorkflow::class)->consumeSupplies($procedure, $lockedVisit, $request->user());
+                $procedure->update(['execution_status' => 'completed', 'performed_by' => $request->user()->id, 'performed_at' => now(), 'execution_result' => $procedure->catatan]);
             }
 
             $noteRecorder->recordFinal($examination, $noteRecorder->snapshot($lockedVisit, $examination), $request->user()->id);
@@ -885,17 +877,7 @@ class PemeriksaanController extends Controller
             ]);
             $this->allergies->remember($lockedVisit, $examination->riwayat_alergi);
 
-            $prescription = $lockedVisit->resep;
-            if ($prescription && $prescription->resepObat()->where('is_resep_luar', false)->exists()) {
-                Farmasi::firstOrCreate(
-                    ['kunjungan_id' => $lockedVisit->id],
-                    ['resep_id' => $prescription->id, 'status' => 'menunggu']
-                );
-                $lockedVisit->update(['status' => 'farmasi']);
-            } else {
-                $prescription?->update(['status' => 'selesai']);
-                $lockedVisit->update(['status' => 'selesai']);
-            }
+            app(VisitCareWorkflow::class)->advance($lockedVisit);
 
             $auditRecorder->record($request, 'clinical_examination.finalize', $lockedVisit->pasien_id, $lockedVisit->id);
         });
@@ -924,13 +906,14 @@ class PemeriksaanController extends Controller
             'diagnosis_banding' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'catatan' => ['sometimes', 'nullable', 'string'],
             'edukasi' => ['sometimes', 'nullable', 'string'],
+            'non_farmakologis' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'kontrol_berikutnya' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
         ]);
         $fields = array_intersect_key($data, array_flip([
             'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu',
             'riwayat_penyakit_keluarga', 'riwayat_alergi', 'pemeriksaan_fisik',
             'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'body_map',
-            'diagnosis_banding', 'catatan', 'edukasi', 'kontrol_berikutnya',
+            'diagnosis_banding', 'catatan', 'edukasi', 'non_farmakologis', 'kontrol_berikutnya',
         ]));
         if ($fields === []) {
             throw ValidationException::withMessages(['reason' => 'Isi setidaknya satu bagian catatan yang dikoreksi.']);
@@ -942,7 +925,7 @@ class PemeriksaanController extends Controller
         DB::transaction(function () use ($request, $kunjungan, $noteRecorder, $auditRecorder, $data, $fields): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeVisit($lockedVisit);
-            abort_unless(in_array($lockedVisit->status, ['farmasi', 'kasir', 'selesai'], true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
+            abort_unless(in_array($lockedVisit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
             $examination = $lockedVisit->pemeriksaan()->lockForUpdate()->first();
             abort_unless($examination?->signed_at, 422, 'Catatan lama belum difinalisasi dengan versi yang dapat dikoreksi.');
             abort_unless($noteRecorder->verify($examination), 422, 'Integritas riwayat catatan tidak valid; koreksi dihentikan.');
@@ -1033,7 +1016,7 @@ class PemeriksaanController extends Controller
                 throw ValidationException::withMessages(['reason' => 'Alasan pembatalan temuan final minimal 10 karakter.']);
             }
 
-            abort_unless(in_array($lockedVisit->status, ['farmasi', 'kasir', 'selesai'], true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
+            abort_unless(in_array($lockedVisit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
             abort_unless($noteRecorder->verify($examination), 422, 'Integritas riwayat catatan tidak valid; koreksi dihentikan.');
 
             $latestVersion = $examination->clinicalNoteVersions()->latest('version')->firstOrFail();
@@ -1065,7 +1048,7 @@ class PemeriksaanController extends Controller
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeVisit($lockedVisit);
             abort_unless($lockedVisit->poliklinik?->jenis === 'gigi', 422, 'Odontogram hanya untuk kunjungan Poli Gigi.');
-            abort_unless(in_array($lockedVisit->status, ['farmasi', 'kasir', 'selesai'], true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
+            abort_unless(in_array($lockedVisit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
             $examination = $lockedVisit->pemeriksaan()->lockForUpdate()->first();
             abort_unless($examination?->signed_at, 422, 'Odontogram belum difinalisasi.');
             abort_unless($noteRecorder->verify($examination), 422, 'Integritas riwayat catatan tidak valid; koreksi dihentikan.');
@@ -1241,6 +1224,7 @@ class PemeriksaanController extends Controller
             'diagnosis_banding' => ['nullable', 'string', 'max:5000'],
             'catatan' => ['nullable', 'string', 'max:5000'],
             'edukasi' => ['nullable', 'string', 'max:5000'],
+            'non_farmakologis' => ['nullable', 'string', 'max:5000'],
             'kontrol_berikutnya' => ['nullable', 'date_format:Y-m-d'],
         ]);
 
@@ -1251,7 +1235,7 @@ class PemeriksaanController extends Controller
                 'anamnesis' => ['dokter_id', 'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu', 'riwayat_penyakit_keluarga', 'riwayat_alergi'],
                 'pemeriksaan' => ['pemeriksaan_fisik', 'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'body_map'],
                 'diagnosis' => ['diagnosis_banding'],
-                'rencana' => ['kontrol_berikutnya', 'catatan', 'edukasi'],
+                'rencana' => ['kontrol_berikutnya', 'catatan', 'edukasi', 'non_farmakologis'],
             };
             $data = array_intersect_key($data, array_flip($sectionFields));
         }

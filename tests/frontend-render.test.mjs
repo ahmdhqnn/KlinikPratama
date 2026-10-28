@@ -21,6 +21,13 @@ before(async () => {
 after(async () => { await server?.close(); });
 
 async function renderPage(path, props, url = '/pendaftaran') {
+    const pageDefaults = {
+        'pelayanan/screening/index': { serviceName: 'Poli Umum', stats: { total: 0, waiting: 0, inProgress: 0, submitted: 0 }, todayVisits: pageOf([]), visits: pageOf([]) },
+        'pelayanan/pemeriksaan/index': { filters: { search: '', tanggal: '' }, stats: { total: 0, waiting: 0, inProgress: 0, completed: 0 } },
+        'dokter/appointments': { stats: { total: 0, today: 0, waiting: 0, completed: 0 } },
+        'pendaftaran/dashboard': { schedules: [], visits: pageOf([]) },
+    };
+    props = { ...pageDefaults[path], ...props };
     const { default: Component } = await server.ssrLoadModule(`/resources/js/pages/${path}.tsx`);
     const result = await createInertiaApp({
         page: { component: path, props: { errors: {}, ...props }, url, version: null, clearHistory: false, encryptHistory: false },
@@ -33,6 +40,24 @@ async function renderPage(path, props, url = '/pendaftaran') {
 
 const singlePage = { currentPage: 1, lastPage: 1, from: 1, to: 9, total: 9, previousUrl: null, nextUrl: null };
 const pageOf = (data) => ({ currentPage: 1, lastPage: 1, from: data.length ? 1 : null, to: data.length || null, total: data.length, previousUrl: null, nextUrl: null, data });
+
+test('membership directory exposes management actions only to admin', async () => {
+    const props = {
+        members: pageOf([{ id: 1, nama: 'Pegawai Internal', nik: '3273015205900001', nip: null, kategori: 'lainnya', jenis_lainnya: 'staf', status_kepegawaian: 'aktif', unit_kerja: 'Unit Pelayanan', reason: null, detail_url: '/kepesertaan/1' }]),
+        search: '', categories: { asn: 'ASN', lainnya: 'Lainnya' }, otherTypes: { staf: 'Staff', magang: 'Magang', lainnya: 'Lainnya' },
+        urls: { index: '/kepesertaan', import: '/kepesertaan/import', template: '/kepesertaan/template' },
+    };
+    const admin = await renderPage('kepesertaan/index', { ...props, canManage: true });
+    assert.match(admin, /Tambah peserta/);
+    assert.match(admin, /Impor &amp; verifikasi/);
+    assert.match(admin, /aria-label="Edit Pegawai Internal"/);
+    assert.match(admin, /aria-label="Hapus Pegawai Internal"/);
+    assert.doesNotMatch(admin, /Hubungan keluarga|Pensiunan/);
+
+    const registration = await renderPage('kepesertaan/index', { ...props, canManage: false });
+    assert.match(registration, /aria-label="Detail"/);
+    assert.doesNotMatch(registration, /Tambah peserta|Impor &amp; verifikasi|aria-label="Edit Pegawai Internal"|aria-label="Hapus Pegawai Internal"/);
+});
 
 for (const clinicType of ['umum', 'gigi']) {
     test(`${clinicType} screening separates measurements, preserves unknown answers, and offers draft and handoff actions`, async () => {
@@ -138,20 +163,20 @@ test('known negative allergy history selects no allergy and leaves its details h
 });
 
 test('nurse queue labels saved draft as in progress rather than completed screening', async () => {
+    const visit = { id: 1, number: 'K-001', date: '21/10/2026', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', hasScreening: true, status: 'screening', screeningState: 'Dalam proses', screeningUrl: '/pelayanan/screening/1', actionUrl: '/pelayanan/screening/1', actionLabel: 'Lanjutkan pengkajian', printUrl: null };
     const html = await renderPage('pelayanan/screening/index', {
         filters: { search: '', tanggal: '2026-10-21', poliklinikId: 1 }, clinics: [], canSelectClinic: false,
-        visits: { ...singlePage, total: 1, data: [{ id: 1, number: 'K-001', date: '21/10/2026', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', hasScreening: true, status: 'screening', screeningUrl: '/pelayanan/screening/1' }] },
+        todayVisits: pageOf([visit]), visits: pageOf([visit]),
     });
     assert.match(html, /Pengkajian awal berlangsung/);
     assert.match(html, /Lanjutkan pengkajian/);
     assert.doesNotMatch(html, /Pengkajian selesai/);
-    assert.ok(html.indexOf('Pengkajian saya') < html.indexOf('<table'), 'history action should be above the queue table');
-    assert.match(html, /aria-label="Filter data"[^>]*>[\s\S]*?Pengkajian saya[\s\S]*?aria-controls="[^"]+"[^>]*>[\s\S]*?Filter/, 'history action and filter should share a control row');
+    assert.match(html, /Kunjungan hari ini/);
+    assert.match(html, /Daftar kunjungan pasien/);
+    assert.doesNotMatch(html, /Pengkajian saya/);
     assert.match(html, /id="screening-queue-search"/);
     assert.match(html, /id="screening-queue-date"/);
-    const historyActionIndex = html.indexOf('Pengkajian saya');
-    const historyActionMarkup = html.slice(html.lastIndexOf('<a', historyActionIndex), html.indexOf('>', historyActionIndex) + 1);
-    assert.match(historyActionMarkup, /border-neutral-200 bg-surface/, 'history action should match the filter toggle style');
+    assert.equal((html.match(/aria-label="Lanjutkan pengkajian"/g) ?? []).length, 2);
 });
 
 test('clinic visit tables show the appropriate nurse action and consistent controls', async () => {
@@ -163,10 +188,26 @@ test('clinic visit tables show the appropriate nurse action and consistent contr
         visits: pageOf([visit]), recentVisits: pageOf([visit]),
     });
     assert.match(html, /Kunjungan poli/);
+    assert.match(html, /Daftar kunjungan pasien/);
     assert.equal((html.match(/aria-label="Lanjutkan pengkajian"/g) ?? []).length, 2);
     assert.doesNotMatch(html, />Lanjutkan pengkajian<\/a>/);
     assert.equal((html.match(/href="\/pelayanan\/screening\/1"/g) ?? []).length, 2);
     assert.doesNotMatch(html, />Edit<\/a>|>Batalkan<\/button>|>Cetak<\/a>/);
+});
+
+test('nursing procedures show today and all visits with pending and completed actions', async () => {
+    const pending = { id: 1, number: 'K-001', patient: 'Pasien Hari Ini', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', doctor: 'Dokter Uji', date: '28/10/2026', status: 'tindakan', pendingCount: 1, completedCount: 0, url: '/pelayanan/tindakan-perawat/1' };
+    const completed = { ...pending, id: 2, number: 'K-002', patient: 'Pasien Sebelumnya', date: '27/10/2026', status: 'selesai', pendingCount: 0, completedCount: 1, url: '/pelayanan/tindakan-perawat/2' };
+    const html = await renderPage('pelayanan/tindakan/index', {
+        stats: { todayTotal: 1, todayPending: 1, todayCompleted: 0, allPending: 1 },
+        filters: { search: '', tanggal: '', status: '' }, todayVisits: pageOf([pending]), visits: pageOf([pending, completed]),
+    });
+    assert.match(html, /Kunjungan hari ini/);
+    assert.match(html, /Daftar kunjungan pasien/);
+    assert.match(html, /Pasien Sebelumnya/);
+    assert.match(html, /aria-label="Lihat pelaksanaan"/);
+    assert.equal((html.match(/aria-label="Laksanakan tindakan"/g) ?? []).length, 2);
+    assert.match(html, /id="nursing-action-status"/);
 });
 
 test('dashboard queues clarify each workflow and center headers, cells, and status badges', async () => {
@@ -258,7 +299,7 @@ for (const [role, url, expected] of [
     ['pendaftaran', '/kepesertaan/5', '/kepesertaan'],
     ['dokter', '/dokter/kunjungan', '/dokter/kunjungan'],
     ['dokter', '/pelayanan/pemeriksaan/42', '/pelayanan/pemeriksaan'],
-    ['perawat', '/pelayanan/screening/riwayat?page=2', '/pelayanan/screening/riwayat'],
+    ['perawat', '/pelayanan/screening/riwayat?page=2', '/pelayanan/screening'],
     ['perawat', '/pelayanan/screening/42', '/pelayanan/screening'],
     ['admin', '/master/obat/12/stok', '/master/obat'],
     ['farmasi', '/pelayanan/farmasi/42', '/pelayanan/farmasi'],
@@ -276,6 +317,7 @@ for (const [role, url, expected] of [
         assert.equal(activeLinks.length, 1);
         assert.ok(activeLinks[0].includes(`href="${expected}"`));
         assert.doesNotMatch(result.body, /Kepesertaan &amp; [Hh]ak/);
+        if (role === 'perawat') assert.doesNotMatch(result.body, /Pengkajian saya/);
     });
 }
 
@@ -290,14 +332,30 @@ test('navigation does not match unrelated prefixes or select a dashboard for unk
 test('registered patient preview presents full saved identity and honest missing values', async () => {
     const { RegisteredPatientIdentity } = await server.ssrLoadModule('/resources/js/components/pendaftaran/registered-patient-form.tsx');
     const html = renderToString(createElement(RegisteredPatientIdentity, { patient: {
-        nik: '3273015205900001', nip: '1990052020101001', tanggal_lahir: '1990-05-20', tempat_lahir: 'Bandung',
+        nik: '3273015205900001', nip: '1990052020101001', tanggal_lahir: '1990-05-20', tanggal_lahir_tampil: '20 Mei 1990', umur: 36, tempat_lahir: 'Bandung', jenis_kelamin: 'P',
         alamat: 'Alamat uji', telepon: '081234567890', membership: 'ASN', unit_kerja: 'Biro Umum',
         rt: '001', rw: '002', kelurahan: 'Kelurahan Uji', kecamatan: 'Kecamatan Uji',
     } }));
-    for (const value of ['3273015205900001', '1990052020101001', '1990-05-20', 'Alamat uji', 'Biro Umum', 'Kelurahan Uji', 'Belum diisi']) {
+    for (const value of ['3273015205900001', '1990052020101001', 'Bandung, 20 Mei 1990 (36 tahun)', 'Perempuan', 'Alamat uji', 'Biro Umum', 'Belum diisi']) {
         assert.ok(html.includes(value));
     }
+    assert.doesNotMatch(html, /Kelurahan Uji|Kecamatan Uji|RT \/ RW|Nama ibu kandung/);
     assert.doesNotMatch(html, /undefined|null/);
+});
+
+test('patient entry keeps birth place and date as separate inputs with a single address field', async () => {
+    const { ManualPatientFields } = await server.ssrLoadModule('/resources/js/components/pasien/manual-patient-fields.tsx');
+    const html = renderToString(createElement(ManualPatientFields, {
+        value: { nama: '', nik: '', nip: '', tempat_lahir: '', tanggal_lahir: '', jenis_kelamin: '', golongan_darah: '', agama: '', unit_kerja: '', telepon: '', alamat: '', rt: '', rw: '', kelurahan: '', kecamatan: '', riwayat_alergi: '' },
+        errors: {}, onChange: () => {}, suggestExisting: false,
+    }));
+    assert.match(html, /for="manual-tempat-lahir"[^>]*>Tempat lahir/);
+    assert.match(html, /for="manual-tanggal-lahir"[^>]*>Tanggal lahir/);
+    assert.match(html, /for="manual-alamat"[^>]*>Alamat/);
+    assert.match(html, /for="manual-unit-kerja"[^>]*>Unit kerja/);
+    assert.match(html, /id="manual-unit-kerja"[^>]*placeholder="Contoh: Bagian Umum"/);
+    assert.doesNotMatch(html, /Pekerjaan|Nama ibu kandung/);
+    assert.doesNotMatch(html, /for="manual-(?:rt|rw|kelurahan|kecamatan)"/);
 });
 
 for (const [label, dates] of [
@@ -333,6 +391,7 @@ for (const initialTab of ['manual', 'directory', 'registered']) {
             assert.doesNotMatch(html, /id="manual-nama"/);
         }
         assert.match(html, /Pasien Terdaftar/);
+        assert.doesNotMatch(html, /Nama ibu kandung|id="nama_ibu"|id="manual-nama-ibu"/);
         assert.doesNotMatch(html, /Pendaftaran manual/);
     });
 }
@@ -655,7 +714,7 @@ test('medical record fills available width, displays dental anthropometry and pr
         visits: [visit, { ...visit, id: 2, number: 'K-002', status: 'batal' }, { ...visit, id: 3, number: 'K-003', status: 'menunggu', isReservation: true }], backUrl: '/pelayanan/pasien/7', canSelectClinic: false,
         filters: { search: '', poliklinik_id: '', status: '', dari: '', sampai: '' }, clinics: [], pagination: { ...singlePage, total: 2 },
     });
-    for (const expected of ['xl:grid-cols-5', 'Berat / tinggi', '60 kg', '160 cm', 'Pengkajian awal berlangsung', 'Kunjungan dibatalkan', 'Reservasi', 'Belum dapat diketahui', 'aria-controls="medical-record-visit-1"', 'id="medical-record-visit-2"']) {
+    for (const expected of ['xl:grid-cols-4', 'Tempat, tanggal lahir', 'Alamat', 'Unit kerja', 'Berat / tinggi', '60 kg', '160 cm', 'Pengkajian awal berlangsung', 'Kunjungan dibatalkan', 'Reservasi', 'Belum dapat diketahui', 'aria-controls="medical-record-visit-1"', 'id="medical-record-visit-2"']) {
         assert.ok(html.includes(expected), expected);
     }
     assert.equal((html.match(/print:block hidden/g) ?? []).length, 3, 'collapsed visits remain available for printing');
@@ -884,7 +943,8 @@ for (const clinicType of ['gigi', 'umum']) {
         const followUp = html.slice(html.indexOf('id="rencana-tindak-lanjut"'));
         const disclosure = followUp.match(/<details\b[^>]*id="rencana-details"[^>]*>/)?.[0];
         assert.ok(disclosure, 'follow-up section can expand without unmounting its form');
-        assert.doesNotMatch(disclosure, /\sopen(?:=|\s|>)/, 'follow-up starts closed');
+        assert.match(disclosure, /\sopen(?:=|\s|>)/, 'non-drug care is visible without opening a disclosure');
+        assert.match(followUp, /id="non-farmakologis"/);
         assert.match(followUp, /<summary\b[^>]*aria-controls="rencana-content"/);
         assert.match(followUp, /id="kontrol_berikutnya"/);
         assert.match(followUp, /id="edukasi"/);
@@ -933,10 +993,10 @@ async function renderRoleNavigation(role, url, clinicType = null) {
 for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
     ['admin', null, '/', '/pelayanan/kunjungan', ['Ringkasan', 'Operasional', 'Data Master', 'Pengelolaan', 'Laporan', 'Akun'], 18],
     ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 9],
-    ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 8],
-    ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 8],
-    ['dokter', 'umum', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 9],
-    ['dokter', 'gigi', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 9],
+    ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 9],
+    ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 9],
+    ['dokter', 'umum', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 10],
+    ['dokter', 'gigi', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 10],
     ['farmasi', null, '/farmasi/dashboard', '/pelayanan/farmasi', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Akun'], 4],
     ['manajemen', null, '/', '/laporan/kunjungan', ['Ringkasan', 'Laporan', 'Akun'], 4],
 ]) {
@@ -946,7 +1006,7 @@ for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
         assert.ok(navigation);
         const links = [...navigation.matchAll(/<a\b[^>]*href="([^"]+)"/g)].map((match) => match[1]);
         assert.deepEqual(links.slice(0, 2), [dashboard, primary]);
-        assert.equal(links.length, linkCount, 'regrouping retains the role menu destinations');
+        assert.equal(links.length, linkCount, 'menu count matches the role scope');
         assert.equal(new Set(links).size, links.length, 'each destination appears once');
         assert.ok(links.includes('/profile'));
         const labels = [...navigation.matchAll(/<h2\b[^>]*>([^<]+)<\/h2>/g)].map((match) => match[1]);
@@ -1620,7 +1680,7 @@ test('legacy quick body findings keep custom locations without fabricating a map
     const record = renderToString(createElement(BodyExaminationRecord, { data: { ...emptyBodyMap(), findings: [finding] } }));
     assert.match(record, /Area sekitar luka operasi/);
     assert.match(record, /Luka kering/);
-    assert.doesNotMatch(record, /Peta seluruh tubuh interaktif|Tampak depan|Skala nyeri/);
+    assert.doesNotMatch(record, /aria-pressed="true"|Skala nyeri/);
 });
 
 test('manual findings preserve detailed examination fields and require a description for other examination methods', async () => {
@@ -1765,7 +1825,7 @@ for (const tab of ['interactive', 'manual']) {
         const record = renderToString(createElement(BodyExaminationRecord, { data: { ...emptyBodyMap(), findings: [finding] } }));
         assert.match(record, /Pemeriksaan fisik/);
         assert.match(record, /Temuan pemeriksaan naratif dokter/);
-        assert.doesNotMatch(record, /Peta seluruh tubuh|Peta organ|Tampak depan|Lokasi tubuh/);
+        assert.doesNotMatch(record, /aria-pressed="true"|Tampilkan lokasi pada peta/);
     });
 }
 
@@ -2345,4 +2405,27 @@ test('medical record displays a profile signature only after a valid finalizatio
         assert.equal(html.includes(signature), visible);
         if (visible) assert.match(html, /alt="Tanda tangan Dokter Penerbit"/);
     }
+});
+
+for (const hasMedication of [true, false]) {
+    test(`nursing procedure explains next destination with medication=${hasMedication}`, async () => {
+        const html = await renderPage('pelayanan/tindakan/show', { visit: {
+            id: 1, number: 'K-CARE', patient: 'Pasien Uji', medicalRecordNumber: 'RM-CARE', clinic: 'Poli Umum', doctor: 'Dokter Uji', status: 'tindakan', allergies: null, education: 'Edukasi pasien', nonPharmacological: 'Latihan sesuai toleransi', diagnoses: ['Diagnosis uji'], hasMedication, recordUrl: '/pelayanan/pasien/1/rekam-medis',
+            treatments: [{ id: 1, name: 'Perawatan uji', code: null, quantity: 1, toothFdi: null, instructions: 'Instruksi dokter', status: 'pending', result: null, performedBy: null, performedAt: null, completeUrl: '/pelayanan/tindakan-perawat/1/1/selesai' }],
+        } });
+        assert.match(html, /Belum diketahui; konfirmasi sebelum tindakan/);
+        assert.match(html, /Latihan sesuai toleransi/);
+        assert.match(html, /Hasil pelaksanaan dan respons pasien/);
+        assert.match(html, hasMedication ? /pasien diteruskan ke farmasi/ : /kunjungan selesai dan pasien dapat pulang/);
+    });
+}
+
+test('completed nursing result shows attribution and cannot be resubmitted', async () => {
+    const html = await renderPage('pelayanan/tindakan/show', { visit: {
+        id: 1, number: 'K-CARE', patient: 'Pasien Uji', medicalRecordNumber: 'RM-CARE', clinic: 'Poli Umum', doctor: 'Dokter Uji', status: 'selesai', allergies: null, education: null, nonPharmacological: null, diagnoses: [], hasMedication: false, recordUrl: '/pelayanan/pasien/1/rekam-medis',
+        treatments: [{ id: 1, name: 'Perawatan uji', code: null, quantity: 1, toothFdi: null, instructions: 'Instruksi dokter', status: 'completed', result: 'Respons pasien tercatat', performedBy: 'Perawat Uji', performedAt: '27/10/2026 09:00', completeUrl: '/pelayanan/tindakan-perawat/1/1/selesai' }],
+    } });
+    assert.match(html, /Respons pasien tercatat/);
+    assert.match(html, /Perawat Uji/);
+    assert.doesNotMatch(html, /<textarea|Simpan pelaksanaan tindakan/);
 });

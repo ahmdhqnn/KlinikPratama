@@ -11,6 +11,7 @@ import { Pagination, type PaginationData } from '@/components/dashboard/paginati
 interface Props {
     followUp: FollowUpData;
     stats: {
+        menunggu_tindakan: number;
         total_kunjungan: number;
         total_kunjungan_hari_ini: number;
         menunggu_ttv: number;
@@ -29,8 +30,8 @@ export default function NurseDashboard({ stats, visits, followUp }: Props) {
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ringkasan pengkajian awal</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Ringkasan menunjukkan seluruh kunjungan poli; antrean dan kebutuhan respons menampilkan kondisi hari ini.</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ringkasan pelayanan keperawatan</h2>
+                    <p className="mt-1 text-sm text-neutral-500">Ringkasan menunjukkan pengkajian dan tindakan poli; antrean dan kebutuhan respons menampilkan kondisi hari ini.</p>
                 </div>
                 <section aria-label="Statistik keperawatan" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>a>section]:h-full [&>a>section>div]:h-full">
                     <StatCard description={`Menunggu atau dalam pengkajian${todayCountDescription(stats.menunggu_ttv_hari_ini)}`} href="/pelayanan/screening" icon={<HeartPulse className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pengkajian awal" value={stats.menunggu_ttv} />
@@ -38,6 +39,7 @@ export default function NurseDashboard({ stats, visits, followUp }: Props) {
                     <StatCard description={`Menunggu / sedang diperiksa${todayCountDescription(stats.siap_dokter_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli?status=pemeriksaan" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan dokter" value={stats.siap_dokter} />
                     <StatCard description="Memerlukan respons segera hari ini" href="/pelayanan/screening/riwayat" icon={<AlertTriangle className="size-5" />} iconClassName="bg-red-50 text-red-700" label="Perlu respons segera" value={stats.triase_darurat} />
                 </section>
+                <StatCard description="Instruksi dokter yang menunggu pelaksanaan, termasuk kunjungan sebelumnya" href="/pelayanan/tindakan-perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Tindakan perawat" value={stats.menunggu_tindakan} />
                 <FollowUp data={followUp} />
                 <Card>
                     <CardHeader>

@@ -157,10 +157,17 @@ class RmeEndToEndFlowTest extends TestCase
             'jenis' => 'jadi',
         ]);
 
-        // Selesai pemeriksaan dokter -> diteruskan ke farmasi
+        // Pemeriksaan dokter -> tindakan perawat -> farmasi
         $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/selesai", ['signature_password' => 'password']);
         $kunjungan->refresh();
-        $this->assertEquals('farmasi', $kunjungan->status);
+        $this->assertSame('tindakan', $kunjungan->status);
+        $this->assertEquals(5, $supply->fresh()->stok);
+        $procedure = $kunjungan->tindakanKunjungan()->sole();
+        $this->actingAs($nurse)->post(route('pelayanan.tindakan.complete', [$kunjungan, $procedure]), [
+            'execution_result' => 'Tindakan dilaksanakan, kondisi pasien baik.',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('farmasi', $kunjungan->fresh()->status);
+        $this->actingAs($doctorUser);
         $this->assertEquals(100, $obat->fresh()->stok);
         $this->assertEquals(3, $supply->fresh()->stok);
         $this->post('/pelayanan/pemeriksaan/'.$kunjungan->id.'/selesai', ['signature_password' => 'password'])->assertUnprocessable();

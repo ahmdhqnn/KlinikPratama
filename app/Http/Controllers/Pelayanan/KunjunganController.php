@@ -192,7 +192,7 @@ class KunjunganController extends Controller
         $auditRecorder->record($request, 'visit.view', $kunjungan->pasien_id, $kunjungan->id);
         $kunjungan->load([
             'pasien', 'poliklinik', 'dokter', 'screening:id,kunjungan_id,submitted_at,riwayat_alergi,alergi_jenis,alergi_reaksi',
-            'pemeriksaan', 'farmasi:id,kunjungan_id,status',
+            'pemeriksaan', 'farmasi:id,kunjungan_id,status', 'tindakanKunjungan', 'resep.resepObat',
         ]);
 
         $role = $request->user()->role;
@@ -261,7 +261,12 @@ class KunjunganController extends Controller
                     ['label' => 'Verifikasi hak layanan', 'done' => (bool) $kunjungan->verified_at],
                     ['label' => 'Pengkajian awal perawat', 'done' => $screeningCompleted, 'active' => $kunjungan->status === 'screening', 'note' => $kunjungan->screening && ! $screeningCompleted ? 'Draf pengkajian belum dikirim ke dokter.' : null],
                     ['label' => 'Pemeriksaan dokter', 'done' => $kunjungan->pemeriksaan?->status === 'selesai'],
-                    ['label' => 'Farmasi', 'done' => $kunjungan->farmasi?->status === 'selesai'],
+                    ...($kunjungan->tindakanKunjungan->where('execution_role', 'perawat')->isNotEmpty() ? [
+                        ['label' => 'Tindakan perawat', 'done' => ! $kunjungan->tindakanKunjungan->where('execution_role', 'perawat')->contains('execution_status', 'pending'), 'active' => $kunjungan->status === 'tindakan'],
+                    ] : []),
+                    ...($kunjungan->resep?->resepObat->contains('is_resep_luar', false) ? [
+                        ['label' => 'Farmasi', 'done' => $kunjungan->farmasi?->status === 'selesai'],
+                    ] : []),
                     ['label' => 'Kunjungan selesai', 'done' => $kunjungan->status === 'selesai'],
                 ],
             ],

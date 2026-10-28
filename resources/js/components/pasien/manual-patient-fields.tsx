@@ -17,7 +17,7 @@ export interface ManualPatientIdentity {
     jenis_kelamin: string;
     golongan_darah: string;
     agama: string;
-    nama_ibu: string;
+    unit_kerja: string;
     telepon: string;
     alamat: string;
     rt: string;
@@ -51,16 +51,10 @@ export function ManualPatientFields({ value, errors, onChange, showAllergy = tru
                 <Field error={errors.jenis_kelamin} htmlFor="manual-jenis-kelamin" label="Jenis kelamin"><Select id="manual-jenis-kelamin" onChange={(event) => onChange('jenis_kelamin', event.target.value)} value={value.jenis_kelamin}><option value="">Pilih jenis kelamin</option><option value="L">Laki-laki</option><option value="P">Perempuan</option></Select></Field>
                 <Field error={errors.golongan_darah} htmlFor="manual-golongan-darah" label="Golongan darah"><Select id="manual-golongan-darah" onChange={(event) => onChange('golongan_darah', event.target.value)} value={value.golongan_darah}><option value="">Tidak diketahui</option>{['A', 'B', 'AB', 'O'].map((type) => <option key={type} value={type}>{type}</option>)}</Select></Field>
                 <Field error={errors.agama} htmlFor="manual-agama" label="Agama"><ReligionSelect id="manual-agama" onChange={(event) => onChange('agama', event.target.value)} value={value.agama} /></Field>
-                <Field error={errors.nama_ibu} htmlFor="manual-nama-ibu" label="Nama ibu kandung"><Input placeholder={identityPlaceholders.nama_ibu} id="manual-nama-ibu" onChange={(event) => onChange('nama_ibu', event.target.value)} value={value.nama_ibu} /></Field>
+                <Field error={errors.unit_kerja} htmlFor="manual-unit-kerja" label="Unit kerja"><Input id="manual-unit-kerja" maxLength={200} onChange={(event) => onChange('unit_kerja', event.target.value)} placeholder={identityPlaceholders.unit_kerja} value={value.unit_kerja} /></Field>
                 <Field error={errors.telepon} htmlFor="manual-telepon" label="Nomor telepon"><Input placeholder={identityPlaceholders.telepon} autoComplete="tel" id="manual-telepon" onChange={(event) => onChange('telepon', event.target.value)} type="tel" value={value.telepon} /></Field>
             </div>
             <Field error={errors.alamat} htmlFor="manual-alamat" label="Alamat"><Textarea placeholder={identityPlaceholders.alamat} id="manual-alamat" onChange={(event) => onChange('alamat', event.target.value)} rows={2} value={value.alamat} /></Field>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Field error={errors.rt} htmlFor="manual-rt" label="RT"><Input placeholder={identityPlaceholders.rt} id="manual-rt" maxLength={5} onChange={(event) => onChange('rt', event.target.value)} value={value.rt} /></Field>
-                <Field error={errors.rw} htmlFor="manual-rw" label="RW"><Input placeholder={identityPlaceholders.rw} id="manual-rw" maxLength={5} onChange={(event) => onChange('rw', event.target.value)} value={value.rw} /></Field>
-                <Field error={errors.kelurahan} htmlFor="manual-kelurahan" label="Kelurahan / desa"><IdentitySuggestionInput placeholder={identityPlaceholders.kelurahan} field="kelurahan" district={value.kecamatan} id="manual-kelurahan" onChange={(event) => onChange('kelurahan', event.target.value)} value={value.kelurahan} /></Field>
-                <Field error={errors.kecamatan} htmlFor="manual-kecamatan" label="Kecamatan"><IdentitySuggestionInput placeholder={identityPlaceholders.kecamatan} field="kecamatan" id="manual-kecamatan" onChange={(event) => onChange('kecamatan', event.target.value)} value={value.kecamatan} /></Field>
-            </div>
             {showAllergy && <Field error={errors.riwayat_alergi} htmlFor="manual-alergi" label="Riwayat alergi"><Textarea id="manual-alergi" onChange={(event) => onChange('riwayat_alergi', event.target.value)} placeholder={identityPlaceholders.riwayat_alergi} value={value.riwayat_alergi} /></Field>}
         </div>
     );

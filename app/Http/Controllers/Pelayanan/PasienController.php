@@ -75,6 +75,7 @@ class PasienController extends Controller
                         'name' => $patient->nama, 'nik' => $patient->nik, 'nip' => $patient->nip, 'birthPlace' => $patient->tempat_lahir,
                         'birthDate' => $patient->tanggal_lahir?->toDateString(), 'gender' => $patient->jenis_kelamin,
                         'bloodType' => $patient->golongan_darah, 'religion' => $patient->agama, 'address' => $patient->alamat,
+                        'unit' => $patient->unit_kerja,
                         'rt' => $patient->rt, 'rw' => $patient->rw, 'village' => $patient->kelurahan, 'district' => $patient->kecamatan,
                     ] : null,
                 ])->values(),
@@ -92,7 +93,6 @@ class PasienController extends Controller
             ],
             'categories' => Kepesertaan::CATEGORIES,
             'otherTypes' => Kepesertaan::OTHER_TYPES,
-            'sponsors' => $request->user()->role === 'admin' ? Kepesertaan::where('kategori', 'asn')->orderBy('nama')->get(['id', 'nama']) : [],
             'today' => today()->toDateString(),
         ]);
     }
@@ -123,7 +123,6 @@ class PasienController extends Controller
 
         $data = $request->validate([
             'kepesertaan_id' => ['required', 'integer', 'exists:kepesertaan,id'],
-            'nama_ibu' => ['nullable', 'string', 'max:255'],
             'telepon' => ['nullable', 'string', 'max:20'],
             'riwayat_alergi' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -158,20 +157,18 @@ class PasienController extends Controller
             'nik' => ['nullable', 'required_without:nip', 'digits:16'],
             'nip' => ['nullable', 'required_without:nik', 'string', 'regex:/^[0-9]{8,30}$/'],
             'kategori' => ['required', 'in:asn,lainnya'],
-            'jenis_lainnya' => ['nullable', 'string'],
-            'status_kepegawaian' => ['required', 'in:aktif,pensiun'],
-            'pegawai_penanggung_id' => ['nullable', 'integer'],
-            'hubungan_keluarga' => ['nullable', 'string'],
+            'jenis_lainnya' => ['nullable', 'string', 'max:30'],
+            'status_kepegawaian' => ['required', 'in:aktif,nonaktif'],
             'tempat_lahir' => ['required', 'string', 'max:100'],
             'tanggal_lahir' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'jenis_kelamin' => ['required', 'in:L,P'],
             'golongan_darah' => ['nullable', 'in:A,B,AB,O'],
             'agama' => ['required', 'string', 'max:50'],
             'alamat' => ['required', 'string', 'max:2000'],
-            'rt' => ['required', 'string', 'max:5'],
-            'rw' => ['required', 'string', 'max:5'],
-            'kelurahan' => ['required', 'string', 'max:100'],
-            'kecamatan' => ['required', 'string', 'max:100'],
+            'rt' => ['nullable', 'string', 'max:5'],
+            'rw' => ['nullable', 'string', 'max:5'],
+            'kelurahan' => ['nullable', 'string', 'max:100'],
+            'kecamatan' => ['nullable', 'string', 'max:100'],
             'unit_kerja' => ['required', 'string', 'max:200'],
             'referensi_bukti' => ['required', 'string', 'max:255'],
             'hak_layanan' => ['required', 'accepted'],
@@ -230,6 +227,7 @@ class PasienController extends Controller
                 'jenis_kelamin' => $membership->jenis_kelamin,
                 'golongan_darah' => $membership->golongan_darah,
                 'agama' => $membership->agama,
+                'unit_kerja' => $membership->unit_kerja,
                 'alamat' => $membership->alamat,
                 'rt' => $membership->rt,
                 'rw' => $membership->rw,
@@ -273,7 +271,7 @@ class PasienController extends Controller
                 'medicalRecordNumber' => $pasien->no_rm,
                 'name' => $pasien->nama,
                 'nik' => $pasien->nik,
-                'birthDate' => ($pasien->kepesertaan?->tanggal_lahir ?? $pasien->tanggal_lahir)?->isoFormat('D MMMM Y'),
+                'birthDate' => ($pasien->kepesertaan?->tanggal_lahir ?? $pasien->tanggal_lahir)?->locale('id')->isoFormat('D MMMM Y'),
                 'gender' => $pasien->kepesertaan?->jenis_kelamin ?? $pasien->jenis_kelamin,
                 'age' => ($pasien->kepesertaan?->tanggal_lahir ?? $pasien->tanggal_lahir)?->age,
                 'bloodType' => $pasien->kepesertaan?->golongan_darah ?? $pasien->golongan_darah,
@@ -283,7 +281,7 @@ class PasienController extends Controller
                 'rw' => $pasien->kepesertaan?->rw ?? $pasien->rw,
                 'village' => $pasien->kepesertaan?->kelurahan ?? $pasien->kelurahan,
                 'district' => $pasien->kepesertaan?->kecamatan ?? $pasien->kecamatan,
-                'unit' => $pasien->kepesertaan?->unit_kerja,
+                'unit' => $pasien->kepesertaan?->unit_kerja ?? $pasien->unit_kerja,
                 'memberNip' => $pasien->nip ?? $pasien->kepesertaan?->nip,
                 'phone' => $pasien->telepon,
                 'address' => $pasien->kepesertaan?->alamat ?? $pasien->alamat,
@@ -326,12 +324,11 @@ class PasienController extends Controller
                 'rw' => $pasien->kepesertaan?->rw ?? $pasien->rw,
                 'village' => $pasien->kepesertaan?->kelurahan ?? $pasien->kelurahan,
                 'district' => $pasien->kepesertaan?->kecamatan ?? $pasien->kecamatan,
-                'unit' => $pasien->kepesertaan?->unit_kerja,
+                'unit' => $pasien->kepesertaan?->unit_kerja ?? $pasien->unit_kerja,
                 'memberNip' => $pasien->nip ?? $pasien->kepesertaan?->nip,
                 'phone' => $pasien->telepon,
                 'address' => $pasien->kepesertaan?->alamat ?? $pasien->alamat,
                 'membershipId' => $pasien->kepesertaan_id,
-                'motherName' => $pasien->nama_ibu,
             ],
             'today' => today()->toDateString(),
         ]);
@@ -403,6 +400,7 @@ class PasienController extends Controller
     public function rekamMedis(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, ClinicalNoteRecorder $noteRecorder, PerawatClinicResolver $perawatClinicResolver, CorrespondenceService $correspondence): Response
     {
         $this->authorizeDoctorPatient($pasien);
+        $pasien->load('kepesertaan');
         $clinicId = $request->user()->role === 'perawat'
             ? $perawatClinicResolver->clinicId($request->user())
             : null;
@@ -411,7 +409,7 @@ class PasienController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
-            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,farmasi,kasir,selesai,batal'],
+            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,tindakan,farmasi,kasir,selesai,batal'],
             'dari' => ['nullable', 'date_format:Y-m-d'],
             'sampai' => ['nullable', 'date_format:Y-m-d'],
         ]);
@@ -456,6 +454,7 @@ class PasienController extends Controller
             'odontogramFindings',
             'resep.resepObat',
             'tindakanKunjungan.tindakan:id,nama',
+            'tindakanKunjungan.performedBy:id,name',
         ])->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
         $backUrl = route('pelayanan.pasien.show', $pasien);
         $referer = $request->headers->get('referer');
@@ -478,9 +477,14 @@ class PasienController extends Controller
                 'name' => $pasien->nama,
                 'medicalRecordNumber' => $pasien->no_rm,
                 'nik' => $pasien->nik,
-                'gender' => $pasien->jenis_kelamin,
-                'age' => $pasien->umur,
-                'bloodType' => $pasien->golongan_darah,
+                'gender' => $pasien->kepesertaan?->jenis_kelamin ?? $pasien->jenis_kelamin,
+                'age' => ($pasien->kepesertaan?->tanggal_lahir ?? $pasien->tanggal_lahir)?->age,
+                'bloodType' => $pasien->kepesertaan?->golongan_darah ?? $pasien->golongan_darah,
+                'birthPlace' => $pasien->kepesertaan?->tempat_lahir ?? $pasien->tempat_lahir,
+                'birthDate' => ($pasien->kepesertaan?->tanggal_lahir ?? $pasien->tanggal_lahir)?->locale('id')->isoFormat('D MMMM Y'),
+                'address' => $pasien->kepesertaan?->alamat ?? $pasien->alamat,
+                'religion' => $pasien->kepesertaan?->agama ?? $pasien->agama,
+                'unit' => $pasien->kepesertaan?->unit_kerja ?? $pasien->unit_kerja,
                 'allergies' => $pasien->riwayat_alergi ?: 'Belum dicatat',
             ],
             'backUrl' => $backUrl,
@@ -567,6 +571,7 @@ class PasienController extends Controller
                         'extraoralExamination' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_ekstraoral'] ?? null) : $visit->pemeriksaan->pemeriksaan_ekstraoral, 'Belum diperiksa'),
                         'oralHygieneIndex' => is_numeric($oralHygieneIndex) ? (float) $oralHygieneIndex : null,
                         'differentialDiagnosis' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['diagnosis_banding'] ?? null) : $visit->pemeriksaan->diagnosis_banding, 'Belum dicatat'),
+                        'nonPharmacological' => is_array($effectiveNote) ? ($effectiveNote['non_farmakologis'] ?? null) : $visit->pemeriksaan->non_farmakologis,
                         'education' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['edukasi'] ?? null) : $visit->pemeriksaan->edukasi, 'Belum dicatat'),
                         'notes' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['catatan'] ?? null) : $visit->pemeriksaan->catatan, 'Belum dicatat'),
                         'nextControl' => is_array($effectiveNote)
@@ -590,6 +595,8 @@ class PasienController extends Controller
                             'physicalExamination' => $version->payload['pemeriksaan_fisik'] ?? null,
                             'physicalSystems' => $version->payload['pemeriksaan_fisik_terstruktur'] ?? [],
                             'bodyMap' => $version->payload['body_map'] ?? null,
+                            'nonPharmacological' => $version->payload['non_farmakologis'] ?? null,
+                            'education' => $version->payload['edukasi'] ?? null,
                             'extraoralExamination' => $clinicalAnswer($version->payload['pemeriksaan_ekstraoral'] ?? null, 'Belum diperiksa'),
                             'oralHygieneIndex' => is_numeric($version->payload['oral_hygiene_index'] ?? null) ? (float) $version->payload['oral_hygiene_index'] : null,
                             'differentialDiagnosis' => $clinicalAnswer($version->payload['diagnosis_banding'] ?? null, 'Belum dicatat'),
@@ -615,6 +622,12 @@ class PasienController extends Controller
                         'unit' => is_array($item) ? $item['unit'] : $item->satuan,
                         'instructions' => is_array($item) ? $item['instructions'] : $item->aturan_pakai,
                     ])->all(),
+                    'procedureExecutions' => $integrityValid === false ? [] : $visit->tindakanKunjungan->map(fn ($item): array => [
+                        'id' => $item->id, 'name' => $item->nama_tindakan ?? $item->nama_tindakan_manual ?? $item->tindakan?->nama,
+                        'role' => $item->execution_role, 'status' => $item->execution_status,
+                        'result' => $item->execution_result, 'performedBy' => $item->performedBy?->name,
+                        'performedAt' => $item->performed_at?->format('d/m/Y H:i'),
+                    ])->values()->all(),
                     'treatments' => collect(is_array($effectiveNote) ? ($effectiveNote['treatments'] ?? []) : ($integrityValid === false ? [] : $visit->tindakanKunjungan))->values()->map(fn ($item, int $index): array => [
                         'id' => is_array($item) ? $index + 1 : $item->id,
                         'name' => is_array($item) ? $item['name'] : ($item->nama_tindakan ?? $item->nama_tindakan_manual ?? $item->tindakan?->nama ?? 'Tindakan dihapus'),
@@ -686,7 +699,7 @@ class PasienController extends Controller
             'kepesertaan_id' => $member->id, 'nama' => $member->nama, 'nik' => $member->nik, 'nip' => $member->nip,
             'tempat_lahir' => $member->tempat_lahir, 'tanggal_lahir' => $member->tanggal_lahir?->toDateString(),
             'jenis_kelamin' => $member->jenis_kelamin, 'golongan_darah' => $member->golongan_darah,
-            'agama' => $member->agama, 'alamat' => $member->alamat, 'rt' => $member->rt, 'rw' => $member->rw,
+            'agama' => $member->agama, 'alamat' => $member->alamat, 'unit_kerja' => $member->unit_kerja, 'rt' => $member->rt, 'rw' => $member->rw,
             'kelurahan' => $member->kelurahan, 'kecamatan' => $member->kecamatan,
         ];
     }

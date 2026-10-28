@@ -31,7 +31,7 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
                 <section aria-label="Statistik praktik dokter" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     <StatCard description="Kunjungan yang ditugaskan kepada Anda hari ini" href="/dokter/kunjungan" icon={<CalendarClock className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Kunjungan saya hari ini" value={stats.visitsToday} />
                     <StatCard description="Menunggu atau sedang diperiksa dokter" href="/pelayanan/pemeriksaan" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Antrean pemeriksaan dokter" value={stats.waitingExaminations} />
-                    <StatCard description="Diteruskan ke farmasi atau kunjungan selesai" href="/dokter/kunjungan" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Selesai ditangani" value={stats.completedToday} />
+                    <StatCard description="Diteruskan ke perawat, farmasi, atau kunjungan selesai" href="/dokter/kunjungan" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Selesai ditangani" value={stats.completedToday} />
                 </section>
                 <FollowUp data={followUp} />
                 <Card>
@@ -47,13 +47,13 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
                         <QuickLink href="/dokter/laporan-top-diagnosa" icon={<ChartNoAxesCombined className="size-4" />} label="Top diagnosis" />
                     </CardContent>
                 </Card>
-                <section className="grid gap-6 xl:grid-cols-[minmax(16rem,0.75fr)_minmax(0,1.5fr)]">
-                    <Card>
-                        <CardHeader>
+                <section className="grid items-stretch gap-6 xl:gap-y-0 xl:grid-cols-[minmax(16rem,0.75fr)_minmax(0,1.5fr)]">
+                    <Card className="flex min-w-0 flex-col overflow-hidden xl:row-span-3 xl:grid xl:grid-rows-subgrid xl:gap-y-0">
+                        <CardHeader className="border-b border-neutral-100">
                             <CardTitle>Jadwal praktik hari ini</CardTitle>
                             <CardDescription>Poliklinik dan jam praktik aktif.</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-3">
+                        <CardContent className="flex-1 space-y-3 pt-5 sm:pt-6">
                             {schedule.length > 0 ? schedule.map((item) => (
                                 <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-100 p-3" key={item.id}>
                                     <div><p className="font-medium text-neutral-900">{item.clinic}</p><p className="mt-1 text-xs text-neutral-500">Poliklinik</p></div>
@@ -61,14 +61,17 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
                                 </div>
                             )) : <Empty description="Jadwal dokter yang aktif akan muncul di sini." size="compact" title="Tidak ada jadwal praktik aktif hari ini." />}
                         </CardContent>
+                        <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pendaftaran/jadwal-praktik">Lihat jadwal</Link></Button></div>
                     </Card>
-                    <Card className="overflow-hidden">
+                    <Card className="flex min-w-0 flex-col overflow-hidden xl:row-span-3 xl:grid xl:grid-rows-subgrid xl:gap-y-0">
                         <CardHeader className="border-b border-neutral-100">
                             <CardTitle>Kunjungan saya hari ini</CardTitle>
                             <CardDescription>Pasien yang ditugaskan kepada Anda hari ini.</CardDescription>
                         </CardHeader>
-                        <VisitTable visits={recentVisits.data} />
+                        <div className="flex min-w-0 flex-1 flex-col"><div className="flex-1"><VisitTable visits={recentVisits.data} /></div>
                         <Pagination pagination={recentVisits} />
+                        </div>
+                    <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/dokter/kunjungan">Lihat semua kunjungan</Link></Button></div>
                     </Card>
                 </section>
             </div>

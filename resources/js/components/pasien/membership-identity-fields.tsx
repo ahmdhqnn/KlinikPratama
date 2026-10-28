@@ -47,8 +47,7 @@ export function MembershipIdentityFields({ value, identity, error, onClear, onSe
                             {readOnlyField('member-nik', 'NIK', identity.nik)}
                             {readOnlyField('member-nip', 'NIP', identity.nip)}
                             {readOnlyField('member-unit', 'Unit kerja', identity.unit)}
-                            {readOnlyField('member-birth-place', 'Tempat lahir', identity.tempatLahir)}
-                            {readOnlyField('member-birth-date', 'Tanggal lahir', identity.tanggalLahir)}
+                            {readOnlyField('member-birth', 'Tempat, tanggal lahir', [identity.tempatLahir, identity.tanggalLahir].filter(Boolean).join(', '))}
                             {readOnlyField('member-gender', 'Jenis kelamin', identity.jenisKelamin === 'L' ? 'Laki-laki' : identity.jenisKelamin === 'P' ? 'Perempuan' : null)}
                             {readOnlyField('member-religion', 'Agama', identity.agama)}
                             {readOnlyField('member-blood-type', 'Golongan darah', identity.golonganDarah)}
@@ -56,13 +55,7 @@ export function MembershipIdentityFields({ value, identity, error, onClear, onSe
                     </section>
                     <section className="space-y-3">
                         <div><h3 className="text-sm font-semibold text-neutral-950">Alamat sesuai data peserta</h3><p className="mt-1 text-xs text-neutral-500">Perbarui alamat melalui data kepesertaan bila terdapat koreksi.</p></div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                            <div className="sm:col-span-2 lg:col-span-4">{readOnlyField('member-address', 'Alamat', identity.alamat)}</div>
-                            {readOnlyField('member-rt', 'RT', identity.rt)}
-                            {readOnlyField('member-rw', 'RW', identity.rw)}
-                            {readOnlyField('member-village', 'Kelurahan/desa', identity.kelurahan)}
-                            {readOnlyField('member-district', 'Kecamatan', identity.kecamatan)}
-                        </div>
+                        {readOnlyField('member-address', 'Alamat', identity.alamat)}
                     </section>
                 </div>
             )}

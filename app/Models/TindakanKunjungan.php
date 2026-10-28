@@ -13,10 +13,17 @@ class TindakanKunjungan extends Model
         'kunjungan_id', 'tindakan_id', 'nama_tindakan_manual', 'dokter_id',
         'nama_tindakan', 'kode_icd9cm', 'code_system', 'code_release',
         'jumlah', 'tooth_fdi', 'catatan', 'bhp_consumed_at',
+        'execution_role', 'execution_status', 'performed_by', 'performed_at', 'execution_result',
     ];
 
     protected $casts = [
+        'performed_at' => 'datetime',
     ];
+
+    public function performedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'performed_by');
+    }
 
     public function kunjungan(): BelongsTo
     {

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exports\PasienExport;
 use App\HakLayananVerifier;
 use App\Models\JadwalDokter;
 use App\Models\Kepesertaan;
@@ -34,7 +35,7 @@ class ManualPatientRegistrationTest extends TestCase
         ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 10]);
 
         $this->actingAs($staff)->post(route('pendaftaran.store-pasien-baru'), [
-            ...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id, 'riwayat_alergi' => 'Penisilin',
+            ...$this->identity(), 'unit_kerja' => 'Biro Umum', 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id, 'riwayat_alergi' => 'Penisilin',
         ])->assertSessionHasNoErrors();
         $visit = Kunjungan::sole();
         $this->actingAs($pharmacist)->post(route('pelayanan.farmasi.store', $visit), ['items' => []])->assertUnprocessable();
@@ -60,6 +61,9 @@ class ManualPatientRegistrationTest extends TestCase
         $this->assertSame('tablet', $prescriptionItem->satuan);
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasNoErrors();
         $this->assertSame('farmasi', $visit->fresh()->status);
+        $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien))->assertInertia(fn (Assert $page) => $page
+            ->where('patient.birthPlace', 'Bandung')->where('patient.address', 'Jl. Merdeka')
+            ->where('patient.religion', 'Islam')->where('patient.birthDate', '20 Mei 1990')->where('patient.unit', 'Biro Umum'));
         $this->assertSame('Penisilin', $visit->fresh()->pemeriksaan->riwayat_alergi);
         $this->post(route('pelayanan.pemeriksaan.store', $visit), ['anamnesis' => 'Ubah setelah final'])->assertUnprocessable();
 
@@ -94,6 +98,64 @@ class ManualPatientRegistrationTest extends TestCase
         $this->assertNull($visit->verified_by);
         $this->assertSame('pending_verification', $visit->hak_layanan_snapshot['status']);
         $this->assertDatabaseCount('kepesertaan', 0);
+    }
+
+    public function test_registration_and_returning_patient_need_only_an_address_without_separate_area_fields(): void
+    {
+        [$staff, $clinic] = $this->registrationContext();
+        $identity = $this->identity();
+        unset($identity['rt'], $identity['rw'], $identity['kelurahan'], $identity['kecamatan']);
+
+        $this->actingAs($staff)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$identity, 'unit_kerja' => 'Biro Umum', 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
+        ])->assertSessionHasNoErrors();
+
+        $patient = Pasien::sole();
+        $this->assertSame('Jl. Merdeka', $patient->alamat);
+        $this->assertSame('Biro Umum', $patient->unit_kerja);
+        $this->assertSame('Biro Umum', Kunjungan::sole()->unit_kerja);
+        $export = new PasienExport;
+        $this->assertNotContains('Pekerjaan', $export->headings());
+        $this->assertSame('Biro Umum', $export->map($patient)[array_search('Unit Kerja', $export->headings(), true)]);
+        $this->assertNull($patient->rt);
+        $this->assertNull($patient->kelurahan);
+        $this->getJson(route('pendaftaran.pasien.search', ['q' => $patient->no_rm]))
+            ->assertOk()->assertJsonPath('0.unit_kerja', 'Biro Umum')->assertJsonPath('0.alamat', 'Jl. Merdeka');
+        $this->get(route('pelayanan.pasien.show', $patient))->assertInertia(fn (Assert $page) => $page
+            ->where('patient.birthPlace', 'Bandung')->where('patient.unit', 'Biro Umum')->where('patient.address', 'Jl. Merdeka'));
+    }
+
+    public function test_membership_verification_accepts_address_only_and_keeps_existing_area_data_on_edit(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $identity = $this->identity();
+        $patient = Pasien::create(['no_rm' => 'RM-000001', ...$identity]);
+        unset($identity['rt'], $identity['rw'], $identity['kelurahan'], $identity['kecamatan']);
+
+        $this->actingAs($admin)->post(route('pelayanan.pasien.verify-membership', $patient), [
+            ...$identity, 'kategori' => 'asn', 'status_kepegawaian' => 'aktif',
+            'unit_kerja' => 'Biro Umum', 'referensi_bukti' => 'Daftar TEST-001', 'hak_layanan' => true,
+        ])->assertSessionHasNoErrors();
+
+        $member = $patient->fresh()->kepesertaan;
+        $this->assertNull($member->rt);
+        $this->assertSame('Biro Umum', $patient->fresh()->unit_kerja);
+        $member->update(['rt' => '004', 'kelurahan' => 'Citarum']);
+
+        $this->put(route('kepesertaan.update', $member), [
+            ...$identity, 'kategori' => 'asn', 'status_kepegawaian' => 'aktif',
+            'unit_kerja' => 'Biro Umum', 'referensi_bukti' => 'Daftar TEST-002', 'hak_layanan' => true,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('004', $member->fresh()->rt);
+        $this->assertSame('Citarum', $member->fresh()->kelurahan);
+
+        $this->put(route('pelayanan.pasien.update', $patient), [...$identity, 'registration_type' => 'manual', 'unit_kerja' => 'Biro Layanan'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('Biro Layanan', $patient->fresh()->unit_kerja);
+        $this->assertSame('Biro Layanan', $member->fresh()->unit_kerja);
+        $this->assertSame('004', $member->fresh()->rt);
+        $this->assertSame('Citarum', $member->fresh()->kelurahan);
     }
 
     public function test_registration_with_legacy_screening_setting_redirects_to_an_accessible_page(): void
@@ -196,13 +258,13 @@ class ManualPatientRegistrationTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-000001', ...$this->identity()]);
         $this->actingAs($admin)->post(route('pelayanan.pasien.verify-membership', $patient), [
-            ...$this->identity(), 'kategori' => $category, 'jenis_lainnya' => 'lainnya', 'status_kepegawaian' => 'aktif',
+            ...$this->identity(), 'kategori' => $category, 'jenis_lainnya' => 'staf', 'status_kepegawaian' => 'aktif',
             'unit_kerja' => 'Biro Umum', 'referensi_bukti' => 'Daftar instansi TEST-001', 'hak_layanan' => true,
         ])->assertSessionHasNoErrors();
 
         $membership = $patient->fresh()->kepesertaan;
         $this->assertSame($category, $membership->kategori);
-        $this->assertSame($category === 'asn' ? null : 'lainnya', $membership->jenis_lainnya);
+        $this->assertSame($category === 'asn' ? null : 'staf', $membership->jenis_lainnya);
         $this->assertSame($admin->id, $membership->verified_by);
         $this->assertNull(app(HakLayananVerifier::class)->reason($membership));
         $this->assertDatabaseHas('clinical_audit_events', ['action' => 'patient.membership_verified', 'patient_id' => $patient->id]);
@@ -220,6 +282,22 @@ class ManualPatientRegistrationTest extends TestCase
         ])->assertSessionHasNoErrors();
         $this->assertSame($member->id, $patient->fresh()->kepesertaan_id);
         $this->assertDatabaseCount('kepesertaan', 1);
+    }
+
+    public function test_admin_can_verify_patient_with_custom_internal_participant_type(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $patient = Pasien::create(['no_rm' => 'RM-CUSTOM-001', ...$this->identity()]);
+
+        $this->actingAs($admin)->post(route('pelayanan.pasien.verify-membership', $patient), [
+            ...$this->identity(), 'kategori' => 'lainnya', 'jenis_lainnya' => 'Tenaga pendukung',
+            'status_kepegawaian' => 'aktif', 'unit_kerja' => 'Unit Pelayanan',
+            'referensi_bukti' => 'Daftar pegawai internal', 'hak_layanan' => true,
+        ])->assertSessionHasNoErrors();
+
+        $member = $patient->fresh()->kepesertaan;
+        $this->assertSame('Tenaga pendukung', $member->jenis_lainnya);
+        $this->assertNull(app(HakLayananVerifier::class)->reason($member));
     }
 
     public function test_staff_cannot_verify_membership_or_forge_verification_in_registration(): void
@@ -247,12 +325,14 @@ class ManualPatientRegistrationTest extends TestCase
     public function test_directory_exposes_pending_verification_and_normalizes_legacy_special_labels(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        Pasien::create(['no_rm' => 'RM-000001', ...$this->identity()]);
+        Pasien::create(['no_rm' => 'RM-000001', ...$this->identity(), 'unit_kerja' => 'Biro Umum']);
         $this->actingAs($admin)->get(route('pelayanan.pasien.index'))->assertInertia(fn (Assert $page) => $page
             ->where('patients.data.0.canVerify', true)->where('patients.data.0.verificationData.nip', $this->identity()['nip'])
+            ->where('patients.data.0.verificationData.unit', 'Biro Umum')
             ->missing('otherTypes.khusus'));
         $member = Kepesertaan::factory()->make(['kategori' => 'lainnya', 'jenis_lainnya' => 'khusus']);
         $this->assertSame('Lainnya', $member->membershipLabel());
+        $this->assertNotNull(app(HakLayananVerifier::class)->reason($member));
     }
 
     /** @return array{User, Poliklinik} */
