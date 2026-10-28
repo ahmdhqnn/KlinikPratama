@@ -42,6 +42,7 @@ interface Patient {
         bloodType: string | null;
         religion: string | null;
         address: string | null;
+        unit: string | null;
         rt: string | null;
         rw: string | null;
         village: string | null;
@@ -56,8 +57,6 @@ interface VerificationFormData {
     kategori: string;
     jenis_lainnya: string;
     status_kepegawaian: string;
-    pegawai_penanggung_id: string;
-    hubungan_keluarga: string;
     tempat_lahir: string;
     tanggal_lahir: string;
     jenis_kelamin: string;
@@ -79,18 +78,18 @@ interface Props {
     patients: PaginationData & { data: Patient[] };
     categories: Record<string, string>;
     otherTypes: Record<string, string>;
-    sponsors: { id: number; nama: string }[];
     today: string;
 }
 
-export default function PatientsIndex({ filters: initialFilters, patients, categories, otherTypes, sponsors, permissions, today }: Props) {
+export default function PatientsIndex({ filters: initialFilters, patients, categories, otherTypes, permissions, today }: Props) {
     const [filters, setFilters] = useState(initialFilters);
     const [mergeOpen, setMergeOpen] = useState(false);
     const [verificationPatient, setVerificationPatient] = useState<Patient | null>(null);
     const [verificationOpen, setVerificationOpen] = useState(false);
+    const [selectedOtherType, setSelectedOtherType] = useState('staf');
     const mergeForm = useForm({ pasien_utama_id: '', pasien_hapus_id: '' });
     const verificationForm = useForm<VerificationFormData>({
-        nama: '', nik: '', nip: '', kategori: 'lainnya', jenis_lainnya: 'lainnya', status_kepegawaian: 'aktif', pegawai_penanggung_id: '', hubungan_keluarga: '', tempat_lahir: '', tanggal_lahir: '', jenis_kelamin: '', golongan_darah: '', agama: '',
+        nama: '', nik: '', nip: '', kategori: 'lainnya', jenis_lainnya: 'staf', status_kepegawaian: 'aktif', tempat_lahir: '', tanggal_lahir: '', jenis_kelamin: '', golongan_darah: '', agama: '',
         alamat: '', rt: '', rw: '', kelurahan: '', kecamatan: '', unit_kerja: '',
         referensi_bukti: '', hak_layanan: false,
     });
@@ -108,14 +107,15 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
 
     function openVerification(patient: Patient) {
         const identity = patient.verificationData;
+        setSelectedOtherType('staf');
         verificationForm.clearErrors();
         verificationForm.setData({
             nama: identity?.name ?? patient.name, nik: identity?.nik ?? patient.nik ?? '', nip: identity?.nip ?? patient.nip ?? '',
-            kategori: (identity?.nip ?? patient.nip) ? 'asn' : 'lainnya', jenis_lainnya: 'lainnya', status_kepegawaian: 'aktif', pegawai_penanggung_id: '', hubungan_keluarga: '',
+            kategori: (identity?.nip ?? patient.nip) ? 'asn' : 'lainnya', jenis_lainnya: 'staf', status_kepegawaian: 'aktif',
             tempat_lahir: identity?.birthPlace ?? '', tanggal_lahir: identity?.birthDate ?? '',
             jenis_kelamin: identity?.gender ?? '', golongan_darah: identity?.bloodType ?? '', agama: identity?.religion ?? '',
             alamat: identity?.address ?? patient.address ?? '', rt: identity?.rt ?? '', rw: identity?.rw ?? '',
-            kelurahan: identity?.village ?? '', kecamatan: identity?.district ?? '', unit_kerja: '',
+            kelurahan: identity?.village ?? '', kecamatan: identity?.district ?? '', unit_kerja: identity?.unit ?? '',
             referensi_bukti: '', hak_layanan: false,
         });
         setVerificationPatient(patient);
@@ -181,18 +181,12 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
                     <Field error={verificationForm.errors.jenis_kelamin} htmlFor="verify-gender" label="Jenis kelamin" required><Select id="verify-gender" onChange={(event) => verificationForm.setData('jenis_kelamin', event.target.value)} required value={verificationForm.data.jenis_kelamin}><option value="">Pilih jenis kelamin</option><option value="L">Laki-laki</option><option value="P">Perempuan</option></Select></Field>
                     <Field error={verificationForm.errors.golongan_darah} htmlFor="verify-blood-type" label="Golongan darah"><Select id="verify-blood-type" onChange={(event) => verificationForm.setData('golongan_darah', event.target.value)} value={verificationForm.data.golongan_darah}><option value="">Tidak diketahui</option>{['A', 'B', 'AB', 'O'].map((type) => <option key={type} value={type}>{type}</option>)}</Select></Field>
                     <Field error={verificationForm.errors.agama} htmlFor="verify-religion" label="Agama" required><ReligionSelect id="verify-religion" onChange={(event) => verificationForm.setData('agama', event.target.value)} required value={verificationForm.data.agama} /></Field>
-                    <div className="grid grid-cols-2 gap-4"><Field error={verificationForm.errors.rt} htmlFor="verify-rt" label="RT" required><Input placeholder={identityPlaceholders.rt} id="verify-rt" maxLength={5} onChange={(event) => verificationForm.setData('rt', event.target.value)} required value={verificationForm.data.rt} /></Field><Field error={verificationForm.errors.rw} htmlFor="verify-rw" label="RW" required><Input placeholder={identityPlaceholders.rw} id="verify-rw" maxLength={5} onChange={(event) => verificationForm.setData('rw', event.target.value)} required value={verificationForm.data.rw} /></Field></div>
-                    <Field error={verificationForm.errors.kelurahan} htmlFor="verify-village" label="Kelurahan / desa" required><Input placeholder={identityPlaceholders.kelurahan} id="verify-village" onChange={(event) => verificationForm.setData('kelurahan', event.target.value)} required value={verificationForm.data.kelurahan} /></Field>
-                    <Field error={verificationForm.errors.kecamatan} htmlFor="verify-district" label="Kecamatan" required><Input placeholder={identityPlaceholders.kecamatan} id="verify-district" onChange={(event) => verificationForm.setData('kecamatan', event.target.value)} required value={verificationForm.data.kecamatan} /></Field>
                     <div className="sm:col-span-2"><Field error={verificationForm.errors.alamat} htmlFor="verify-address" label="Alamat" required><Textarea placeholder={identityPlaceholders.alamat} id="verify-address" onChange={(event) => verificationForm.setData('alamat', event.target.value)} required value={verificationForm.data.alamat} /></Field></div>
                 </div>
                 <div className="grid gap-4 rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 sm:grid-cols-2">
-                    <Field error={verificationForm.errors.kategori} htmlFor="verify-category" label="Kategori peserta" required><Select id="verify-category" value={verificationForm.data.kategori} onChange={(event) => verificationForm.setData((data) => ({ ...data, kategori: event.target.value, jenis_lainnya: 'lainnya', status_kepegawaian: 'aktif' }))}>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
-                    {verificationForm.data.kategori === 'lainnya' && <Field error={verificationForm.errors.jenis_lainnya} htmlFor="verify-other-type" label="Jenis peserta" required><Select id="verify-other-type" value={verificationForm.data.jenis_lainnya} onChange={(event) => verificationForm.setData((data) => ({ ...data, jenis_lainnya: event.target.value, status_kepegawaian: event.target.value === 'pensiunan' ? 'pensiun' : 'aktif' }))}>{Object.entries(otherTypes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>}
-                    {verificationForm.data.kategori === 'lainnya' && verificationForm.data.jenis_lainnya === 'keluarga' && <>
-                        <Field error={verificationForm.errors.pegawai_penanggung_id} htmlFor="verify-sponsor" label="ASN terkait" required><Select id="verify-sponsor" required value={verificationForm.data.pegawai_penanggung_id} onChange={(event) => verificationForm.setData('pegawai_penanggung_id', event.target.value)}><option value="">Pilih ASN</option>{sponsors.map((sponsor) => <option key={sponsor.id} value={sponsor.id}>{sponsor.nama}</option>)}</Select></Field>
-                        <Field error={verificationForm.errors.hubungan_keluarga} htmlFor="verify-relation" label="Hubungan keluarga" required><Select id="verify-relation" required value={verificationForm.data.hubungan_keluarga} onChange={(event) => verificationForm.setData('hubungan_keluarga', event.target.value)}><option value="">Pilih hubungan</option><option value="suami">Suami</option><option value="istri">Istri</option><option value="anak">Anak</option></Select></Field>
-                    </>}
+                    <Field error={verificationForm.errors.kategori} htmlFor="verify-category" label="Kategori peserta" required><Select id="verify-category" value={verificationForm.data.kategori} onChange={(event) => { verificationForm.setData((data) => ({ ...data, kategori: event.target.value, jenis_lainnya: 'staf', status_kepegawaian: 'aktif' })); setSelectedOtherType('staf'); }}>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
+                    {verificationForm.data.kategori === 'lainnya' && <Field error={verificationForm.errors.jenis_lainnya} htmlFor="verify-other-type" label="Jenis peserta internal" required><Select id="verify-other-type" value={selectedOtherType} onChange={(event) => { setSelectedOtherType(event.target.value); verificationForm.setData('jenis_lainnya', event.target.value === 'lainnya' ? '' : event.target.value); }}>{Object.entries(otherTypes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>}
+                    {verificationForm.data.kategori === 'lainnya' && selectedOtherType === 'lainnya' && <Field error={verificationForm.errors.jenis_lainnya} htmlFor="verify-custom-type" label="Sebutkan jenis peserta internal" required><Input id="verify-custom-type" placeholder="Contoh: Tenaga pendukung" maxLength={30} onChange={(event) => verificationForm.setData('jenis_lainnya', event.target.value)} required value={verificationForm.data.jenis_lainnya} /></Field>}
                     <Field error={verificationForm.errors.unit_kerja} htmlFor="verify-unit" label="Unit kerja" required><Input placeholder={identityPlaceholders.unit_kerja} id="verify-unit" maxLength={200} onChange={(event) => verificationForm.setData('unit_kerja', event.target.value)} required value={verificationForm.data.unit_kerja} /></Field>
                     <div className="sm:col-span-2"><Field error={verificationForm.errors.referensi_bukti} htmlFor="verify-evidence-reference" label="Referensi bukti verifikasi" required><Input id="verify-evidence-reference" maxLength={255} onChange={(event) => verificationForm.setData('referensi_bukti', event.target.value)} placeholder={identityPlaceholders.referensi_bukti} required value={verificationForm.data.referensi_bukti} /></Field></div>
                     <div className="sm:col-span-2"><label className="flex items-start gap-3 text-sm text-neutral-700"><Checkbox checked={verificationForm.data.hak_layanan} onCheckedChange={(checked) => verificationForm.setData('hak_layanan', checked === true)} /><span>Saya telah memeriksa identitas dan bukti instansi serta menyetujui aktivasi hak layanan.<span className="ml-1 text-red-600">*</span>{verificationForm.errors.hak_layanan && <span className="mt-1 block text-xs font-medium text-red-600">{verificationForm.errors.hak_layanan}</span>}</span></label></div>

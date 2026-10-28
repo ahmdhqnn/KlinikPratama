@@ -26,14 +26,14 @@ class PasienInertiaTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('pelayanan/pasien/index')
                 ->where('patients.total', 1)
-                ->where('patients.data.0.membership', 'Lainnya · Staf non-ASN')
+                ->where('patients.data.0.membership', 'Lainnya · Staff')
             );
 
         $this->get(route('kepesertaan.show', $member))
             ->assertInertia(fn (Assert $page) => $page
                 ->component('kepesertaan/show')
                 ->where('member.kategori', 'Lainnya')
-                ->where('member.jenisLainnya', 'Staf non-ASN')
+                ->where('member.jenisLainnya', 'Staff')
             );
     }
 

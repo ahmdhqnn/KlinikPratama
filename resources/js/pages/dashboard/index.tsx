@@ -84,6 +84,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
         menunggu: `/pendaftaran/kunjungan-per-poli?tanggal=${today}&status=menunggu`,
         screening: '/pelayanan/screening',
         pemeriksaan: `/pendaftaran/kunjungan-per-poli?tanggal=${today}&status=pemeriksaan`,
+        tindakan: `/pendaftaran/kunjungan-per-poli?tanggal=${today}&status=tindakan`,
         farmasi: todayReportUrl,
         kasir: todayReportUrl,
         selesai: todayReportUrl,

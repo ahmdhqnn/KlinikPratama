@@ -145,6 +145,24 @@ class DentalScheduleAccessTest extends TestCase
         $this->get(route('pendaftaran.dashboard'))->assertForbidden();
     }
 
+    public function test_holiday_calendar_shows_four_items_per_page_without_hiding_remaining_dates(): void
+    {
+        $this->freezeTime();
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        DB::table('hari_libur_praktik')->delete();
+        foreach (range(1, 5) as $day) {
+            DB::table('hari_libur_praktik')->insert([
+                'tanggal' => today()->addDays($day)->toDateString(), 'nama' => 'Libur '.$day,
+                'jenis' => 'instansi', 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+
+        $this->actingAs($admin)->get(route('pendaftaran.jadwal-praktik'))
+            ->assertInertia(fn (Assert $page) => $page->has('holidays.data', 4)->where('holidays.total', 5));
+        $this->get(route('pendaftaran.jadwal-praktik', ['holidays_page' => 2]))
+            ->assertInertia(fn (Assert $page) => $page->has('holidays.data', 1)->where('holidays.currentPage', 2));
+    }
+
     /** @return array{0: User, 1: Poliklinik, 2: Nakes} */
     private function dentalContext(): array
     {

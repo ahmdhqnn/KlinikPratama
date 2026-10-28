@@ -20,6 +20,7 @@ class PerawatDashboardController extends Controller
         $todayVisits = (clone $clinicVisits)->whereDate('tanggal', $today);
         $assessmentStatuses = ['menunggu', 'screening'];
         $stats = [
+            'menunggu_tindakan' => (clone $clinicVisits)->where('status', 'tindakan')->count(),
             'total_kunjungan' => (clone $clinicVisits)->count(),
             'total_kunjungan_hari_ini' => (clone $todayVisits)->count(),
             'menunggu_ttv' => (clone $clinicVisits)->whereIn('status', $assessmentStatuses)->count(),
@@ -34,7 +35,7 @@ class PerawatDashboardController extends Controller
         $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'screening', 'pemeriksaan'])
             ->whereDate('tanggal', $today)
             ->where('poliklinik_id', $clinicId)
-            ->whereIn('status', ['menunggu', 'screening', 'pemeriksaan'])
+            ->whereIn('status', ['menunggu', 'screening', 'pemeriksaan', 'tindakan'])
             ->oldest('created_at')->oldest('id')
             ->paginate(3)
             ->withQueryString();
@@ -53,10 +54,11 @@ class PerawatDashboardController extends Controller
                     'examinationStarted' => $visit->pemeriksaan !== null,
                     'triage' => $visit->screening?->kesimpulan_triase,
                     'priority' => $visit->screening?->prioritas_layanan,
-                    'actionUrl' => in_array($visit->status, ['menunggu', 'screening'], true)
+                    'actionUrl' => $visit->status === 'tindakan' ? route('pelayanan.tindakan.show', $visit) : (in_array($visit->status, ['menunggu', 'screening'], true)
                         ? route('pelayanan.screening.show', $visit)
-                        : route('pelayanan.pasien.rekam-medis', $visit->pasien),
+                        : route('pelayanan.pasien.rekam-medis', $visit->pasien)),
                     'actionLabel' => match ($visit->status) {
+                        'tindakan' => 'Laksanakan tindakan',
                         'menunggu' => 'Mulai pengkajian',
                         'screening' => 'Lanjutkan pengkajian',
                         default => 'Lihat RME',

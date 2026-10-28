@@ -30,6 +30,7 @@ class ClinicalNoteRecorder
             'diagnosis_banding' => ClinicalAnswer::normalize($examination->diagnosis_banding),
             'catatan' => ClinicalAnswer::normalize($examination->catatan),
             'edukasi' => ClinicalAnswer::normalize($examination->edukasi),
+            'non_farmakologis' => ClinicalAnswer::normalize($examination->non_farmakologis),
             'kontrol_berikutnya' => $examination->kontrol_berikutnya?->toDateString(),
             'diagnoses' => $examination->diagnosa->sortBy('id')->map(fn ($diagnosis): array => [
                 'id' => $diagnosis->id,
@@ -49,6 +50,8 @@ class ClinicalNoteRecorder
                 'quantity' => $treatment->jumlah,
                 'tooth_fdi' => $treatment->tooth_fdi,
                 'note' => $treatment->catatan,
+                'execution_role' => $treatment->execution_role,
+                'execution_status' => $treatment->execution_status,
             ])->values()->all(),
             'prescriptions' => $visit->resep?->resepObat->sortBy('id')->map(fn ($item): array => [
                 'name' => $item->nama_obat,

@@ -3,7 +3,12 @@
 namespace Tests\Feature;
 
 use App\Exports\ScreeningExport;
-use App\Models\{Kunjungan, Nakes, Pasien, Poliklinik, Screening, User};
+use App\Models\Kunjungan;
+use App\Models\Nakes;
+use App\Models\Pasien;
+use App\Models\Poliklinik;
+use App\Models\Screening;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Maatwebsite\Excel\Facades\Excel;
@@ -30,7 +35,9 @@ class NurseAssessmentReportTest extends TestCase
                 ->component('pelayanan/screening/history')->where('isReport', true)->where('isDental', $type === 'gigi')
                 ->where('screenings.total', 1)->where('screenings.data.0.staff', $type));
             $this->get(route('pelayanan.screening.index'))->assertInertia(fn (Assert $page) => $page
-                ->where('stats.total', 2)->where('stats.submitted', 2)->where('stats.waiting', 0));
+                ->where('stats.total', 2)->where('stats.submitted', 2)->where('stats.waiting', 0)
+                ->where('todayVisits.total', 2)->where('visits.total', 2)
+                ->where('visits.data.0.actionLabel', 'Lihat RME'));
             $foreignClinic = Poliklinik::create(['kode' => $type.'-foreign', 'nama' => 'Poli lain', 'jenis' => $type, 'is_active' => true]);
             $foreignVisit = Kunjungan::create(['no_kunjungan' => $type.'-foreign', 'pasien_id' => $patient->id, 'poliklinik_id' => $foreignClinic->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
             Screening::create(['kunjungan_id' => $foreignVisit->id, 'petugas_id' => $nurse->id, 'submitted_at' => now()]);

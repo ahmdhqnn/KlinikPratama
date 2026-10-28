@@ -19,8 +19,8 @@ class KepesertaanRegistry
             'nik' => ['nullable', 'required_without:nip', 'digits:16', Rule::unique('kepesertaan', 'nik')->ignore($member)],
             'nip' => ['nullable', 'required_without:nik', 'string', 'regex:/^[0-9]{8,30}$/', Rule::unique('kepesertaan', 'nip')->ignore($member)],
             'kategori' => ['required', Rule::in(array_keys(Kepesertaan::CATEGORIES))],
-            'jenis_lainnya' => ['nullable', 'required_if:kategori,lainnya', Rule::in(array_keys(Kepesertaan::OTHER_TYPES))],
-            'status_kepegawaian' => ['required', Rule::in(['aktif', 'pensiun', 'nonaktif'])],
+            'jenis_lainnya' => ['nullable', 'required_if:kategori,lainnya', 'string', 'max:30'],
+            'status_kepegawaian' => ['required', Rule::in(['aktif', 'nonaktif'])],
             'unit_kerja' => ['required', 'string', 'max:200'],
             'tempat_lahir' => ['required', 'string', 'max:100'],
             'tanggal_lahir' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
@@ -28,12 +28,10 @@ class KepesertaanRegistry
             'agama' => ['required', 'string', 'max:50'],
             'golongan_darah' => ['nullable', Rule::in(['A', 'B', 'AB', 'O'])],
             'alamat' => ['required', 'string', 'max:2000'],
-            'rt' => ['required', 'string', 'max:5'],
-            'rw' => ['required', 'string', 'max:5'],
-            'kelurahan' => ['required', 'string', 'max:100'],
-            'kecamatan' => ['required', 'string', 'max:100'],
-            'pegawai_penanggung_id' => ['nullable', 'integer', 'exists:kepesertaan,id'],
-            'hubungan_keluarga' => ['nullable', Rule::in(['suami', 'istri', 'anak'])],
+            'rt' => ['nullable', 'string', 'max:5'],
+            'rw' => ['nullable', 'string', 'max:5'],
+            'kelurahan' => ['nullable', 'string', 'max:100'],
+            'kecamatan' => ['nullable', 'string', 'max:100'],
             'hak_layanan' => ['required', 'boolean'],
             'referensi_bukti' => ['required', 'string', 'max:255'],
         ], [
@@ -41,35 +39,33 @@ class KepesertaanRegistry
             'nip.string' => 'NIP harus disimpan sebagai teks di Excel agar seluruh digit tetap utuh.',
         ])->validate();
 
-        $isFamily = $data['kategori'] === 'lainnya' && $data['jenis_lainnya'] === 'keluarga';
+        foreach (['rt', 'rw', 'kelurahan', 'kecamatan'] as $field) {
+            if (blank($data[$field] ?? null) && $member?->{$field}) {
+                $data[$field] = $member->{$field};
+            }
+        }
+
         if ($data['kategori'] === 'asn' && empty($data['nip'])) {
             throw ValidationException::withMessages(['nip' => 'Peserta ASN wajib memiliki NIP.']);
         }
         if ($data['kategori'] === 'asn') {
             $data['jenis_lainnya'] = null;
-        }
-        if ($isFamily && (empty($data['pegawai_penanggung_id']) || empty($data['hubungan_keluarga']))) {
-            throw ValidationException::withMessages(['pegawai_penanggung_id' => 'Pilih ASN terkait dan hubungan keluarga untuk kepesertaan keluarga.']);
-        }
-        if ($data['status_kepegawaian'] !== 'nonaktif'
-            && ((($data['jenis_lainnya'] ?? null) === 'pensiunan') !== ($data['status_kepegawaian'] === 'pensiun'))) {
-            throw ValidationException::withMessages(['status_kepegawaian' => 'Gunakan status pensiun untuk pensiunan dan aktif untuk kategori lain.']);
+        } else {
+            $data['jenis_lainnya'] = trim($data['jenis_lainnya']);
+            if (! Kepesertaan::isInternalOtherType($data['jenis_lainnya'])) {
+                throw ValidationException::withMessages(['jenis_lainnya' => 'Isi jenis peserta internal yang jelas. Keluarga, pensiunan, dan tamu tidak termasuk kepesertaan klinik internal.']);
+            }
+            if (in_array(mb_strtolower($data['jenis_lainnya']), ['staff', 'staf'], true)) {
+                $data['jenis_lainnya'] = 'staf';
+            } elseif (mb_strtolower($data['jenis_lainnya']) === 'magang') {
+                $data['jenis_lainnya'] = 'magang';
+            }
         }
         if ($data['hak_layanan'] && $data['status_kepegawaian'] === 'nonaktif') {
             throw ValidationException::withMessages(['hak_layanan' => 'Peserta nonaktif tidak dapat diberikan hak layanan.']);
         }
-        if (! $isFamily) {
-            $data['pegawai_penanggung_id'] = null;
-            $data['hubungan_keluarga'] = null;
-        } else {
-            $sponsor = Kepesertaan::whereKey($data['pegawai_penanggung_id'])->lockForUpdate()->firstOrFail();
-            if ($sponsor->id === $member?->id || $sponsor->kategori !== 'asn') {
-                throw ValidationException::withMessages(['pegawai_penanggung_id' => 'Pilih ASN terkait keluarga yang tercatat pada direktori.']);
-            }
-        }
-        if ($member && $data['kategori'] !== 'asn' && Kepesertaan::where('pegawai_penanggung_id', $member->id)->exists()) {
-            throw ValidationException::withMessages(['kategori' => 'ASN yang terkait dengan anggota keluarga harus tetap berkategori ASN.']);
-        }
+        $data['pegawai_penanggung_id'] = null;
+        $data['hubungan_keluarga'] = null;
         if ($member && $member->nik !== ($data['nik'] ?? null) && Pasien::withTrashed()->where('kepesertaan_id', $member->id)->exists()) {
             throw ValidationException::withMessages(['nik' => 'NIK peserta yang sudah terhubung dengan pasien tidak dapat diganti.']);
         }

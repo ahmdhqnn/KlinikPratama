@@ -30,9 +30,7 @@ class Kepesertaan extends Model
     ];
 
     public const OTHER_TYPES = [
-        'keluarga' => 'Keluarga ASN', 'magang' => 'Magang', 'staf' => 'Staf non-ASN',
-        'pensiunan' => 'Pensiunan', 'tamu' => 'Tamu instansi',
-        'lainnya' => 'Lainnya',
+        'magang' => 'Magang', 'staf' => 'Staff', 'lainnya' => 'Lainnya',
     ];
 
     private const LEGACY_CATEGORY_ALIASES = [
@@ -65,6 +63,15 @@ class Kepesertaan extends Model
     public function otherTypeKey(): ?string
     {
         return $this->jenis_lainnya === 'khusus' ? 'lainnya' : ($this->jenis_lainnya ?? self::LEGACY_OTHER_TYPE_ALIASES[$this->kategori] ?? null);
+    }
+
+    public static function isInternalOtherType(?string $type): bool
+    {
+        $normalized = mb_strtolower(trim($type ?? ''));
+
+        return $normalized !== ''
+            && ! in_array($normalized, ['khusus', 'lainnya', 'asn'], true)
+            && preg_match('/\b(keluarga|pensiun(?:an)?|tamu|suami|istri|anak)\b/u', $normalized) === 0;
     }
 
     public function categoryLabel(): string

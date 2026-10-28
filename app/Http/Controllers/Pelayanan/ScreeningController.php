@@ -3,11 +3,8 @@
 namespace App\Http\Controllers\Pelayanan;
 
 use App\ClinicalAuditRecorder;
-use App\Exports\ScreeningExport;
-use App\ScreeningReportQuery;
-use Maatwebsite\Excel\Facades\Excel;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use App\CorrespondenceService;
+use App\Exports\ScreeningExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreScreeningRequest;
 use App\Models\KlinikSetting;
@@ -18,6 +15,7 @@ use App\Models\Screening;
 use App\PatientAllergyHistory;
 use App\PatientClinicalHistory;
 use App\PerawatClinicResolver;
+use App\ScreeningReportQuery;
 use App\VisitSchedulingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +24,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ScreeningController extends Controller
 {
@@ -41,35 +41,58 @@ class ScreeningController extends Controller
         $isNurse = $request->user()->role === 'perawat';
         $assignedClinicId = $isNurse ? $this->perawatClinicResolver->clinicId($request->user()) : null;
         $selectedClinicId = $assignedClinicId ?? ($filters['poliklinik_id'] ?? null);
-        $kunjungan = Kunjungan::with(['pasien', 'poliklinik', 'screening'])
-            ->when($selectedClinicId, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId))
+        $clinicVisits = Kunjungan::query()
+            ->when($selectedClinicId, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId));
+        $allVisits = (clone $clinicVisits)
             ->when($filters['tanggal'] ?? null, fn ($query, string $date) => $query->whereDate('tanggal', $date))
-            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->whereHas('pasien', fn ($patients) => $patients
-                ->where(fn ($patientQuery) => $patientQuery->where('nama', 'like', "%{$search}%")
-                    ->orWhere('no_rm', 'like', "%{$search}%"))))
-            ->where(function ($query): void {
-                $query->where('status', 'screening')
-                    ->orWhere(fn ($waiting) => $waiting->where('status', 'menunggu')->whereDate('tanggal', today()));
-            })
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($matches) => $matches
+                ->where('no_kunjungan', 'like', "%{$search}%")
+                ->orWhereHas('pasien', fn ($patients) => $patients->where(fn ($identity) => $identity
+                    ->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%")))))
+            ->with(['pasien', 'poliklinik', 'screening'])
+            ->orderByDesc('tanggal')->latest('created_at')->latest('id')
+            ->paginate(10)->withQueryString();
+        $todayVisits = (clone $clinicVisits)->whereDate('tanggal', today())
+            ->with(['pasien', 'poliklinik', 'screening'])
             ->orderBy('created_at')->orderBy('id')
-            ->paginate(10)
-            ->withQueryString();
+            ->paginate(10, ['*'], 'today_page')->withQueryString();
 
         $clinics = $assignedClinicId
             ? Poliklinik::registrable()->whereKey($assignedClinicId)->orderBy('nama')->get(['id', 'nama'])
             : Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama']);
 
-        $todayVisits = Kunjungan::whereDate('tanggal', today())
-            ->whereHas('poliklinik', fn ($query) => $query->whereIn('jenis', ['umum', 'gigi']))
-            ->when($selectedClinicId, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId));
+        $todaySummary = (clone $clinicVisits)->whereDate('tanggal', today());
+        $mapVisit = function (Kunjungan $visit): array {
+            $canScreen = ! $visit->screening?->submitted_at
+                && ($visit->status === 'screening' || ($visit->status === 'menunggu' && $visit->tanggal?->isToday()));
+            $showVisitDetails = in_array($visit->status, ['menunggu', 'batal'], true) || $visit->tanggal?->isFuture();
+
+            return [
+                'id' => $visit->id,
+                'number' => $visit->no_kunjungan,
+                'date' => $visit->tanggal?->format('d/m/Y') ?? 'Belum diisi',
+                'patient' => $visit->pasien?->nama ?? 'Belum diisi',
+                'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
+                'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
+                'status' => $visit->status,
+                'hasScreening' => $visit->screening !== null,
+                'screeningState' => $visit->screening?->submitted_at ? 'Terkirim' : ($visit->screening || $visit->status === 'screening' ? 'Dalam proses' : 'Belum dikaji'),
+                'screeningUrl' => route('pelayanan.screening.show', $visit),
+                'actionUrl' => $canScreen ? route('pelayanan.screening.show', $visit)
+                    : ($showVisitDetails ? route('pelayanan.kunjungan.show', $visit) : route('pelayanan.pasien.rekam-medis', $visit->pasien_id)),
+                'actionLabel' => $canScreen ? ($visit->status === 'screening' ? 'Lanjutkan pengkajian' : 'Mulai pengkajian')
+                    : ($showVisitDetails ? 'Detail kunjungan' : 'Lihat RME'),
+                'printUrl' => $visit->screening ? route('pelayanan.screening.print', $visit) : null,
+            ];
+        };
 
         return Inertia::render('pelayanan/screening/index', [
             'serviceName' => $assignedClinicId ? $clinics->first()?->nama : 'Semua poli',
             'stats' => [
-                'total' => (clone $todayVisits)->count(),
-                'waiting' => (clone $todayVisits)->where('status', 'menunggu')->count(),
-                'inProgress' => (clone $todayVisits)->where('status', 'screening')->count(),
-                'submitted' => (clone $todayVisits)->whereHas('screening', fn ($query) => $query->whereNotNull('submitted_at'))->count(),
+                'total' => (clone $todaySummary)->count(),
+                'waiting' => (clone $todaySummary)->where('status', 'menunggu')->count(),
+                'inProgress' => (clone $todaySummary)->where('status', 'screening')->count(),
+                'submitted' => (clone $todaySummary)->whereHas('screening', fn ($query) => $query->whereNotNull('submitted_at'))->count(),
             ],
             'filters' => [
                 'search' => $filters['search'] ?? '',
@@ -81,26 +104,8 @@ class ScreeningController extends Controller
                 'id' => $clinic->id,
                 'name' => $clinic->nama,
             ])->values(),
-            'visits' => [
-                'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit): array => [
-                    'id' => $visit->id,
-                    'number' => $visit->no_kunjungan,
-                    'date' => $visit->tanggal?->format('d/m/Y') ?? 'Belum diisi',
-                    'patient' => $visit->pasien?->nama ?? 'Belum diisi',
-                    'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
-                    'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
-                    'status' => $visit->status,
-                    'hasScreening' => $visit->screening !== null,
-                    'screeningUrl' => route('pelayanan.screening.show', $visit),
-                ])->values(),
-                'currentPage' => $kunjungan->currentPage(),
-                'lastPage' => $kunjungan->lastPage(),
-                'from' => $kunjungan->firstItem(),
-                'to' => $kunjungan->lastItem(),
-                'total' => $kunjungan->total(),
-                'previousUrl' => $kunjungan->previousPageUrl(),
-                'nextUrl' => $kunjungan->nextPageUrl(),
-            ],
+            'todayVisits' => $this->pageData($todayVisits->through($mapVisit)),
+            'visits' => $this->pageData($allVisits->through($mapVisit)),
         ]);
     }
 

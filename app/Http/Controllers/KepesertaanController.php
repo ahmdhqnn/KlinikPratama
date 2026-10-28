@@ -8,6 +8,7 @@ use App\HakLayananVerifier;
 use App\Imports\KepesertaanImport;
 use App\KepesertaanRegistry;
 use App\Models\Kepesertaan;
+use App\Models\Pasien;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,18 +25,16 @@ class KepesertaanController extends Controller
     public function index(Request $request, HakLayananVerifier $verifier): Response
     {
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
-        $members = Kepesertaan::with('penanggung')->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query
+        $members = Kepesertaan::query()->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query
             ->where('nama', 'like', "%{$search}%")->orWhere('nik', 'like', "%{$search}%")->orWhere('nip', 'like', "%{$search}%")->orWhere('unit_kerja', 'like', "%{$search}%")))
             ->latest('created_at')->latest('id')->paginate(10)->withQueryString()
             ->through(fn (Kepesertaan $member): array => [
                 'id' => $member->id, 'nama' => $member->nama, 'nik' => $member->nik, 'nip' => $member->nip,
                 'kategori' => $member->categoryKey(), 'jenis_lainnya' => $member->otherTypeKey(), 'status_kepegawaian' => $member->status_kepegawaian,
-                'unit_kerja' => $member->unit_kerja, 'pegawai_penanggung_id' => $member->pegawai_penanggung_id,
-                'hubungan_keluarga' => $member->hubungan_keluarga, 'referensi_bukti' => $member->referensi_bukti,
+                'unit_kerja' => $member->unit_kerja, 'referensi_bukti' => $member->referensi_bukti,
                 'tempat_lahir' => $member->tempat_lahir, 'tanggal_lahir' => $member->tanggal_lahir?->toDateString(),
                 'jenis_kelamin' => $member->jenis_kelamin, 'agama' => $member->agama, 'golongan_darah' => $member->golongan_darah,
-                'alamat' => $member->alamat, 'rt' => $member->rt, 'rw' => $member->rw,
-                'kelurahan' => $member->kelurahan, 'kecamatan' => $member->kecamatan,
+                'alamat' => $member->alamat,
                 'hak_layanan' => $member->hak_layanan, 'reason' => $verifier->reason($member),
                 'detail_url' => route('kepesertaan.show', $member),
             ]);
@@ -43,7 +42,7 @@ class KepesertaanController extends Controller
         return Inertia::render('kepesertaan/index', [
             'members' => $this->pageData($members), 'search' => $filters['search'] ?? '', 'categories' => Kepesertaan::CATEGORIES,
             'otherTypes' => Kepesertaan::OTHER_TYPES,
-            'sponsors' => Kepesertaan::where('kategori', 'asn')->orderBy('nama')->get(['id', 'nama', 'nip']),
+            'canManage' => $request->user()->role === 'admin',
             'urls' => ['index' => route('kepesertaan.index'), 'import' => route('kepesertaan.import'), 'template' => route('kepesertaan.template')],
         ]);
     }
@@ -51,7 +50,7 @@ class KepesertaanController extends Controller
     public function search(Request $request, HakLayananVerifier $verifier): JsonResponse
     {
         $data = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100'], 'registration' => ['sometimes', 'boolean']]);
-        $members = Kepesertaan::with(['penanggung', 'pasien' => fn ($query) => $query->withTrashed()])->where(fn ($query) => $query
+        $members = Kepesertaan::with(['pasien' => fn ($query) => $query->withTrashed()])->where(fn ($query) => $query
             ->where('nama', 'like', "%{$data['q']}%")->orWhere('nip', 'like', "%{$data['q']}%")->orWhere('nik', 'like', "%{$data['q']}%"))
             ->latest('created_at')->latest('id')->limit(10)->get()->map(fn (Kepesertaan $member): array => [
                 'id' => $member->id, 'name' => $member->nama, 'nik' => $member->nik, 'nip' => $member->nip,
@@ -89,24 +88,20 @@ class KepesertaanController extends Controller
         return back()->with('success', 'Status kepesertaan berhasil diperbarui.');
     }
 
-    public function show(Request $request, Kepesertaan $kepesertaan, ClinicalAuditRecorder $audit): Response
+    public function show(Request $request, Kepesertaan $kepesertaan, ClinicalAuditRecorder $audit, HakLayananVerifier $verifier): Response
     {
         $audit->record($request, 'membership.view', metadata: ['membership_id' => $kepesertaan->id]);
-        $kepesertaan->load('penanggung:id,nama,nip');
 
         return Inertia::render('kepesertaan/show', [
             'member' => [
                 'id' => $kepesertaan->id, 'nama' => $kepesertaan->nama, 'nik' => $kepesertaan->nik, 'nip' => $kepesertaan->nip,
                 'kategori' => $kepesertaan->categoryLabel(), 'jenisLainnya' => $kepesertaan->otherTypeLabel(), 'status' => $kepesertaan->status_kepegawaian,
                 'unitKerja' => $kepesertaan->unit_kerja,
-                'tempatLahir' => $kepesertaan->tempat_lahir, 'tanggalLahir' => $kepesertaan->tanggal_lahir?->isoFormat('D MMMM Y'),
+                'tempatLahir' => $kepesertaan->tempat_lahir, 'tanggalLahir' => $kepesertaan->tanggal_lahir?->locale('id')->isoFormat('D MMMM Y'),
                 'jenisKelamin' => ['L' => 'Laki-laki', 'P' => 'Perempuan'][$kepesertaan->jenis_kelamin] ?? 'Belum diisi',
                 'agama' => $kepesertaan->agama, 'golonganDarah' => $kepesertaan->golongan_darah,
-                'alamat' => $kepesertaan->alamat, 'rt' => $kepesertaan->rt, 'rw' => $kepesertaan->rw,
-                'kelurahan' => $kepesertaan->kelurahan, 'kecamatan' => $kepesertaan->kecamatan,
-                'penanggung' => $kepesertaan->penanggung ? $kepesertaan->penanggung->nama.' · '.($kepesertaan->penanggung->nip ?? 'Belum diisi') : null,
-                'hubunganKeluarga' => $kepesertaan->hubungan_keluarga,
-                'hakLayanan' => $kepesertaan->hak_layanan,
+                'alamat' => $kepesertaan->alamat,
+                'hakLayanan' => $kepesertaan->hak_layanan, 'reason' => $verifier->reason($kepesertaan),
                 'referensiBukti' => $kepesertaan->referensi_bukti, 'verifiedAt' => $kepesertaan->verified_at?->isoFormat('D MMMM Y HH:mm'),
             ],
             'urls' => ['index' => route('kepesertaan.index')],
@@ -130,6 +125,20 @@ class KepesertaanController extends Controller
         });
 
         return back()->with('success', "{$import->count} peserta diimpor dan diverifikasi. Data identitas pasien serta bukti kunjungan lama tetap tersimpan.");
+    }
+
+    public function destroy(Request $request, Kepesertaan $kepesertaan, ClinicalAuditRecorder $audit): RedirectResponse
+    {
+        DB::transaction(function () use ($request, $kepesertaan, $audit): void {
+            $member = Kepesertaan::whereKey($kepesertaan->id)->lockForUpdate()->firstOrFail();
+            $patientIds = Pasien::withTrashed()->where('kepesertaan_id', $member->id)->pluck('id')->all();
+            Pasien::withTrashed()->where('kepesertaan_id', $member->id)->update(['kepesertaan_id' => null]);
+            Kepesertaan::where('pegawai_penanggung_id', $member->id)->update(['pegawai_penanggung_id' => null, 'hubungan_keluarga' => null]);
+            $audit->record($request, 'membership.deleted', metadata: ['membership_id' => $member->id, 'nik' => $member->nik, 'nip' => $member->nip, 'patient_ids' => $patientIds]);
+            $member->delete();
+        });
+
+        return back()->with('success', 'Peserta berhasil dihapus dari direktori.');
     }
 
     public function template(): BinaryFileResponse

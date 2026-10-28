@@ -44,7 +44,7 @@ interface Props {
     canManageVisits: boolean;
 }
 
-const statuses = ['menunggu', 'screening', 'pemeriksaan', 'farmasi', 'selesai', 'batal'];
+const statuses = ['menunggu', 'screening', 'pemeriksaan', 'tindakan', 'farmasi', 'selesai', 'batal'];
 
 export default function VisitsIndex({ visits, filters: initialFilters, clinics, canSelectClinic, canManageVisits }: Props) {
     const [filters, setFilters] = useState(initialFilters);

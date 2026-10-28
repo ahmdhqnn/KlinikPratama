@@ -58,7 +58,7 @@ class KunjunganInertiaTest extends TestCase
             ->where('backUrl', route('pelayanan.kunjungan.index'))
             ->where('visit.number', 'KNJ-20261007-0001')
             ->where('visit.patient.name', 'Pasien Uji')
-            ->has('visit.progress', 5)
+            ->has('visit.progress', 4)
         );
 
         $this->get(route('pelayanan.kunjungan.edit', $visit))->assertInertia(fn (Assert $page) => $page

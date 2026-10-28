@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\DateRangeFilter;
-use App\DoctorExaminationReport;
 use App\ClinicalAuditRecorder;
-use App\Exports\PemeriksaanExport;
-use Maatwebsite\Excel\Facades\Excel;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use App\DateRangeFilter;
 use App\DoctorAccessService;
+use App\DoctorExaminationReport;
+use App\Exports\PemeriksaanExport;
 use App\JadwalPraktikResolver;
 use App\Models\Diagnosa;
 use App\Models\Kunjungan;
@@ -19,6 +17,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class DokterDashboardController extends Controller
 {
@@ -34,7 +34,7 @@ class DokterDashboardController extends Controller
         $menungguPemeriksaan = (clone $base)->whereDate('tanggal', $today)
             ->where('status', 'pemeriksaan')->count();
         $selesaiHariIni = (clone $base)->whereDate('tanggal', $today)
-            ->whereIn('status', ['farmasi', 'kasir', 'selesai'])->count();
+            ->whereIn('status', ['tindakan', 'farmasi', 'kasir', 'selesai'])->count();
         $jadwalHariIni = $this->schedule->doctorSchedule($dokterId, $today);
 
         $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan'])

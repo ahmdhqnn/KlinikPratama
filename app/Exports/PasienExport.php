@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Pasien;
+use Illuminate\Support\Enumerable;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -11,7 +12,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class PasienExport implements FromCollection, WithHeadings, WithMapping, WithStyles
 {
-    public function collection()
+    public function collection(): Enumerable
     {
         return Pasien::with('kepesertaan')->orderBy('no_rm')->get();
     }
@@ -20,7 +21,7 @@ class PasienExport implements FromCollection, WithHeadings, WithMapping, WithSty
     {
         return [
             'No. RM', 'NIK', 'Nama', 'Tanggal Lahir', 'Jenis Kelamin',
-            'Golongan Darah', 'Alamat', 'Telepon', 'Pekerjaan', 'Agama',
+            'Golongan Darah', 'Alamat', 'Telepon', 'Agama',
             'Kategori Peserta', 'Jenis Peserta Lainnya', 'NIP', 'Unit Kerja',
         ];
     }
@@ -36,12 +37,11 @@ class PasienExport implements FromCollection, WithHeadings, WithMapping, WithSty
             $pasien->golongan_darah,
             $pasien->alamat,
             $pasien->telepon,
-            $pasien->pekerjaan,
             $pasien->agama,
             $pasien->kepesertaan?->categoryKey(),
             $pasien->kepesertaan?->otherTypeKey(),
             $pasien->nip ?? $pasien->kepesertaan?->nip,
-            $pasien->kepesertaan?->unit_kerja,
+            $pasien->kepesertaan?->unit_kerja ?? $pasien->unit_kerja,
         ]);
     }
 

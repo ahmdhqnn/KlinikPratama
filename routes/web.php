@@ -19,6 +19,7 @@ use App\Http\Controllers\Pelayanan\KunjunganController;
 use App\Http\Controllers\Pelayanan\PasienController;
 use App\Http\Controllers\Pelayanan\PemeriksaanController;
 use App\Http\Controllers\Pelayanan\ScreeningController;
+use App\Http\Controllers\Pelayanan\TindakanPerawatController;
 use App\Http\Controllers\Pelayanan\VisitAttachmentController;
 use App\Http\Controllers\Pendaftaran\RegistrationController;
 use App\Http\Controllers\PerawatDashboardController;
@@ -93,10 +94,13 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('/', [KepesertaanController::class, 'index'])->name('index');
         Route::get('search', [KepesertaanController::class, 'search'])->name('search');
         Route::get('template', [KepesertaanController::class, 'template'])->name('template');
-        Route::post('import', [KepesertaanController::class, 'import'])->name('import');
-        Route::post('/', [KepesertaanController::class, 'store'])->name('store');
         Route::get('{kepesertaan}', [KepesertaanController::class, 'show'])->name('show');
-        Route::put('{kepesertaan}', [KepesertaanController::class, 'update'])->name('update');
+        Route::middleware(EnsureRole::class.':admin')->group(function (): void {
+            Route::post('import', [KepesertaanController::class, 'import'])->name('import');
+            Route::post('/', [KepesertaanController::class, 'store'])->name('store');
+            Route::put('{kepesertaan}', [KepesertaanController::class, 'update'])->name('update');
+            Route::delete('{kepesertaan}', [KepesertaanController::class, 'destroy'])->name('destroy');
+        });
     });
     Route::prefix('stok')->name('stok.')->middleware(EnsureRole::class.':admin,farmasi')->group(function (): void {
         Route::get('persediaan', [PersediaanController::class, 'index'])->name('persediaan.index');
@@ -223,6 +227,12 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::post('pemeriksaan/{kunjungan}/odontogram/addendum', [PemeriksaanController::class, 'addendumOdontogram'])->name('pemeriksaan.odontogram.addendum');
             Route::get('icd10/search', [PemeriksaanController::class, 'searchIcd10'])->name('icd10.search');
             Route::get('icd9cm/search', [PemeriksaanController::class, 'searchIcd9cm'])->name('icd9cm.search');
+        });
+
+        Route::middleware(EnsureRole::class.':perawat')->group(function (): void {
+            Route::get('tindakan-perawat', [TindakanPerawatController::class, 'index'])->name('tindakan.index');
+            Route::get('tindakan-perawat/{kunjungan}', [TindakanPerawatController::class, 'show'])->name('tindakan.show');
+            Route::post('tindakan-perawat/{kunjungan}/{tindakanKunjungan}/selesai', [TindakanPerawatController::class, 'complete'])->name('tindakan.complete');
         });
 
         Route::middleware(EnsureRole::class.':farmasi')->group(function (): void {

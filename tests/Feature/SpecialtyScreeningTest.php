@@ -231,7 +231,8 @@ class SpecialtyScreeningTest extends TestCase
             ->component('pelayanan/screening/index')
             ->where('canSelectClinic', false)
             ->where('filters.poliklinikId', $clinic->id)
-            ->where('visits.total', 1)
+            ->where('visits.total', 3)
+            ->where('todayVisits.total', 3)
             ->where('visits.data.0.patient', 'Antrean Poli Umum'));
 
         $this->actingAs($nurse)->get(route('pelayanan.screening.index', [

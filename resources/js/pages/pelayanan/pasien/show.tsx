@@ -65,15 +65,11 @@ export default function PatientDetail({ patient, permissions, backUrl, openVisit
                             <Info label="NIK" value={patient.nik} />
                             <Info label="NIP" value={patient.memberNip} />
                             <Info label="Unit kerja" value={patient.unit} />
-                            <Info label="Tempat lahir" value={patient.birthPlace} />
-                            <Info label="Tanggal lahir" value={patient.birthDate} />
+                            <Info label="Tempat, tanggal lahir" value={[patient.birthPlace, patient.birthDate].filter(Boolean).join(', ')} />
                             <Info label="Agama" value={patient.religion} />
                             <Info label="Golongan darah" value={patient.bloodType} />
                             <Info label="Nomor telepon" value={patient.phone} />
                             <Info label="Alamat" value={patient.address} />
-                            <Info label="RT / RW" value={patient.rt || patient.rw ? `${patient.rt || 'Belum diisi'} / ${patient.rw || 'Belum diisi'}` : null} />
-                            <Info label="Kelurahan/desa" value={patient.village} />
-                            <Info label="Kecamatan" value={patient.district} />
                             <Info label="Kategori kepesertaan" value={patient.membership} />
                             <AllergyHistory value={patient.allergies} />
                         </CardContent>

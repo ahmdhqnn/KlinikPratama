@@ -39,7 +39,7 @@ class RegistrationSearchAndIdentityTest extends TestCase
         $this->actingAs($staff)->getJson(route('pendaftaran.pasien.search', ['q' => $query]))
             ->assertOk()->assertJsonCount(1)->assertJsonPath('0.id', $patient->id)
             ->assertJsonPath('0.nip', '1990052020101001')->assertJsonPath('0.nik', '3273015205900001')
-            ->assertJsonPath('0.tanggal_lahir', '1990-05-20')->assertJsonPath('0.tempat_lahir', 'Bandung')
+            ->assertJsonPath('0.tanggal_lahir', '1990-05-20')->assertJsonPath('0.tanggal_lahir_tampil', '20 Mei 1990')->assertJsonPath('0.tempat_lahir', 'Bandung')
             ->assertJsonPath('0.alamat', 'Alamat direktori')->assertJsonPath('0.unit_kerja', 'Biro Umum')
             ->assertJsonPath('0.telepon', '081234567890')->assertJsonPath('0.eligibilityReason', null)
             ->assertJsonMissingPath('0.riwayat_alergi');

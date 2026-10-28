@@ -21,7 +21,7 @@ class Pemeriksaan extends Model
 
     protected $fillable = [
         'kunjungan_id', 'dokter_id', 'anamnesis',
-        'pemeriksaan_fisik', 'catatan', 'edukasi', 'kontrol_berikutnya',
+        'pemeriksaan_fisik', 'catatan', 'edukasi', 'non_farmakologis', 'kontrol_berikutnya',
         'status', 'signed_by_user_id', 'signed_at', 'latest_note_hash',
         'started_at', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu',
         'riwayat_penyakit_keluarga', 'riwayat_alergi', 'pemeriksaan_fisik_terstruktur',
