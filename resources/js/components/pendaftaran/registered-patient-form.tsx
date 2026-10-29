@@ -1,5 +1,5 @@
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Link, useForm } from '@inertiajs/react';
+import { useForm } from '@inertiajs/react';
 import { Check, Search, UserRound, UserRoundPlus, X } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { VisitFields, type VisitFormValues } from '@/components/pendaftaran/visit-fields';
@@ -132,7 +132,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
 
     return (
         <>
-            <form className="mx-auto max-w-5xl space-y-6" onSubmit={submit}>
+            <form className="space-y-6" onSubmit={submit}>
                 {selectedPatient && <Alert variant={selectedPatient.eligibilityReason ? 'destructive' : 'success'}><AlertDescription>{selectedPatient.eligibilityReason ?? 'Pasien dipilih. Lengkapi tujuan dan tanggal kunjungan.'}</AlertDescription></Alert>}
                 <Card>
                     <CardHeader>
@@ -218,7 +218,6 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
 
                 {selectedPatient && (
                     <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
-                        <Button asChild variant="secondary"><Link href="/pendaftaran">Batal</Link></Button>
                         <Button disabled={form.processing || !form.data.poliklinik_id || !form.data.dokter_id || Boolean(selectedPatient.eligibilityReason)} type="submit"><Check className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan kunjungan'}</Button>
                     </div>
                 )}

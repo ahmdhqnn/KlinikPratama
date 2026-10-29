@@ -37,10 +37,44 @@ class RegistrationRoleTest extends TestCase
             ->component('pendaftaran/dashboard')
             ->where('auth.user.role', 'pendaftaran')
             ->has('stats.visitsToday')
-            ->has('stats.newPatientsToday')
+            ->has('stats.totalVisits')
         );
 
         $this->get(route('users.index'))->assertRedirect(route('pendaftaran.dashboard'));
+    }
+
+    public function test_registration_dashboard_counts_all_visits_across_clinics_and_dates(): void
+    {
+        $user = User::create([
+            'name' => 'Petugas Pendaftaran',
+            'email' => 'pendaftaran-total@klinik.test',
+            'password' => bcrypt('password'),
+            'role' => 'pendaftaran',
+            'is_active' => true,
+        ]);
+        $patient = Pasien::create(['no_rm' => 'RM-009998', 'nama' => 'Pasien Uji']);
+        foreach (['umum', 'gigi'] as $clinicType) {
+            $clinic = Poliklinik::create([
+                'kode' => strtoupper($clinicType),
+                'nama' => 'Poli '.ucfirst($clinicType),
+                'jenis' => $clinicType,
+                'is_active' => true,
+            ]);
+            Kunjungan::create([
+                'no_kunjungan' => 'KNJ-'.strtoupper($clinicType),
+                'pasien_id' => $patient->id,
+                'poliklinik_id' => $clinic->id,
+                'tanggal' => $clinicType === 'umum' ? today() : today()->subDay(),
+                'status' => 'menunggu',
+                'jenis_pasien' => 'lama',
+            ]);
+        }
+
+        $this->actingAs($user)->get(route('pendaftaran.dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->where('stats.visitsToday', 1)
+            ->where('stats.totalVisits', 2)
+            ->missing('stats.newPatientsToday')
+        );
     }
 
     public function test_registration_user_can_open_visit_editor_and_print_queue_ticket_as_inertia_pages(): void
@@ -94,13 +128,16 @@ class RegistrationRoleTest extends TestCase
             ->assertRedirect(route('pendaftaran.kunjungan.show', $visit));
         $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertForbidden();
 
-        $this->actingAs($user)->get(route('pendaftaran.edit-kunjungan', $visit))
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('pendaftaran/edit-kunjungan')
-                ->where('visit.patient.name', 'Pasien Uji')
-                ->where('visit.clinicId', (string) $clinic->id)
-                ->has('doctorsUrl')
-            );
+        $editor = $this->actingAs($user)->get(route('pendaftaran.edit-kunjungan', $visit));
+        $editor->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/edit-kunjungan')
+            ->where('visit.patient.name', 'Pasien Uji')
+            ->where('visit.clinicId', (string) $clinic->id)
+            ->where('backUrl', route('pendaftaran.kunjungan.show', $visit))
+            ->missing('cancelUrl')
+            ->has('doctorsUrl')
+        );
+        $this->get($editor->inertiaProps('backUrl'))->assertOk();
 
         $this->get(route('pendaftaran.cetak-antrian', $visit))
             ->assertInertia(fn (Assert $page) => $page

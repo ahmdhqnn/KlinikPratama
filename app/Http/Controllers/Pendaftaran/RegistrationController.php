@@ -46,7 +46,7 @@ class RegistrationController extends Controller
         $today = today();
         $stats = [
             'total_kunjungan_hari_ini' => Kunjungan::whereDate('tanggal', $today)->count(),
-            'pasien_baru_hari_ini' => Pasien::whereDate('created_at', $today)->count(),
+            'total_kunjungan' => Kunjungan::count(),
             'menunggu_screening' => Kunjungan::whereDate('tanggal', $today)->where('status', 'menunggu')->count(),
             'sedang_pemeriksaan' => Kunjungan::whereDate('tanggal', $today)->whereIn('status', ['screening', 'pemeriksaan', 'tindakan'])->count(),
         ];
@@ -78,7 +78,7 @@ class RegistrationController extends Controller
             'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()), 'href' => route('pendaftaran.laporan-kunjungan')],
             'stats' => [
                 'visitsToday' => $stats['total_kunjungan_hari_ini'],
-                'newPatientsToday' => $stats['pasien_baru_hari_ini'],
+                'totalVisits' => $stats['total_kunjungan'],
                 'waitingScreening' => $stats['menunggu_screening'],
                 'inProgress' => $stats['sedang_pemeriksaan'],
             ],
@@ -960,7 +960,7 @@ class RegistrationController extends Controller
             'today' => $data['today'],
             'doctorsUrl' => $data['doctorsUrl'],
             'updateUrl' => route('pendaftaran.update-kunjungan', $kunjungan),
-            'cancelUrl' => route('pendaftaran.laporan-kunjungan'),
+            'backUrl' => route('pendaftaran.kunjungan.show', $kunjungan),
         ]);
     }
 

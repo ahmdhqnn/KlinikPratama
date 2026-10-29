@@ -52,6 +52,8 @@ test('membership directory exposes management actions only to admin', async () =
     assert.match(admin, /Impor &amp; verifikasi/);
     assert.match(admin, /aria-label="Edit Pegawai Internal"/);
     assert.match(admin, /aria-label="Hapus Pegawai Internal"/);
+    assert.match(admin, /Daftar peserta internal/);
+    assert.ok(admin.indexOf('aria-label="Filter data"') < admin.indexOf('Daftar peserta internal'));
     assert.doesNotMatch(admin, /Hubungan keluarga|Pensiunan/);
 
     const registration = await renderPage('kepesertaan/index', { ...props, canManage: false });
@@ -250,11 +252,35 @@ test('dashboard summaries and day bars navigate to their related menus', async (
 
     const registrationDashboard = await renderPage('pendaftaran/dashboard', {
         today: '2026-10-22',
-        stats: { visitsToday: 3, newPatientsToday: 1, waitingScreening: 1, inProgress: 1 },
+        stats: { visitsToday: 3, totalVisits: 18, waitingScreening: 1, inProgress: 1 },
         followUp: { upcoming: 0, overdue: 0, href: '/pendaftaran/laporan-kunjungan' },
     });
     assert.ok(registrationDashboard.includes('href="/pendaftaran/kunjungan-per-poli?tanggal=2026-10-22"'));
-    assert.ok(registrationDashboard.includes('href="/pendaftaran/database-pasien"'));
+    assert.ok(registrationDashboard.includes('href="/pendaftaran/kunjungan-per-poli"'));
+    assert.match(registrationDashboard, /Total kunjungan/);
+    const registrationStats = registrationDashboard.split('aria-label="Statistik pendaftaran"')[1];
+    assert.ok(registrationStats.indexOf('Total kunjungan') < registrationStats.indexOf('Kunjungan hari ini'));
+
+    const nurseDashboard = await renderPage('perawat/dashboard', {
+        stats: { total_kunjungan: 18, total_kunjungan_hari_ini: 3, menunggu_ttv: 1, menunggu_ttv_hari_ini: 1, siap_dokter: 1, siap_dokter_hari_ini: 1, triase_darurat: 0, menunggu_tindakan: 0 },
+        visits: pageOf([]),
+        followUp: { upcoming: 0, overdue: 0, href: '/pelayanan/screening' },
+    });
+    const nurseStats = nurseDashboard.split('aria-label="Statistik keperawatan"')[1];
+    assert.ok(nurseStats.indexOf('Total kunjungan') < nurseStats.indexOf('Pengkajian awal'));
+});
+
+test('registration visit editor returns to its visit detail with the shared back button style', async () => {
+    const html = await renderPage('pendaftaran/edit-kunjungan', {
+        visit: { id: 42, patient: { name: 'Pasien Uji', medicalRecordNumber: 'RM-42', gender: 'P', age: 30 }, clinicId: '1', doctorId: '2', date: '2026-10-22', notes: null },
+        clinics: [{ id: 1, name: 'Poli Umum', type: 'umum' }], today: '2026-10-22', doctorsUrl: '/pendaftaran/dokter/terjadwal',
+        updateUrl: '/pendaftaran/kunjungan/42', backUrl: '/pendaftaran/kunjungan/42',
+    });
+
+    assert.equal((html.match(/href="\/pendaftaran\/kunjungan\/42"/g) ?? []).length, 2);
+    assert.match(html, /Kembali<\/a>/);
+    assert.match(html, /Batalkan<\/a>/);
+    assert.doesNotMatch(html, /Kembali ke laporan kunjungan/);
 });
 
 test('shared waiting and completed codes retain their pharmacy and laboratory meanings', async () => {
@@ -391,6 +417,7 @@ for (const initialTab of ['manual', 'directory', 'registered']) {
             assert.doesNotMatch(html, /id="manual-nama"/);
         }
         assert.match(html, /Pasien Terdaftar/);
+        assert.doesNotMatch(html, /Kembali ke dashboard|href="\/pendaftaran">Batal/);
         assert.doesNotMatch(html, /Nama ibu kandung|id="nama_ibu"|id="manual-nama-ibu"/);
         assert.doesNotMatch(html, /Pendaftaran manual/);
     });
@@ -483,7 +510,12 @@ for (const canManage of [true, false]) {
         });
         assert.match(html, /Detail jadwal Dokter Uji senin/);
         assertIconActions(html.match(/<table\b[\s\S]*?<\/table>/)?.[0], canManage ? 3 : 1);
+        const disclosures = [...html.matchAll(/<button[^>]*aria-expanded="(true|false)"[^>]*>(Tutup|Buka)<svg/g)]
+            .map((match) => [match[1], match[2]]);
+        assert.deepEqual(disclosures, canManage ? [['false', 'Buka'], ['true', 'Tutup'], ['true', 'Tutup'], ['true', 'Tutup']] : [['true', 'Tutup'], ['true', 'Tutup']]);
         if (canManage) {
+            assert.match(html, /aria-expanded="false"[^>]*>Buka/);
+            assert.match(html, /hidden=""[^>]*id="[^\"]+"[^>]*><form/);
             assert.match(html, /id="asn-doctor"/);
             assert.match(html, /id="asn-clinic"/);
             assert.match(html, /<button[^>]*disabled=""[^>]*>Terapkan Senin/);

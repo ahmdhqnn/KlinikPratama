@@ -18,7 +18,7 @@ interface Props {
     followUp: FollowUpData;
     stats: {
         visitsToday: number;
-        newPatientsToday: number;
+        totalVisits: number;
         waitingScreening: number;
         inProgress: number;
     };
@@ -41,8 +41,8 @@ export default function RegistrationDashboard({ stats, followUp, today, schedule
                 </div>
 
                 <section aria-label="Statistik pendaftaran" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <StatCard description="Seluruh kunjungan pasien di semua poli" href="/pendaftaran/kunjungan-per-poli" icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan" value={stats.totalVisits} />
                     <StatCard description="Seluruh pasien yang datang hari ini" href={`/pendaftaran/kunjungan-per-poli?tanggal=${today}`} icon={<CalendarCheck2 className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Kunjungan hari ini" value={stats.visitsToday} />
-                    <StatCard description="Pasien yang baru dibuat hari ini" href="/pendaftaran/database-pasien" icon={<UserRoundPlus className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pasien baru" value={stats.newPatientsToday} />
                     <StatCard description="Menunggu pengkajian awal perawat" href={`/pendaftaran/kunjungan-per-poli?status=menunggu&tanggal=${today}`} icon={<UsersRound className="size-5" />} iconClassName="bg-amber-50 text-amber-700" label="Menunggu pengkajian awal" value={stats.waitingScreening} />
                     <StatCard description="Dalam pengkajian atau pemeriksaan" href={`/pendaftaran/kunjungan-per-poli?tanggal=${today}`} icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Sedang dilayani" value={stats.inProgress} />
                 </section>
@@ -58,7 +58,7 @@ export default function RegistrationDashboard({ stats, followUp, today, schedule
                     <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pendaftaran/jadwal-praktik"><CalendarDays className="size-4" />Lihat jadwal</Link></Button></div>
                 </Card>
                 <Card className="flex min-w-0 flex-col overflow-hidden xl:row-span-3 xl:grid xl:grid-rows-subgrid xl:gap-y-0">
-                    <CardHeader className="border-b border-neutral-100"><CardTitle>Kunjungan hari ini</CardTitle><CardDescription>Kunjungan terbaru hari ini di semua poli.</CardDescription></CardHeader>
+                    <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><ClipboardList className="size-5" /></span><div><CardTitle>Kunjungan hari ini</CardTitle><CardDescription className="mt-1">Kunjungan terbaru hari ini di semua poli.</CardDescription></div></div></CardHeader>
                     <div className="flex min-w-0 flex-1 flex-col">
                     <CardContent className="flex-1 overflow-x-auto p-0">
                         <Table className="min-w-[900px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader>
