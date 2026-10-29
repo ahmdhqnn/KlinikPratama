@@ -232,7 +232,7 @@ class SpecialtyScreeningTest extends TestCase
             ->where('canSelectClinic', false)
             ->where('filters.poliklinikId', $clinic->id)
             ->where('visits.total', 3)
-            ->where('todayVisits.total', 3)
+            ->where('todayVisits.total', 1)
             ->where('visits.data.0.patient', 'Antrean Poli Umum'));
 
         $this->actingAs($nurse)->get(route('pelayanan.screening.index', [
@@ -261,6 +261,10 @@ class SpecialtyScreeningTest extends TestCase
             ->where('canSelectClinic', true)
             ->where('visits.total', 1)
             ->where('visits.data.0.patient', 'Pasien Poli Gigi'));
+        $this->get(route('pelayanan.screening.index', ['search' => $screenedVisit->no_kunjungan]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visits.total', 1)
+                ->where('visits.data.0.actionUrl', route('pelayanan.kunjungan.show', $screenedVisit)));
     }
 
     public function test_dental_draft_can_be_resumed_with_all_specialty_answers(): void

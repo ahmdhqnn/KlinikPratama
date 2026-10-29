@@ -15,10 +15,10 @@ class Kunjungan extends Model
     protected $fillable = [
         'no_kunjungan', 'pasien_id', 'poliklinik_id', 'dokter_id',
         'tanggal', 'status', 'jenis_pasien', 'catatan', 'hak_layanan_snapshot', 'verified_by', 'verified_at',
-        'unit_kerja', 'kategori_peserta',
+        'unit_kerja', 'kategori_peserta', 'tindakan_started_at',
     ];
 
-    protected $casts = ['tanggal' => 'date', 'hak_layanan_snapshot' => 'array', 'verified_at' => 'datetime', 'lampiran' => 'array'];
+    protected $casts = ['tanggal' => 'date', 'hak_layanan_snapshot' => 'array', 'verified_at' => 'datetime', 'lampiran' => 'array', 'tindakan_started_at' => 'datetime'];
 
     protected $hidden = ['lampiran'];
 

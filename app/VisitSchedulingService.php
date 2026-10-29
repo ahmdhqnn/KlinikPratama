@@ -11,18 +11,13 @@ final class VisitSchedulingService
 {
     public function __construct(private JadwalPraktikResolver $schedule) {}
 
-    public function resolveDoctor(?int $doctorId, int $clinicId, string $date, ?Kunjungan $existing = null): int
+    public function resolveDoctor(?int $doctorId, int $clinicId, string $date): int
     {
-        $clinic = Poliklinik::registrable()->findOrFail($clinicId);
+        Poliklinik::registrable()->findOrFail($clinicId);
         $visitDate = Carbon::parse($date)->startOfDay();
-        $sameAppointment = $existing !== null && (int) $existing->poliklinik_id === $clinicId && $existing->tanggal->isSameDay($visitDate);
 
         if ($visitDate->lt(today())) {
             throw ValidationException::withMessages(['tanggal' => 'Tanggal kunjungan tidak boleh sudah terlewat.']);
-        }
-
-        if ($clinic->jenis === 'gigi' && ! $sameAppointment && ! $visitDate->gt(today())) {
-            throw ValidationException::withMessages(['tanggal' => 'Poli Gigi memerlukan reservasi terlebih dahulu. Pilih tanggal setelah hari ini sesuai jadwal dokter.']);
         }
 
         $doctors = $this->schedule->doctors($clinicId, $visitDate)->pluck('id');

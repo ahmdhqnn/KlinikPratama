@@ -87,6 +87,7 @@ export default function DoctorAppointments({ filters, visits, isReport, exportUr
                             <Table className="min-w-[850px]">
                                 <TableHeader>
                                     <tr>
+                                        <TableHead>No. kunjungan</TableHead>
                                         <TableHead>Tanggal</TableHead>
                                         <TableHead>Pasien</TableHead>
                                         <TableHead>Poliklinik</TableHead>
@@ -98,14 +99,15 @@ export default function DoctorAppointments({ filters, visits, isReport, exportUr
                                 <TableBody>
                                     {visits.data.length > 0 ? visits.data.map((visit) => (
                                         <TableRow key={visit.id}>
+                                            <TableCell className="font-mono text-xs font-semibold text-neutral-700">{visit.number}</TableCell>
                                             <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
-                                            <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber} · {visit.number}</p></TableCell>
+                                            <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                                             <TableCell className="text-center">{isReport ? <div><span className="font-medium">{visit.finalizedAt ? 'Final' : 'Draf'}</span>{visit.finalizedAt && <p className="mt-1 text-xs text-neutral-500">{visit.finalizedAt}</p>}</div> : <StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} />}</TableCell>
                                             <TableCell className="text-center">{isReport ? <p className="max-w-xs whitespace-normal">{visit.diagnoses || 'Belum dicatat'}</p> : <PriorityBadge triage={visit.triage} priority={visit.priority} />}</TableCell>
                                             <TableCell className="text-center"><div className="flex items-center justify-center gap-2"><ActionButton asChild action="examination" label={visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan'}><Link href={visit.examinationUrl} /></ActionButton><ActionButton asChild action="rme" label="Rekam medis"><Link href={visit.recordUrl} /></ActionButton></div></TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty size="compact" title="Belum ada kunjungan pada rentang tanggal ini." /></TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada kunjungan pada rentang tanggal ini." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

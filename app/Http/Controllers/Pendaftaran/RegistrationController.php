@@ -979,7 +979,7 @@ class RegistrationController extends Controller
             ? trim($validated['catatan'])
             : null;
         $validated['tanggal'] = $validated['tanggal'] ?? $kunjungan->tanggal->toDateString();
-        $validated['dokter_id'] = $this->scheduling->resolveDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], $validated['tanggal'], $kunjungan);
+        $validated['dokter_id'] = $this->scheduling->resolveDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], $validated['tanggal']);
         DB::transaction(function () use ($kunjungan, $validated, $request): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             abort_unless($lockedVisit->status === 'menunggu', 422, 'Kunjungan yang sudah dilayani tidak dapat diubah dari pendaftaran.');

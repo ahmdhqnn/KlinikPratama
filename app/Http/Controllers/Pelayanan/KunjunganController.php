@@ -311,7 +311,7 @@ class KunjunganController extends Controller
         $data['catatan'] = filled($data['catatan'] ?? null)
             ? trim($data['catatan'])
             : null;
-        $data['dokter_id'] = $this->scheduling->resolveDoctor($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal'], $kunjungan);
+        $data['dokter_id'] = $this->scheduling->resolveDoctor($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
 
         DB::transaction(function () use ($kunjungan, $data, $request): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();

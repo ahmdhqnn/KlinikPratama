@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Ban, ClipboardCheck, ClipboardList, DoorOpen, Download, Eye, FlaskConical, HeartPulse, KeyRound, Package, PackageSearch, Pencil, Pill, Printer, ShieldCheck, Stethoscope, Trash2, Undo2, UserCheck, UserX } from 'lucide-react';
+import { ArrowLeftRight, Ban, ClipboardCheck, ClipboardList, DoorOpen, Download, Eye, FlaskConical, HeartPulse, KeyRound, Package, PackageSearch, Pencil, Pill, Printer, ShieldCheck, Stethoscope, Syringe, Trash2, Undo2, UserCheck, UserX } from 'lucide-react';
 import { cloneElement, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ const actionIcons = {
     laboratory: FlaskConical,
     pharmacy: Pill,
     print: Printer,
+    procedure: Syringe,
     resetPassword: KeyRound,
     return: Undo2,
     rme: HeartPulse,

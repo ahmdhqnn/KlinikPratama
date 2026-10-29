@@ -14,7 +14,7 @@ final class PracticeScheduleAccess
             return true;
         }
 
-        return $user->isPerawat() && $this->nurses->nakes($user)->poliklinik->jenis === 'gigi';
+        return $user->isPerawat() && $this->nurses->assignedNakes($user) !== null;
     }
 
     public function authorizeClinic(User $user, int $clinicId): void

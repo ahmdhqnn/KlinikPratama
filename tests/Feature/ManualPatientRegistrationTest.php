@@ -100,6 +100,21 @@ class ManualPatientRegistrationTest extends TestCase
         $this->assertDatabaseCount('kepesertaan', 0);
     }
 
+    public function test_new_dental_patient_can_register_for_today_when_a_dentist_is_scheduled(): void
+    {
+        [$user, $clinic] = $this->registrationContext('gigi');
+
+        $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $this->assertDatabaseCount('pasien', 1);
+        $visit = Kunjungan::sole();
+        $this->assertSame('2026-10-20', $visit->tanggal->toDateString());
+        $this->assertSame('menunggu', $visit->status);
+        $this->get(route('pendaftaran.cetak-antrian', $visit))->assertInertia(fn (Assert $page) => $page->where('ticket.isReservation', false));
+    }
+
     public function test_registration_and_returning_patient_need_only_an_address_without_separate_area_fields(): void
     {
         [$staff, $clinic] = $this->registrationContext();

@@ -43,11 +43,11 @@ export function DentalExaminationSummary({ anamnesis, intraoralExam, extraoralEx
             title="Ringkasan pemeriksaan & odontogram"
             unsavedMessage="Ada isian anamnesis atau pemeriksaan gigi yang belum disimpan. Simpan di tab Anamnesis atau Pemeriksaan & odontogram agar masuk ke ringkasan ini."
         >
-            <dl className="grid gap-4 sm:grid-cols-2">
-                <SummaryValue className="sm:col-span-2" label="Keluhan utama" value={anamnesis} />
-                <SummaryValue label="Pemeriksaan intraoral" value={intraoralExam} />
-                <SummaryValue label="Pemeriksaan ekstraoral" value={extraoralExam} />
-            </dl>
+            {(normalizeClinicalAnswer(anamnesis) || normalizeClinicalAnswer(intraoralExam) || normalizeClinicalAnswer(extraoralExam)) && <dl className="grid gap-4 sm:grid-cols-2">
+                {normalizeClinicalAnswer(anamnesis) && <SummaryValue className="sm:col-span-2" label="Keluhan utama" value={anamnesis} />}
+                {normalizeClinicalAnswer(intraoralExam) && <SummaryValue label="Pemeriksaan intraoral" value={intraoralExam} />}
+                {normalizeClinicalAnswer(extraoralExam) && <SummaryValue label="Pemeriksaan ekstraoral" value={extraoralExam} />}
+            </dl>}
             {findings.length > 0 ? (
                 <div className="overflow-x-auto rounded-xl border border-neutral-200">
                     <Table aria-label="Ringkasan temuan odontogram" className="min-w-[36rem] table-fixed">
@@ -83,10 +83,12 @@ export function GeneralExaminationSummary({ anamnesis, physicalExam, physicalSys
     const recordedSystems = Object.entries(physicalSystems)
         .map(([system, value]) => ({ system, value: normalizeClinicalAnswer(value) }))
         .filter(({ value }) => value !== null);
+    const findingCount = (bodyMap?.findings.length ?? 0) + recordedSystems.length;
+    const hasAnnotation = Boolean(bodyMap?.annotation.strokes.length || bodyMap?.annotation.note?.trim());
 
     return (
         <WorkflowSummary
-            counts={<Badge>{new Set([...recordedSystems.map(({ system }) => system), ...(bodyMap?.findings.map((finding) => finding.category) ?? [])]).size} sistem dicatat</Badge>}
+            counts={findingCount || hasAnnotation ? <>{findingCount > 0 && <Badge>{findingCount} temuan dicatat</Badge>}{hasAnnotation && <Badge>Anotasi tersimpan</Badge>}</> : null}
             description="Hasil pemeriksaan tersimpan pada kunjungan ini sebagai acuan penetapan diagnosis."
             hasUnsavedChanges={hasUnsavedChanges}
             icon={Stethoscope}
@@ -96,17 +98,18 @@ export function GeneralExaminationSummary({ anamnesis, physicalExam, physicalSys
             title="Ringkasan pemeriksaan fisik"
             unsavedMessage="Ada isian anamnesis atau pemeriksaan fisik yang belum disimpan. Simpan di tab Anamnesis atau Pemeriksaan fisik agar masuk ke ringkasan ini."
         >
-            <dl className="grid gap-4 sm:grid-cols-2">
-                <SummaryValue label="Keluhan utama" value={anamnesis} />
-                <SummaryValue label="Ringkasan pemeriksaan fisik" value={physicalExam} />
-            </dl>
+            {(normalizeClinicalAnswer(anamnesis) || normalizeClinicalAnswer(physicalExam)) && <dl className="grid gap-4 sm:grid-cols-2">
+                {normalizeClinicalAnswer(anamnesis) && <SummaryValue label="Keluhan utama" value={anamnesis} />}
+                {normalizeClinicalAnswer(physicalExam) && <SummaryValue label="Ringkasan pemeriksaan fisik" value={physicalExam} />}
+            </dl>}
             {hasBodyMapContent(bodyMap) && <BodyExaminationRecord data={bodyMap} />}
-            <div className="space-y-3 border-t border-neutral-200 pt-4">
+            {recordedSystems.length > 0 && <div className="space-y-3 border-t border-neutral-200 pt-4">
                 <h3 className="text-sm font-semibold text-neutral-900">Temuan per sistem</h3>
-                {recordedSystems.length > 0 ? <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {recordedSystems.map(({ system, value }) => <SummaryValue key={system} label={system} value={value} />)}
-                </dl> : <p className="text-sm text-neutral-500">{hasBodyMapContent(bodyMap) ? 'Tidak ada catatan tambahan per sistem.' : 'Belum ada temuan per sistem tersimpan.'}</p>}
-            </div>
+                </dl>
+            </div>}
+            {!normalizeClinicalAnswer(physicalExam) && !hasBodyMapContent(bodyMap) && recordedSystems.length === 0 && <Empty size="compact" title="Belum ada temuan fisik tersimpan" description="Catat temuan pada tab Pemeriksaan fisik." />}
         </WorkflowSummary>
     );
 }
@@ -176,7 +179,7 @@ function WorkflowSummary({ id, title, description, icon: Icon, counts, reviewLab
                     </div>
                     <ActionButton action="detail" className="shrink-0" label={reviewLabel} onClick={onReview} />
                 </div>
-                <div className="flex flex-wrap gap-2 pt-2">{counts}{hasUnsavedChanges && <Badge variant="waiting">Ada perubahan belum disimpan</Badge>}</div>
+                {(counts || hasUnsavedChanges) && <div className="flex flex-wrap gap-2 pt-2">{counts}{hasUnsavedChanges && <Badge variant="waiting">Ada perubahan belum disimpan</Badge>}</div>}
             </CardHeader>
             <CardContent className="space-y-4">
                 {hasUnsavedChanges && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700" role="status">{unsavedMessage}</p>}

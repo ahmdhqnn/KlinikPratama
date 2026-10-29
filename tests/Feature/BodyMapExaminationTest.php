@@ -29,6 +29,7 @@ class BodyMapExaminationTest extends TestCase
         $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-BODY', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'dokter_id' => $doctor->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
         Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id, 'anamnesis' => 'Benjolan di dahi', 'pemeriksaan_fisik' => 'Keadaan umum baik']);
         $this->actingAs($user);
+
         return $visit;
     }
 
@@ -55,7 +56,53 @@ class BodyMapExaminationTest extends TestCase
         $this->assertSame($map, $visit->pemeriksaan->fresh()->body_map);
         $empty = ['version' => 1, 'findings' => [], 'annotation' => ['strokes' => [], 'note' => '']];
         $this->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'pemeriksaan', 'body_map' => $empty])->assertSessionHasNoErrors();
-        $this->assertSame($empty, $visit->pemeriksaan->fresh()->body_map);
+        $this->assertNull($visit->pemeriksaan->fresh()->body_map);
+    }
+
+    public function test_physical_summary_is_optional_when_an_interactive_finding_is_recorded(): void
+    {
+        $visit = $this->visit();
+        $map = $this->bodyMap();
+        $map['annotation'] = ['strokes' => [], 'note' => ''];
+
+        $this->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => 'pemeriksaan', 'pemeriksaan_fisik' => '', 'body_map' => $map,
+        ])->assertSessionHasNoErrors();
+        $this->assertNull($visit->pemeriksaan->fresh()->pemeriksaan_fisik);
+        $this->assertSame($map, $visit->pemeriksaan->fresh()->body_map);
+        Diagnosa::create(['pemeriksaan_id' => $visit->pemeriksaan->id, 'kode_icd10' => 'R22.0', 'nama_diagnosa' => 'Benjolan kepala', 'jenis' => 'utama']);
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasNoErrors();
+        $this->assertSame($map, ClinicalNoteVersion::sole()->payload['body_map']);
+        $this->assertNull(ClinicalNoteVersion::sole()->payload['pemeriksaan_fisik']);
+    }
+
+    public function test_annotation_only_is_saved_without_a_phantom_interactive_finding(): void
+    {
+        $visit = $this->visit();
+        $map = $this->bodyMap();
+        $map['findings'] = [];
+
+        $this->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => 'pemeriksaan', 'pemeriksaan_fisik' => '', 'body_map' => $map,
+        ])->assertSessionHasNoErrors();
+        $this->assertSame([], $visit->pemeriksaan->fresh()->body_map['findings']);
+        $this->assertNull($visit->pemeriksaan->fresh()->pemeriksaan_fisik);
+        $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.examination.bodyMap', $map)->where('visit.examination.physicalExam', null));
+    }
+
+    public function test_finalization_still_requires_a_real_physical_finding(): void
+    {
+        $visit = $this->visit();
+        $empty = ['version' => 1, 'findings' => [], 'annotation' => ['strokes' => [], 'note' => '']];
+        $this->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => 'pemeriksaan', 'pemeriksaan_fisik' => '', 'body_map' => $empty,
+        ])->assertSessionHasNoErrors();
+        $this->assertNull($visit->pemeriksaan->fresh()->body_map);
+        Diagnosa::create(['pemeriksaan_id' => $visit->pemeriksaan->id, 'kode_icd10' => 'R22.0', 'nama_diagnosa' => 'Benjolan kepala', 'jenis' => 'utama']);
+
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertStatus(422);
+        $this->assertNull($visit->pemeriksaan->fresh()->signed_at);
     }
 
     public function test_finalization_and_addendum_preserve_each_visual_version_and_include_it_in_integrity_checks(): void

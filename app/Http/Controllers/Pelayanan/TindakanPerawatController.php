@@ -27,13 +27,17 @@ class TindakanPerawatController extends Controller
         $clinicId = $clinics->clinicId($request->user());
         $nurseTreatments = fn ($query) => $query->where('execution_role', 'perawat');
         $pendingTreatments = fn ($query) => $query->where('execution_role', 'perawat')->where('execution_status', 'pending');
+        $completedTreatments = fn ($query) => $query->where('execution_role', 'perawat')->where('execution_status', 'completed');
+        $doctorInProgress = fn ($query) => $query->where('status', 'pemeriksaan')
+            ->whereHas('pemeriksaan', fn ($examination) => $examination->whereNotNull('started_at')->whereNull('signed_at'));
         $clinicVisits = Kunjungan::query()->where('poliklinik_id', $clinicId)
-            ->whereHas('tindakanKunjungan', $nurseTreatments)
-            ->whereHas('pemeriksaan', fn ($query) => $query->whereNotNull('signed_at'));
+            ->where(fn ($query) => $query->where($doctorInProgress)
+                ->orWhere(fn ($ready) => $ready->whereHas('tindakanKunjungan', $nurseTreatments)
+                    ->whereHas('pemeriksaan', fn ($examination) => $examination->whereNotNull('signed_at'))));
         $withDetails = fn ($query) => $query->with(['pasien', 'poliklinik', 'dokter'])
             ->withCount([
                 'tindakanKunjungan as pending_count' => $pendingTreatments,
-                'tindakanKunjungan as completed_count' => fn ($treatments) => $treatments->where('execution_role', 'perawat')->where('execution_status', 'completed'),
+                'tindakanKunjungan as completed_count' => $completedTreatments,
             ]);
         $allVisits = $withDetails((clone $clinicVisits)
             ->when($filters['tanggal'] ?? null, fn ($query, string $date) => $query->whereDate('tanggal', $date))
@@ -41,26 +45,30 @@ class TindakanPerawatController extends Controller
                 ->where('no_kunjungan', 'like', "%{$search}%")
                 ->orWhereHas('pasien', fn ($patients) => $patients->where(fn ($identity) => $identity
                     ->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%")))))
-            ->when(($filters['status'] ?? null) === 'pending', fn ($query) => $query->whereHas('tindakanKunjungan', $pendingTreatments))
-            ->when(($filters['status'] ?? null) === 'completed', fn ($query) => $query->whereDoesntHave('tindakanKunjungan', $pendingTreatments)))
+            ->when(($filters['status'] ?? null) === 'pending', fn ($query) => $query->where(fn ($waiting) => $waiting->where($doctorInProgress)->orWhereHas('tindakanKunjungan', $pendingTreatments)))
+            ->when(($filters['status'] ?? null) === 'completed', fn ($query) => $query->whereHas('tindakanKunjungan', $completedTreatments)->whereDoesntHave('tindakanKunjungan', $pendingTreatments)))
             ->orderByDesc('tanggal')->latest('created_at')->latest('id')->paginate(10)->withQueryString();
-        $todayVisits = $withDetails((clone $clinicVisits)->whereDate('tanggal', today()))
+        $todayVisits = $withDetails((clone $clinicVisits)->whereDate('tanggal', today())
+            ->where('status', 'tindakan')->whereHas('tindakanKunjungan', $pendingTreatments))
             ->orderBy('created_at')->orderBy('id')->paginate(10, ['*'], 'today_page')->withQueryString();
         $todaySummary = (clone $clinicVisits)->whereDate('tanggal', today());
         $mapVisit = fn (Kunjungan $visit): array => [
             'id' => $visit->id, 'number' => $visit->no_kunjungan, 'patient' => $visit->pasien?->nama ?? 'Belum diisi',
             'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi', 'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
             'doctor' => $visit->dokter?->nama ?? 'Belum ditentukan', 'date' => $visit->tanggal->format('d/m/Y'),
-            'status' => $visit->status, 'pendingCount' => $visit->pending_count, 'completedCount' => $visit->completed_count,
-            'url' => route('pelayanan.tindakan.show', $visit),
+            'status' => $visit->status, 'examinationStarted' => $visit->status === 'pemeriksaan',
+            'treatmentStarted' => $visit->tindakan_started_at !== null,
+            'pendingCount' => $visit->status === 'pemeriksaan' ? 0 : $visit->pending_count,
+            'completedCount' => $visit->status === 'pemeriksaan' ? 0 : $visit->completed_count,
+            'url' => $visit->status === 'pemeriksaan' ? null : route('pelayanan.tindakan.show', $visit),
         ];
 
         return Inertia::render('pelayanan/tindakan/index', [
             'stats' => [
                 'todayTotal' => (clone $todaySummary)->count(),
-                'todayPending' => (clone $todaySummary)->whereHas('tindakanKunjungan', $pendingTreatments)->count(),
-                'todayCompleted' => (clone $todaySummary)->whereDoesntHave('tindakanKunjungan', $pendingTreatments)->count(),
-                'allPending' => (clone $clinicVisits)->whereHas('tindakanKunjungan', $pendingTreatments)->count(),
+                'todayPending' => (clone $todaySummary)->where('status', 'tindakan')->whereHas('tindakanKunjungan', $pendingTreatments)->count(),
+                'todayCompleted' => (clone $todaySummary)->whereHas('tindakanKunjungan', $completedTreatments)->whereDoesntHave('tindakanKunjungan', $pendingTreatments)->count(),
+                'allPending' => (clone $clinicVisits)->where('status', 'tindakan')->whereHas('tindakanKunjungan', $pendingTreatments)->count(),
             ],
             'filters' => ['search' => $filters['search'] ?? '', 'tanggal' => $filters['tanggal'] ?? '', 'status' => $filters['status'] ?? ''],
             'todayVisits' => $this->pageData($todayVisits->through($mapVisit)),
@@ -72,6 +80,7 @@ class TindakanPerawatController extends Controller
     {
         $this->authorizeVisit($request, $kunjungan, $clinics);
         $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'pemeriksaan', 'tindakanKunjungan.performedBy', 'tindakanKunjungan.tindakan']);
+        abort_unless($kunjungan->tindakanKunjungan->contains('execution_role', 'perawat'), 404);
         abort_unless($kunjungan->pemeriksaan?->signed_at && $notes->verify($kunjungan->pemeriksaan), 422, 'Catatan dokter belum ditandatangani atau integritasnya tidak valid.');
         $payload = $kunjungan->pemeriksaan->clinicalNoteVersions()->latest('version')->firstOrFail()->payload;
         $audit->record($request, 'nursing_procedure.view', $kunjungan->pasien_id, $kunjungan->id);
@@ -81,6 +90,8 @@ class TindakanPerawatController extends Controller
                 'id' => $kunjungan->id, 'number' => $kunjungan->no_kunjungan, 'patient' => $kunjungan->pasien->nama,
                 'medicalRecordNumber' => $kunjungan->pasien->no_rm, 'clinic' => $kunjungan->poliklinik->nama,
                 'doctor' => $kunjungan->dokter?->nama, 'status' => $kunjungan->status,
+                'treatmentStartedAt' => $kunjungan->tindakan_started_at?->format('d/m/Y H:i'),
+                'startUrl' => route('pelayanan.tindakan.start', $kunjungan),
                 'allergies' => $payload['riwayat_alergi'] ?? $kunjungan->pasien->riwayat_alergi,
                 'education' => $payload['edukasi'] ?? null, 'nonPharmacological' => $payload['non_farmakologis'] ?? null,
                 'diagnoses' => collect($payload['diagnoses'] ?? [])->pluck('name')->all(),
@@ -98,6 +109,27 @@ class TindakanPerawatController extends Controller
         ]);
     }
 
+    public function start(Request $request, Kunjungan $kunjungan, PerawatClinicResolver $clinics, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit): RedirectResponse
+    {
+        $this->authorizeVisit($request, $kunjungan, $clinics);
+
+        DB::transaction(function () use ($request, $kunjungan, $clinics, $notes, $audit): void {
+            $visit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeVisit($request, $visit, $clinics);
+            abort_unless($visit->status === 'tindakan', 422, 'Kunjungan tidak berada pada tahap tindakan perawat.');
+            $examination = $visit->pemeriksaan()->first();
+            abort_unless($examination?->signed_at && $notes->verify($examination), 422, 'Catatan dokter belum ditandatangani atau integritasnya tidak valid.');
+            abort_unless($visit->tindakanKunjungan()->where('execution_role', 'perawat')->where('execution_status', 'pending')->exists(), 422, 'Tidak ada tindakan perawat yang menunggu pelaksanaan.');
+
+            if ($visit->tindakan_started_at === null) {
+                $visit->update(['tindakan_started_at' => now()]);
+                $audit->record($request, 'nursing_procedure.started', $visit->pasien_id, $visit->id);
+            }
+        });
+
+        return redirect()->route('pelayanan.tindakan.show', $kunjungan)->with('success', 'Tindakan perawat dimulai.');
+    }
+
     public function complete(Request $request, Kunjungan $kunjungan, TindakanKunjungan $tindakanKunjungan, PerawatClinicResolver $clinics, VisitCareWorkflow $workflow, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit): RedirectResponse
     {
         $this->authorizeVisit($request, $kunjungan, $clinics);
@@ -112,7 +144,7 @@ class TindakanPerawatController extends Controller
             if ($procedure->execution_status === 'completed') {
                 return;
             }
-            abort_unless($visit->status === 'tindakan' && $procedure->execution_status === 'pending', 422, 'Kunjungan tidak berada pada tahap tindakan perawat.');
+            abort_unless($visit->status === 'tindakan' && $visit->tindakan_started_at !== null && $procedure->execution_status === 'pending', 422, 'Mulai tindakan perawat terlebih dahulu.');
             $examination = $visit->pemeriksaan()->lockForUpdate()->first();
             abort_unless($examination?->signed_at && $notes->verify($examination), 422, 'Catatan dokter belum ditandatangani atau integritasnya tidak valid.');
             $workflow->consumeSupplies($procedure, $visit, $request->user());

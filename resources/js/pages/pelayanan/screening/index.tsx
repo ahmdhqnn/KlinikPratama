@@ -4,7 +4,7 @@ import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
 import { Activity, CalendarDays, Clock3, ClipboardCheck, HeartPulse, Search } from 'lucide-react';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ interface Visit {
     clinic: string;
     hasScreening: boolean;
     status: string;
+    examinationStarted: boolean;
     screeningState: string;
     screeningUrl: string;
     actionUrl: string;
@@ -50,6 +51,18 @@ interface Props {
 export default function ScreeningQueue({ filters: initialFilters, clinics, canSelectClinic, visits, todayVisits, stats, serviceName }: Props) {
     const [filters, setFilters] = useState(initialFilters);
 
+    useEffect(() => {
+        const refresh = () => {
+            if (document.visibilityState === 'visible') {
+                router.reload({ only: ['stats', 'todayVisits', 'visits'], async: true });
+            }
+        };
+        const interval = window.setInterval(refresh, 15_000);
+        window.addEventListener('focus', refresh);
+
+        return () => { window.clearInterval(interval); window.removeEventListener('focus', refresh); };
+    }, []);
+
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         router.get('/pelayanan/screening', {
@@ -66,7 +79,7 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pengkajian awal</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Pantau kunjungan hari ini dan seluruh riwayat pengkajian di {serviceName}.</p>
+                    <p className="mt-1 text-sm text-neutral-500">Kerjakan pengkajian yang masih terbuka dan pantau riwayat kunjungan di {serviceName}.</p>
                 </div>
                 <section aria-label="Ringkasan pengkajian hari ini" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Kunjungan hari ini" value={stats.total} description={serviceName} icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" />
@@ -74,7 +87,7 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
                     <StatCard label="Sedang dikaji" value={stats.inProgress} description="Pengkajian hari ini belum terkirim" icon={<HeartPulse className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" />
                     <StatCard label="Pengkajian terkirim" value={stats.submitted} description="Kunjungan hari ini sudah dikaji" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-emerald-50 text-emerald-700" />
                 </section>
-                <VisitList title="Kunjungan hari ini" description="Seluruh kunjungan hari ini sesuai akses poliklinik Anda." icon={<Clock3 className="size-5" />} visits={todayVisits} />
+                <VisitList title="Siap dikaji hari ini" description="Pasien hari ini yang belum menyelesaikan pengkajian awal, diurutkan berdasarkan waktu tunggu." icon={<Clock3 className="size-5" />} visits={todayVisits} />
                 <FilterPanel>
                     <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
                         <Field htmlFor="screening-queue-search" label="Cari pasien">
@@ -107,7 +120,7 @@ function VisitList({ title, description, icon, visits }: { title: string; descri
                 <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                 <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                 <TableCell><Badge variant={visit.screeningState === 'Terkirim' ? 'complete' : 'default'}>{visit.screeningState}</Badge></TableCell>
-                <TableCell><StatusBadge status={visit.status} /></TableCell>
+                <TableCell><StatusBadge context="nurse" examinationStarted={visit.examinationStarted} status={visit.status} /></TableCell>
                 <TableCell><div className="flex justify-center gap-2"><ActionButton asChild action={visit.actionLabel.includes('pengkajian') ? 'screening' : visit.actionLabel === 'Lihat RME' ? 'rme' : 'detail'} label={visit.actionLabel}><Link href={visit.actionUrl} /></ActionButton>{visit.printUrl && <ActionButton asChild action="print" label={`Cetak pengkajian ${visit.number}`}><a href={visit.printUrl} /></ActionButton>}</div></TableCell>
             </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada kunjungan" description="Kunjungan pada poli dan filter ini akan tampil di sini." /></TableCell></TableRow>}
         </TableBody></Table></div></CardContent><Pagination pagination={visits} />

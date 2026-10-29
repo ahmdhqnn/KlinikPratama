@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\NurseQueueCounts;
+use App\PerawatClinicResolver;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -41,6 +43,7 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'modules' => config('clinic.modules'),
+            'nurseQueues' => fn (): ?array => $this->nurseQueues($request),
             'auth' => [
                 'user' => $request->user() ? [
                     ...$request->user()->only('id', 'name', 'email', 'role'),
@@ -54,5 +57,19 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn (): ?string => $request->session()->get('error'),
             ],
         ];
+    }
+
+    /** @return array{assessment: int, treatments: int}|null */
+    private function nurseQueues(Request $request): ?array
+    {
+        if (! $request->user()?->isPerawat()) {
+            return null;
+        }
+
+        $nurse = app(PerawatClinicResolver::class)->assignedNakes($request->user());
+
+        return $nurse === null
+            ? ['assessment' => 0, 'treatments' => 0]
+            : app(NurseQueueCounts::class)->forClinic((int) $nurse->poliklinik_id);
     }
 }

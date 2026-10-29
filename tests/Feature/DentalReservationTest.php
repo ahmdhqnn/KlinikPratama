@@ -19,14 +19,30 @@ class DentalReservationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_dental_walk_in_is_rejected_without_creating_a_visit(): void
+    public function test_dental_patient_can_register_and_receive_a_non_reservation_ticket_today(): void
+    {
+        $this->travelTo('2026-10-20 09:00:00');
+        [$user, $clinic, $doctor, $patient] = $this->registrationData();
+        JadwalDokter::create(['dokter_id' => $doctor->id, 'poliklinik_id' => $clinic->id, 'hari' => 'selasa', 'jam_mulai' => '08:00', 'jam_selesai' => '16:00', 'is_active' => true]);
+
+        $this->actingAs($user)->post(route('pendaftaran.store-pasien-lama'), [
+            'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'dokter_id' => $doctor->id, 'tanggal' => '2026-10-20',
+        ])->assertSessionHasNoErrors();
+
+        $visit = Kunjungan::sole();
+        $this->assertSame('2026-10-20', $visit->tanggal->toDateString());
+        $this->assertSame('menunggu', $visit->status);
+        $this->get(route('pendaftaran.cetak-antrian', $visit))->assertInertia(fn (Assert $page) => $page->where('ticket.isReservation', false));
+    }
+
+    public function test_dental_patient_still_needs_a_doctor_scheduled_today(): void
     {
         $this->travelTo('2026-10-20 09:00:00');
         [$user, $clinic, $doctor, $patient] = $this->registrationData();
 
         $this->actingAs($user)->post(route('pendaftaran.store-pasien-lama'), [
             'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'dokter_id' => $doctor->id, 'tanggal' => '2026-10-20',
-        ])->assertSessionHasErrors(['tanggal' => 'Poli Gigi memerlukan reservasi terlebih dahulu. Pilih tanggal setelah hari ini sesuai jadwal dokter.']);
+        ])->assertSessionHasErrors('dokter_id');
 
         $this->assertDatabaseCount('kunjungan', 0);
     }
@@ -112,17 +128,18 @@ class DentalReservationTest extends TestCase
             ->where('stats.visitsToday', 1)->where('followUp.upcoming', 0));
     }
 
-    public function test_dental_reservation_cannot_be_moved_forward_to_today(): void
+    public function test_dental_reservation_can_be_moved_forward_to_today_when_doctor_is_scheduled(): void
     {
         $this->travelTo('2026-10-20 09:00:00');
         [$user, $clinic, $doctor, $patient] = $this->registrationData();
+        JadwalDokter::create(['dokter_id' => $doctor->id, 'poliklinik_id' => $clinic->id, 'hari' => 'selasa', 'jam_mulai' => '08:00', 'jam_selesai' => '16:00', 'is_active' => true]);
         $visit = Kunjungan::create(['no_kunjungan' => 'RES-MOVE', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'dokter_id' => $doctor->id, 'tanggal' => '2026-10-21', 'status' => 'menunggu']);
 
         $this->actingAs($user)->put(route('pendaftaran.update-kunjungan', $visit), [
             'poliklinik_id' => $clinic->id, 'dokter_id' => $doctor->id, 'tanggal' => '2026-10-20',
-        ])->assertSessionHasErrors(['tanggal' => 'Poli Gigi memerlukan reservasi terlebih dahulu. Pilih tanggal setelah hari ini sesuai jadwal dokter.']);
+        ])->assertSessionHasNoErrors()->assertRedirect();
 
-        $this->assertSame('2026-10-21', $visit->fresh()->tanggal->toDateString());
+        $this->assertSame('2026-10-20', $visit->fresh()->tanggal->toDateString());
     }
 
     public function test_existing_dental_reservation_can_be_edited_on_its_service_date(): void
