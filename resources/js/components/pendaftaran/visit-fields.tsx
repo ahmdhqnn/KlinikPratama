@@ -18,7 +18,6 @@ export interface VisitFormValues {
 }
 
 interface Props {
-    existingVisit?: { clinicId: string; date: string };
     clinics: Option[];
     today: string;
     doctorsUrl: string;
@@ -34,13 +33,8 @@ interface ScheduledDoctor {
     poliklinik_nama: string;
 }
 
-export function VisitFields({ existingVisit, clinics, today, doctorsUrl, values, errors, onChange }: Props) {
+export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChange }: Props) {
     const isDental = clinics.find((clinic) => String(clinic.id) === values.poliklinik_id)?.type === 'gigi';
-    const tomorrow = new Date(`${today}T12:00:00`);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const nextDay = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-    const keepsSameDayAppointment = existingVisit?.clinicId === values.poliklinik_id && existingVisit.date === today;
-    const minimumDate = isDental && !keepsSameDayAppointment ? nextDay : today;
     const [doctors, setDoctors] = useState<ScheduledDoctor[]>([]);
     const [loadingDoctors, setLoadingDoctors] = useState(true);
     const [doctorLoadError, setDoctorLoadError] = useState(false);
@@ -115,10 +109,6 @@ export function VisitFields({ existingVisit, clinics, today, doctorsUrl, values,
     function selectDoctor(value: string) {
         if (!values.poliklinik_id && value) {
             const [clinicId, doctorId] = value.split(':');
-            if (clinics.find((clinic) => String(clinic.id) === clinicId)?.type === 'gigi' && values.tanggal < nextDay) {
-                onChange({ poliklinik_id: clinicId, dokter_id: '', tanggal: nextDay });
-                return;
-            }
             onChange({ poliklinik_id: clinicId, dokter_id: doctorId });
 
             return;
@@ -132,9 +122,7 @@ export function VisitFields({ existingVisit, clinics, today, doctorsUrl, values,
             <div className="grid gap-4 md:grid-cols-2">
                 <Field error={errors.poliklinik_id} htmlFor="poliklinik_id" label="Poliklinik tujuan" required>
                     <Select aria-describedby={errors.poliklinik_id ? 'poliklinik_id-error' : undefined} id="poliklinik_id" onChange={(event) => {
-                        const dental = clinics.find((clinic) => String(clinic.id) === event.target.value)?.type === 'gigi';
-                        const minimum = dental ? nextDay : today;
-                        onChange({ poliklinik_id: event.target.value, dokter_id: '', tanggal: values.tanggal >= minimum ? values.tanggal : minimum });
+                        onChange({ poliklinik_id: event.target.value, dokter_id: '', tanggal: values.tanggal >= today ? values.tanggal : today });
                     }} required value={values.poliklinik_id}>
                         <option value="">Pilih poliklinik</option>
                         {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
@@ -150,9 +138,9 @@ export function VisitFields({ existingVisit, clinics, today, doctorsUrl, values,
                         ))}
                     </Select>
                 </Field>
-                <Field error={errors.tanggal} htmlFor="reservation-date" label={isDental ? 'Tanggal janji Poli Gigi' : 'Tanggal kunjungan'} required>
-                    <DatePicker id="reservation-date" min={minimumDate} required value={values.tanggal} onChange={(event) => onChange({ tanggal: event.target.value, dokter_id: '' })} />
-                    <p className="text-xs text-neutral-500">{isDental ? 'Reservasi sesuai jadwal dokter. Pengkajian awal dan pemeriksaan tersedia pada tanggal kunjungan.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
+                <Field error={errors.tanggal} htmlFor="reservation-date" label={isDental ? 'Tanggal kunjungan Poli Gigi' : 'Tanggal kunjungan'} required>
+                    <DatePicker id="reservation-date" min={today} required value={values.tanggal} onChange={(event) => onChange({ tanggal: event.target.value, dokter_id: '' })} />
+                    <p className="text-xs text-neutral-500">{isDental ? 'Poli Gigi dapat didaftarkan hari ini atau tanggal berikutnya sesuai jadwal dokter.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
                 </Field>
                 <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Fasilitas klinik internal</p><p className="mt-1 text-xs text-neutral-500">Pasien baru dapat langsung didaftarkan untuk kunjungan. Verifikasi kepesertaan dilakukan oleh admin.</p></div>
             </div>

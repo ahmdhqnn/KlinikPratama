@@ -74,7 +74,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/perawat/dashboard', PerawatDashboardController::class)
-        ->middleware(EnsureRole::class.':admin,perawat')
+        ->middleware(EnsureRole::class.':perawat')
         ->name('perawat.dashboard');
     Route::get('/farmasi/dashboard', [FarmasiDashboardController::class, 'index'])
         ->middleware(EnsureRole::class.':farmasi')
@@ -232,6 +232,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::middleware(EnsureRole::class.':perawat')->group(function (): void {
             Route::get('tindakan-perawat', [TindakanPerawatController::class, 'index'])->name('tindakan.index');
             Route::get('tindakan-perawat/{kunjungan}', [TindakanPerawatController::class, 'show'])->name('tindakan.show');
+            Route::post('tindakan-perawat/{kunjungan}/mulai', [TindakanPerawatController::class, 'start'])->name('tindakan.start');
             Route::post('tindakan-perawat/{kunjungan}/{tindakanKunjungan}/selesai', [TindakanPerawatController::class, 'complete'])->name('tindakan.complete');
         });
 

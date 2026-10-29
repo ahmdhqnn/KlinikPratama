@@ -14,6 +14,7 @@ const badgeVariants = cva(
                 pharmacy: 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200',
                 complete: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200',
                 cancelled: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200',
+                notification: 'h-5 min-w-5 justify-center bg-neutral-900 px-1.5 py-0 text-[10px] text-neutral-50 tabular-nums',
             },
         },
         defaultVariants: {

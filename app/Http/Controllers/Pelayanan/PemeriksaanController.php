@@ -851,11 +851,13 @@ class PemeriksaanController extends Controller
             $this->authorizeMutableVisit($lockedVisit);
             $examination = $lockedVisit->pemeriksaan()->lockForUpdate()->first();
             abort_unless($examination, 422, 'Simpan hasil pemeriksaan sebelum menyelesaikan kunjungan.');
-            abort_unless(
-                ClinicalAnswer::normalize($examination->anamnesis) !== null && ClinicalAnswer::normalize($examination->pemeriksaan_fisik) !== null,
-                422,
-                'Anamnesis dan pemeriksaan fisik wajib diisi sebelum finalisasi.'
-            );
+            abort_unless(ClinicalAnswer::normalize($examination->anamnesis) !== null, 422, 'Anamnesis wajib diisi sebelum finalisasi.');
+            $hasPhysicalFinding = ClinicalAnswer::normalize($examination->pemeriksaan_fisik) !== null
+                || filled($examination->pemeriksaan_fisik_terstruktur)
+                || BodyMapPayload::hasContent($examination->body_map)
+                || ClinicalAnswer::normalize($examination->pemeriksaan_ekstraoral) !== null
+                || $lockedVisit->odontogramFindings()->exists();
+            abort_unless($hasPhysicalFinding, 422, 'Catat setidaknya satu temuan pemeriksaan fisik sebelum finalisasi.');
             abort_unless($examination->diagnosa()->where('jenis', 'utama')->count() === 1, 422, 'Pastikan tepat satu diagnosis utama sebelum finalisasi.');
             if ($lockedVisit->poliklinik?->jenis === 'gigi') {
                 abort_unless($lockedVisit->odontogramFindings()->exists(), 422, 'Catat temuan odontogram sebelum finalisasi kunjungan gigi.');
@@ -940,14 +942,23 @@ class PemeriksaanController extends Controller
                         ->filter(fn (?string $entry): bool => $entry !== null)
                         ->all();
                 }
-                if (in_array($field, ['anamnesis', 'pemeriksaan_fisik'], true) && blank($normalized)) {
+                if ($field === 'anamnesis' && blank($normalized)) {
                     throw ValidationException::withMessages([$field => 'Bagian klinis utama tidak boleh dikosongkan.']);
                 }
 
                 if ($field === 'body_map' && is_array($normalized)) {
-                    $normalized = BodyMapPayload::normalize($normalized);
+                    $normalized = BodyMapPayload::hasContent($normalized) ? BodyMapPayload::normalize($normalized) : null;
                 }
                 $payload[$field] = blank($normalized) ? null : $normalized;
+            }
+
+            $hasPhysicalFinding = ClinicalAnswer::normalize($payload['pemeriksaan_fisik'] ?? null) !== null
+                || filled($payload['pemeriksaan_fisik_terstruktur'] ?? null)
+                || BodyMapPayload::hasContent($payload['body_map'] ?? null)
+                || ClinicalAnswer::normalize($payload['pemeriksaan_ekstraoral'] ?? null) !== null
+                || $lockedVisit->odontogramFindings()->exists();
+            if (! $hasPhysicalFinding) {
+                throw ValidationException::withMessages(['pemeriksaan_fisik' => 'Catat setidaknya satu temuan pemeriksaan fisik.']);
             }
 
             if ($payload === $latestVersion->payload) {
@@ -1242,7 +1253,7 @@ class PemeriksaanController extends Controller
 
         foreach ($data as $field => $value) {
             if ($field === 'body_map' && is_array($value)) {
-                $data[$field] = BodyMapPayload::normalize($value);
+                $data[$field] = BodyMapPayload::hasContent($value) ? BodyMapPayload::normalize($value) : null;
             }
             if (is_string($value)) {
                 $data[$field] = ClinicalAnswer::normalize($value);

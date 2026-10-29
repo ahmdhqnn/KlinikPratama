@@ -53,6 +53,9 @@ class NonPharmacologicalWorkflowTest extends TestCase
         $hash = $examination->fresh()->latest_note_hash;
         $this->assertSame($procedure ? 'tindakan' : ($medication ? 'farmasi' : 'selesai'), $visit->fresh()->status);
         $this->assertSame('Latihan sesuai toleransi', ClinicalNoteVersion::sole()->payload['non_farmakologis']);
+        if (! $procedure) {
+            $this->actingAs($nurse)->get(route('pelayanan.tindakan.show', $visit))->assertNotFound();
+        }
         $pharmacist = User::factory()->create(['role' => 'farmasi']);
         if ($procedure) {
             $this->assertDatabaseMissing('farmasi', ['kunjungan_id' => $visit->id]);
@@ -63,7 +66,10 @@ class NonPharmacologicalWorkflowTest extends TestCase
                 ->has('todayVisits.data', 1)->has('visits.data', 1)
                 ->where('stats.todayPending', 1)->where('stats.allPending', 1)
                 ->where('visits.data.0.pendingCount', 1));
-            $this->get(route('pelayanan.tindakan.show', $visit))->assertInertia(fn (Assert $page) => $page->where('visit.treatments.0.status', 'pending'));
+            $this->get(route('pelayanan.tindakan.show', $visit))->assertInertia(fn (Assert $page) => $page->where('visit.treatments.0.status', 'pending')->where('visit.treatmentStartedAt', null));
+            $this->post(route('pelayanan.tindakan.complete', [$visit, $treatment]), ['execution_result' => 'Terlalu dini'])->assertUnprocessable();
+            $this->post(route('pelayanan.tindakan.start', $visit))->assertSessionHasNoErrors();
+            $this->assertNotNull($visit->fresh()->tindakan_started_at);
             $this->post(route('pelayanan.tindakan.complete', [$visit, $treatment]), ['execution_result' => 'Tindakan selesai, pasien toleransi baik'])->assertSessionHasNoErrors();
             $this->assertDatabaseHas('tindakan_kunjungan', ['id' => $treatment->id, 'execution_status' => 'completed', 'performed_by' => $nurse->id]);
             $this->assertSame($medication ? 'farmasi' : 'selesai', $visit->fresh()->status);
@@ -72,7 +78,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
                     ->where('stats.todayCompleted', 1)->where('visits.total', 1)
                     ->where('visits.data.0.pendingCount', 0)->where('visits.data.0.completedCount', 1));
             $this->get(route('pelayanan.tindakan.index', ['status' => 'pending']))
-                ->assertInertia(fn (Assert $page) => $page->where('visits.total', 0)->where('todayVisits.total', 1));
+                ->assertInertia(fn (Assert $page) => $page->where('visits.total', 0)->where('todayVisits.total', 0));
             $this->assertSame($hash, $examination->fresh()->latest_note_hash);
             $this->assertTrue(app(ClinicalNoteRecorder::class)->verify($examination->fresh()));
             $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien_id))->assertInertia(fn (Assert $page) => $page
@@ -99,7 +105,8 @@ class NonPharmacologicalWorkflowTest extends TestCase
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasNoErrors();
         $this->assertSame(10, (int) $supply->fresh()->stok);
         [$first, $second] = $visit->tindakanKunjungan()->orderBy('id')->get()->all();
-        $this->actingAs($nurse)->post(route('pelayanan.tindakan.complete', [$visit, $first]), ['execution_result' => 'Luka dibersihkan dan ditutup'])->assertSessionHasNoErrors();
+        $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $visit))->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.tindakan.complete', [$visit, $first]), ['execution_result' => 'Luka dibersihkan dan ditutup'])->assertSessionHasNoErrors();
         $this->assertSame('tindakan', $visit->fresh()->status);
         $this->assertSame(6, (int) $supply->fresh()->stok);
         $this->post(route('pelayanan.tindakan.complete', [$visit, $first]), ['execution_result' => 'Tidak boleh menimpa'])->assertSessionHasNoErrors();
@@ -108,7 +115,34 @@ class NonPharmacologicalWorkflowTest extends TestCase
         $this->post(route('pelayanan.tindakan.complete', [$visit, $second]), ['execution_result' => 'Evaluasi selesai'])->assertSessionHasNoErrors();
         $this->assertSame('selesai', $visit->fresh()->status);
         $this->assertDatabaseCount('clinical_note_versions', 1);
+        $this->assertSame(1, DB::table('clinical_audit_events')->where('action', 'nursing_procedure.started')->count());
         $this->assertSame(2, DB::table('clinical_audit_events')->where('action', 'nursing_procedure.complete')->count());
+    }
+
+    public function test_start_is_recorded_once_for_a_pending_nursing_procedure(): void
+    {
+        [$doctor, $nurse, $visit] = $this->context();
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan uji', 'jumlah' => 1])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasNoErrors();
+        $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $visit))->assertRedirect(route('pelayanan.tindakan.show', $visit));
+        $startedAt = $visit->fresh()->tindakan_started_at;
+        $this->assertNotNull($startedAt);
+
+        $this->travel(1)->minute();
+        $this->post(route('pelayanan.tindakan.start', $visit))->assertSessionHasNoErrors();
+        $this->assertSame($startedAt->toDateTimeString(), $visit->fresh()->tindakan_started_at->toDateTimeString());
+        $this->assertSame(1, DB::table('clinical_audit_events')->where('action', 'nursing_procedure.started')->where('kunjungan_id', $visit->id)->count());
+    }
+
+    public function test_start_rejects_a_visit_without_pending_nursing_procedures(): void
+    {
+        [$doctor, $nurse, $visit] = $this->context();
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasNoErrors();
+        $visit->update(['status' => 'tindakan']);
+
+        $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $visit))->assertUnprocessable();
+
+        $this->assertNull($visit->fresh()->tindakan_started_at);
     }
 
     #[TestWith(['admin'])]
@@ -123,12 +157,16 @@ class NonPharmacologicalWorkflowTest extends TestCase
         $treatment = $visit->tindakanKunjungan()->sole();
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password']);
         $actor = User::factory()->create(['role' => $role]);
+        $startResponse = $this->actingAs($actor)->post(route('pelayanan.tindakan.start', $visit));
         $response = $this->actingAs($actor)->post(route('pelayanan.tindakan.complete', [$visit, $treatment]), ['execution_result' => 'Tidak sah']);
         if ($role === 'pendaftaran') {
+            $startResponse->assertRedirect(route('pendaftaran.dashboard'));
             $response->assertRedirect(route('pendaftaran.dashboard'));
         } else {
+            $startResponse->assertForbidden();
             $response->assertForbidden();
         }
+        $this->assertNull($visit->fresh()->tindakan_started_at);
         $this->assertNull($treatment->fresh()->performed_by);
         $this->assertSame('tindakan', $visit->fresh()->status);
     }
@@ -138,10 +176,12 @@ class NonPharmacologicalWorkflowTest extends TestCase
         [$doctor, $nurse, $visit] = $this->context();
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan uji', 'jumlah' => 1]);
         $treatment = $visit->tindakanKunjungan()->sole();
+        $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $visit))->assertUnprocessable();
         $this->actingAs($nurse)->post(route('pelayanan.tindakan.complete', [$visit, $treatment]), ['execution_result' => 'Terlalu dini'])->assertUnprocessable();
         $other = Poliklinik::create(['kode' => 'OTHER', 'nama' => 'Poli Lain', 'jenis' => 'gigi', 'is_active' => true]);
         $nurse->nakes()->update(['poliklinik_id' => $other->id]);
         $this->get(route('pelayanan.tindakan.show', $visit))->assertForbidden();
+        $this->post(route('pelayanan.tindakan.start', $visit))->assertForbidden();
         $this->post(route('pelayanan.tindakan.complete', [$visit, $treatment]), ['execution_result' => 'Lintas poli'])->assertForbidden();
         $this->get(route('pelayanan.tindakan.index'))->assertInertia(fn (Assert $page) => $page->has('visits.data', 0));
         $this->assertNull($treatment->fresh()->performed_at);
@@ -168,7 +208,8 @@ class NonPharmacologicalWorkflowTest extends TestCase
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['tindakan_id' => $catalog->id, 'jumlah' => 1])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasNoErrors();
         $procedure = $visit->tindakanKunjungan()->sole();
-        $this->actingAs($nurse)->post(route('pelayanan.tindakan.complete', [$visit, $procedure]), ['execution_result' => 'Hasil uji'])->assertSessionHasErrors('items');
+        $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $visit))->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.tindakan.complete', [$visit, $procedure]), ['execution_result' => 'Hasil uji'])->assertSessionHasErrors('items');
         $this->assertSame('tindakan', $visit->fresh()->status);
         $this->assertSame('pending', $procedure->fresh()->execution_status);
         $this->assertNull($procedure->performed_at);
@@ -183,12 +224,14 @@ class NonPharmacologicalWorkflowTest extends TestCase
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan uji', 'jumlah' => 1]);
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasNoErrors();
         $procedure = $visit->tindakanKunjungan()->sole();
-        $this->actingAs($nurse)->post(route('pelayanan.tindakan.complete', [$visit, $procedure]), ['execution_result' => ' '])->assertSessionHasErrors('execution_result');
+        $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $visit))->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.tindakan.complete', [$visit, $procedure]), ['execution_result' => ' '])->assertSessionHasErrors('execution_result');
         $version = $examination->clinicalNoteVersions()->firstOrFail();
         $payload = $version->payload;
         $payload['edukasi'] = 'Perubahan tidak sah';
         DB::table('clinical_note_versions')->where('id', $version->id)->update(['payload' => json_encode($payload)]);
         $this->get(route('pelayanan.tindakan.show', $visit))->assertUnprocessable();
+        $this->post(route('pelayanan.tindakan.start', $visit))->assertUnprocessable();
         $this->post(route('pelayanan.tindakan.complete', [$visit, $procedure]), ['execution_result' => 'Hasil uji'])->assertUnprocessable();
         $this->assertSame('pending', $procedure->fresh()->execution_status);
         $this->assertSame('tindakan', $visit->fresh()->status);

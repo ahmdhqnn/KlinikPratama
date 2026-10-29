@@ -32,11 +32,12 @@ class NurseAssessmentReportTest extends TestCase
             }
             $this->actingAs($user)->get(route('perawat.laporan-pengkajian', ['poliklinik_id' => 999]))->assertSessionHasErrors('poliklinik_id');
             $this->get(route('perawat.laporan-pengkajian'))->assertInertia(fn (Assert $page) => $page
-                ->component('pelayanan/screening/history')->where('isReport', true)->where('isDental', $type === 'gigi')
-                ->where('screenings.total', 1)->where('screenings.data.0.staff', $type));
+                ->component('pelayanan/screening/history')->where('isReport', true)
+                ->where('screenings.total', 1)->where('screenings.data.0.staff', $type)
+                ->missing('screenings.data.0.complaint')->missing('screenings.data.0.dentalPainLocation'));
             $this->get(route('pelayanan.screening.index'))->assertInertia(fn (Assert $page) => $page
                 ->where('stats.total', 2)->where('stats.submitted', 2)->where('stats.waiting', 0)
-                ->where('todayVisits.total', 2)->where('visits.total', 2)
+                ->where('todayVisits.total', 0)->where('visits.total', 2)
                 ->where('visits.data.0.actionLabel', 'Lihat RME'));
             $foreignClinic = Poliklinik::create(['kode' => $type.'-foreign', 'nama' => 'Poli lain', 'jenis' => $type, 'is_active' => true]);
             $foreignVisit = Kunjungan::create(['no_kunjungan' => $type.'-foreign', 'pasien_id' => $patient->id, 'poliklinik_id' => $foreignClinic->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);

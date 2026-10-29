@@ -259,7 +259,7 @@ class RegistrationRoleTest extends TestCase
             ->where('auth.user.role', 'perawat')
             ->where('stats.total_kunjungan', 3)
             ->where('stats.total_kunjungan_hari_ini', 1)
-            ->where('stats.menunggu_ttv', 2)
+            ->where('stats.menunggu_ttv', 1)
             ->where('stats.menunggu_ttv_hari_ini', 1)
             ->where('stats.siap_dokter', 1)
             ->where('stats.siap_dokter_hari_ini', 0)
@@ -315,8 +315,7 @@ class RegistrationRoleTest extends TestCase
         $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/pasien/rekam-medis'));
         $this->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
-            ->where('visits.data.0.actionUrl', route('pelayanan.pasien.rekam-medis', $patient))
-            ->where('visits.data.0.actionLabel', 'Lihat RME'));
+            ->where('visits.total', 0));
         $this->actingAs($user)->get(route('pendaftaran.pendaftaran-baru'))->assertForbidden();
         $this->actingAs($user)->get(route('users.index'))->assertForbidden();
     }
@@ -594,11 +593,11 @@ class RegistrationRoleTest extends TestCase
             );
         $this->get(route('pendaftaran.jadwal-praktik'))
             ->assertInertia(fn (Assert $page) => $page
-                ->where('canManage', false)
+                ->where('canManage', true)
                 ->has('schedules.data', 1)
             );
-        $this->post(route('pendaftaran.store-jadwal-praktik'))->assertForbidden();
-        $this->put(route('pendaftaran.update-jadwal-praktik', $schedule))->assertForbidden();
+        $this->post(route('pendaftaran.store-jadwal-praktik'))->assertSessionHasErrors();
+        $this->put(route('pendaftaran.update-jadwal-praktik', $schedule))->assertSessionHasErrors();
     }
 
     public function test_existing_patient_registration_uses_the_active_doctor_schedule(): void

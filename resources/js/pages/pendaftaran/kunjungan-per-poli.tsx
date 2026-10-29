@@ -83,12 +83,12 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[1120px]">
-                                <TableHeader><tr><TableHead>Tanggal</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                                <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                                 <TableBody>
                                     {recentVisits.data.length > 0 ? recentVisits.data.map((visit) => (
                                         <TableRow key={visit.id}>
-                                            <TableCell className="text-neutral-600">{visit.date}</TableCell>
-                                            <TableCell className="font-mono text-xs text-neutral-600">{visit.number}<p className="mt-1 text-xs text-neutral-500">{visit.date} · {visit.clinic}</p></TableCell>
+                                            <TableCell className="font-mono text-xs text-neutral-600">{visit.number}</TableCell>
+                                            <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
                                             <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
@@ -129,17 +129,18 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[1120px]">
-                                <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                                <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                                 <TableBody>
                                     {visits.data.length > 0 ? visits.data.map((visit) => (
                                         <TableRow key={visit.id}>
-                                            <TableCell className="font-mono text-xs text-neutral-600">{visit.number}<p className="mt-1 text-xs text-neutral-500">{visit.date} · {visit.clinic}</p></TableCell>
+                                            <TableCell className="font-mono text-xs text-neutral-600">{visit.number}</TableCell>
+                                            <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
                                             <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
                                             <TableCell><VisitActions manageVisits={access.manageVisits} visit={visit} /></TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty description={clinics.length ? 'Coba sesuaikan filter tanggal untuk melihat kunjungan.' : 'Aktifkan poliklinik agar daftar kunjungan dapat ditampilkan.'} size="compact" title={clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'} /></TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty description={clinics.length ? 'Coba sesuaikan filter tanggal untuk melihat kunjungan.' : 'Aktifkan poliklinik agar daftar kunjungan dapat ditampilkan.'} size="compact" title={clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'} /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

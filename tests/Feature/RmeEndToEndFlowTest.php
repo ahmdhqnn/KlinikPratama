@@ -163,7 +163,8 @@ class RmeEndToEndFlowTest extends TestCase
         $this->assertSame('tindakan', $kunjungan->status);
         $this->assertEquals(5, $supply->fresh()->stok);
         $procedure = $kunjungan->tindakanKunjungan()->sole();
-        $this->actingAs($nurse)->post(route('pelayanan.tindakan.complete', [$kunjungan, $procedure]), [
+        $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $kunjungan))->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.tindakan.complete', [$kunjungan, $procedure]), [
             'execution_result' => 'Tindakan dilaksanakan, kondisi pasien baik.',
         ])->assertSessionHasNoErrors();
         $this->assertSame('farmasi', $kunjungan->fresh()->status);

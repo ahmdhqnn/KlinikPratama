@@ -51,7 +51,7 @@ export default function EditRegistrationVisit({ visit, clinics, today, doctorsUr
                     <CardHeader><CardTitle>Data kunjungan</CardTitle><CardDescription>Pilih tanggal dan dokter yang tersedia untuk poli tujuan.</CardDescription></CardHeader>
                     <CardContent>
                         <form className="space-y-5" onSubmit={submit}>
-                            <VisitFields clinics={clinics} doctorsUrl={doctorsUrl} errors={form.errors} existingVisit={visit} today={today} values={form.data} onChange={(fields) => form.setData((data) => ({ ...data, ...fields }))} />
+                            <VisitFields clinics={clinics} doctorsUrl={doctorsUrl} errors={form.errors} today={today} values={form.data} onChange={(fields) => form.setData((data) => ({ ...data, ...fields }))} />
                             <div className="flex flex-col-reverse gap-2 border-t border-neutral-100 pt-4 sm:flex-row sm:justify-end">
                                 <Button asChild variant="secondary"><Link href={backUrl}>Batalkan</Link></Button>
                                 <Button disabled={form.processing} type="submit"><Save className="size-4" />{form.processing ? 'Menyimpan.' : 'Simpan perubahan'}</Button>

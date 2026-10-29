@@ -23,8 +23,9 @@ export function BodyExaminationRecord({ data, systems = {}, gender, title = 'Pet
     const [selectedId, setSelectedId] = useState('');
     if (!findings.length && !hasBodyMapContent(data)) return null;
     const groups = new Map<string, RecordedBodyFinding[]>();
-    const unlocated = findings.filter((finding) => !findingLocation(finding));
-    for (const finding of findings.filter((finding) => findingLocation(finding))) {
+    const mappedFindings = findings.filter((finding) => finding.entryMode !== 'manual' && finding.entryMode !== 'quick');
+    const textFindings = findings.filter((finding) => finding.entryMode === 'manual' || finding.entryMode === 'quick' || !findingLocation(finding));
+    for (const finding of mappedFindings.filter((finding) => findingLocation(finding))) {
         const key = finding.mode + '-' + finding.view + '-' + finding.model;
         groups.set(key, [...(groups.get(key) ?? []), finding]);
     }
@@ -37,13 +38,10 @@ export function BodyExaminationRecord({ data, systems = {}, gender, title = 'Pet
             const selected = items.find((item) => item.id === selectedId) ?? items[0];
             return <div key={key} className={(activeKey === key ? 'grid' : 'hidden') + ' min-w-0 gap-4 md:grid-cols-[minmax(12rem,0.75fr)_minmax(0,1.75fr)] print:grid print:break-inside-avoid'}>
                 <div className="min-w-0 rounded-xl bg-neutral-50 p-3"><p className="mb-2 text-center text-xs font-medium text-neutral-600">{label(items[0])}</p><div className="mx-auto max-w-[245px]"><HumanBodyModel mode={selected.mode} view={selected.view} model={selected.model} selectedId={selected.locationId} highlightedIds={items.map((item) => item.locationId)} onSelect={(location) => { const match = items.find((item) => item.locationId === location.id); if (match) setSelectedId(match.id); }} /></div><p className="text-center text-xs text-neutral-500">Kanan/kiri mengikuti sisi pasien.</p></div>
-                <div className="min-w-0 space-y-3">{items.map((finding) => <article key={finding.id} className={'min-w-0 rounded-xl border p-4 print:break-inside-avoid ' + (selected.id === finding.id ? 'border-neutral-400 bg-neutral-50' : 'border-neutral-200')}><div className="mb-3 flex items-center justify-between gap-2"><span className="text-xs text-neutral-500">{finding.entryMode === 'quick' ? 'Isian ringkas' : finding.entryMode === 'manual' ? 'Gambar & anotasi' : finding.view === 'back' ? 'Tampak belakang' : 'Tampak depan'}</span><Button type="button" size="icon" variant="ghost" className="print:hidden" title="Tampilkan lokasi pada peta" aria-label={'Tampilkan lokasi ' + (findingLocation(finding)?.label ?? '')} aria-pressed={selected.id === finding.id} onClick={() => setSelectedId(finding.id)}><MapPin className="size-4" /></Button></div><BodyFindingDetails finding={finding} /></article>)}{activeKey === key && <UnlocatedFindings findings={unlocated} />}</div>
+                <div className="min-w-0 space-y-3">{items.map((finding) => <article key={finding.id} className={'min-w-0 rounded-xl border p-4 print:break-inside-avoid ' + (selected.id === finding.id ? 'border-neutral-400 bg-neutral-50' : 'border-neutral-200')}><div className="mb-3 flex items-center justify-between gap-2"><span className="text-xs text-neutral-500">{finding.view === 'back' ? 'Tampak belakang' : 'Tampak depan'}</span><Button type="button" size="icon" variant="ghost" className="print:hidden" title="Tampilkan lokasi pada peta" aria-label={'Tampilkan lokasi ' + (findingLocation(finding)?.label ?? '')} aria-pressed={selected.id === finding.id} onClick={() => setSelectedId(finding.id)}><MapPin className="size-4" /></Button></div><BodyFindingDetails finding={finding} /></article>)}</div>
             </div>;
         })}
-        {groups.size === 0 && unlocated.length > 0 && <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(12rem,0.75fr)_minmax(0,1.75fr)] print:break-inside-avoid">
-            <div className="min-w-0 rounded-xl bg-neutral-50 p-3"><p className="mb-2 text-center text-xs font-medium text-neutral-600">Tubuh depan</p><div className="mx-auto max-w-[245px]"><HumanBodyModel mode="body" view="front" selectedId="" disabled onSelect={() => {}} model={gender === 'P' ? 'female' : 'male'} /></div><p className="text-center text-xs text-neutral-500">Kanan/kiri mengikuti sisi pasien.</p></div>
-            <UnlocatedFindings findings={unlocated} />
-        </div>}
+        <UnlocatedFindings findings={textFindings} />
         {data && (data.annotation.strokes.length > 0 || data.annotation.note) && <div className={(findings.length ? 'border-t border-neutral-200 pt-4 ' : '') + 'space-y-3 print:break-inside-avoid'}><h4 className="text-sm font-semibold text-neutral-900">Anotasi pemeriksaan tubuh</h4><div className="mx-auto max-w-2xl"><BodyAnnotationView value={data.annotation} /></div></div>}
     </section>;
 }

@@ -4,7 +4,7 @@ export const visitStatusLabels: Record<string, string> = {
     menunggu: 'Menunggu pengkajian awal',
     screening: 'Pengkajian awal berlangsung',
     pemeriksaan: 'Menunggu pemeriksaan',
-    tindakan: 'Ke perawat (tindakan)',
+    tindakan: 'Menunggu tindakan perawat',
     farmasi: 'Pelayanan farmasi',
     kasir: 'Perlu penyelesaian kunjungan',
     selesai: 'Kunjungan selesai',
@@ -24,6 +24,11 @@ const laboratoryStatusLabels: Record<string, string> = {
     selesai: 'Pemeriksaan lab selesai',
 };
 
+const nurseStatusLabels: Record<string, string> = {
+    ...visitStatusLabels,
+    tindakan: 'Menunggu tindakan',
+};
+
 const variants: Record<string, 'waiting' | 'screening' | 'examination' | 'pharmacy' | 'complete' | 'cancelled' | 'default'> = {
     menunggu: 'waiting',
     screening: 'screening',
@@ -41,7 +46,7 @@ export const visitStatusFilterLabels: Record<string, string> = {
     pemeriksaan: 'Menunggu / sedang diperiksa',
 };
 
-export function StatusBadge({ status, reservation = false, context = 'visit', examinationStarted = false }: { status: string; examinationStarted?: boolean; reservation?: boolean; context?: 'visit' | 'pharmacy' | 'laboratory' }) {
+export function StatusBadge({ status, reservation = false, context = 'visit', examinationStarted = false, treatmentStarted = false }: { status: string; examinationStarted?: boolean; treatmentStarted?: boolean; reservation?: boolean; context?: 'visit' | 'nurse' | 'pharmacy' | 'laboratory' }) {
     if (reservation) {
         return <Badge variant="default">Reservasi</Badge>;
     }
@@ -50,7 +55,15 @@ export function StatusBadge({ status, reservation = false, context = 'visit', ex
         return <Badge className="justify-center text-center leading-4" variant="examination">Sedang diperiksa</Badge>;
     }
 
-    const labels = { visit: visitStatusLabels, pharmacy: pharmacyStatusLabels, laboratory: laboratoryStatusLabels }[context];
+    if (context === 'nurse' && status === 'pemeriksaan' && examinationStarted) {
+        return <Badge className="justify-center text-center leading-4" variant="examination">Sedang diperiksa dokter</Badge>;
+    }
+
+    if (context === 'nurse' && status === 'tindakan' && treatmentStarted) {
+        return <Badge className="justify-center text-center leading-4" variant="screening">Tindakan berlangsung</Badge>;
+    }
+
+    const labels = { visit: visitStatusLabels, nurse: nurseStatusLabels, pharmacy: pharmacyStatusLabels, laboratory: laboratoryStatusLabels }[context];
 
     return <Badge className="justify-center text-center leading-4" variant={variants[status] ?? 'default'}>{labels[status] ?? status}</Badge>;
 }

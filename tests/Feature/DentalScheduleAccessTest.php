@@ -9,7 +9,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
-use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class DentalScheduleAccessTest extends TestCase
@@ -94,25 +93,40 @@ class DentalScheduleAccessTest extends TestCase
         $this->assertDatabaseHas('jadwal_khusus_dokter', ['id' => $exceptionId, 'poliklinik_id' => $otherClinic->id]);
     }
 
-    #[TestWith(['perawat'])]
-    public function test_general_nurse_can_view_schedules_but_cannot_manage_them(string $role): void
+    public function test_general_nurse_can_manage_only_the_assigned_clinics_schedule_and_exceptions(): void
     {
         $this->freezeTime();
-        $user = User::factory()->create(['role' => $role, 'is_active' => true]);
+        $user = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
         $clinic = Poliklinik::create(['kode' => 'UMUM', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
-        $staff = Nakes::create(['kode' => 'STAFF', 'nama' => 'Petugas Umum', 'kategori' => 'medis', 'jabatan' => $role, 'poliklinik_id' => $clinic->id, 'user_id' => $user->id, 'is_active' => true]);
-        $doctor = $role === 'dokter' ? $staff : Nakes::create(['kode' => 'DOCTOR', 'nama' => 'Dokter Umum', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
+        Nakes::create(['kode' => 'STAFF', 'nama' => 'Petugas Umum', 'kategori' => 'medis', 'jabatan' => 'perawat', 'poliklinik_id' => $clinic->id, 'user_id' => $user->id, 'is_active' => true]);
+        $doctor = Nakes::create(['kode' => 'DOCTOR', 'nama' => 'Dokter Umum', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
         $data = $this->scheduleData($doctor, $clinic);
         $schedule = JadwalDokter::create($data);
+        $otherClinic = Poliklinik::create(['kode' => 'GIGI', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $foreignSchedule = JadwalDokter::create($this->scheduleData($doctor, $otherClinic));
 
-        $this->actingAs($user)->get(route('pendaftaran.jadwal-praktik'))->assertInertia(fn (Assert $page) => $page
-            ->where('canManage', false)->where('canManageHolidays', false)->has('schedules.data', 1));
-        $this->post(route('pendaftaran.store-jadwal-praktik'), $data)->assertForbidden();
-        $this->put(route('pendaftaran.update-jadwal-praktik', $schedule), [...$data, 'hari' => 'selasa'])->assertForbidden();
-        $this->delete(route('pendaftaran.destroy-jadwal-praktik', $schedule))->assertForbidden();
-        $this->post(route('pendaftaran.jadwal-praktik.asn'), $data)->assertForbidden();
-        $this->post(route('pendaftaran.jadwal-praktik.pengecualian.store'))->assertForbidden();
-        $this->assertDatabaseHas('jadwal_dokter', ['id' => $schedule->id, 'hari' => 'senin']);
+        $this->actingAs($user)->get(route('pendaftaran.jadwal-praktik', ['poliklinik_id' => $otherClinic->id]))->assertInertia(fn (Assert $page) => $page
+            ->where('canManage', true)->where('canManageHolidays', false)->where('canSelectClinic', false)
+            ->where('filters.poliklinikId', $clinic->id)->has('schedules.data', 1));
+        $this->post(route('pendaftaran.store-jadwal-praktik'), [...$data, 'hari' => 'selasa'])->assertSessionHasNoErrors();
+        $this->put(route('pendaftaran.update-jadwal-praktik', $schedule), [...$data, 'hari' => 'rabu'])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('jadwal_dokter', ['id' => $schedule->id, 'hari' => 'rabu']);
+        $this->post(route('pendaftaran.jadwal-praktik.pengecualian.store'), [
+            'dokter_id' => $doctor->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today()->addWeek()->toDateString(),
+            'is_active' => false, 'alasan' => 'Dokter berhalangan',
+        ])->assertSessionHasNoErrors();
+        $exceptionId = DB::table('jadwal_khusus_dokter')->value('id');
+        $this->delete(route('pendaftaran.jadwal-praktik.pengecualian.destroy', $exceptionId))->assertRedirect();
+        $this->delete(route('pendaftaran.destroy-jadwal-praktik', $schedule))->assertRedirect();
+        $this->post(route('pendaftaran.store-jadwal-praktik'), $this->scheduleData($doctor, $otherClinic))->assertNotFound();
+        $this->put(route('pendaftaran.update-jadwal-praktik', $foreignSchedule), $data)->assertNotFound();
+        $this->delete(route('pendaftaran.destroy-jadwal-praktik', $foreignSchedule))->assertNotFound();
+        $this->post(route('pendaftaran.jadwal-praktik.asn'), ['dokter_id' => $doctor->id, 'poliklinik_id' => $otherClinic->id])->assertNotFound();
+        $this->post(route('pendaftaran.jadwal-praktik.pengecualian.store'), [
+            'dokter_id' => $doctor->id, 'poliklinik_id' => $otherClinic->id, 'tanggal' => today()->addWeek()->toDateString(),
+            'is_active' => false, 'alasan' => 'Tidak sah',
+        ])->assertNotFound();
+        $this->post(route('pendaftaran.jadwal-praktik.libur.store'), ['tanggal' => today()->addWeek()->toDateString(), 'nama' => 'Libur', 'jenis' => 'instansi'])->assertForbidden();
     }
 
     public function test_doctor_can_view_filter_and_manage_all_practice_schedules(): void

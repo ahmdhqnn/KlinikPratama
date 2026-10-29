@@ -29,6 +29,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Breadcrumb, type BreadcrumbItem } from '@/components/ui/breadcrumb';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
@@ -50,6 +51,7 @@ interface AppUser {
 
 interface SharedPageProps extends PageProps {
     modules?: Partial<Record<'laboratory' | 'medicine_depots' | 'medical_equipment' | 'medical_treatments', boolean>>;
+    nurseQueues?: { assessment: number; treatments: number } | null;
     auth: { user: AppUser | null };
     flash: { success?: string | null; error?: string | null };
 }
@@ -58,6 +60,7 @@ interface NavigationItem extends NavigationTarget {
     label: string;
     href: string;
     icon: typeof LayoutDashboard;
+    badge?: number;
     module?: 'laboratory' | 'medicine_depots' | 'medical_equipment' | 'medical_treatments';
 }
 
@@ -323,15 +326,16 @@ function SidebarContents({
                     <SidebarGroup key={group.label}>
                         <SidebarGroupLabel className={isCollapsed ? 'sr-only' : undefined}>{group.label}</SidebarGroupLabel>
                         <SidebarMenu>
-                            {group.items.map(({ href, icon: Icon, label }) => {
+                            {group.items.map(({ href, icon: Icon, label, badge }) => {
                                 const active = href === activeHref;
 
                                 return (
                                     <SidebarMenuItem key={`${href}-${label}`}>
                                         <SidebarMenuButton asChild className={isCollapsed ? 'justify-center px-2' : undefined} isActive={active}>
-                                            <Link aria-current={active ? 'page' : undefined} aria-label={label} href={href} onClick={onNavigate} title={isCollapsed ? label : undefined}>
+                                            <Link aria-current={active ? 'page' : undefined} aria-label={badge ? `${label}, ${badge} memerlukan layanan` : label} className="relative" href={href} onClick={onNavigate} title={isCollapsed ? label : undefined}>
                                                 <Icon aria-hidden="true" className="size-[18px] shrink-0" />
-                                                <span className={isCollapsed ? 'sr-only' : undefined}>{label}</span>
+                                                {isCollapsed ? <span className="sr-only">{label}</span> : <span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{label}</span>{badge ? <Badge aria-hidden="true" variant="notification">{badge > 99 ? '99+' : badge}</Badge> : null}</span>}
+                                                {isCollapsed && badge ? <Badge aria-hidden="true" className="absolute right-0.5 top-0.5" variant="notification">{badge > 99 ? '99+' : badge}</Badge> : null}
                                             </Link>
                                         </SidebarMenuButton>
                                     </SidebarMenuItem>
@@ -398,7 +402,7 @@ function AccountAvatar({ user }: { user: AppUser | null }) {
 
 export default function AppLayout({ children }: { children: ReactNode }) {
     const page = usePage<SharedPageProps>();
-    const { auth, flash, modules } = page.props;
+    const { auth, flash, modules, nurseQueues } = page.props;
     const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -407,9 +411,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const groups: NavigationGroup[] = [
         ...(navigationByRole[user?.role ?? ''] ?? []).map((group) => ({
             ...group,
-            items: group.items.filter((item) => !item.module || modules?.[item.module] === true).map((item) => user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
-                ? { ...item, label: user.clinicType === 'gigi' ? 'Pemeriksaan Gigi & Mulut' : user.clinicType === 'umum' ? 'Pemeriksaan Umum' : item.label }
-                : item),
+            items: group.items.filter((item) => !item.module || modules?.[item.module] === true).map((item) => {
+                const label = user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
+                    ? user.clinicType === 'gigi' ? 'Pemeriksaan Gigi & Mulut' : user.clinicType === 'umum' ? 'Pemeriksaan Umum' : item.label
+                    : item.label;
+                const badge = user?.role === 'perawat'
+                    ? item.href === '/pelayanan/screening' ? nurseQueues?.assessment : item.href === '/pelayanan/tindakan-perawat' ? nurseQueues?.treatments : undefined
+                    : undefined;
+
+                return { ...item, label, badge: badge ?? undefined };
+            }),
         })).filter((group) => group.items.length > 0),
         { label: 'Akun', items: [{ label: 'Profil Saya', href: '/profile', icon: UserRound }] },
     ];
@@ -435,6 +446,25 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
         return () => window.removeEventListener('keydown', handleSearchShortcut);
     }, []);
+
+    useEffect(() => {
+        if (user?.role !== 'perawat') {
+            return;
+        }
+
+        const refreshQueues = () => {
+            if (document.visibilityState === 'visible') {
+                router.reload({ only: ['nurseQueues'], async: true });
+            }
+        };
+        const interval = window.setInterval(refreshQueues, 30_000);
+        window.addEventListener('focus', refreshQueues);
+
+        return () => {
+            window.clearInterval(interval);
+            window.removeEventListener('focus', refreshQueues);
+        };
+    }, [user?.role]);
 
     useEffect(() => {
         if (flash.success) {

@@ -13,12 +13,13 @@ export interface DashboardVisit {
     clinic: string;
     status: string;
     examinationStarted?: boolean;
+    treatmentStarted?: boolean;
     isReservation?: boolean;
     triage?: string | null;
     priority?: string | null;
     actionUrl: string;
     actionLabel: string;
-    actionType: 'screening' | 'examination' | 'pharmacy' | 'detail';
+    actionType: 'screening' | 'examination' | 'pharmacy' | 'procedure' | 'detail';
 }
 
 export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
@@ -49,7 +50,7 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                             </TableCell>
                             <TableCell className="text-center">
                                 <div className="flex flex-col items-center gap-1.5">
-                                    <StatusBadge examinationStarted={visit.examinationStarted} context={visit.actionType === 'pharmacy' ? 'pharmacy' : 'visit'} reservation={visit.isReservation} status={visit.status} />
+                                    <StatusBadge examinationStarted={visit.examinationStarted} treatmentStarted={visit.treatmentStarted} context={visit.actionType === 'pharmacy' ? 'pharmacy' : ['screening', 'procedure'].includes(visit.actionType) ? 'nurse' : 'visit'} reservation={visit.isReservation} status={visit.status} />
                                 </div>
                             </TableCell>
                             <TableCell className="text-center">

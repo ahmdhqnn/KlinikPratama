@@ -27,14 +27,10 @@ interface ScreeningRecord {
     visitUrl: string | null;
     printUrl: string | null;
     isDraft: boolean;
-    complaint: string | null;
-    dentalPainLocation: string | null;
-    submittedAt: string | null;
 }
 
 interface Props {
     isReport: boolean;
-    isDental: boolean;
     serviceName: string;
     exportUrl: string | null;
     filters: { search: string; tanggal: string; poliklinikId: number | '' };
@@ -43,7 +39,7 @@ interface Props {
     screenings: PaginationData & { data: ScreeningRecord[] };
 }
 
-export default function ScreeningHistory({ filters: initialFilters, canSelectClinic, clinics, screenings, isReport, isDental, serviceName, exportUrl }: Props) {
+export default function ScreeningHistory({ filters: initialFilters, canSelectClinic, clinics, screenings, isReport, serviceName, exportUrl }: Props) {
     const [filters, setFilters] = useState(initialFilters);
     const title = isReport ? 'Laporan pengkajian' : 'Pengkajian saya';
     const pageUrl = isReport ? '/perawat/laporan-pengkajian' : '/pelayanan/screening/riwayat';
@@ -88,19 +84,18 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
-                        <Table className="min-w-[950px]">
-                            <TableHeader><tr><TableHead>Tanggal</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Petugas</TableHead>{isReport && <TableHead>Ringkasan pengkajian</TableHead>}<TableHead className="text-center">Prioritas</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                        <Table className="min-w-[850px]">
+                            <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Petugas</TableHead><TableHead className="text-center">Prioritas</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                             <TableBody>
                                 {screenings.data.length ? screenings.data.map((record) => <TableRow key={record.id}>
-                                    <TableCell>{record.date}</TableCell>
                                     <TableCell className="font-mono text-xs">{record.visitNumber}</TableCell>
+                                    <TableCell>{record.date}</TableCell>
                                     <TableCell><p className="font-medium text-neutral-900">{record.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{record.medicalRecordNumber}</p></TableCell>
                                     <TableCell>{record.clinic}</TableCell>
                                     <TableCell>{record.staff}<p className="mt-1 text-xs text-neutral-500">{record.isDraft ? 'Draf pengkajian' : 'Pengkajian terkirim'}</p></TableCell>
-                                    {isReport && <TableCell className="max-w-xs whitespace-normal"><p>{record.complaint || 'Keluhan belum diisi'}</p>{isDental && <p className="mt-1 text-xs text-neutral-500">Lokasi nyeri gigi: {record.dentalPainLocation || 'Belum diisi'}</p>}<p className="mt-1 text-xs text-neutral-500">Terkirim: {record.submittedAt || (record.isDraft ? 'Belum terkirim' : 'Waktu tidak tercatat')}</p></TableCell>}
                                     <TableCell className="text-center"><PriorityBadge triage={record.triage} priority={record.priority} /></TableCell>
                                     <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2">{record.printUrl && <ActionButton asChild action="print" label="Cetak pengkajian"><a href={record.printUrl} /></ActionButton>}{record.visitUrl && <ActionButton asChild action="detail" label="Lihat kunjungan"><Link href={record.visitUrl} /></ActionButton>}</div></TableCell>
-                                </TableRow>) : <TableRow><TableCell colSpan={isReport ? 8 : 7}><Empty size="compact" title="Belum ada catatan pengkajian pada filter ini." /></TableCell></TableRow>}
+                                </TableRow>) : <TableRow><TableCell colSpan={7}><Empty size="compact" title="Belum ada catatan pengkajian pada filter ini." /></TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </div>

@@ -28,6 +28,7 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
         $this->assertDatabaseMissing('clinical_audit_events', ['action' => 'medical_record.view', 'patient_id' => $patient->id]);
         $this->get(route('pelayanan.pemeriksaan.index'))->assertForbidden();
         $this->get(route('pelayanan.screening.index'))->assertOk();
+        $this->get(route('perawat.dashboard'))->assertForbidden();
         $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page
             ->component('dashboard/index')
             ->missing('recentVisits')

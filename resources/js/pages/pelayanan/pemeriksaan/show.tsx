@@ -26,7 +26,7 @@ import { OdontogramFdi } from '@/components/odontogram/odontogram-fdi';
 import { DentalExaminationSummary, DiagnosisSummary, GeneralExaminationSummary } from '@/components/kunjungan/clinical-workflow-summary';
 import { PhysicalExaminationWorkspace } from '@/components/anatomy/physical-examination-workspace';
 import { emptyBodyFinding } from '@/lib/body-examination';
-import { emptyBodyMap, type BodyMapData } from '@/lib/body-map';
+import { emptyBodyMap, hasBodyMapContent, type BodyMapData } from '@/lib/body-map';
 import { BodyExaminationRecord } from '@/components/anatomy/body-examination-record';
 import { examinationState } from '@/lib/examination-state';
 import { StatusBadge } from '@/components/dashboard/status-badge';
@@ -572,7 +572,9 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
     ];
     const readiness: { tab: Tab; label: string; complete: boolean }[] = [
         { tab: 'anamnesis', label: 'Anamnesis', complete: Boolean(visit.examination?.anamnesis?.trim()) },
-        { tab: physicalTab, label: isDental ? 'Pemeriksaan intraoral' : 'Pemeriksaan fisik', complete: Boolean(visit.examination?.physicalExam?.trim()) },
+        { tab: physicalTab, label: isDental ? 'Pemeriksaan intraoral' : 'Pemeriksaan fisik', complete: isDental
+            ? Boolean(normalizeClinicalAnswer(visit.examination?.physicalExam) || normalizeClinicalAnswer(visit.examination?.extraoralExam) || visit.odontogram.length)
+            : Boolean(normalizeClinicalAnswer(visit.examination?.physicalExam) || hasBodyMapContent(visit.examination?.bodyMap) || Object.values(visit.examination?.physicalSystems ?? {}).some(normalizeClinicalAnswer)) },
         ...(isDental ? [{ tab: 'odontogram' as Tab, label: 'Temuan odontogram', complete: visit.odontogram.length > 0 }] : []),
         { tab: 'diagnosa', label: 'Satu diagnosis utama', complete: visit.diagnoses.filter((diagnosis) => diagnosis.type === 'utama').length === 1 },
     ];
@@ -664,7 +666,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                             disabled={!canEdit || saving}
                             gender={visit.patient.gender}
                         />}
-                        <Field error={physicalForm.errors.pemeriksaan_fisik} htmlFor="pemeriksaan_fisik" label={isDental ? 'Ringkasan pemeriksaan intraoral' : 'Ringkasan pemeriksaan fisik'}><Textarea disabled={!canEdit} id="pemeriksaan_fisik" onChange={(event) => physicalForm.setData('pemeriksaan_fisik', event.target.value)} placeholder={visit.clinicType === 'gigi' ? 'Temuan mukosa, gingiva, jaringan lunak, dan oklusi. Temuan per gigi dicatat pada odontogram.' : 'Ringkasan temuan pemeriksaan fisik.'} rows={4} value={physicalForm.data.pemeriksaan_fisik} /></Field>
+                        <Field error={physicalForm.errors.pemeriksaan_fisik} htmlFor="pemeriksaan_fisik" label={isDental ? 'Ringkasan pemeriksaan intraoral (opsional)' : 'Ringkasan pemeriksaan fisik (opsional)'}><Textarea disabled={!canEdit} id="pemeriksaan_fisik" onChange={(event) => physicalForm.setData('pemeriksaan_fisik', event.target.value)} placeholder={visit.clinicType === 'gigi' ? 'Temuan mukosa, gingiva, jaringan lunak, dan oklusi. Temuan per gigi dicatat pada odontogram.' : 'Ringkasan temuan pemeriksaan fisik.'} rows={4} value={physicalForm.data.pemeriksaan_fisik} /></Field>
 {isDental && <Field error={physicalForm.errors.pemeriksaan_ekstraoral} htmlFor="extraoral" label="Pemeriksaan ekstraoral"><Textarea disabled={!canEdit} id="extraoral" onChange={(event) => physicalForm.setData('pemeriksaan_ekstraoral', event.target.value)} placeholder="Asimetri/pembengkakan wajah, bibir, kelenjar getah bening, bukaan mulut" rows={3} value={physicalForm.data.pemeriksaan_ekstraoral} /></Field>}
                         <div className="flex justify-end"><Button disabled={!sectionSaveAllowed.pemeriksaan} type="submit">Simpan pemeriksaan fisik</Button></div>
                     </form></fieldset>

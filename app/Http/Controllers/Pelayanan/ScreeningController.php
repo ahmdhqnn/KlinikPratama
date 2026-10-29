@@ -49,11 +49,13 @@ class ScreeningController extends Controller
                 ->where('no_kunjungan', 'like', "%{$search}%")
                 ->orWhereHas('pasien', fn ($patients) => $patients->where(fn ($identity) => $identity
                     ->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%")))))
-            ->with(['pasien', 'poliklinik', 'screening'])
+            ->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan'])
             ->orderByDesc('tanggal')->latest('created_at')->latest('id')
             ->paginate(10)->withQueryString();
         $todayVisits = (clone $clinicVisits)->whereDate('tanggal', today())
-            ->with(['pasien', 'poliklinik', 'screening'])
+            ->whereIn('status', ['menunggu', 'screening'])
+            ->whereDoesntHave('screening', fn ($query) => $query->whereNotNull('submitted_at'))
+            ->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan'])
             ->orderBy('created_at')->orderBy('id')
             ->paginate(10, ['*'], 'today_page')->withQueryString();
 
@@ -62,10 +64,10 @@ class ScreeningController extends Controller
             : Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama']);
 
         $todaySummary = (clone $clinicVisits)->whereDate('tanggal', today());
-        $mapVisit = function (Kunjungan $visit): array {
-            $canScreen = ! $visit->screening?->submitted_at
-                && ($visit->status === 'screening' || ($visit->status === 'menunggu' && $visit->tanggal?->isToday()));
-            $showVisitDetails = in_array($visit->status, ['menunggu', 'batal'], true) || $visit->tanggal?->isFuture();
+        $mapVisit = function (Kunjungan $visit) use ($isNurse): array {
+            $canScreen = $visit->tanggal?->isToday() && ! $visit->screening?->submitted_at
+                && in_array($visit->status, ['menunggu', 'screening'], true);
+            $showVisitDetails = ! $isNurse || in_array($visit->status, ['menunggu', 'batal'], true) || $visit->tanggal?->isFuture();
 
             return [
                 'id' => $visit->id,
@@ -75,6 +77,7 @@ class ScreeningController extends Controller
                 'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
                 'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
                 'status' => $visit->status,
+                'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
                 'hasScreening' => $visit->screening !== null,
                 'screeningState' => $visit->screening?->submitted_at ? 'Terkirim' : ($visit->screening || $visit->status === 'screening' ? 'Dalam proses' : 'Belum dikaji'),
                 'screeningUrl' => route('pelayanan.screening.show', $visit),
@@ -90,8 +93,10 @@ class ScreeningController extends Controller
             'serviceName' => $assignedClinicId ? $clinics->first()?->nama : 'Semua poli',
             'stats' => [
                 'total' => (clone $todaySummary)->count(),
-                'waiting' => (clone $todaySummary)->where('status', 'menunggu')->count(),
-                'inProgress' => (clone $todaySummary)->where('status', 'screening')->count(),
+                'waiting' => (clone $todaySummary)->where('status', 'menunggu')
+                    ->whereDoesntHave('screening', fn ($query) => $query->whereNotNull('submitted_at'))->count(),
+                'inProgress' => (clone $todaySummary)->where('status', 'screening')
+                    ->whereDoesntHave('screening', fn ($query) => $query->whereNotNull('submitted_at'))->count(),
                 'submitted' => (clone $todaySummary)->whereHas('screening', fn ($query) => $query->whereNotNull('submitted_at'))->count(),
             ],
             'filters' => [
@@ -132,7 +137,6 @@ class ScreeningController extends Controller
         return Inertia::render('pelayanan/screening/history', [
             'isReport' => $isReport,
             'serviceName' => $nurse?->poliklinik?->nama ?? 'Semua poli',
-            'isDental' => $nurse?->poliklinik?->jenis === 'gigi',
             'exportUrl' => $isReport ? route('perawat.laporan-pengkajian.export', $filters) : null,
             'filters' => [
                 'search' => $filters['search'] ?? '',
@@ -150,9 +154,6 @@ class ScreeningController extends Controller
                     'medicalRecordNumber' => $screening->kunjungan?->pasien?->no_rm ?? 'Belum diisi',
                     'clinic' => $screening->kunjungan?->poliklinik?->nama ?? 'Belum diisi',
                     'staff' => $screening->petugas?->nama ?? 'Belum diisi',
-                    'complaint' => $screening->keluhan,
-                    'dentalPainLocation' => $screening->lokasi_nyeri_gigi,
-                    'submittedAt' => $screening->submitted_at?->format('d/m/Y H:i'),
                     'triage' => $screening->kesimpulan_triase,
                     'priority' => $screening->prioritas_layanan,
                     'visitUrl' => $screening->kunjungan ? route('pelayanan.kunjungan.show', $screening->kunjungan) : null,
