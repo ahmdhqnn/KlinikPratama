@@ -1,7 +1,7 @@
 import { getAllergyStatus } from '@/lib/allergy-status';
 import { ActionButton } from '@/components/ui/action-button';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeft, Check, ChevronDown, ChevronUp, CircleCheck, CircleHelp, Printer, Save, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ChevronUp, CircleCheck, CircleHelp, Printer, Save, TriangleAlert, Pill } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
@@ -123,7 +123,7 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><CardTitle>Verifikasi dan penyiapan obat</CardTitle><CardDescription>Periksa jumlah dan aturan pakai. Stok keluar saat obat diserahkan. Catat alasan dan tindak lanjut jika resep belum terpenuhi seluruhnya.</CardDescription></CardHeader>
+                <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Pill className="size-5" /></span><div><CardTitle>Verifikasi dan penyiapan obat</CardTitle><CardDescription className="mt-1">Periksa jumlah dan aturan pakai. Stok keluar saat obat diserahkan. Catat alasan dan tindak lanjut jika resep belum terpenuhi seluruhnya.</CardDescription></div></div></CardHeader>
                     <form onSubmit={saveDispensing}><CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[980px]"><TableHeader><tr><TableHead>Obat</TableHead><TableHead>Permintaan resep</TableHead><TableHead>Stok layak pakai</TableHead><TableHead>Jumlah diserahkan</TableHead><TableHead>Aturan pakai</TableHead><TableHead>Etiket</TableHead></tr></TableHeader><TableBody>
                         {visit.prescriptionItems.length ? visit.prescriptionItems.map((item, index) => {
                             const current = form.data.items[index];

@@ -672,9 +672,10 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                 <Card className="space-y-5 border-0 shadow-none">
                     <CardHeader className="p-0 sm:p-0">
                         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                            <div className="min-w-0 space-y-1.5">
-                                <CardTitle>Odontogram Kunjungan (Peta Gigi FDI)</CardTitle>
-                                <CardDescription>{canEdit ? 'Pilih gigi dan permukaan untuk mencatat temuan pemeriksaan.' : canCorrect ? 'Tinjau temuan gigi. Koreksi disimpan sebagai addendum dengan alasan perubahan.' : 'Tinjau temuan gigi yang sudah tercatat pada kunjungan ini.'}</CardDescription>
+                            <div className="flex min-w-0 items-start gap-3">
+                                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Stethoscope className="size-5" /></span>
+                                <div className="min-w-0 space-y-1.5"><CardTitle>Odontogram Kunjungan (Peta Gigi FDI)</CardTitle>
+                                <CardDescription>{canEdit ? 'Pilih gigi dan permukaan untuk mencatat temuan pemeriksaan.' : canCorrect ? 'Tinjau temuan gigi. Koreksi disimpan sebagai addendum dengan alasan perubahan.' : 'Tinjau temuan gigi yang sudah tercatat pada kunjungan ini.'}</CardDescription></div>
                             </div>
                             <div className="flex shrink-0 flex-wrap gap-2">
                                 <Button onClick={() => changeDentition('adult')} size="sm" type="button" variant={dentition === 'adult' ? 'default' : 'secondary'}>Permanen · 32</Button>

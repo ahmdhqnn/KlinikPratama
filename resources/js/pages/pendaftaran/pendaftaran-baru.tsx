@@ -2,8 +2,8 @@ import { identityPlaceholders } from '@/lib/form-placeholders';
 import { RegisteredPatientForm, type PatientResult } from '@/components/pendaftaran/registered-patient-form';
 import { MembershipIdentityFields } from '@/components/pasien/membership-identity-fields';
 import { ManualPatientFields } from '@/components/pasien/manual-patient-fields';
-import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeft, ClipboardPlus, UserRoundPlus } from 'lucide-react';
+import { Head, useForm } from '@inertiajs/react';
+import { ClipboardPlus, UserRoundPlus } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { VisitFields, type VisitFormValues } from '@/components/pendaftaran/visit-fields';
 import { Button } from '@/components/ui/button';
@@ -72,14 +72,11 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
     return (
         <>
             <Head title="Pendaftaran Pasien" />
-            <div className="mx-auto max-w-5xl space-y-6">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                    <div>
-                        <p className="text-sm font-medium text-neutral-700">Pendaftaran pasien</p>
-                        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pendaftaran pasien</h2>
-                        <p className="mt-1 text-sm text-neutral-500">Daftarkan pasien dan tentukan tujuan kunjungan.</p>
-                    </div>
-                    <Button asChild variant="secondary"><Link href="/pendaftaran"><ArrowLeft className="size-4" />Kembali ke dashboard</Link></Button>
+            <div className="space-y-6">
+                <div>
+                    <p className="text-sm font-medium text-neutral-700">Layanan pendaftaran</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pendaftaran pasien</h2>
+                    <p className="mt-1 text-sm text-neutral-500">Daftarkan pasien internal dan tentukan tujuan kunjungan.</p>
                 </div>
 
                 <Tabs className="space-y-5" onValueChange={(value) => {
@@ -160,7 +157,6 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                 </Card>
 
                 <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
-                    <Button asChild variant="secondary"><Link href="/pendaftaran">Batal</Link></Button>
                     <Button disabled={form.processing || !form.data.dokter_id || (registrationType === 'directory' && !form.data.kepesertaan_id)} type="submit"><UserRoundPlus className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan dan buat kunjungan'}</Button>
                 </div>
                     </form>}

@@ -14,9 +14,9 @@ interface Visit {
     date: string;
     notes: string | null;
 }
-interface Props { visit: Visit; clinics: Clinic[]; today: string; doctorsUrl: string; updateUrl: string; cancelUrl: string }
+interface Props { visit: Visit; clinics: Clinic[]; today: string; doctorsUrl: string; updateUrl: string; backUrl: string }
 
-export default function EditRegistrationVisit({ visit, clinics, today, doctorsUrl, updateUrl, cancelUrl }: Props) {
+export default function EditRegistrationVisit({ visit, clinics, today, doctorsUrl, updateUrl, backUrl }: Props) {
     const form = useForm<VisitFormValues>({ poliklinik_id: visit.clinicId, dokter_id: visit.doctorId, catatan: visit.notes ?? '', tanggal: visit.date });
 
     function submit(event: FormEvent<HTMLFormElement>) {
@@ -28,11 +28,13 @@ export default function EditRegistrationVisit({ visit, clinics, today, doctorsUr
         <>
             <Head title="Edit Kunjungan" />
             <div className="mx-auto max-w-4xl space-y-5">
-                <Button asChild size="sm" variant="ghost"><Link href={cancelUrl}><ArrowLeft className="size-4" />Kembali ke laporan kunjungan</Link></Button>
-                <div>
-                    <p className="text-sm font-medium text-neutral-700">Pendaftaran</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ubah data kunjungan</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Pembaruan poli dan dokter akan diperiksa terhadap jadwal praktik.</p>
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                    <div>
+                        <p className="text-sm font-medium text-neutral-700">Pendaftaran</p>
+                        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ubah data kunjungan</h2>
+                        <p className="mt-1 text-sm text-neutral-500">Pembaruan poli dan dokter akan diperiksa terhadap jadwal praktik.</p>
+                    </div>
+                    <Button asChild variant="secondary"><Link href={backUrl}><ArrowLeft className="size-4" />Kembali</Link></Button>
                 </div>
                 <Card>
                     <CardHeader><CardTitle>Informasi pasien</CardTitle><CardDescription>Identitas pasien untuk kunjungan ini.</CardDescription></CardHeader>
@@ -51,7 +53,7 @@ export default function EditRegistrationVisit({ visit, clinics, today, doctorsUr
                         <form className="space-y-5" onSubmit={submit}>
                             <VisitFields clinics={clinics} doctorsUrl={doctorsUrl} errors={form.errors} existingVisit={visit} today={today} values={form.data} onChange={(fields) => form.setData((data) => ({ ...data, ...fields }))} />
                             <div className="flex flex-col-reverse gap-2 border-t border-neutral-100 pt-4 sm:flex-row sm:justify-end">
-                                <Button asChild variant="secondary"><Link href={cancelUrl}>Batal</Link></Button>
+                                <Button asChild variant="secondary"><Link href={backUrl}>Batalkan</Link></Button>
                                 <Button disabled={form.processing} type="submit"><Save className="size-4" />{form.processing ? 'Menyimpan.' : 'Simpan perubahan'}</Button>
                             </div>
                         </form>
