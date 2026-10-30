@@ -95,7 +95,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                 <Card>
                     <CardHeader>
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span>
                             <div><CardTitle>Data identitas pasien</CardTitle><CardDescription className="mt-1">Informasi ini digunakan untuk rekam medis dan komunikasi layanan.</CardDescription></div>
                         </div>
                     </CardHeader>
@@ -133,14 +133,14 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                 </TabsContent>}
                 {registrationType === 'manual' && <TabsContent className="space-y-6" value="manual">
                     <Card>
-                        <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Identitas pasien</CardTitle><CardDescription className="mt-1">Kunjungan dapat langsung didaftarkan. Admin akan memverifikasi data untuk kepesertaan.</CardDescription></div></div></CardHeader>
+                        <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Identitas pasien</CardTitle><CardDescription className="mt-1">Kunjungan dapat langsung didaftarkan. Admin akan memverifikasi data untuk kepesertaan.</CardDescription></div></div></CardHeader>
                         <CardContent><ManualPatientFields errors={form.errors} onChange={(field, value) => updateField(field, value)} value={form.data} /></CardContent>
                     </Card>
                 </TabsContent>}
                 <Card>
                     <CardHeader>
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><ClipboardPlus className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ClipboardPlus className="size-5" /></span>
                             <div><CardTitle>Data kunjungan pertama</CardTitle><CardDescription className="mt-1">Pasien baru otomatis dibuatkan nomor rekam medis dan kunjungan awal.</CardDescription></div>
                         </div>
                     </CardHeader>

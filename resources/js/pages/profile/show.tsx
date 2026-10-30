@@ -5,6 +5,7 @@ import { useState, type FormEvent } from 'react';
 import { Attachment } from '@/components/ui/attachment';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -120,7 +121,7 @@ export default function Profile({ profile }: Props) {
                             <p className="mt-1 break-all text-sm text-neutral-500">{profile.email}</p>
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                                 <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-700">{profile.roleLabel}</span>
-                                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${profile.active ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-600'}`}>{profile.active ? 'Akun aktif' : 'Akun nonaktif'}</span>
+                                <Badge>{profile.active ? 'Akun aktif' : 'Akun nonaktif'}</Badge>
                             </div>
                         </div>
                         {profile.joinedAt && <p className="text-xs text-neutral-500">Terdaftar sejak {profile.joinedAt}</p>}
@@ -130,7 +131,7 @@ export default function Profile({ profile }: Props) {
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)]">
                     <div className="space-y-6">
                         <Card>
-                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRound aria-hidden="true" className="size-5 shrink-0" /></span><div className="min-w-0"><CardTitle>Informasi akun</CardTitle><CardDescription className="mt-1">Data ini dapat Anda perbarui sendiri.</CardDescription></div></div></CardHeader>
+                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRound aria-hidden="true" className="size-5 shrink-0" /></span><div className="min-w-0"><CardTitle>Informasi akun</CardTitle><CardDescription className="mt-1">Data ini dapat Anda perbarui sendiri.</CardDescription></div></div></CardHeader>
                             <CardContent>
                                 <form className="space-y-5" onSubmit={saveDetails}>
                                     <Field error={details.errors.name} htmlFor="profile-name" label="Nama tampilan" required><Input placeholder={identityPlaceholders.nama} autoComplete="name" id="profile-name" onChange={(event) => details.setData('name', event.target.value)} required value={details.data.name} /></Field>
@@ -143,7 +144,7 @@ export default function Profile({ profile }: Props) {
                         </Card>
 
                         {profile.professional && <Card>
-                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><IdCard aria-hidden="true" className="size-5 shrink-0" /></span><div className="min-w-0"><CardTitle>Data kepegawaian</CardTitle><CardDescription className="mt-1">Tercatat di data tenaga kesehatan. Perubahan identitas profesi dan izin praktik dikelola administrator.</CardDescription></div></div></CardHeader>
+                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><IdCard aria-hidden="true" className="size-5 shrink-0" /></span><div className="min-w-0"><CardTitle>Data kepegawaian</CardTitle><CardDescription className="mt-1">Tercatat di data tenaga kesehatan. Perubahan identitas profesi dan izin praktik dikelola administrator.</CardDescription></div></div></CardHeader>
                             <CardContent><dl className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
                                 <Detail label="Nama tercatat" value={profile.professional.name} />
                                 <Detail label="Kode pegawai" value={profile.professional.code} />
@@ -159,7 +160,7 @@ export default function Profile({ profile }: Props) {
 
                     <div className="space-y-6">
                         <Card>
-                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Camera aria-hidden="true" className="size-5 shrink-0" /></span><div className="min-w-0"><CardTitle>Foto profil</CardTitle><CardDescription className="mt-1">JPG, PNG, atau WebP, maksimal 2 MB.</CardDescription></div></div></CardHeader>
+                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Camera aria-hidden="true" className="size-5 shrink-0" /></span><div className="min-w-0"><CardTitle>Foto profil</CardTitle><CardDescription className="mt-1">JPG, PNG, atau WebP, maksimal 2 MB.</CardDescription></div></div></CardHeader>
                             <CardContent className="space-y-4">
                                 <form className="space-y-4" onSubmit={uploadPhoto}>
                                     <Attachment accept="image/jpeg,image/png,image/webp" error={photo.errors.photo} fileName={photo.data.photo?.name} id="profile-photo" inputKey={photoInputKey} label="Pilih foto baru" onFileChange={(file) => photo.setData('photo', file)} required />
@@ -170,7 +171,7 @@ export default function Profile({ profile }: Props) {
                         </Card>
 
                         <Card>
-                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><PenTool aria-hidden="true" className="size-5 shrink-0" /></span><div className="min-w-0"><CardTitle>Tanda tangan</CardTitle><CardDescription className="mt-1">{profile.role === 'perawat' ? 'Tanda tangan ini otomatis tampil pada cetak pengkajian awal yang Anda selesaikan.' : profile.role === 'dokter' ? 'Tanda tangan ini otomatis tampil pada resep luar, surat medis, rujukan, dan rekam medis yang Anda finalisasi.' : 'Tanda tangan tersimpan privat untuk dokumen yang diterbitkan atas nama Anda.'}</CardDescription></div></div></CardHeader>
+                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><PenTool aria-hidden="true" className="size-5 shrink-0" /></span><div className="min-w-0"><CardTitle>Tanda tangan</CardTitle><CardDescription className="mt-1">{profile.role === 'perawat' ? 'Tanda tangan ini otomatis tampil pada cetak pengkajian awal yang Anda selesaikan.' : profile.role === 'dokter' ? 'Tanda tangan ini otomatis tampil pada resep luar, surat medis, rujukan, dan rekam medis yang Anda finalisasi.' : 'Tanda tangan tersimpan privat untuk dokumen yang diterbitkan atas nama Anda.'}</CardDescription></div></div></CardHeader>
                             <CardContent className="space-y-4">
                                 {profile.signatureUrl && <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-white p-4"><img alt={`Tanda tangan ${profile.name}`} className="max-h-20 max-w-full object-contain" src={profile.signatureUrl} /></div>}
                                 <form className="space-y-4" onSubmit={uploadSignature}>
@@ -182,7 +183,7 @@ export default function Profile({ profile }: Props) {
                         </Card>
 
                         <Card>
-                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><KeyRound aria-hidden="true" className="size-5 shrink-0" /></span><div className="min-w-0"><CardTitle>Ganti kata sandi</CardTitle><CardDescription className="mt-1">Gunakan minimal 8 karakter dan konfirmasi kata sandi baru.</CardDescription></div></div></CardHeader>
+                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><KeyRound aria-hidden="true" className="size-5 shrink-0" /></span><div className="min-w-0"><CardTitle>Ganti kata sandi</CardTitle><CardDescription className="mt-1">Gunakan minimal 8 karakter dan konfirmasi kata sandi baru.</CardDescription></div></div></CardHeader>
                             <CardContent><form className="space-y-4" onSubmit={savePassword}>
                                 <Field error={password.errors.current_password} htmlFor="current-password" label="Kata sandi saat ini" required><Input placeholder="Masukkan kata sandi saat ini" autoComplete="current-password" id="current-password" onChange={(event) => password.setData('current_password', event.target.value)} required type="password" value={password.data.current_password} /></Field>
                                 <Field error={password.errors.password} htmlFor="new-password" label="Kata sandi baru" required><Input placeholder="Minimal 8 karakter" autoComplete="new-password" id="new-password" minLength={8} onChange={(event) => password.setData('password', event.target.value)} required type="password" value={password.data.password} /></Field>

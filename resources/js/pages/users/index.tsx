@@ -1,5 +1,6 @@
 import { identityPlaceholders } from '@/lib/form-placeholders';
 import { ActionButton } from '@/components/ui/action-button';
+import { Badge } from '@/components/ui/badge';
 import { Head, router, useForm } from '@inertiajs/react';
 import { Plus, Search, ShieldCheck, UserRoundCog, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -36,12 +37,12 @@ interface Props {
 }
 
 const roleStyles: Record<string, string> = {
-    admin: 'bg-neutral-50 text-neutral-700',
-    dokter: 'bg-neutral-50 text-neutral-700',
-    perawat: 'bg-neutral-50 text-neutral-700',
-    farmasi: 'bg-neutral-50 text-neutral-700',
-    manajemen: 'bg-neutral-50 text-neutral-700',
-    pendaftaran: 'bg-neutral-50 text-neutral-700',
+    admin: 'bg-neutral-100 text-neutral-700',
+    dokter: 'bg-neutral-100 text-neutral-700',
+    perawat: 'bg-neutral-100 text-neutral-700',
+    farmasi: 'bg-neutral-100 text-neutral-700',
+    manajemen: 'bg-neutral-100 text-neutral-700',
+    pendaftaran: 'bg-neutral-100 text-neutral-700',
 };
 
 const emptyUser = { name: '', email: '', password: '', role: 'perawat', is_active: true, nakes_id: '', poliklinik_id: '' };
@@ -139,7 +140,7 @@ export default function UserManagement({ users, filters, roles, doctors, clinics
                 </div>
 
                 <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><CardTitle>Daftar pengguna</CardTitle><CardDescription>Temukan akun menurut nama, email, atau peran.</CardDescription><form className="grid gap-3 pt-3 sm:grid-cols-[minmax(0,1fr)_14rem_auto]" onSubmit={filterUsers}><Label className="sr-only" htmlFor="user-search">Cari nama atau email</Label><Input id="user-search" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama atau email" value={search} /><Label className="sr-only" htmlFor="user-role">Filter peran</Label><Select id="user-role" onChange={(event) => setRole(event.target.value)} value={role}><option value="">Semua peran</option>{roles.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select><Button type="submit"><Search className="size-4" />Cari</Button></form></CardHeader>
-                    <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[850px]"><TableHeader><tr><TableHead>Nama</TableHead><TableHead>Email login</TableHead><TableHead>Peran</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>{users.data.length ? users.data.map((user) => <TableRow key={user.id}><TableCell><p className="font-medium text-neutral-900">{user.name}</p>{user.nakes && <p className="mt-0.5 text-xs text-neutral-500">{user.nakes.name} · {user.nakes.code}{user.role === 'perawat' ? ` · ${user.nakes.clinic ?? 'Belum ditugaskan'}` : ''}</p>}</TableCell><TableCell className="font-mono text-xs">{user.email}</TableCell><TableCell><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${roleStyles[user.role] ?? 'bg-neutral-100 text-neutral-700'}`}>{user.roleLabel}</span></TableCell><TableCell><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${user.active ? 'text-emerald-700' : 'text-neutral-500'}`}><span className={`size-2 rounded-full ${user.active ? 'bg-emerald-500' : 'bg-neutral-400'}`} />{user.active ? 'Aktif' : 'Nonaktif'}</span></TableCell><TableCell><div className="flex flex-wrap items-center justify-center gap-2"><ActionButton onClick={() => openReset(user)} action="resetPassword" label="Reset password" /><ActionButton onClick={() => openEdit(user)} action="edit" label="Edit" />{!user.isCurrentUser && <><ActionButton onClick={() => router.post(`/users/${user.id}/toggle-active`, {}, { preserveScroll: true })} action={user.active ? 'deactivate' : 'activate'} label={user.active ? 'Nonaktifkan pengguna' : 'Aktifkan pengguna'} /><ActionButton onClick={() => deleteUser(user)} action="delete" label="Hapus" /></>}</div></TableCell></TableRow>) : <TableRow><TableCell colSpan={5}><Empty size="compact" title="Belum ada pengguna yang sesuai filter." /></TableCell></TableRow>}</TableBody></Table></div><Pagination pagination={users} /></CardContent>
+                    <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[850px]"><TableHeader><tr><TableHead>Nama</TableHead><TableHead>Email login</TableHead><TableHead>Peran</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>{users.data.length ? users.data.map((user) => <TableRow key={user.id}><TableCell><p className="font-medium text-neutral-900">{user.name}</p>{user.nakes && <p className="mt-0.5 text-xs text-neutral-500">{user.nakes.name} · {user.nakes.code}{user.role === 'perawat' ? ` · ${user.nakes.clinic ?? 'Belum ditugaskan'}` : ''}</p>}</TableCell><TableCell className="font-mono text-xs">{user.email}</TableCell><TableCell><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${roleStyles[user.role] ?? 'bg-neutral-100 text-neutral-700'}`}>{user.roleLabel}</span></TableCell><TableCell><Badge className="gap-1.5"><span className={`size-2 rounded-full ${user.active ? 'bg-neutral-500' : 'bg-neutral-300'}`} />{user.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell><TableCell><div className="flex flex-wrap items-center justify-center gap-2"><ActionButton onClick={() => openReset(user)} action="resetPassword" label="Reset password" /><ActionButton onClick={() => openEdit(user)} action="edit" label="Edit" />{!user.isCurrentUser && <><ActionButton onClick={() => router.post(`/users/${user.id}/toggle-active`, {}, { preserveScroll: true })} action={user.active ? 'deactivate' : 'activate'} label={user.active ? 'Nonaktifkan pengguna' : 'Aktifkan pengguna'} /><ActionButton onClick={() => deleteUser(user)} action="delete" label="Hapus" /></>}</div></TableCell></TableRow>) : <TableRow><TableCell colSpan={5}><Empty size="compact" title="Belum ada pengguna yang sesuai filter." /></TableCell></TableRow>}</TableBody></Table></div><Pagination pagination={users} /></CardContent>
                 </Card>
             </div>
 

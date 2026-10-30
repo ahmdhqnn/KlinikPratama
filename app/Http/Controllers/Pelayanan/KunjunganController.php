@@ -206,8 +206,7 @@ class KunjunganController extends Controller
         }
         $allergyHistory = $canViewRme && $kunjungan->pasien ? $allergies->forVisit($confirmedVisit)['riwayat_alergi'] : null;
         $canEdit = in_array($role, ['admin', 'pendaftaran'], true) && $kunjungan->status === 'menunggu';
-        $canScreen = $role === 'perawat' && ! $kunjungan->tanggal->isFuture()
-            && in_array($kunjungan->status, ['menunggu', 'screening'], true);
+        $canScreen = $role === 'perawat' && $kunjungan->canUpdateScreening();
 
         return Inertia::render('pelayanan/kunjungan/show', [
             'backUrl' => $isRegistrationPage ? route('pendaftaran.kunjungan-per-poli') : match ($role) {
@@ -240,7 +239,8 @@ class KunjunganController extends Controller
                 'number' => $kunjungan->no_kunjungan,
                 'date' => $kunjungan->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
                 'status' => $kunjungan->status,
-                'examinationStarted' => $kunjungan->pemeriksaan !== null,
+                'examinationStarted' => $kunjungan->pemeriksaan?->started_at !== null,
+                'screeningSubmitted' => $kunjungan->screening?->submitted_at !== null,
                 'isReservation' => $kunjungan->tanggal->isFuture() && $kunjungan->status === 'menunggu',
                 'clinic' => $kunjungan->poliklinik?->nama ?? 'Belum diisi',
                 'doctor' => $kunjungan->dokter?->nama,

@@ -63,6 +63,7 @@ class RedirectRegistrationRole
             'perawat.dashboard',
             'perawat.laporan-pengkajian',
             'perawat.laporan-pengkajian.export',
+            'perawat.laporan-tindakan*',
             'pelayanan.screening.*',
             'pelayanan.tindakan.*',
             'pelayanan.kunjungan.show',

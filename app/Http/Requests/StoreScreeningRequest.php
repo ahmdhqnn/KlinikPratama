@@ -15,12 +15,12 @@ class StoreScreeningRequest extends FormRequest
     {
         /** @var Kunjungan $visit */
         $visit = $this->route('kunjungan');
-        $visit->loadMissing('poliklinik');
+        $visit->loadMissing(['poliklinik', 'screening', 'pemeriksaan']);
         abort_unless(in_array($visit->poliklinik?->jenis, ['umum', 'gigi'], true), 404);
         if ($this->user()->role === 'perawat') {
             abort_unless((int) $visit->poliklinik_id === app(PerawatClinicResolver::class)->clinicId($this->user()), 404);
         }
-        abort_unless(in_array($visit->status, ['menunggu', 'screening'], true), 422, 'Pengkajian awal sudah diteruskan dan tidak dapat diubah.');
+        abort_unless($visit->canUpdateScreening(), 422, 'Pengkajian hanya dapat diperbarui sebelum dokter memulai pemeriksaan.');
         app(VisitSchedulingService::class)->ensureServiceDate($visit);
 
         return in_array($this->user()->role, ['admin', 'perawat'], true);
@@ -30,9 +30,10 @@ class StoreScreeningRequest extends FormRequest
     public function rules(): array
     {
         $isDental = $this->route('kunjungan')->poliklinik?->jenis === 'gigi';
-        $required = $this->input('tindakan', 'kirim') === 'kirim' ? 'required' : 'nullable';
+        $wasSubmitted = $this->route('kunjungan')->screening?->submitted_at !== null;
+        $required = $wasSubmitted || $this->input('tindakan', 'kirim') === 'kirim' ? 'required' : 'nullable';
         $rules = [
-            'tindakan' => ['sometimes', 'in:draf,kirim'],
+            'tindakan' => ['sometimes', Rule::in($wasSubmitted ? ['kirim'] : ['draf', 'kirim'])],
             'petugas_id' => [Rule::excludeIf($this->user()->role === 'perawat'), 'required', Rule::exists('nakes', 'id')->whereIn('jabatan', ['perawat', 'bidan', 'terapis_gigi'])->where('poliklinik_id', $this->route('kunjungan')->poliklinik_id)->where('is_active', true)->whereNull('deleted_at')],
             'keluhan' => [$required, 'string', 'max:5000'],
             'keluhan_tambahan' => ['nullable', 'string', 'max:5000'],

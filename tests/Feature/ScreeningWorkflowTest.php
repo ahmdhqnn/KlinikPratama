@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Pasien;
+use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
 use App\Models\Screening;
 use App\Models\User;
@@ -45,7 +46,11 @@ class ScreeningWorkflowTest extends TestCase
         $this->assertNull($visit->screening->submitted_at);
         $this->assertNull($visit->screening->kesimpulan_triase);
         $this->assertSame('Penisilin', $visit->pasien->fresh()->riwayat_alergi);
-        $this->get(route('pelayanan.screening.print', $visit))->assertSee('DRAF — BELUM DITERUSKAN KE DOKTER');
+        $this->get(route('pelayanan.screening.print', $visit))->assertHeader('Cache-Control', 'no-store, private')
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pelayanan/screening/print')
+                ->where('document.isDraft', true)
+                ->where('document.backUrl', route('pelayanan.screening.index')));
     }
 
     public function test_sending_requires_assessment_and_explicit_history_confirmation(): void
@@ -85,7 +90,7 @@ class ScreeningWorkflowTest extends TestCase
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'berat_badan' => null, 'tinggi_badan' => null, 'kesimpulan_triase' => 'merah', 'prioritas_layanan' => 'darurat']);
         $this->assertNotNull($visit->fresh()->screening->submitted_at);
         $this->assertSame('pemeriksaan', $visit->fresh()->status);
-        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'tindakan' => 'draf'])->assertUnprocessable();
+        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'tindakan' => 'draf'])->assertSessionHasErrors('tindakan');
         $this->assertSame('merah', $visit->fresh()->screening->kesimpulan_triase);
     }
 
@@ -97,9 +102,12 @@ class ScreeningWorkflowTest extends TestCase
         $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'riwayat_obat' => 'Obat rutin sesuai keterangan pasien', 'skala_nyeri' => null]);
-        $this->get(route('pelayanan.screening.print', $visit))->assertSee('ASESMEN KHUSUS GIGI DAN MULUT')
-            ->assertSee('Diabetes melitus')->assertSee('Belum dikaji')->assertSee('<script>alert(1)</script>')
-            ->assertDontSee('<script>alert(1)</script>', false)->assertDontSee('DRAF — BELUM DITERUSKAN');
+        $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
+            ->component('pelayanan/screening/print')
+            ->where('document.clinicType', 'gigi')
+            ->where('document.isDraft', false)
+            ->where('document.sections.dental.Kondisi kesehatan yang perlu diketahui dokter gigi', 'Diabetes melitus')
+            ->where('document.sections.history.Keluhan tambahan', '<script>alert(1)</script>'));
         $this->assertDatabaseHas('clinical_audit_events', ['action' => 'screening.print', 'kunjungan_id' => $visit->id]);
         $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien))->assertInertia(fn (Assert $page) => $page
             ->where('visits.0.screening.summary.Lama keluhan', '2 hari')
@@ -163,7 +171,63 @@ class ScreeningWorkflowTest extends TestCase
             ->where('visit.progress.1.active', false)
             ->where('visit.progress.1.note', null)
             ->where('visit.patient.allergies', 'Tidak ada riwayat alergi menurut pasien')
-            ->where('permissions.processScreening', false));
+            ->where('permissions.processScreening', true));
+    }
+
+    public function test_submitted_assessment_can_be_updated_until_the_doctor_starts(): void
+    {
+        [$nurse, $visit] = $this->context();
+        $payload = $this->payload();
+
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('pelayanan.kunjungan.show', $visit));
+
+        $this->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.editable', true)
+            ->where('visit.submitted', true));
+
+        $this->get(route('pelayanan.screening.index', ['search' => $visit->no_kunjungan]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visits.data.0.actionUrl', route('pelayanan.screening.show', $visit))
+                ->where('visits.data.0.actionLabel', 'Perbarui pengkajian'));
+
+        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'keluhan' => 'Keluhan diperbarui'])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('pelayanan.screening.show', $visit));
+
+        $this->assertDatabaseHas('screening', [
+            'kunjungan_id' => $visit->id,
+            'keluhan' => 'Keluhan diperbarui',
+        ]);
+        $this->assertNotNull($visit->fresh()->screening->submitted_at);
+        $this->assertSame('pemeriksaan', $visit->fresh()->status);
+    }
+
+    public function test_submitted_assessment_cannot_be_updated_after_the_doctor_starts(): void
+    {
+        [$nurse, $visit] = $this->context();
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $this->payload())->assertSessionHasNoErrors();
+        $doctor = Nakes::create(['kode' => 'SKR-DOCTOR', 'nama' => 'Dokter Uji', 'kategori' => 'medis', 'jabatan' => 'dokter', 'poliklinik_id' => $visit->poliklinik_id, 'is_active' => true]);
+        Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id, 'status' => 'draft', 'started_at' => now()]);
+
+        $this->get(route('pelayanan.screening.show', $visit))->assertUnprocessable();
+        $this->post(route('pelayanan.screening.store', $visit), [...$this->payload(), 'keluhan' => 'Tidak boleh berubah'])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'keluhan' => 'Keluhan pasien']);
+    }
+
+    public function test_submitted_assessment_cannot_be_saved_as_an_incomplete_draft(): void
+    {
+        [$nurse, $visit] = $this->context();
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $this->payload())->assertSessionHasNoErrors();
+
+        $this->post(route('pelayanan.screening.store', $visit), ['tindakan' => 'draf'])
+            ->assertSessionHasErrors(['tindakan', 'keluhan']);
+
+        $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'keluhan' => 'Keluhan pasien']);
+        $this->assertNotNull($visit->fresh()->screening->submitted_at);
     }
 
     public function test_assessment_print_only_signs_completed_records_using_the_nurses_profile(): void
@@ -178,14 +242,17 @@ class ScreeningWorkflowTest extends TestCase
         $viewerSignature = 'data:image/png;base64,'.base64_encode(Storage::disk('local')->get($viewerPath));
 
         $this->actingAs($nurse)->post(route('pelayanan.screening.start', $visit))->assertRedirect();
-        $this->get(route('pelayanan.screening.print', $visit))->assertOk()
-            ->assertSee('BELUM DITERUSKAN KE DOKTER')->assertDontSee($signature, false);
+        $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('document.isDraft', true)
+            ->where('document.signatureDataUrl', null));
         $this->post(route('pelayanan.screening.store', $visit), $this->payload())->assertSessionHasNoErrors();
 
-        $this->actingAs($viewer)->get(route('pelayanan.screening.print', $visit))->assertOk()
-            ->assertDontSee('BELUM DITERUSKAN KE DOKTER')->assertSee($signature, false)->assertDontSee($viewerSignature, false);
+        $this->actingAs($viewer)->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('document.isDraft', false)
+            ->where('document.signatureDataUrl', $signature));
         Storage::disk('local')->delete($path);
-        $this->get(route('pelayanan.screening.print', $visit))->assertOk()->assertDontSee($signature, false);
+        $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('document.signatureDataUrl', null));
     }
 
     /** @return array{User, Kunjungan, Nakes} */

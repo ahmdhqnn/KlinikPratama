@@ -61,10 +61,10 @@ export default function DoctorAppointments({ filters, visits, isReport, exportUr
                     <p className="mt-1 text-sm text-neutral-500">{isReport ? 'Pemeriksaan pasien yang Anda tangani, sesuai layanan dan periode yang dipilih.' : 'Kunjungan pasien yang terdaftar untuk pelayanan Anda.'}</p>
                 </div>
                 <section aria-label={isReport ? 'Ringkasan laporan pemeriksaan' : 'Ringkasan kunjungan dokter'} className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>section]:h-full [&>section>div]:h-full">
-                    <StatCard label={isReport ? 'Total pemeriksaan' : 'Total kunjungan'} value={stats.total} description={isReport ? 'Sesuai filter laporan' : 'Seluruh kunjungan Anda'} icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" />
-                    <StatCard label={isReport ? 'Draf pemeriksaan' : 'Kunjungan hari ini'} value={(isReport ? stats.draft : stats.today) ?? 0} description={isReport ? 'Belum difinalisasi' : 'Terdaftar untuk layanan Anda'} icon={isReport ? <FileText className="size-5" /> : <CalendarDays className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" />
-                    <StatCard label={isReport ? 'Pemeriksaan final' : 'Pengkajian awal'} value={(isReport ? stats.final : stats.waiting) ?? 0} description={isReport ? 'Sudah difinalisasi' : 'Menunggu / sedang dikaji hari ini'} icon={isReport ? <ClipboardCheck className="size-5" /> : <Clock3 className="size-5" />} iconClassName="bg-amber-50 text-amber-700" />
-                    <StatCard label={isReport ? 'Pasien ditangani' : 'Pemeriksaan selesai'} value={(isReport ? stats.patients : stats.completed) ?? 0} description={isReport ? 'Pasien unik sesuai filter' : 'Kunjungan hari ini sudah final'} icon={isReport ? <UsersRound className="size-5" /> : <ClipboardCheck className="size-5" />} iconClassName="bg-emerald-50 text-emerald-700" />
+                    <StatCard label={isReport ? 'Total pemeriksaan' : 'Total kunjungan'} value={stats.total} description={isReport ? 'Sesuai filter laporan' : 'Seluruh kunjungan Anda'} icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label={isReport ? 'Draf pemeriksaan' : 'Kunjungan hari ini'} value={(isReport ? stats.draft : stats.today) ?? 0} description={isReport ? 'Belum difinalisasi' : 'Terdaftar untuk layanan Anda'} icon={isReport ? <FileText className="size-5" /> : <CalendarDays className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label={isReport ? 'Pemeriksaan final' : 'Pengkajian awal'} value={(isReport ? stats.final : stats.waiting) ?? 0} description={isReport ? 'Sudah difinalisasi' : 'Menunggu / sedang dikaji hari ini'} icon={isReport ? <ClipboardCheck className="size-5" /> : <Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label={isReport ? 'Pasien ditangani' : 'Pemeriksaan selesai'} value={(isReport ? stats.patients : stats.completed) ?? 0} description={isReport ? 'Pasien unik sesuai filter' : 'Kunjungan hari ini sudah final'} icon={isReport ? <UsersRound className="size-5" /> : <ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 </section>
                 <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}>
                     <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={applyFilters}>
@@ -78,7 +78,7 @@ export default function DoctorAppointments({ filters, visits, isReport, exportUr
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><CalendarDays className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span>
                             <div><CardTitle>{isReport ? 'Daftar pemeriksaan' : 'Daftar kunjungan'}</CardTitle><CardDescription className="mt-1">{visits.total} kunjungan dalam hasil pencarian.</CardDescription></div>
                         </div>
                     </CardHeader>

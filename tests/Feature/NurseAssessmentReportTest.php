@@ -38,7 +38,7 @@ class NurseAssessmentReportTest extends TestCase
             $this->get(route('pelayanan.screening.index'))->assertInertia(fn (Assert $page) => $page
                 ->where('stats.total', 2)->where('stats.submitted', 2)->where('stats.waiting', 0)
                 ->where('todayVisits.total', 0)->where('visits.total', 2)
-                ->where('visits.data.0.actionLabel', 'Lihat RME'));
+                ->where('visits.data.0.actionLabel', 'Perbarui pengkajian'));
             $foreignClinic = Poliklinik::create(['kode' => $type.'-foreign', 'nama' => 'Poli lain', 'jenis' => $type, 'is_active' => true]);
             $foreignVisit = Kunjungan::create(['no_kunjungan' => $type.'-foreign', 'pasien_id' => $patient->id, 'poliklinik_id' => $foreignClinic->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
             Screening::create(['kunjungan_id' => $foreignVisit->id, 'petugas_id' => $nurse->id, 'submitted_at' => now()]);

@@ -69,6 +69,9 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     Route::middleware(EnsureRole::class.':perawat')->group(function (): void {
         Route::get('/perawat/laporan-pengkajian', [ScreeningController::class, 'history'])->name('perawat.laporan-pengkajian');
         Route::get('/perawat/laporan-pengkajian/export', [ScreeningController::class, 'exportReport'])->name('perawat.laporan-pengkajian.export');
+        Route::get('/perawat/laporan-tindakan', [TindakanPerawatController::class, 'report'])->name('perawat.laporan-tindakan');
+        Route::get('/perawat/laporan-tindakan/cetak', [TindakanPerawatController::class, 'printReport'])->name('perawat.laporan-tindakan.cetak');
+        Route::get('/perawat/laporan-tindakan/export', [TindakanPerawatController::class, 'exportReport'])->name('perawat.laporan-tindakan.export');
     });
 
     // Dashboard
