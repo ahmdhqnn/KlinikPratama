@@ -39,6 +39,7 @@ class RegistrationDashboardMonitoringTest extends TestCase
         $this->actingAs($registration)->get(route('pendaftaran.dashboard'))->assertInertia(fn (Assert $page) => $page
             ->component('pendaftaran/dashboard')->has('schedules', 2)->where('visits.total', 6)->has('visits.data', 3)->where('visits.lastPage', 2)
             ->where('visits.data.0.number', 'LATEST-3')->where('visits.data.1.number', 'LATEST-2')->where('visits.data.2.number', 'LATEST-1')
+            ->where('visits.data.0.date', '26/10/2026')
             ->missing('visits.data.0.triage')->missing('visits.data.0.priority'));
         $this->actingAs($nurse)->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
             ->component('perawat/dashboard')->has('schedules', 1)->where('schedules.0.clinic', 'Umum')->where('visits.total', 0));

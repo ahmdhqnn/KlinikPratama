@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\ClinicalAuditRecorder;
+use App\ClinicalNoteRecorder;
 use App\DateRangeFilter;
 use App\DoctorAccessService;
+use App\DoctorActivityReportQuery;
 use App\DoctorExaminationReport;
+use App\Exports\DoctorActivityExport;
 use App\Exports\PemeriksaanExport;
 use App\JadwalPraktikResolver;
 use App\Models\Diagnosa;
@@ -13,6 +16,7 @@ use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\Pasien;
 use App\VisitOverviewService;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -24,7 +28,7 @@ class DokterDashboardController extends Controller
 {
     public function __construct(private JadwalPraktikResolver $schedule, private DoctorAccessService $doctorAccess) {}
 
-    public function index(): Response
+    public function index(ClinicalNoteRecorder $notes): Response
     {
         $dokterId = $this->dokterId();
         $today = today();
@@ -36,8 +40,9 @@ class DokterDashboardController extends Controller
         $selesaiHariIni = (clone $base)->whereDate('tanggal', $today)
             ->whereIn('status', ['tindakan', 'farmasi', 'kasir', 'selesai'])->count();
         $jadwalHariIni = $this->schedule->doctorSchedule($dokterId, $today);
+        $totalKunjungan = $this->doctorVisits()->count();
 
-        $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan'])
+        $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan.clinicalNoteVersions'])
             ->whereDate('tanggal', $today)
             ->orderByDesc('created_at')->orderByDesc('id')
             ->paginate(3)
@@ -47,6 +52,7 @@ class DokterDashboardController extends Controller
             'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()->where('dokter_id', $dokterId)), 'href' => route('dokter.janji-kunjungan')],
             'stats' => [
                 'visitsToday' => $kunjunganHariIni,
+                'totalVisits' => $totalKunjungan,
                 'waitingExaminations' => $menungguPemeriksaan,
                 'completedToday' => $selesaiHariIni,
             ],
@@ -66,10 +72,13 @@ class DokterDashboardController extends Controller
                     'actionUrl' => $visit->status === 'pemeriksaan'
                         ? route('pelayanan.pemeriksaan.show', $visit)
                         : route('pelayanan.pasien.rekam-medis', $visit->pasien),
+                    'recordUrl' => route('pelayanan.pasien.rekam-medis', $visit->pasien),
                     'actionLabel' => $visit->status === 'pemeriksaan'
                         ? ($visit->pemeriksaan ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan')
                         : 'Lihat RME',
                     'actionType' => $visit->status === 'pemeriksaan' ? 'examination' : 'detail',
+                    'letterUrl' => $this->letterUrl($visit, $notes),
+                    'showLetterAction' => true,
                 ])->values(),
                 'currentPage' => $kunjunganTerkini->currentPage(),
                 'lastPage' => $kunjunganTerkini->lastPage(),
@@ -82,7 +91,7 @@ class DokterDashboardController extends Controller
         ]);
     }
 
-    public function appointments(Request $request): Response
+    public function appointments(Request $request, ClinicalNoteRecorder $notes): Response
     {
         $period = DateRangeFilter::fromRequest($request);
         $isReport = $request->routeIs('dokter.laporan-pemeriksaan');
@@ -91,7 +100,7 @@ class DokterDashboardController extends Controller
         $base = $isReport ? (new DoctorExaminationReport)->query($this->dokterId(), $period, $search) : $period->apply($this->doctorVisits());
         $todayVisits = $this->doctorVisits()->whereDate('tanggal', today());
         $kunjungan = (clone $base)
-            ->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan.diagnosa'])
+            ->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan.diagnosa', 'pemeriksaan.clinicalNoteVersions'])
             ->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
 
         return Inertia::render('dokter/appointments', [
@@ -130,6 +139,7 @@ class DokterDashboardController extends Controller
                     'priority' => $visit->screening?->prioritas_layanan,
                     'examinationUrl' => route('pelayanan.pemeriksaan.show', $visit),
                     'recordUrl' => route('pelayanan.pasien.rekam-medis', $visit->pasien_id),
+                    'letterUrl' => $this->letterUrl($visit, $notes),
                 ])->values(),
                 'currentPage' => $kunjungan->currentPage(),
                 'lastPage' => $kunjungan->lastPage(),
@@ -152,11 +162,107 @@ class DokterDashboardController extends Controller
         return Excel::download(new PemeriksaanExport($doctorId, $period, $filters['search'] ?? ''), 'laporan-pemeriksaan-'.today()->format('Y-m-d').'.xlsx');
     }
 
-    public function patients(Request $request): Response
+    public function reports(Request $request, ClinicalNoteRecorder $notes): Response
+    {
+        $request->merge(['jenis' => $request->route('jenis')]);
+        $filters = $request->validate([
+            'jenis' => ['required', 'in:tindakan,obat'],
+            'dari' => ['nullable', 'date_format:Y-m-d'],
+            'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
+        $doctorId = $this->dokterId();
+        $type = $filters['jenis'];
+        $period = DateRangeFilter::fromRequest($request);
+        $search = trim($filters['search'] ?? '');
+        $reportQueries = new DoctorActivityReportQuery;
+        $base = $type === 'tindakan'
+            ? $reportQueries->treatments($doctorId, $period, $search)
+            : $reportQueries->medicines($doctorId, $period, $search);
+        $rows = $base->paginate(10)->withQueryString();
+        $data = $rows->getCollection()->map(function ($item) use ($type, $notes): array {
+            $visit = $type === 'tindakan' ? $item->kunjungan : $item->resep?->kunjungan;
+            $name = $type === 'tindakan'
+                ? ($item->nama_tindakan ?: $item->nama_tindakan_manual ?: $item->tindakan?->nama ?: 'Tindakan tidak tersedia')
+                : ($item->nama_obat ?: $item->obat?->nama ?: 'Obat tidak tersedia');
+
+            return [
+                'date' => $visit?->tanggal?->format('d/m/Y') ?? '—',
+                'number' => $visit?->no_kunjungan ?? '—',
+                'patient' => $visit?->pasien?->nama ?? 'Pasien tidak tersedia',
+                'medicalRecordNumber' => $visit?->pasien?->no_rm ?? '—',
+                'clinic' => $visit?->poliklinik?->nama ?? '—',
+                'name' => $name,
+                'quantity' => $item->jumlah,
+                'instruction' => $type === 'obat' ? $item->aturan_pakai : null,
+                'external' => $type === 'obat' ? $item->is_resep_luar : false,
+                'statusLabel' => $type === 'tindakan'
+                    ? ($item->execution_status === 'completed' ? 'Selesai' : ($item->execution_role === 'perawat' ? 'Menunggu tindakan perawat' : 'Belum difinalisasi'))
+                    : match ($item->resep?->status) {
+                        'selesai' => 'Disiapkan farmasi',
+                        'diproses' => 'Sedang disiapkan',
+                        'batal' => 'Resep dibatalkan',
+                        default => 'Menunggu farmasi',
+                    },
+                'executionRole' => $type === 'tindakan' ? $item->execution_role : null,
+                'detailUrl' => $visit ? route('pelayanan.pemeriksaan.show', $visit) : route('dokter.kunjungan'),
+                'letterUrl' => $this->letterUrl($visit, $notes),
+                'recordUrl' => $visit ? route('pelayanan.pasien.rekam-medis', $visit->pasien_id) : null,
+            ];
+        });
+
+        return Inertia::render('dokter/reports', [
+            'type' => $type, 'filters' => ['dari' => $period->from ?? '', 'sampai' => $period->to ?? '', 'search' => $search],
+            'stats' => $type === 'tindakan' ? [
+                'total' => $rows->total(),
+                'secondary' => (clone $base)->where('execution_status', 'pending')->count(),
+                'tertiary' => (clone $base)->where('execution_status', 'completed')->count(),
+                'related' => (clone $base)->distinct()->count('kunjungan_id'),
+            ] : [
+                'total' => $rows->total(),
+                'secondary' => (clone $base)->where('is_resep_luar', false)->count(),
+                'tertiary' => (clone $base)->where('is_resep_luar', true)->count(),
+                'related' => (clone $base)->distinct()->count('resep_id'),
+            ],
+            'exportUrl' => route('dokter.laporan.export', ['jenis' => $type, 'dari' => $period->from, 'sampai' => $period->to, 'search' => $search]),
+            'rows' => [...$this->pagination($rows), 'data' => $data->values()],
+        ]);
+    }
+
+    public function exportActivityReport(Request $request, ClinicalAuditRecorder $audit): BinaryFileResponse
+    {
+        $request->merge(['jenis' => $request->route('jenis')]);
+        $filters = $request->validate([
+            'jenis' => ['required', 'in:tindakan,obat'],
+            'dari' => ['nullable', 'date_format:Y-m-d'],
+            'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
+        $doctorId = $this->dokterId();
+        $period = DateRangeFilter::fromRequest($request);
+        $search = trim($filters['search'] ?? '');
+        $type = $filters['jenis'];
+        $audit->record($request, 'doctor.'.$type.'.report_export', metadata: [
+            'doctor_id' => $doctorId,
+            'from' => $period->from,
+            'to' => $period->to,
+        ]);
+
+        return Excel::download(
+            new DoctorActivityExport($type, $doctorId, $period, $search),
+            'laporan-'.$type.'-'.today()->format('Y-m-d').'.xlsx',
+        );
+    }
+
+    public function patients(Request $request, ClinicalNoteRecorder $notes): Response
     {
         $pasien = Pasien::query()
             ->whereHas('kunjungan', fn (Builder $query) => $query->where('dokter_id', $this->dokterId()))
             ->withCount(['kunjungan as jumlah_kunjungan' => fn (Builder $query) => $query->where('dokter_id', $this->dokterId())])
+            ->with(['kunjungan' => fn ($query) => $query->where('dokter_id', $this->dokterId())
+                ->whereIn('status', ['tindakan', 'farmasi', 'kasir', 'selesai'])
+                ->whereHas('pemeriksaan', fn (Builder $examinations) => $examinations->whereNotNull('signed_at'))
+                ->with('pemeriksaan.clinicalNoteVersions')->latest('tanggal')->latest('id')->limit(1)])
             ->when($request->filled('search'), fn (Builder $query) => $query->where(function (Builder $nested) use ($request): void {
                 $search = $request->string('search')->toString();
                 $nested->where('nama', 'like', "%{$search}%")
@@ -177,6 +283,7 @@ class DokterDashboardController extends Controller
                     'gender' => $patient->jenis_kelamin,
                     'visitCount' => $patient->jumlah_kunjungan,
                     'recordUrl' => route('pelayanan.pasien.rekam-medis', $patient),
+                    'letterUrl' => $patient->kunjungan->first() ? $this->letterUrl($patient->kunjungan->first(), $notes) : null,
                 ])->values(),
                 'currentPage' => $pasien->currentPage(),
                 'lastPage' => $pasien->lastPage(),
@@ -260,5 +367,26 @@ class DokterDashboardController extends Controller
     private function dokterId(): int
     {
         return $this->doctorAccess->doctorId(auth()->user());
+    }
+
+    private function letterUrl(?Kunjungan $visit, ClinicalNoteRecorder $notes): ?string
+    {
+        $examination = $visit?->pemeriksaan;
+        if (! $visit || ! in_array($visit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true)
+            || ! $examination?->signed_at || ! $notes->verify($examination)) {
+            return null;
+        }
+
+        return route('persuratan.surat.create', $visit);
+    }
+
+    /** @return array{currentPage: int, lastPage: int, from: int|null, to: int|null, total: int, previousUrl: string|null, nextUrl: string|null} */
+    private function pagination(LengthAwarePaginator $paginator): array
+    {
+        return [
+            'currentPage' => $paginator->currentPage(), 'lastPage' => $paginator->lastPage(),
+            'from' => $paginator->firstItem(), 'to' => $paginator->lastItem(), 'total' => $paginator->total(),
+            'previousUrl' => $paginator->previousPageUrl(), 'nextUrl' => $paginator->nextPageUrl(),
+        ];
     }
 }

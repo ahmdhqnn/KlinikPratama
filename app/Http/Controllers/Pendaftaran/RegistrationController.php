@@ -63,6 +63,7 @@ class RegistrationController extends Controller
             'visits' => [
                 'data' => $visits->getCollection()->map(fn (Kunjungan $visit): array => [
                     'id' => $visit->id, 'number' => $visit->no_kunjungan,
+                    'date' => $visit->tanggal?->format('d/m/Y') ?? 'Belum diisi',
                     'patient' => $visit->pasien?->nama ?? 'Pasien tidak tersedia',
                     'medicalRecordNumber' => $visit->pasien?->no_rm ?? '-',
                     'clinic' => $visit->poliklinik?->nama ?? '-', 'doctor' => $visit->dokter?->nama ?? 'Belum ditentukan',
@@ -362,7 +363,7 @@ class RegistrationController extends Controller
 
     private function afterRegistrationUrl(): string
     {
-        return route('pendaftaran.laporan-kunjungan');
+        return route('pendaftaran.kunjungan-per-poli', ['tanggal' => today()->toDateString()]);
     }
 
     public function databasePasien(Request $request): Response
@@ -988,7 +989,7 @@ class RegistrationController extends Controller
             $lockedVisit->update([...$validated, ...app(HakLayananVerifier::class)->patient($lockedVisit->pasien, $request)]);
         });
 
-        return redirect()->route('pendaftaran.laporan-kunjungan')->with('success', 'Data kunjungan berhasil diperbarui.');
+        return redirect()->route('pendaftaran.kunjungan-per-poli', ['tanggal' => $kunjungan->tanggal->toDateString()])->with('success', 'Data kunjungan berhasil diperbarui.');
     }
 
     public function batalKunjungan(Kunjungan $kunjungan): RedirectResponse

@@ -1,6 +1,6 @@
 import { StatCard } from '@/components/dashboard/stat-card';
 import { Input } from '@/components/ui/input';
-import { ActionButton } from '@/components/ui/action-button';
+import { VisitActionButtons } from '@/components/dashboard/visit-action-buttons';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
 import { Activity, CalendarDays, ClipboardCheck, Clock3, Download, FileText, Search, UsersRound } from 'lucide-react';
@@ -29,6 +29,7 @@ interface Visit {
     priority?: string | null;
     examinationUrl: string;
     recordUrl: string;
+    letterUrl: string | null;
     diagnoses: string;
     finalizedAt: string | null;
 }
@@ -105,7 +106,7 @@ export default function DoctorAppointments({ filters, visits, isReport, exportUr
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                                             <TableCell className="text-center">{isReport ? <div><span className="font-medium">{visit.finalizedAt ? 'Final' : 'Draf'}</span>{visit.finalizedAt && <p className="mt-1 text-xs text-neutral-500">{visit.finalizedAt}</p>}</div> : <StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} />}</TableCell>
                                             <TableCell className="text-center">{isReport ? <p className="max-w-xs whitespace-normal">{visit.diagnoses || 'Belum dicatat'}</p> : <PriorityBadge triage={visit.triage} priority={visit.priority} />}</TableCell>
-                                            <TableCell className="text-center"><div className="flex items-center justify-center gap-2"><ActionButton asChild action="examination" label={visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan'}><Link href={visit.examinationUrl} /></ActionButton><ActionButton asChild action="rme" label="Rekam medis"><Link href={visit.recordUrl} /></ActionButton></div></TableCell>
+                                            <TableCell className="text-center"><VisitActionButtons letterUrl={visit.letterUrl} patient={visit.patient} primary={{ href: visit.examinationUrl, label: visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan', type: 'examination' }} recordLabel="Rekam medis" recordUrl={visit.recordUrl} /></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada kunjungan pada rentang tanggal ini." /></TableCell></TableRow>}
                                 </TableBody>

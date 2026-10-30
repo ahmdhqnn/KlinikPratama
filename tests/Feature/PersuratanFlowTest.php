@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\ClinicalNoteRecorder;
 use App\Models\CorrespondenceTemplate;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Pasien;
+use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
 use App\Models\Resep;
 use App\Models\ResepObat;
@@ -21,6 +23,36 @@ use Tests\TestCase;
 class PersuratanFlowTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_doctor_can_issue_a_letter_from_correspondence_after_the_examination_is_final(): void
+    {
+        [$doctorUser, $doctor, $visit] = $this->visitFixture();
+        $otherUser = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $this->createDoctor($otherUser, 'DOK-OTHER-FINAL');
+        $examination = Pemeriksaan::create([
+            'kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id,
+            'status' => 'selesai', 'signed_at' => now(), 'signed_by_user_id' => $doctorUser->id,
+        ]);
+        app(ClinicalNoteRecorder::class)->recordFinal($examination, ['anamnesis' => 'Pemeriksaan selesai'], $doctorUser->id);
+        $visit->update(['status' => 'selesai']);
+
+        $this->actingAs($doctorUser)->get(route('persuratan.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('eligibleVisits.total', 1)
+                ->where('eligibleVisits.data.0.letterUrl', route('persuratan.surat.create', $visit)));
+        $this->get(route('persuratan.surat.create', $visit))->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('persuratan/terbitkan')->where('visit.id', $visit->id));
+        $this->post(route('persuratan.surat.store', $visit), [
+            'jenis' => 'sakit', 'tanggal' => today()->toDateString(), 'konten' => 'Surat pemeriksaan final.',
+        ])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('surat_medis', ['kunjungan_id' => $visit->id, 'konten' => 'Surat pemeriksaan final.']);
+
+        $this->actingAs($otherUser)->get(route('persuratan.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('eligibleVisits.total', 0));
+        $this->get(route('persuratan.surat.create', $visit))->assertNotFound();
+        $this->post(route('persuratan.surat.store', $visit), [
+            'jenis' => 'sakit', 'tanggal' => today()->toDateString(), 'konten' => 'Tidak berwenang.',
+        ])->assertNotFound();
+    }
 
     public function test_admin_manages_templates_while_doctors_only_see_active_templates(): void
     {

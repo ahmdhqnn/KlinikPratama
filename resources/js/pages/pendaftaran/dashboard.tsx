@@ -5,14 +5,14 @@ import { StatusBadge } from '@/components/dashboard/status-badge';
 import { ActionButton } from '@/components/ui/action-button';
 import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
 import { Head, Link } from '@inertiajs/react';
-import { ArrowUpRight, CalendarDays, CalendarCheck2, ClipboardList, UserRoundPlus, UsersRound } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, CalendarDays, CalendarCheck2, ClipboardList, UserRoundPlus, UsersRound } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface Props {
     schedules: { id: number; doctorId: number; doctor: string; clinic: string; start: string; end: string }[];
-    visits: PaginationData & { data: { id: number; number: string; patient: string; medicalRecordNumber: string; clinic: string; doctor: string; status: string; examinationStarted: boolean; detailUrl: string; ticketUrl: string }[] };
+    visits: PaginationData & { data: { id: number; number: string; date: string; patient: string; medicalRecordNumber: string; clinic: string; doctor: string; status: string; examinationStarted: boolean; detailUrl: string; ticketUrl: string }[] };
 
     today: string;
     followUp: FollowUpData;
@@ -33,7 +33,7 @@ export default function RegistrationDashboard({ stats, followUp, today, schedule
                     <div>
                         <p className="text-sm font-medium text-neutral-700">Meja layanan pendaftaran</p>
                         <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ringkasan pendaftaran</h2>
-                        <p className="mt-1 text-sm text-neutral-500">Pantau pasien dan alur kunjungan hari ini.</p>
+                        <p className="mt-1 text-sm text-neutral-500">Pantau kunjungan, jadwal praktik, dan tindak lanjut hari ini.</p>
                     </div>
                     <Button asChild>
                         <Link href="/pendaftaran/pendaftaran-baru"><UserRoundPlus className="size-4" />Daftarkan pasien</Link>
@@ -41,12 +41,30 @@ export default function RegistrationDashboard({ stats, followUp, today, schedule
                 </div>
 
                 <section aria-label="Statistik pendaftaran" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <StatCard description="Seluruh kunjungan pasien di semua poli" href="/pendaftaran/kunjungan-per-poli" icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan" value={stats.totalVisits} />
-                    <StatCard description="Seluruh pasien yang datang hari ini" href={`/pendaftaran/kunjungan-per-poli?tanggal=${today}`} icon={<CalendarCheck2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Kunjungan hari ini" value={stats.visitsToday} />
-                    <StatCard description="Menunggu pengkajian awal perawat" href={`/pendaftaran/kunjungan-per-poli?status=menunggu&tanggal=${today}`} icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Menunggu pengkajian awal" value={stats.waitingScreening} />
-                    <StatCard description="Dalam pengkajian atau pemeriksaan" href={`/pendaftaran/kunjungan-per-poli?tanggal=${today}`} icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Sedang dilayani" value={stats.inProgress} />
+                    <StatCard description="Jumlah seluruh kunjungan terdaftar di semua poli." href="/pendaftaran/kunjungan-per-poli" icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan" value={stats.totalVisits} />
+                    <StatCard description="Jumlah kunjungan terdaftar pada tanggal hari ini." href={`/pendaftaran/kunjungan-per-poli?tanggal=${today}`} icon={<CalendarCheck2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Kunjungan hari ini" value={stats.visitsToday} />
+                    <StatCard description="Kunjungan hari ini yang menunggu pengkajian awal perawat." href={`/pendaftaran/kunjungan-per-poli?status=menunggu&tanggal=${today}`} icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Menunggu pengkajian awal" value={stats.waitingScreening} />
+                    <StatCard description="Kunjungan hari ini dalam pengkajian awal, pemeriksaan dokter, atau tindakan." href={`/pendaftaran/kunjungan-per-poli?tanggal=${today}`} icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Sedang dilayani" value={stats.inProgress} />
                 </section>
                 <FollowUp data={followUp} />
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Akses cepat</CardTitle>
+                        <CardDescription>Buka menu pendaftaran yang sering digunakan.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        {[
+                            { href: '/pendaftaran/pendaftaran-baru', icon: <UserRoundPlus className="size-4" />, label: 'Pendaftaran pasien' },
+                            { href: `/pendaftaran/kunjungan-per-poli?tanggal=${today}`, icon: <ClipboardList className="size-4" />, label: 'Kunjungan poli' },
+                            { href: '/pendaftaran/jadwal-praktik', icon: <CalendarDays className="size-4" />, label: 'Jadwal praktik' },
+                            { href: '/pendaftaran/database-pasien', icon: <UsersRound className="size-4" />, label: 'Pasien' },
+                        ].map((item) => (
+                            <Button asChild className="group h-auto w-full justify-start gap-3 py-3" key={item.href} variant="secondary">
+                                <Link href={item.href}>{item.icon}<span>{item.label}</span><ArrowRight aria-hidden="true" className="ml-auto size-4 shrink-0 text-neutral-500 transition-transform group-hover:translate-x-0.5" /></Link>
+                            </Button>
+                        ))}
+                    </CardContent>
+                </Card>
                 <section className="grid items-stretch gap-6 xl:gap-y-0 xl:grid-cols-[minmax(16rem,0.75fr)_minmax(0,1.5fr)]">
                 <Card className="flex min-w-0 flex-col overflow-hidden xl:row-span-3 xl:grid xl:grid-rows-subgrid xl:gap-y-0">
                     <CardHeader className="border-b border-neutral-100"><CardTitle>Jadwal praktik hari ini</CardTitle><CardDescription>Dokter yang praktik di seluruh poli.</CardDescription></CardHeader>
@@ -61,14 +79,15 @@ export default function RegistrationDashboard({ stats, followUp, today, schedule
                     <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ClipboardList className="size-5" /></span><div><CardTitle>Kunjungan hari ini</CardTitle><CardDescription className="mt-1">Kunjungan terbaru hari ini di semua poli.</CardDescription></div></div></CardHeader>
                     <div className="flex min-w-0 flex-1 flex-col">
                     <CardContent className="flex-1 overflow-x-auto p-0">
-                        <Table className="min-w-[900px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader>
+                        <Table className="min-w-[980px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader>
                             <TableBody>{visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}>
                                 <TableCell className="font-mono text-xs">{visit.number}</TableCell>
+                                <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                 <TableCell><p className="font-medium">{visit.patient}</p><p className="text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                 <TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell>
                                 <TableCell><StatusBadge status={visit.status} examinationStarted={visit.examinationStarted} /></TableCell>
                                 <TableCell><div className="flex justify-center gap-2"><ActionButton asChild action="detail" label={`Detail ${visit.number}`}><Link href={visit.detailUrl} /></ActionButton><ActionButton asChild action="print" label={`Cetak tiket ${visit.number}`}><a href={visit.ticketUrl} /></ActionButton></div></TableCell>
-                            </TableRow>) : <TableRow><TableCell colSpan={6}><Empty size="compact" title="Belum ada kunjungan hari ini" /></TableCell></TableRow>}</TableBody>
+                            </TableRow>) : <TableRow><TableCell colSpan={7}><Empty size="compact" title="Belum ada kunjungan hari ini" /></TableCell></TableRow>}</TableBody>
                         </Table>
                     </CardContent>
                     <Pagination pagination={visits} />
@@ -77,26 +96,6 @@ export default function RegistrationDashboard({ stats, followUp, today, schedule
                 </Card>
                 </section>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Akses cepat</CardTitle>
-                        <CardDescription>Pekerjaan pendaftaran yang sering digunakan.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {[
-                            { href: '/pendaftaran/pendaftaran-baru', label: 'Pendaftaran pasien', detail: 'Buat data pasien dan kunjungan.' },
-                            { href: '/pendaftaran/pendaftaran-baru?tab=registered', label: 'Pasien terdaftar', detail: 'Daftarkan kunjungan pasien terdaftar.' },
-                            { href: '/pendaftaran/laporan-kunjungan', label: 'Laporan kunjungan', detail: 'Cari dan tinjau kunjungan pasien.' },
-                        ].map((item) => (
-                            <Link className="group rounded-xl border border-neutral-200 p-4 transition-colors hover:border-neutral-200 hover:bg-neutral-50/50" href={item.href} key={item.href}>
-                                <span className="flex items-center justify-between gap-2 font-medium text-neutral-900">
-                                    {item.label}<ArrowUpRight className="size-4 text-neutral-400 transition-colors group-hover:text-neutral-700" />
-                                </span>
-                                <span className="mt-1 block text-sm text-neutral-500">{item.detail}</span>
-                            </Link>
-                        ))}
-                    </CardContent>
-                </Card>
             </div>
         </>
     );

@@ -18,8 +18,8 @@ export function StatCard({
     href?: string;
 }) {
     const card = (
-        <Card className={href ? 'min-w-0 transition-colors group-hover:border-neutral-300' : undefined}>
-            <CardContent className="flex min-h-32 items-center justify-between gap-4 p-5 sm:p-6">
+        <Card className={href ? 'h-full min-w-0 transition-colors group-hover:border-neutral-300' : 'h-full min-w-0'}>
+            <CardContent className="flex min-h-32 h-full items-center justify-between gap-4 p-5 sm:p-6">
                 <div className="min-w-0">
                     <p className="text-sm font-medium text-neutral-500 print:text-neutral-600">{label}</p>
                     <p className="mt-3 truncate text-2xl font-semibold tracking-tight text-neutral-950 print:text-black sm:text-3xl">
@@ -38,5 +38,5 @@ export function StatCard({
         return card;
     }
 
-    return <Link aria-label={`${label}: ${typeof value === 'number' ? new Intl.NumberFormat('id-ID').format(value) : value}. ${description}`} className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2" href={href}>{card}</Link>;
+    return <Link aria-label={`${label}: ${typeof value === 'number' ? new Intl.NumberFormat('id-ID').format(value) : value}. ${description}`} className="group block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2" href={href}>{card}</Link>;
 }

@@ -41,29 +41,55 @@ class PemeriksaanController extends Controller
 {
     public function __construct(private DoctorAccessService $doctorAccess, private PatientAllergyHistory $allergies, private PatientClinicalHistory $clinicalHistory) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request, ClinicalNoteRecorder $noteRecorder): Response
     {
         $filters = (new VisitQueryService)->filters($request);
         $doctorId = auth()->user()->role === 'dokter' ? $this->currentDoctorId() : null;
         $date = $filters['tanggal'] ?? '';
         $claimDate = $date ?: today()->toDateString();
-        $kunjungan = $this->doctorAccess->visibleVisits($request->user(), $claimDate)
-            ->with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan.diagnosa'])
+        $visitQuery = $this->doctorAccess->visibleVisits($request->user(), $claimDate)
+            ->whereIn('status', ['pemeriksaan', 'tindakan', 'farmasi', 'kasir', 'selesai']);
+        $kunjungan = (clone $visitQuery)
+            ->with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan.diagnosa', 'pemeriksaan.clinicalNoteVersions'])
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->whereHas('pasien', fn ($patients) => $patients
                 ->where(fn ($names) => $names->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
             ->when($date, fn ($query) => $query->whereDate('tanggal', $date))
-            ->whereIn('status', ['pemeriksaan', 'tindakan', 'farmasi', 'kasir', 'selesai'])
             ->orderByDesc('created_at')
             ->paginate(10)
             ->withQueryString();
 
+        $todayQueue = (clone $visitQuery)->with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan.diagnosa', 'pemeriksaan.clinicalNoteVersions'])
+            ->whereDate('tanggal', today())->where('status', 'pemeriksaan')
+            ->orderBy('created_at')->orderBy('id')->paginate(10, ['*'], 'today_page')->withQueryString();
+
+        $patientIds = $kunjungan->getCollection()->pluck('pasien_id')->merge($todayQueue->getCollection()->pluck('pasien_id'))->unique();
         $recordPatientIds = Kunjungan::query()->where('dokter_id', $doctorId)
-            ->whereIn('pasien_id', $kunjungan->getCollection()->pluck('pasien_id'))
+            ->whereIn('pasien_id', $patientIds)
             ->distinct()->pluck('pasien_id')->map(fn ($id): int => (int) $id)->all();
 
         $todayVisits = $this->doctorAccess->visibleVisits($request->user(), today()->toDateString())->whereDate('tanggal', today());
+        $mapVisit = fn (Kunjungan $visit): array => [
+            'id' => $visit->id,
+            'number' => $visit->no_kunjungan,
+            'date' => $visit->tanggal?->format('d/m/Y'),
+            'patient' => $visit->pasien?->nama ?? 'Belum diisi',
+            'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
+            'gender' => $visit->pasien?->jenis_kelamin,
+            'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
+            'doctor' => $visit->dokter?->nama,
+            'canClaim' => $doctorId !== null && $visit->dokter_id === null,
+            'status' => $visit->status,
+            'examinationStarted' => $visit->pemeriksaan !== null,
+            'diagnosisCount' => $visit->pemeriksaan?->diagnosa->count() ?? 0,
+            'recordUrl' => in_array((int) $visit->pasien_id, $recordPatientIds, true) ? route('pelayanan.pasien.rekam-medis', $visit->pasien_id) : null,
+            'letterUrl' => $doctorId !== null && in_array($visit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true)
+                && $visit->pemeriksaan?->signed_at && $noteRecorder->verify($visit->pemeriksaan)
+                ? route('persuratan.surat.create', $visit)
+                : null,
+        ];
 
         return Inertia::render('pelayanan/pemeriksaan/index', [
+            'canIssueLetters' => $request->user()->role === 'dokter',
             'stats' => [
                 'total' => (clone $todayVisits)->whereIn('status', ['pemeriksaan', 'tindakan', 'farmasi', 'kasir', 'selesai'])->count(),
                 'waiting' => (clone $todayVisits)->where('status', 'pemeriksaan')->whereDoesntHave('pemeriksaan')->count(),
@@ -71,21 +97,7 @@ class PemeriksaanController extends Controller
                 'completed' => (clone $todayVisits)->whereHas('pemeriksaan', fn ($query) => $query->whereNotNull('signed_at'))->count(),
             ],
             'visits' => [
-                'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit) => [
-                    'id' => $visit->id,
-                    'number' => $visit->no_kunjungan,
-                    'date' => $visit->tanggal?->format('d/m/Y'),
-                    'patient' => $visit->pasien?->nama ?? 'Belum diisi',
-                    'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
-                    'gender' => $visit->pasien?->jenis_kelamin,
-                    'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
-                    'doctor' => $visit->dokter?->nama,
-                    'canClaim' => $doctorId !== null && $visit->dokter_id === null,
-                    'status' => $visit->status,
-                    'examinationStarted' => $visit->pemeriksaan !== null,
-                    'diagnosisCount' => $visit->pemeriksaan?->diagnosa->count() ?? 0,
-                    'recordUrl' => in_array((int) $visit->pasien_id, $recordPatientIds, true) ? route('pelayanan.pasien.rekam-medis', $visit->pasien_id) : null,
-                ])->values(),
+                'data' => $kunjungan->getCollection()->map($mapVisit)->values(),
                 'currentPage' => $kunjungan->currentPage(),
                 'lastPage' => $kunjungan->lastPage(),
                 'from' => $kunjungan->firstItem(),
@@ -94,7 +106,18 @@ class PemeriksaanController extends Controller
                 'previousUrl' => $kunjungan->previousPageUrl(),
                 'nextUrl' => $kunjungan->nextPageUrl(),
             ],
+            'todayVisits' => [
+                'data' => $todayQueue->getCollection()->map($mapVisit)->values(),
+                'currentPage' => $todayQueue->currentPage(),
+                'lastPage' => $todayQueue->lastPage(),
+                'from' => $todayQueue->firstItem(),
+                'to' => $todayQueue->lastItem(),
+                'total' => $todayQueue->total(),
+                'previousUrl' => $todayQueue->previousPageUrl(),
+                'nextUrl' => $todayQueue->nextPageUrl(),
+            ],
             'date' => $date,
+            'search' => $filters['search'] ?? '',
         ]);
     }
 
@@ -733,13 +756,19 @@ class PemeriksaanController extends Controller
         });
     }
 
-    public function storeSurat(Request $request, Kunjungan $kunjungan, CorrespondenceService $correspondence): RedirectResponse
+    public function storeSurat(Request $request, Kunjungan $kunjungan, CorrespondenceService $correspondence, ClinicalNoteRecorder $noteRecorder): RedirectResponse
     {
-        return DB::transaction(function () use ($request, $kunjungan, $correspondence): RedirectResponse {
+        return DB::transaction(function () use ($request, $kunjungan, $correspondence, $noteRecorder): RedirectResponse {
             $kunjungan = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
-            $this->authorizeMutableVisit($kunjungan);
-            app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.storeSurat', $kunjungan->pasien_id, $kunjungan->id);
-            $this->authorizeMutableVisit($kunjungan);
+            $this->authorizeVisit($kunjungan);
+            $signedExamination = $kunjungan->pemeriksaan?->signed_at !== null;
+            if ($signedExamination) {
+                abort_unless($request->user()->role === 'dokter' && in_array($kunjungan->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true), 422, 'Surat hanya dapat diterbitkan untuk pemeriksaan final yang tidak dibatalkan.');
+                abort_unless($noteRecorder->verify($kunjungan->pemeriksaan), 422, 'Keutuhan catatan pemeriksaan perlu diverifikasi sebelum surat diterbitkan.');
+            } else {
+                $this->authorizeMutableVisit($kunjungan);
+            }
+            app(ClinicalAuditRecorder::class)->record($request, 'medical_letter.issue', $kunjungan->pasien_id, $kunjungan->id);
             $data = $request->validate([
                 'jenis' => ['required', 'in:sakit,sehat,rujukan,lainnya'],
                 'konten' => ['nullable', 'string', 'max:10000'],

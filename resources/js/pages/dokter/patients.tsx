@@ -1,4 +1,4 @@
-import { ActionButton } from '@/components/ui/action-button';
+import { VisitActionButtons } from '@/components/dashboard/visit-action-buttons';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
 import { Search, UsersRound } from 'lucide-react';
@@ -18,6 +18,7 @@ interface Patient {
     gender: string | null;
     visitCount: number;
     recordUrl: string;
+    letterUrl: string | null;
 }
 
 interface Props {
@@ -61,7 +62,7 @@ export default function DoctorPatients({ search, patients }: Props) {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[680px]">
-                                <TableHeader><tr><TableHead>No. rekam medis</TableHead><TableHead>Nama</TableHead><TableHead>Jenis kelamin</TableHead><TableHead className="text-center">Kunjungan</TableHead><TableHead className="text-center">Rekam medis</TableHead></tr></TableHeader>
+                                <TableHeader><tr><TableHead>No. rekam medis</TableHead><TableHead>Nama</TableHead><TableHead>Jenis kelamin</TableHead><TableHead className="text-center">Kunjungan</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                                 <TableBody>
                                     {patients.data.length > 0 ? patients.data.map((patient) => (
                                         <TableRow key={patient.id}>
@@ -69,7 +70,7 @@ export default function DoctorPatients({ search, patients }: Props) {
                                             <TableCell className="font-medium text-neutral-900">{patient.name}</TableCell>
                                             <TableCell className="text-neutral-600">{patient.gender ?? 'Belum diisi'}</TableCell>
                                             <TableCell className="text-center tabular-nums text-neutral-600">{new Intl.NumberFormat('id-ID').format(patient.visitCount)}</TableCell>
-                                            <TableCell className="text-center"><ActionButton asChild action="rme" label="Lihat RME"><a href={patient.recordUrl} /></ActionButton></TableCell>
+                                            <TableCell className="text-center"><VisitActionButtons letterUrl={patient.letterUrl} patient={patient.name} primary={{ href: patient.recordUrl, label: `Lihat RME ${patient.name}`, type: 'rme' }} /></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada pasien yang cocok dengan pencarian." /></TableCell></TableRow>}
                                 </TableBody>

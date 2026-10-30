@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\DoctorAccessService;
 use App\NurseQueueCounts;
 use App\PerawatClinicResolver;
 use Illuminate\Http\Request;
@@ -44,6 +45,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'modules' => config('clinic.modules'),
             'nurseQueues' => fn (): ?array => $this->nurseQueues($request),
+            'doctorQueues' => fn (): ?array => $this->doctorQueues($request),
             'auth' => [
                 'user' => $request->user() ? [
                     ...$request->user()->only('id', 'name', 'email', 'role'),
@@ -71,5 +73,18 @@ class HandleInertiaRequests extends Middleware
         return $nurse === null
             ? ['assessment' => 0, 'treatments' => 0]
             : app(NurseQueueCounts::class)->forClinic((int) $nurse->poliklinik_id);
+    }
+
+    /** @return array{examinations: int}|null */
+    private function doctorQueues(Request $request): ?array
+    {
+        $doctor = $request->user()?->role === 'dokter' ? $request->user()->nakes : null;
+
+        if (! $doctor?->is_active) {
+            return null;
+        }
+
+        return ['examinations' => app(DoctorAccessService::class)->visibleVisits($request->user(), today()->toDateString())
+            ->whereDate('tanggal', today())->where('status', 'pemeriksaan')->whereDoesntHave('pemeriksaan')->count()];
     }
 }

@@ -18,6 +18,9 @@ export interface DashboardVisit {
     triage?: string | null;
     priority?: string | null;
     actionUrl: string;
+    recordUrl?: string | null;
+    letterUrl?: string | null;
+    showLetterAction?: boolean;
     actionLabel: string;
     actionType: 'screening' | 'examination' | 'pharmacy' | 'procedure' | 'detail';
 }
@@ -54,7 +57,11 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                                 </div>
                             </TableCell>
                             <TableCell className="text-center">
-                                <ActionButton asChild action={visit.actionLabel === 'Lihat RME' ? 'rme' : visit.actionType} label={visit.actionLabel}><Link href={visit.actionUrl} /></ActionButton>
+                                <div className="flex items-center justify-center gap-2">
+                                    <ActionButton asChild action={visit.actionLabel === 'Lihat RME' ? 'rme' : visit.actionType} label={visit.actionLabel}><Link href={visit.actionUrl} /></ActionButton>
+                                    {visit.actionLabel !== 'Lihat RME' && visit.recordUrl && <ActionButton asChild action="rme" label={`Lihat RME ${visit.patient}`}><Link href={visit.recordUrl} /></ActionButton>}
+                                    {visit.showLetterAction && (visit.letterUrl ? <ActionButton asChild action="issue" label={`Terbitkan surat untuk ${visit.patient}`}><Link href={visit.letterUrl} /></ActionButton> : <ActionButton action="issue" disabled label={`Surat belum dapat diterbitkan untuk ${visit.patient}`} title="Surat dapat diterbitkan setelah pemeriksaan difinalisasi dan diverifikasi." />)}
+                                </div>
                             </TableCell>
                         </tr>
                     )) : (
