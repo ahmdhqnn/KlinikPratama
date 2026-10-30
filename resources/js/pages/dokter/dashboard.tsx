@@ -1,17 +1,17 @@
 import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
-import { Head, Link, usePage } from '@inertiajs/react';
-import { CalendarClock, ChartNoAxesCombined, ClipboardCheck, ClipboardList, Pill, Stethoscope, UsersRound } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { VisitTable, type DashboardVisit } from '@/components/dashboard/visit-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
-import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { ArrowRight, CalendarClock, ClipboardCheck, ClipboardList, Stethoscope, Syringe, UsersRound } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 interface Props {
     followUp: FollowUpData;
-    stats: { visitsToday: number; waitingExaminations: number; completedToday: number };
+    stats: { visitsToday: number; totalVisits: number; waitingExaminations: number; completedToday: number };
     schedule: Array<{ id: number; clinic: string; start: string; end: string }>;
     recentVisits: PaginationData & { data: DashboardVisit[] };
 }
@@ -19,6 +19,7 @@ interface Props {
 export default function DoctorDashboard({ stats, schedule, recentVisits, followUp }: Props) {
     const { auth } = usePage<{ auth?: { user?: { clinicType?: string | null } | null } }>().props;
     const practiceLabel = auth?.user?.clinicType === 'gigi' ? 'Praktik dokter gigi' : auth?.user?.clinicType === 'umum' ? 'Praktik dokter umum' : 'Praktik dokter';
+
     return (
         <>
             <Head title="Dashboard Dokter" />
@@ -28,23 +29,23 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ringkasan pelayanan</h2>
                     <p className="mt-1 text-sm text-neutral-500">Jadwal praktik dan kunjungan pasien yang ditugaskan kepada Anda.</p>
                 </div>
-                <section aria-label="Statistik praktik dokter" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    <StatCard description="Kunjungan yang ditugaskan kepada Anda hari ini" href="/dokter/kunjungan" icon={<CalendarClock className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Kunjungan saya hari ini" value={stats.visitsToday} />
-                    <StatCard description="Menunggu atau sedang diperiksa dokter" href="/pelayanan/pemeriksaan" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Antrean pemeriksaan dokter" value={stats.waitingExaminations} />
-                    <StatCard description="Diteruskan ke perawat, farmasi, atau kunjungan selesai" href="/dokter/kunjungan" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-900 text-neutral-50" label="Selesai ditangani" value={stats.completedToday} />
+                <section aria-label="Statistik praktik dokter" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <StatCard description="Seluruh kunjungan yang ditugaskan kepada Anda" href="/dokter/kunjungan" icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan" value={stats.totalVisits} />
+                    <StatCard description="Kunjungan yang ditugaskan kepada Anda hari ini" href="/dokter/kunjungan" icon={<CalendarClock className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Kunjungan saya hari ini" value={stats.visitsToday} />
+                    <StatCard description="Menunggu atau sedang diperiksa dokter" href="/pelayanan/pemeriksaan" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Antrean pemeriksaan dokter" value={stats.waitingExaminations} />
+                    <StatCard description="Pemeriksaan dokter selesai dan diteruskan ke tahap layanan berikutnya" href="/dokter/kunjungan" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Pemeriksaan selesai" value={stats.completedToday} />
                 </section>
                 <FollowUp data={followUp} />
                 <Card>
                     <CardHeader>
                         <CardTitle>Akses cepat</CardTitle>
-                        <CardDescription>Buka antrean, data pasien, dan informasi klinis yang sering digunakan.</CardDescription>
+                        <CardDescription>Buka antrean pemeriksaan, tindakan, dan data pasien yang sering digunakan.</CardDescription>
                     </CardHeader>
-                    <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                    <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         <QuickLink href="/pelayanan/pemeriksaan" icon={<Stethoscope className="size-4" />} label="Antrean pemeriksaan" />
                         <QuickLink href="/dokter/kunjungan" icon={<ClipboardList className="size-4" />} label="Kunjungan saya" />
                         <QuickLink href="/dokter/pasien" icon={<UsersRound className="size-4" />} label="Daftar pasien" />
-                        <QuickLink href="/dokter/stok-obat" icon={<Pill className="size-4" />} label="Ketersediaan obat" />
-                        <QuickLink href="/dokter/laporan-top-diagnosa" icon={<ChartNoAxesCombined className="size-4" />} label="Top diagnosis" />
+                        <QuickLink href="/dokter/tindakan" icon={<Syringe className="size-4" />} label="Tindakan" />
                     </CardContent>
                 </Card>
                 <section className="grid items-stretch gap-6 xl:gap-y-0 xl:grid-cols-[minmax(16rem,0.75fr)_minmax(0,1.5fr)]">
@@ -68,10 +69,11 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
                             <CardTitle>Kunjungan saya hari ini</CardTitle>
                             <CardDescription>Pasien yang ditugaskan kepada Anda hari ini.</CardDescription>
                         </CardHeader>
-                        <div className="flex min-w-0 flex-1 flex-col"><div className="flex-1"><VisitTable visits={recentVisits.data} /></div>
-                        <Pagination pagination={recentVisits} />
+                        <div className="flex min-w-0 flex-1 flex-col">
+                            <div className="flex-1"><VisitTable visits={recentVisits.data} /></div>
+                            <Pagination pagination={recentVisits} />
                         </div>
-                    <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/dokter/kunjungan">Lihat semua kunjungan</Link></Button></div>
+                        <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/dokter/kunjungan">Lihat semua kunjungan</Link></Button></div>
                     </Card>
                 </section>
             </div>
@@ -80,7 +82,9 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
 }
 
 function QuickLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
-    return <Button asChild className="h-auto justify-start gap-3 py-3" variant="secondary">
-        <Link href={href}>{icon}<span>{label}</span></Link>
-    </Button>;
+    return (
+        <Button asChild className="group h-auto w-full justify-start gap-3 py-3" variant="secondary">
+            <Link href={href}>{icon}<span>{label}</span><ArrowRight aria-hidden="true" className="ml-auto size-4 shrink-0 text-neutral-500 transition-transform group-hover:translate-x-0.5" /></Link>
+        </Button>
+    );
 }

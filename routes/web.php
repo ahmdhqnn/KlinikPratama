@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DokterDashboardController;
+use App\Http\Controllers\DokterTindakanController;
 use App\Http\Controllers\FarmasiDashboardController;
 use App\Http\Controllers\KepesertaanController;
 use App\Http\Controllers\LaporanController;
@@ -56,6 +57,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
 Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pendaftaran,manajemen', RedirectRegistrationRole::class])->group(function () {
     Route::prefix('persuratan')->name('persuratan.')->middleware(EnsureRole::class.':admin,dokter')->group(function (): void {
         Route::get('/', [PersuratanController::class, 'index'])->name('index');
+        Route::get('terbitkan/{kunjungan}', [PersuratanController::class, 'createLetter'])->name('surat.create');
+        Route::post('terbitkan/{kunjungan}', [PersuratanController::class, 'storeLetter'])->name('surat.store');
         Route::get('kunjungan/{kunjungan}/resep', [PersuratanController::class, 'printPrescription'])->name('resep.cetak');
         Route::get('surat/{suratMedis}', [PersuratanController::class, 'printLetter'])->name('surat.cetak');
         Route::get('rujukan/{rujukanInternal}', [PersuratanController::class, 'printReferral'])->name('rujukan.cetak');
@@ -90,6 +93,9 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('stok-obat', [DokterDashboardController::class, 'stock'])->name('stok-obat');
         Route::get('laporan-pemeriksaan', [DokterDashboardController::class, 'appointments'])->name('laporan-pemeriksaan');
         Route::get('laporan-pemeriksaan/export', [DokterDashboardController::class, 'exportExaminations'])->name('laporan-pemeriksaan.export');
+        Route::get('laporan/{jenis}/export', [DokterDashboardController::class, 'exportActivityReport'])->where('jenis', 'tindakan|obat')->name('laporan.export');
+        Route::get('laporan/{jenis}', [DokterDashboardController::class, 'reports'])->where('jenis', 'tindakan|obat')->name('laporan');
+        Route::get('tindakan', [DokterTindakanController::class, 'index'])->name('tindakan');
         Route::get('laporan-top-diagnosa', [DokterDashboardController::class, 'topDiagnoses'])->name('laporan-top-diagnosa');
     });
 

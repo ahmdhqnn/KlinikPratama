@@ -52,6 +52,7 @@ interface AppUser {
 interface SharedPageProps extends PageProps {
     modules?: Partial<Record<'laboratory' | 'medicine_depots' | 'medical_equipment' | 'medical_treatments', boolean>>;
     nurseQueues?: { assessment: number; treatments: number } | null;
+    doctorQueues?: { examinations: number } | null;
     auth: { user: AppUser | null };
     flash: { success?: string | null; error?: string | null };
 }
@@ -121,7 +122,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             items: [
                 { label: 'Pendaftaran Pasien', href: '/pendaftaran/pendaftaran-baru', activePaths: ['/pendaftaran/pendaftaran-lama'], icon: UserRoundPlus },
                 { label: 'Kunjungan Poli', href: '/pendaftaran/kunjungan-per-poli', activePaths: ['/pendaftaran/kunjungan'], icon: BedDouble },
-                { label: 'Database Pasien', href: '/pendaftaran/database-pasien', activePaths: ['/pelayanan/pasien'], icon: UsersRound },
+                { label: 'Pasien', href: '/pendaftaran/database-pasien', activePaths: ['/pelayanan/pasien'], icon: UsersRound },
             ],
         },
         {
@@ -164,19 +165,25 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             label: 'Operasional',
             items: [
                 { label: 'Pemeriksaan', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
-                { label: 'Kunjungan', href: '/dokter/kunjungan', icon: ClipboardList },
-                { label: 'Pasien', href: '/dokter/pasien', activePaths: ['/pelayanan/pasien'], icon: UsersRound },
+                { label: 'Tindakan', href: '/dokter/tindakan', icon: ClipboardCheck },
                 { label: 'Persuratan', href: '/persuratan', icon: FileText },
+                { label: 'Pasien', href: '/dokter/pasien', activePaths: ['/pelayanan/pasien'], icon: UsersRound },
             ],
         },
         {
             label: 'Penunjang',
             items: [
+                { label: 'Kunjungan', href: '/dokter/kunjungan', icon: ClipboardList },
                 { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
                 { label: 'Stok Obat', href: '/dokter/stok-obat', icon: Pill },
             ],
         },
-        { label: 'Laporan', items: [{ label: 'Laporan Pemeriksaan', href: '/dokter/laporan-pemeriksaan', icon: ClipboardCheck }, { label: 'Top Diagnosis', href: '/dokter/laporan-top-diagnosa', icon: ChartNoAxesCombined }] },
+        { label: 'Laporan', items: [
+            { label: 'Laporan Pemeriksaan', href: '/dokter/laporan-pemeriksaan', icon: ClipboardCheck },
+            { label: 'Laporan Tindakan', href: '/dokter/laporan/tindakan', icon: ClipboardCheck },
+            { label: 'Laporan Obat', href: '/dokter/laporan/obat', icon: Pill },
+            { label: 'Top Diagnosis', href: '/dokter/laporan-top-diagnosa', icon: ChartNoAxesCombined },
+        ] },
     ],
     farmasi: [
         { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/farmasi/dashboard', icon: LayoutDashboard, exact: true }] },
@@ -206,7 +213,7 @@ function getPageTitle(component: string): string {
         'pendaftaran/pendaftaran-baru': 'Pendaftaran Pasien',
         'pendaftaran/pendaftaran-lama': 'Pendaftaran Pasien',
         'pendaftaran/laporan-kunjungan': 'Laporan Kunjungan',
-        'pendaftaran/database-pasien': 'Database Pasien',
+        'pendaftaran/database-pasien': 'Pasien',
         'pendaftaran/kunjungan-per-poli': 'Kunjungan Poli',
         'pendaftaran/laporan-top-diagnosa': 'Laporan Top Diagnosis',
         'pendaftaran/jadwal-praktik': 'Jadwal Praktik Dokter',
@@ -215,9 +222,11 @@ function getPageTitle(component: string): string {
         'perawat/dashboard': 'Dashboard Perawat',
         'dokter/dashboard': 'Dashboard Dokter',
         'dokter/appointments': 'Kunjungan Dokter',
+        'dokter/treatments': 'Tindakan Dokter',
         'dokter/patients': 'Pasien Dokter',
         'dokter/stock': 'Stok Obat',
         'dokter/top-diagnoses': 'Top Diagnosis',
+        'dokter/reports': 'Laporan Dokter',
         'pelayanan/screening/index': 'Pengkajian Awal',
         'pelayanan/screening/show': 'Pengkajian Awal',
         'pelayanan/screening/history': 'Pengkajian Saya',
@@ -232,6 +241,7 @@ function getPageTitle(component: string): string {
         'pelayanan/pemeriksaan/index': 'Pemeriksaan Dokter',
         'pelayanan/pemeriksaan/show': 'Pemeriksaan Klinis',
         'persuratan/index': 'Persuratan',
+        'persuratan/terbitkan': 'Terbitkan Dokumen',
         'persuratan/cetak': 'Cetak Dokumen',
         'pelayanan/tindakan/index': 'Tindakan Perawat',
         'pelayanan/tindakan/show': 'Pelaksanaan Tindakan',
@@ -402,7 +412,7 @@ function AccountAvatar({ user }: { user: AppUser | null }) {
 
 export default function AppLayout({ children }: { children: ReactNode }) {
     const page = usePage<SharedPageProps>();
-    const { auth, flash, modules, nurseQueues } = page.props;
+    const { auth, flash, modules, nurseQueues, doctorQueues } = page.props;
     const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -417,7 +427,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     : item.label;
                 const badge = user?.role === 'perawat'
                     ? item.href === '/pelayanan/screening' ? nurseQueues?.assessment : item.href === '/pelayanan/tindakan-perawat' ? nurseQueues?.treatments : undefined
-                    : undefined;
+                    : user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
+                        ? doctorQueues?.examinations
+                        : undefined;
 
                 return { ...item, label, badge: badge ?? undefined };
             }),
@@ -425,7 +437,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         { label: 'Akun', items: [{ label: 'Profil Saya', href: '/profile', icon: UserRound }] },
     ];
     const pathname = page.url.split(/[?#]/, 1)[0];
-    const pageTitle = pathname === '/dokter/laporan-pemeriksaan' ? 'Laporan Pemeriksaan' : pathname === '/perawat/laporan-pengkajian' ? 'Laporan Pengkajian' : getPageTitle(page.component);
+    const doctorReportTitles: Record<string, string> = {
+        '/dokter/laporan/tindakan': 'Laporan Tindakan',
+        '/dokter/laporan/obat': 'Laporan Obat',
+    };
+    const pageTitle = doctorReportTitles[pathname] ?? (pathname === '/dokter/laporan-pemeriksaan' ? 'Laporan Pemeriksaan' : pathname === '/perawat/laporan-pengkajian' ? 'Laporan Pengkajian' : getPageTitle(page.component));
     const validHrefs = new Set(groups.flatMap((group) => group.items.map((item) => item.href)));
     const breadcrumbs = getBreadcrumbItems(pathname, pageTitle, validHrefs);
     const searchResults = groups.flatMap((group) => group.items
@@ -448,13 +464,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (user?.role !== 'perawat') {
+        if (user?.role !== 'perawat' && user?.role !== 'dokter') {
             return;
         }
 
         const refreshQueues = () => {
             if (document.visibilityState === 'visible') {
-                router.reload({ only: ['nurseQueues'], async: true });
+                router.reload({ only: user?.role === 'perawat' ? ['nurseQueues'] : ['doctorQueues'], async: true });
             }
         };
         const interval = window.setInterval(refreshQueues, 30_000);

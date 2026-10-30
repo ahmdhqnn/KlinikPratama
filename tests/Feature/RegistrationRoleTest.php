@@ -415,7 +415,7 @@ class RegistrationRoleTest extends TestCase
         ]);
 
         $pasien = Pasien::firstOrFail();
-        $response->assertRedirect(route('pendaftaran.laporan-kunjungan'));
+        $response->assertRedirect(route('pendaftaran.kunjungan-per-poli', ['tanggal' => today()->toDateString()]));
         $this->assertSame('RM-000001', $pasien->no_rm);
         $this->assertSame('3201234567890001', $pasien->nik);
         $this->assertSame('1995-08-17', $pasien->tanggal_lahir?->toDateString());
@@ -644,7 +644,7 @@ class RegistrationRoleTest extends TestCase
             'poliklinik_id' => $poliklinik->id,
         ]);
 
-        $response->assertRedirect(route('pendaftaran.laporan-kunjungan'));
+        $response->assertRedirect(route('pendaftaran.kunjungan-per-poli', ['tanggal' => today()->toDateString()]));
         $this->assertDatabaseHas('kunjungan', [
             'pasien_id' => $pasien->id,
             'dokter_id' => $dokter->id,

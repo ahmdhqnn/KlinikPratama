@@ -1,17 +1,18 @@
-import { ActionButton } from '@/components/ui/action-button';
-import { StatCard } from '@/components/dashboard/stat-card';
+import { VisitActionButtons } from '@/components/dashboard/visit-action-buttons';
+import { Empty } from '@/components/ui/empty';
+import { Field } from '@/components/ui/field';
 import { FilterPanel } from '@/components/ui/filter-panel';
-import { Head, Link, router } from '@inertiajs/react';
-import { Activity, ClipboardCheck, ClipboardPlus, Clock3, Search, Stethoscope } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { Input } from '@/components/ui/input';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { StatCard } from '@/components/dashboard/stat-card';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Empty } from '@/components/ui/empty';
-import { Field } from '@/components/ui/field';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DatePicker } from '@/components/ui/date-picker';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Head, Link, router } from '@inertiajs/react';
+import { Activity, CalendarDays, ClipboardCheck, ClipboardPlus, Clock3, Search, Stethoscope } from 'lucide-react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 
 interface Visit {
     id: number;
@@ -23,37 +24,127 @@ interface Visit {
     clinic: string;
     doctor: string | null;
     status: string;
-    examinationStarted?: boolean;
+    examinationStarted: boolean;
     diagnosisCount: number;
     recordUrl: string | null;
+    letterUrl: string | null;
 }
 
-export default function ExaminationsIndex({ visits, date: initialDate, stats }: { visits: PaginationData & { data: Visit[] }; date: string; stats: { total: number; waiting: number; inProgress: number; completed: number } }) {
+interface Props {
+    canIssueLetters: boolean;
+    visits: PaginationData & { data: Visit[] };
+    todayVisits: PaginationData & { data: Visit[] };
+    date: string;
+    search: string;
+    stats: { total: number; waiting: number; inProgress: number; completed: number };
+}
+
+export default function ExaminationsIndex({ visits, todayVisits, date: initialDate, search: initialSearch, stats, canIssueLetters }: Props) {
     const [date, setDate] = useState(initialDate);
+    const [search, setSearch] = useState(initialSearch);
 
     function filterVisits(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get('/pelayanan/pemeriksaan', { tanggal: date }, { preserveState: true, preserveScroll: true, replace: true });
+        router.get('/pelayanan/pemeriksaan', { search, tanggal: date }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     return (
         <>
             <Head title="Pemeriksaan Dokter" />
             <div className="space-y-6">
-                <div><p className="text-sm font-medium text-neutral-700">Layanan klinis</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pemeriksaan dokter</h2><p className="mt-1 text-sm text-neutral-500">Tinjau pasien, catat diagnosis, dan lanjutkan rencana pelayanan.</p></div>
-                <section aria-label="Ringkasan pemeriksaan hari ini" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>section]:h-full [&>section>div]:h-full">
-                    <StatCard label="Pemeriksaan hari ini" value={stats.total} description="Kunjungan pada tahap dokter dan sesudahnya" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
-                    <StatCard label="Menunggu pemeriksaan" value={stats.waiting} description="Belum mulai diperiksa hari ini" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
-                    <StatCard label="Sedang diperiksa" value={stats.inProgress} description="Pemeriksaan hari ini belum final" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
-                    <StatCard label="Pemeriksaan selesai" value={stats.completed} description="Kunjungan hari ini sudah final" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                <div>
+                    <p className="text-sm font-medium text-neutral-700">Layanan klinis</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pemeriksaan dokter</h2>
+                    <p className="mt-1 text-sm text-neutral-500">Pasien yang menunggu pemeriksaan hari ini tampil lebih dulu. Cari kunjungan lain untuk meninjau catatan sebelumnya.</p>
+                </div>
+                <section aria-label="Ringkasan pemeriksaan hari ini" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <StatCard label="Kunjungan dokter hari ini" value={stats.total} description="Kunjungan yang sudah memasuki tahap dokter atau layanan selanjutnya" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Menunggu pemeriksaan" value={stats.waiting} description="Belum mulai diperiksa dokter" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Sedang diperiksa" value={stats.inProgress} description="Pemeriksaan dokter belum difinalisasi" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Pemeriksaan selesai hari ini" value={stats.completed} description="Sudah diteruskan ke tahap layanan berikutnya" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 </section>
-                <FilterPanel><form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={filterVisits}><Field className="w-full sm:max-w-xs" htmlFor="examination-visit-date" label="Tanggal kunjungan"><DatePicker id="examination-visit-date" onChange={(event) => setDate(event.target.value)} value={date} /></Field><Button type="submit"><Search className="size-4" />Tampilkan</Button></form></FilterPanel>
-                <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ClipboardPlus className="size-5" /></span><div><CardTitle>Daftar pemeriksaan</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(visits.total)} kunjungan.</CardDescription></div></div></CardHeader>
-                    <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[950px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead>Diagnosis</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>
-                        {visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}><TableCell className="font-mono text-xs font-semibold text-neutral-700">{visit.number}</TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell><TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="font-mono text-xs text-neutral-500">{visit.medicalRecordNumber} · {visit.gender ?? 'Belum diisi'}</p></TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor ?? 'Belum ditentukan'}</TableCell><TableCell><StatusBadge examinationStarted={visit.examinationStarted} status={visit.status} /></TableCell><TableCell>{visit.diagnosisCount}</TableCell><TableCell className="text-center"><div className="flex items-center justify-center gap-2"><ActionButton asChild action="examination" label={visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan'}><Link href={`/pelayanan/pemeriksaan/${visit.id}`} /></ActionButton>{visit.recordUrl ? <ActionButton asChild action="rme" label="Rekam medis"><Link href={visit.recordUrl} /></ActionButton> : <ActionButton action="rme" label="Mulai pemeriksaan terlebih dahulu untuk membuka rekam medis" disabled />}</div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={8}><Empty size="compact" title="Belum ada kunjungan untuk ditampilkan." /></TableCell></TableRow>}
-                    </TableBody></Table></div><Pagination pagination={visits} /></CardContent>
-                </Card>
+                <VisitList
+                    description="Kunjungan yang menunggu atau sedang diperiksa dokter hari ini, dari waktu tunggu terlama."
+                    emptyDescription="Pasien akan muncul di sini setelah pengkajian awal selesai."
+                    emptyTitle="Belum ada pasien dalam antrean pemeriksaan hari ini."
+                    icon={<Clock3 className="size-5" />}
+                    title="Pemeriksaan hari ini"
+                    canIssueLetters={canIssueLetters}
+                    visits={todayVisits}
+                />
+                <FilterPanel>
+                    <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={filterVisits}>
+                        <Field htmlFor="examination-visit-search" label="Cari pasien">
+                            <Input id="examination-visit-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama atau No. RM" value={search} />
+                        </Field>
+                        <Field htmlFor="examination-visit-date" label="Tanggal kunjungan">
+                            <DatePicker id="examination-visit-date" onChange={(event) => setDate(event.target.value)} value={date} />
+                        </Field>
+                        <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
+                    </form>
+                </FilterPanel>
+                <VisitList
+                    description={`${new Intl.NumberFormat('id-ID').format(visits.total)} kunjungan sesuai filter. Tinjau kembali catatan pemeriksaan dan rekam medis pasien.`}
+                    emptyDescription="Ubah tanggal atau kata pencarian untuk melihat kunjungan lain."
+                    emptyTitle="Belum ada kunjungan yang sesuai."
+                    icon={<CalendarDays className="size-5" />}
+                    title="Seluruh kunjungan pasien"
+                    canIssueLetters={canIssueLetters}
+                    visits={visits}
+                />
             </div>
         </>
+    );
+}
+
+function VisitList({ title, description, icon, visits, emptyTitle, emptyDescription, canIssueLetters }: {
+    title: string;
+    description: string;
+    icon: ReactNode;
+    visits: PaginationData & { data: Visit[] };
+    emptyTitle: string;
+    emptyDescription: string;
+    canIssueLetters: boolean;
+}) {
+    return (
+        <Card className="overflow-hidden">
+            <CardHeader className="border-b border-neutral-100">
+                <div className="flex items-start gap-3">
+                    <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700">{icon}</span>
+                    <div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div>
+                </div>
+            </CardHeader>
+            <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                    <Table className="min-w-[980px]">
+                        <TableHeader><TableRow>
+                            <TableHead className="text-center">No. kunjungan</TableHead>
+                            <TableHead className="text-center">Tanggal</TableHead>
+                            <TableHead className="text-center">Pasien</TableHead>
+                            <TableHead className="text-center">Poliklinik</TableHead>
+                            <TableHead className="text-center">Dokter</TableHead>
+                            <TableHead className="text-center">Status</TableHead>
+                            <TableHead className="text-center">Diagnosis</TableHead>
+                            <TableHead className="text-center">Aksi</TableHead>
+                        </TableRow></TableHeader>
+                        <TableBody>
+                            {visits.data.length ? visits.data.map((visit) => (
+                                <TableRow key={visit.id}>
+                                    <TableCell className="text-center whitespace-nowrap font-mono text-xs font-semibold text-neutral-700">{visit.number}</TableCell>
+                                    <TableCell className="text-center whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
+                                    <TableCell className="text-center"><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 font-mono text-xs text-neutral-500">{visit.medicalRecordNumber} · {visit.gender ?? 'Belum diisi'}</p></TableCell>
+                                    <TableCell className="text-center text-neutral-600">{visit.clinic}</TableCell>
+                                    <TableCell className="text-center text-neutral-600">{visit.doctor ?? 'Belum ditentukan'}</TableCell>
+                                    <TableCell className="text-center"><StatusBadge examinationStarted={visit.examinationStarted} status={visit.status} /></TableCell>
+                                    <TableCell className="text-center tabular-nums">{visit.diagnosisCount}</TableCell>
+                                    <TableCell className="text-center"><VisitActionButtons letterUrl={visit.letterUrl} patient={visit.patient} primary={{ href: `/pelayanan/pemeriksaan/${visit.id}`, label: visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan', type: 'examination' }} recordLabel="Rekam medis" recordUrl={visit.recordUrl} showLetterAction={canIssueLetters} /></TableCell>
+                                </TableRow>
+                            )) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={8}><Empty description={emptyDescription} size="compact" title={emptyTitle} /></TableCell></TableRow>}
+                        </TableBody>
+                    </Table>
+                </div>
+                <Pagination pagination={visits} />
+            </CardContent>
+        </Card>
     );
 }

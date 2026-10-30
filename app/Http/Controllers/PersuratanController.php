@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\ClinicalAuditRecorder;
+use App\ClinicalNoteRecorder;
 use App\CorrespondenceService;
 use App\DoctorAccessService;
 use App\Models\CorrespondenceTemplate;
@@ -12,9 +13,11 @@ use App\Models\Nakes;
 use App\Models\RujukanInternal;
 use App\Models\SuratMedis;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -31,6 +34,15 @@ class PersuratanController extends Controller
         $user = $request->user();
         $isAdmin = $user->role === 'admin';
         $doctorId = $isAdmin ? null : $this->doctorId($user);
+        $eligibleVisits = $isAdmin ? null : Kunjungan::query()
+            ->where('dokter_id', $doctorId)
+            ->whereIn('status', ['tindakan', 'farmasi', 'kasir', 'selesai'])
+            ->whereHas('pemeriksaan', fn (Builder $query) => $query->whereNotNull('signed_at'))
+            ->with(['pasien', 'poliklinik'])
+            ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
+                ->where('no_kunjungan', 'like', "%{$search}%")
+                ->orWhereHas('pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
+            ->latest('tanggal')->latest('id')->paginate(10, ['*'], 'visits_page')->withQueryString();
 
         $letters = SuratMedis::query()
             ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
@@ -56,6 +68,20 @@ class PersuratanController extends Controller
         return Inertia::render('persuratan/index', [
             'isAdmin' => $isAdmin,
             'filters' => ['search' => $search],
+            'eligibleVisits' => $eligibleVisits ? [
+                'data' => $eligibleVisits->getCollection()->map(fn (Kunjungan $visit): array => [
+                    'id' => $visit->id,
+                    'date' => $visit->tanggal->format('d/m/Y'),
+                    'number' => $visit->no_kunjungan,
+                    'patient' => $visit->pasien->nama,
+                    'medicalRecordNumber' => $visit->pasien->no_rm,
+                    'clinic' => $visit->poliklinik->nama,
+                    'letterUrl' => route('persuratan.surat.create', $visit),
+                ])->values(),
+                'currentPage' => $eligibleVisits->currentPage(), 'lastPage' => $eligibleVisits->lastPage(),
+                'from' => $eligibleVisits->firstItem(), 'to' => $eligibleVisits->lastItem(), 'total' => $eligibleVisits->total(),
+                'previousUrl' => $eligibleVisits->previousPageUrl(), 'nextUrl' => $eligibleVisits->nextPageUrl(),
+            ] : null,
             'templates' => [
                 'data' => $templates->getCollection()->map(fn (CorrespondenceTemplate $template): array => [
                     'id' => $template->id,
@@ -115,6 +141,64 @@ class PersuratanController extends Controller
         CorrespondenceTemplate::query()->create($this->validatedTemplate($request));
 
         return back()->with('success', 'Template persuratan berhasil ditambahkan.');
+    }
+
+    public function createLetter(Request $request, Kunjungan $kunjungan, ClinicalNoteRecorder $notes): Response
+    {
+        $this->authorizeLetterIssue($request->user(), $kunjungan, $notes);
+        $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'pemeriksaan']);
+
+        return Inertia::render('persuratan/terbitkan', [
+            'visit' => [
+                'id' => $kunjungan->id,
+                'number' => $kunjungan->no_kunjungan,
+                'date' => $kunjungan->tanggal->format('d/m/Y'),
+                'patient' => $kunjungan->pasien->nama,
+                'medicalRecordNumber' => $kunjungan->pasien->no_rm,
+                'clinic' => $kunjungan->poliklinik?->nama ?? 'Belum diisi',
+                'doctor' => $kunjungan->dokter?->nama ?? 'Dokter klinik',
+            ],
+            'templates' => CorrespondenceTemplate::query()->where('is_active', true)->orderBy('nama')->get(['id', 'nama', 'jenis']),
+            'today' => today()->toDateString(),
+        ]);
+    }
+
+    public function storeLetter(Request $request, Kunjungan $kunjungan, ClinicalNoteRecorder $notes): RedirectResponse
+    {
+        $data = $request->validate([
+            'jenis' => ['required', 'in:sakit,sehat,rujukan,lainnya'],
+            'konten' => ['nullable', 'string', 'max:10000'],
+            'tanggal' => ['required', 'date'],
+            'surat_template_id' => ['nullable', 'exists:correspondence_templates,id'],
+        ]);
+
+        DB::transaction(function () use ($request, $kunjungan, $notes, $data): void {
+            $visit = Kunjungan::query()->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeLetterIssue($request->user(), $visit, $notes);
+            $template = filled($data['surat_template_id'] ?? null)
+                ? CorrespondenceTemplate::query()->where('is_active', true)->lockForUpdate()->findOrFail($data['surat_template_id'])
+                : null;
+            if ($template && $template->jenis !== $data['jenis']) {
+                throw ValidationException::withMessages(['surat_template_id' => 'Template tidak sesuai dengan jenis surat.']);
+            }
+            $date = Carbon::parse($data['tanggal']);
+            $number = $template ? $this->correspondence->nextNumber($template, $date) : null;
+            $content = filled($data['konten'] ?? null) ? $data['konten'] : $template?->isi;
+            if ($content !== null) {
+                $content = $this->correspondence->renderText($content, [
+                    '[nomor]' => (string) ($number ?? ''), '[pasien]' => $visit->pasien->nama,
+                    '[no_rm]' => $visit->pasien->no_rm, '[dokter]' => $visit->dokter?->nama ?? 'Dokter klinik',
+                    '[poli]' => $visit->poliklinik?->nama ?? '', '[tanggal]' => $date->locale('id')->isoFormat('D MMMM Y'),
+                ]);
+            }
+            $visit->suratMedis()->create([
+                'dokter_id' => $visit->dokter_id, 'surat_template_id' => $template?->id,
+                'jenis' => $data['jenis'], 'konten' => $content, 'nomor_surat' => $number, 'tanggal' => $date,
+            ]);
+            app(ClinicalAuditRecorder::class)->record($request, 'medical_letter.issue', $visit->pasien_id, $visit->id);
+        });
+
+        return redirect()->route('persuratan.index')->with('success', 'Dokumen berhasil diterbitkan.');
     }
 
     public function updateTemplate(Request $request, CorrespondenceTemplate $template): RedirectResponse
@@ -271,6 +355,15 @@ class PersuratanController extends Controller
     private function authorizeTemplateManagement(User $user): void
     {
         abort_unless($user->role === 'admin', 403);
+    }
+
+    private function authorizeLetterIssue(User $user, Kunjungan $visit, ClinicalNoteRecorder $notes): void
+    {
+        abort_unless($user->role === 'dokter', 403);
+        abort_unless($visit->dokter_id === $this->doctorId($user), 404);
+        abort_unless(in_array($visit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true), 422, 'Surat hanya dapat diterbitkan setelah pemeriksaan selesai.');
+        $examination = $visit->pemeriksaan;
+        abort_unless($examination?->signed_at && $notes->verify($examination), 422, 'Pemeriksaan final belum tersedia atau perlu diverifikasi.');
     }
 
     private function authorizeVisitDocument(User $user, Kunjungan $visit): void

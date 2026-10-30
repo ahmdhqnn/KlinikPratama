@@ -42,11 +42,11 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
 
     return (
         <>
-            <Head title="Database Pasien" />
+            <Head title="Pasien" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Data induk pasien</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Database pasien</h2>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pasien</h2>
                     <p className="mt-1 text-sm text-neutral-500">Temukan data pasien dengan nomor rekam medis, nama, NIK, atau nomor telepon.</p>
                 </div>
                 <FilterPanel><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
