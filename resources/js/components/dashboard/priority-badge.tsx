@@ -10,19 +10,19 @@ const triageMap: Record<string, { label: string; subtext: string; pillClass: str
     merah: {
         label: 'Merah',
         subtext: 'perlu respons segera',
-        pillClass: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 dark:bg-red-950/60 dark:text-red-300 dark:ring-red-800',
+        pillClass: 'border border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/60 dark:text-red-300',
         dotClass: 'bg-red-600 dark:bg-red-400',
     },
     kuning: {
         label: 'Kuning',
         subtext: 'perlu penilaian lanjut',
-        pillClass: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:ring-amber-800',
+        pillClass: 'border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
         dotClass: 'bg-amber-500 dark:bg-amber-400',
     },
     hijau: {
         label: 'Hijau',
         subtext: 'prioritas rutin',
-        pillClass: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-800',
+        pillClass: 'border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
         dotClass: 'bg-emerald-600 dark:bg-emerald-400',
     },
 };
@@ -31,7 +31,7 @@ export function PriorityBadge({ triage, priority, className }: PriorityBadgeProp
     if (!triage) {
         return (
             <div className={cn('flex flex-col items-center justify-center gap-0.5', className)}>
-                <span className="text-xs text-neutral-400 dark:text-neutral-500">—</span>
+                <span className="whitespace-nowrap text-xs text-neutral-500">Belum ditentukan</span>
             </div>
         );
     }
@@ -40,7 +40,7 @@ export function PriorityBadge({ triage, priority, className }: PriorityBadgeProp
     const config = triageMap[key] ?? {
         label: triage,
         subtext: priority ? `Prioritas: ${priority}` : 'Prioritas awal',
-        pillClass: 'bg-neutral-100 text-neutral-700 ring-1 ring-inset ring-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-neutral-700',
+        pillClass: 'border border-neutral-300 bg-neutral-100 text-neutral-700',
         dotClass: 'bg-neutral-500',
     };
 
@@ -50,7 +50,7 @@ export function PriorityBadge({ triage, priority, className }: PriorityBadgeProp
                 <span className={cn('size-1.5 rounded-full', config.dotClass)} />
                 {config.label}
             </span>
-            <span className="text-[11px] leading-tight font-medium text-neutral-500 dark:text-neutral-400">
+            <span className="text-[11px] leading-tight font-medium text-neutral-500">
                 {config.subtext}
             </span>
         </div>

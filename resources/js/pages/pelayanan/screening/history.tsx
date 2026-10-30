@@ -26,6 +26,7 @@ interface ScreeningRecord {
     priority: string | null;
     visitUrl: string | null;
     printUrl: string | null;
+    editUrl: string | null;
     isDraft: boolean;
 }
 
@@ -78,7 +79,7 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
             <Card className="overflow-hidden">
                 <CardHeader className="border-b border-neutral-100">
                     <div className="flex items-start gap-3">
-                        <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><ClipboardCheck className="size-5" /></span>
+                        <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ClipboardCheck className="size-5" /></span>
                         <div><CardTitle>Daftar pengkajian awal</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(screenings.total)} pengkajian tercatat.</CardDescription></div>
                     </div>
                 </CardHeader>
@@ -94,7 +95,7 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                                     <TableCell>{record.clinic}</TableCell>
                                     <TableCell>{record.staff}<p className="mt-1 text-xs text-neutral-500">{record.isDraft ? 'Draf pengkajian' : 'Pengkajian terkirim'}</p></TableCell>
                                     <TableCell className="text-center"><PriorityBadge triage={record.triage} priority={record.priority} /></TableCell>
-                                    <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2">{record.printUrl && <ActionButton asChild action="print" label="Cetak pengkajian"><a href={record.printUrl} /></ActionButton>}{record.visitUrl && <ActionButton asChild action="detail" label="Lihat kunjungan"><Link href={record.visitUrl} /></ActionButton>}</div></TableCell>
+                                    <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2">{record.editUrl && <ActionButton asChild action="screening" label="Perbarui pengkajian"><Link href={record.editUrl} /></ActionButton>}{record.printUrl && <ActionButton asChild action="print" label="Cetak pengkajian"><a href={record.printUrl} /></ActionButton>}{record.visitUrl && <ActionButton asChild action="detail" label="Lihat kunjungan"><Link href={record.visitUrl} /></ActionButton>}</div></TableCell>
                                 </TableRow>) : <TableRow><TableCell colSpan={7}><Empty size="compact" title="Belum ada catatan pengkajian pada filter ini." /></TableCell></TableRow>}
                             </TableBody>
                         </Table>

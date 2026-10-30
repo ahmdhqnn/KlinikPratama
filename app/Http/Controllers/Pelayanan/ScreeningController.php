@@ -21,6 +21,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -81,10 +82,11 @@ class ScreeningController extends Controller
                 'hasScreening' => $visit->screening !== null,
                 'screeningState' => $visit->screening?->submitted_at ? 'Terkirim' : ($visit->screening || $visit->status === 'screening' ? 'Dalam proses' : 'Belum dikaji'),
                 'screeningUrl' => route('pelayanan.screening.show', $visit),
-                'actionUrl' => $canScreen ? route('pelayanan.screening.show', $visit)
+                'actionUrl' => $visit->canUpdateScreening() ? route('pelayanan.screening.show', $visit)
                     : ($showVisitDetails ? route('pelayanan.kunjungan.show', $visit) : route('pelayanan.pasien.rekam-medis', $visit->pasien_id)),
-                'actionLabel' => $canScreen ? ($visit->status === 'screening' ? 'Lanjutkan pengkajian' : 'Mulai pengkajian')
-                    : ($showVisitDetails ? 'Detail kunjungan' : 'Lihat RME'),
+                'actionLabel' => $visit->status === 'pemeriksaan' && $visit->canUpdateScreening() ? 'Perbarui pengkajian'
+                    : ($canScreen ? ($visit->status === 'screening' ? 'Lanjutkan pengkajian' : 'Mulai pengkajian')
+                        : ($showVisitDetails ? 'Detail kunjungan' : 'Lihat RME')),
                 'printUrl' => $visit->screening ? route('pelayanan.screening.print', $visit) : null,
             ];
         };
@@ -93,11 +95,11 @@ class ScreeningController extends Controller
             'serviceName' => $assignedClinicId ? $clinics->first()?->nama : 'Semua poli',
             'stats' => [
                 'total' => (clone $todaySummary)->count(),
-                'waiting' => (clone $todaySummary)->where('status', 'menunggu')
+                'waiting' => (clone $todaySummary)->whereIn('status', ['menunggu', 'screening'])
                     ->whereDoesntHave('screening', fn ($query) => $query->whereNotNull('submitted_at'))->count(),
-                'inProgress' => (clone $todaySummary)->where('status', 'screening')
+                'submitted' => (clone $todaySummary)->whereHas('screening', fn ($query) => $query->whereDate('submitted_at', today()))->count(),
+                'allPending' => (clone $clinicVisits)->whereIn('status', ['menunggu', 'screening'])
                     ->whereDoesntHave('screening', fn ($query) => $query->whereNotNull('submitted_at'))->count(),
-                'submitted' => (clone $todaySummary)->whereHas('screening', fn ($query) => $query->whereNotNull('submitted_at'))->count(),
             ],
             'filters' => [
                 'search' => $filters['search'] ?? '',
@@ -159,6 +161,7 @@ class ScreeningController extends Controller
                     'visitUrl' => $screening->kunjungan ? route('pelayanan.kunjungan.show', $screening->kunjungan) : null,
                     'printUrl' => $screening->kunjungan ? route('pelayanan.screening.print', $screening->kunjungan) : null,
                     'isDraft' => $screening->submitted_at === null && ($screening->started_at !== null || in_array($screening->kunjungan?->status, ['menunggu', 'screening'], true)),
+                    'editUrl' => $screening->kunjungan?->canUpdateScreening() ? route('pelayanan.screening.show', $screening->kunjungan) : null,
                 ])->values(),
                 'currentPage' => $query->currentPage(),
                 'lastPage' => $query->lastPage(),
@@ -223,24 +226,124 @@ class ScreeningController extends Controller
 
         $isDraft = $kunjungan->screening->submitted_at === null && ($kunjungan->screening->started_at !== null || in_array($kunjungan->status, ['menunggu', 'screening'], true));
 
-        return response()->view('screening.print', [
-            'visit' => $kunjungan,
-            'screening' => $kunjungan->screening,
-            'clinic' => KlinikSetting::first(),
-            'isDraft' => $isDraft,
-            'signatureDataUrl' => $isDraft ? null : $correspondence->signatureDataUrl($kunjungan->screening->petugas?->user),
-        ])->header('Cache-Control', 'private, no-store');
+        $screening = $kunjungan->screening;
+        $choiceLabels = [
+            'ya' => 'Ya', 'tidak' => 'Tidak', 'teraba' => 'Teraba', 'tidak_teraba' => 'Tidak teraba',
+            'normal' => 'Normal', 'tidak_normal' => 'Tidak normal', 'sadar' => 'Sadar', 'menurun' => 'Menurun',
+            'tidak_sadar' => 'Tidak sadar', 'terganggu' => 'Terganggu', 'rendah' => 'Rendah', 'sedang' => 'Sedang',
+            'tinggi' => 'Tinggi', 'ada' => 'Ada riwayat', 'tidak_ada' => 'Tidak ada (telah dikaji)',
+            'belum_diketahui' => 'Belum dapat diketahui', 'pasien' => 'Pasien sendiri', 'keluarga' => 'Keluarga',
+            'pendamping' => 'Pendamping', 'tidak_dapat_diperoleh' => 'Belum dapat diperoleh',
+            'hipertensi' => 'Hipertensi', 'diabetes' => 'Diabetes melitus', 'penyakit_jantung' => 'Penyakit jantung',
+            'gangguan_pembekuan' => 'Gangguan pembekuan darah', 'antikoagulan' => 'Obat antikoagulan',
+            'lainnya' => 'Lainnya', 'hepatitis' => 'Hepatitis', 'hiv' => 'HIV', 'infeksi_lain' => 'Infeksi lain',
+            'dingin' => 'Dingin', 'manis' => 'Manis', 'panas' => 'Panas', 'spontan' => 'Spontan', 'mengunyah' => 'Mengunyah',
+            'kurang' => 'Gizi kurang', 'lebih' => 'Gizi lebih',
+            'merah' => 'Merah - perlu respons segera', 'kuning' => 'Kuning - perlu penilaian lanjut', 'hijau' => 'Hijau - prioritas rutin',
+            'darurat' => 'Respons darurat', 'segera' => 'Penilaian segera',
+        ];
+        $choice = static fn (?string $value): string => $choiceLabels[$value] ?? (filled($value) ? $value : 'Belum dikaji');
+        $choices = static fn (?array $values): string => $values ? implode(', ', array_map($choice, $values)) : 'Belum dikaji';
+        $presentRows = static fn (array $rows): array => array_filter($rows, static fn (mixed $value): bool => filled($value));
+        $joinValues = static fn (?string ...$values): ?string => ($joined = implode(' — ', array_filter($values, static fn (?string $value): bool => filled($value)))) !== '' ? $joined : null;
+        $clinic = KlinikSetting::first();
+
+        return Inertia::render('pelayanan/screening/print', [
+            'document' => [
+                'clinic' => [
+                    'name' => $clinic?->nama_klinik ?? config('app.name'),
+                    'address' => $clinic?->alamat,
+                    'phone' => $clinic?->telepon,
+                    'email' => $clinic?->email,
+                    'logoUrl' => $clinic?->logo ? Storage::disk('public')->url($clinic->logo) : null,
+                ],
+                'patient' => [
+                    'name' => $kunjungan->pasien?->nama,
+                    'medicalRecordNumber' => $kunjungan->pasien?->no_rm,
+                    'gender' => $kunjungan->pasien?->jenis_kelamin,
+                    'age' => $kunjungan->pasien?->umur,
+                    'address' => $kunjungan->pasien?->alamat,
+                ],
+                'visitNumber' => $kunjungan->no_kunjungan,
+                'clinicName' => $kunjungan->poliklinik?->nama ?? 'Poliklinik',
+                'clinicType' => $kunjungan->poliklinik?->jenis,
+                'doctorName' => $kunjungan->dokter?->nama,
+                'nurseName' => $screening->petugas?->nama,
+                'visitStatus' => $kunjungan->status,
+                'isDraft' => $isDraft,
+                'startedAt' => $screening->started_at?->format('d/m/Y H:i'),
+                'submittedAt' => $screening->submitted_at?->format('d/m/Y H:i'),
+                'printDate' => $screening->submitted_at?->locale('id')->isoFormat('D MMMM Y') ?? now()->locale('id')->isoFormat('D MMMM Y'),
+                'printedAt' => now()->format('d/m/Y H:i'),
+                'signatureDataUrl' => $isDraft ? null : $correspondence->signatureDataUrl($screening->petugas?->user),
+                'backUrl' => route('pelayanan.screening.index'),
+                'sections' => [
+                    'history' => $presentRows([
+                        'Sumber informasi' => filled($screening->sumber_informasi) ? $choice($screening->sumber_informasi) : null,
+                        'Keluhan utama' => $screening->keluhan,
+                        'Lama keluhan' => $screening->lama_keluhan,
+                        'Keluhan tambahan' => $screening->keluhan_tambahan,
+                        'Status riwayat penyakit' => filled($screening->status_riwayat_penyakit) ? $choice($screening->status_riwayat_penyakit) : null,
+                        'Riwayat penyakit' => $joinValues($screening->riwayat_penyakit, $screening->penyakit_nama, $screening->penyakit_keterangan),
+                        'Obat yang digunakan' => $screening->riwayat_obat,
+                        'Riwayat penyakit keluarga' => $screening->riwayat_penyakit_keluarga,
+                        'Status alergi' => filled($screening->status_alergi) ? $choice($screening->status_alergi) : null,
+                        'Riwayat alergi' => $screening->riwayat_alergi,
+                        'Jenis / reaksi alergi' => $joinValues($screening->alergi_jenis, $screening->alergi_reaksi),
+                    ]),
+                    'vitals' => $presentRows([
+                        'Tekanan sistolik' => $screening->td_sistole !== null ? $screening->td_sistole.' mmHg' : null,
+                        'Tekanan diastolik' => $screening->td_diastole !== null ? $screening->td_diastole.' mmHg' : null,
+                        'Nadi' => $screening->nadi !== null ? $screening->nadi.' kali/menit' : null,
+                        'Suhu tubuh' => $screening->suhu !== null ? $screening->suhu.' °C' : null,
+                        'Frekuensi napas' => $screening->respirasi !== null ? $screening->respirasi.' kali/menit' : null,
+                        'Saturasi oksigen' => $screening->spo2 !== null ? $screening->spo2.'%' : null,
+                    ]),
+                    'measurements' => $presentRows([
+                        'Berat badan' => $screening->berat_badan !== null ? $screening->berat_badan.' kg' : null,
+                        'Tinggi badan' => $screening->tinggi_badan !== null ? $screening->tinggi_badan.' cm' : null,
+                        'Indeks massa tubuh' => $screening->imt !== null ? $screening->imt.' kg/m²' : null,
+                        'Lingkar perut' => $screening->lingkar_perut !== null ? $screening->lingkar_perut.' cm' : null,
+                    ]),
+                    'measurementNote' => $screening->alasan_pengukuran_tidak_lengkap,
+                    'triage' => $presentRows([
+                        'Nyeri dada' => filled($screening->nyeri_dada) ? $choice($screening->nyeri_dada) : null,
+                        'Kejang' => filled($screening->kejang) ? $choice($screening->kejang) : null,
+                        'Nadi teraba' => filled($screening->nadi_teraba) ? $choice($screening->nadi_teraba) : null,
+                        'Pola pernapasan' => filled($screening->pola_pernapasan) ? $choice($screening->pola_pernapasan) : null,
+                        'Kesadaran' => filled($screening->kesadaran) ? $choice($screening->kesadaran) : null,
+                        'Kondisi psikiatri' => filled($screening->kondisi_psikiatri) ? $choice($screening->kondisi_psikiatri) : null,
+                        'Risiko jatuh' => filled($screening->risiko_jatuh_visual) ? $choice($screening->risiko_jatuh_visual) : null,
+                        'Skala nyeri' => $screening->skala_nyeri !== null ? $screening->skala_nyeri.' / 10' : null,
+                        'Kebutuhan respons awal' => filled($screening->kesimpulan_triase) ? $choice($screening->kesimpulan_triase).' · '.$choice($screening->prioritas_layanan) : null,
+                        'Catatan penapisan' => $screening->catatan_triase,
+                    ]),
+                    'dental' => $kunjungan->poliklinik?->jenis === 'gigi' ? $presentRows([
+                        'Kondisi kesehatan yang perlu diketahui dokter gigi' => $screening->risiko_medis_gigi ? $choices($screening->risiko_medis_gigi) : null,
+                        'Lokasi keluhan / nyeri' => $screening->lokasi_nyeri_gigi,
+                        'Pemicu keluhan' => $screening->pemicu_nyeri_gigi ? $choices($screening->pemicu_nyeri_gigi) : null,
+                        'Pola / lama keluhan' => $screening->durasi_keluhan_gigi,
+                        'Riwayat infeksi atau bengkak' => $screening->riwayat_infeksi_gigi ? $choices($screening->riwayat_infeksi_gigi) : null,
+                        'Catatan untuk dokter gigi' => $screening->catatan_medis_gigi,
+                    ]) : [],
+                    'additional' => $presentRows([
+                        'Pengkajian gizi' => filled($screening->skrining_gizi) ? $choice($screening->skrining_gizi) : null,
+                        'Observasi awal' => $screening->pemeriksaan_fisik,
+                    ]),
+                ],
+            ],
+        ])->toResponse($request)->header('Cache-Control', 'private, no-store');
     }
 
     public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): Response
     {
         $this->scheduling->ensureServiceDate($kunjungan);
-        $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'screening.petugas']);
+        $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'screening.petugas', 'pemeriksaan']);
         abort_unless(in_array($kunjungan->poliklinik?->jenis, ['umum', 'gigi'], true), 404);
         $isNurse = $request->user()->role === 'perawat';
         $nurse = $isNurse ? $this->perawatClinicResolver->nakes($request->user()) : null;
         abort_if($nurse && (int) $kunjungan->poliklinik_id !== (int) $nurse->poliklinik_id, 404);
-        abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Pengkajian awal tidak dapat diubah setelah pelayanan dimulai.');
+        abort_unless($kunjungan->canUpdateScreening(), 422, 'Pengkajian hanya dapat diperbarui sebelum dokter memulai pemeriksaan.');
         $auditRecorder->record($request, 'screening.view', $kunjungan->pasien_id, $kunjungan->id);
         $petugasList = Nakes::whereIn('jabatan', ['perawat', 'bidan', 'terapis_gigi'])->where('is_active', true)
             ->where('poliklinik_id', $kunjungan->poliklinik_id)->orderBy('nama')->get();
@@ -272,6 +375,9 @@ class ScreeningController extends Controller
                 'id' => $kunjungan->id,
                 'number' => $kunjungan->no_kunjungan,
                 'status' => $kunjungan->status,
+                'examinationStarted' => $kunjungan->pemeriksaan?->started_at !== null,
+                'editable' => $kunjungan->canUpdateScreening(),
+                'submitted' => $kunjungan->screening?->submitted_at !== null,
                 'patient' => [
                     'name' => $kunjungan->pasien?->nama ?? 'Pasien',
                     'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? 'Belum diisi',
@@ -310,7 +416,7 @@ class ScreeningController extends Controller
         $isNurse = $request->user()->role === 'perawat';
         $nurse = $isNurse ? $this->perawatClinicResolver->nakes($request->user()) : null;
         abort_if($nurse && (int) $kunjungan->poliklinik_id !== (int) $nurse->poliklinik_id, 404);
-        abort_unless(in_array($kunjungan->status, ['menunggu', 'screening'], true), 422, 'Pengkajian awal tidak dapat diubah setelah pelayanan dimulai.');
+        abort_unless($kunjungan->canUpdateScreening(), 422, 'Pengkajian hanya dapat diperbarui sebelum dokter memulai pemeriksaan.');
 
         $data = $request->validated();
         $isDraft = ($data['tindakan'] ?? 'kirim') === 'draf';
@@ -349,11 +455,14 @@ class ScreeningController extends Controller
         $data['triase_perawat'] = null;
         [$data['kesimpulan_triase'], $data['prioritas_layanan']] = $this->determineTriage($data);
 
-        DB::transaction(function () use ($data, $kunjungan, $request, $auditRecorder, $isDraft): void {
-            $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
-            abort_unless(in_array($lockedVisit->status, ['menunggu', 'screening'], true), 422, 'Pengkajian awal tidak dapat diubah setelah pelayanan dimulai.');
+        $wasSubmitted = false;
+        DB::transaction(function () use ($data, $kunjungan, $request, $auditRecorder, $isDraft, &$wasSubmitted): void {
+            $lockedVisit = Kunjungan::with(['screening', 'pemeriksaan'])->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            abort_unless($lockedVisit->canUpdateScreening(), 422, 'Pengkajian hanya dapat diperbarui sebelum dokter memulai pemeriksaan.');
 
             $this->scheduling->ensureServiceDate($lockedVisit);
+            $wasSubmitted = $lockedVisit->screening?->submitted_at !== null;
+            $isDraft = $wasSubmitted ? false : $isDraft;
             $data['started_at'] = $lockedVisit->screening?->started_at ?? now();
             $data['submitted_at'] = $isDraft ? null : now();
             $data['risiko_jatuh'] = $data['risiko_jatuh_visual'] ?? null;
@@ -385,12 +494,12 @@ class ScreeningController extends Controller
             if (! $isDraft) {
                 $this->allergies->remember($lockedVisit, $data['riwayat_alergi'] ?? null);
             }
-            $lockedVisit->update(['status' => $isDraft ? 'screening' : 'pemeriksaan']);
+            $lockedVisit->update(['status' => $wasSubmitted ? 'pemeriksaan' : ($isDraft ? 'screening' : 'pemeriksaan')]);
             $auditRecorder->record($request, $isDraft ? 'screening.draft_saved' : 'screening.create_or_update', $lockedVisit->pasien_id, $lockedVisit->id);
         });
 
-        return redirect()->route($isDraft ? 'pelayanan.screening.show' : 'pelayanan.kunjungan.show', $kunjungan)
-            ->with('success', $isDraft ? 'Draf pengkajian tersimpan. Pasien masih dalam proses pengkajian awal.' : 'Pengkajian awal tersimpan dan pasien diteruskan ke dokter.');
+        return redirect()->route($wasSubmitted || $isDraft ? 'pelayanan.screening.show' : 'pelayanan.kunjungan.show', $kunjungan)
+            ->with('success', $wasSubmitted ? 'Perubahan pengkajian tersimpan. Catatan tetap tersedia untuk dokter.' : ($isDraft ? 'Draf pengkajian tersimpan. Pasien masih dalam proses pengkajian awal.' : 'Pengkajian awal tersimpan dan pasien diteruskan ke dokter.'));
     }
 
     public function update(StoreScreeningRequest $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): RedirectResponse

@@ -4,19 +4,76 @@ namespace App\Http\Controllers\Pelayanan;
 
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
+use App\DateRangeFilter;
+use App\Exports\NursingProcedureExport;
 use App\Http\Controllers\Controller;
 use App\Models\Kunjungan;
 use App\Models\TindakanKunjungan;
+use App\NursingProcedureReportQuery;
 use App\PerawatClinicResolver;
 use App\VisitCareWorkflow;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class TindakanPerawatController extends Controller
 {
+    public function report(Request $request, PerawatClinicResolver $clinics, ClinicalAuditRecorder $audit): Response
+    {
+        $filters = $this->reportFilters($request);
+        $nurse = $clinics->nakes($request->user());
+        $clinicId = (int) $nurse->poliklinik_id;
+        $query = (new NursingProcedureReportQuery)->query($filters, $clinicId);
+        $audit->record($request, 'nursing_procedure.report_view', metadata: ['clinic_id' => $clinicId, 'filters' => $filters]);
+        $procedures = (clone $query)->paginate(15)->withQueryString();
+
+        return Inertia::render('pelayanan/tindakan/report', [
+            'title' => 'Laporan tindakan perawat',
+            'clinicName' => $nurse->poliklinik->nama,
+            'filters' => $filters,
+            'stats' => $this->reportStats(clone $query),
+            'procedures' => $this->pageData($procedures->through(fn (TindakanKunjungan $procedure): array => $this->mapReportProcedure($procedure))),
+            'exportUrl' => route('perawat.laporan-tindakan.export', $filters),
+            'printUrl' => route('perawat.laporan-tindakan.cetak', $filters),
+            'printMode' => false,
+        ]);
+    }
+
+    public function printReport(Request $request, PerawatClinicResolver $clinics, ClinicalAuditRecorder $audit): Response
+    {
+        $filters = $this->reportFilters($request);
+        $nurse = $clinics->nakes($request->user());
+        $clinicId = (int) $nurse->poliklinik_id;
+        $query = (new NursingProcedureReportQuery)->query($filters, $clinicId);
+        $audit->record($request, 'nursing_procedure.report_print', metadata: ['clinic_id' => $clinicId, 'filters' => $filters]);
+        $procedures = $query->get()->map(fn (TindakanKunjungan $procedure): array => $this->mapReportProcedure($procedure))->all();
+
+        return Inertia::render('pelayanan/tindakan/report', [
+            'title' => 'Laporan tindakan perawat',
+            'clinicName' => $nurse->poliklinik->nama,
+            'filters' => $filters,
+            'stats' => $this->reportStats((new NursingProcedureReportQuery)->query($filters, $clinicId)),
+            'procedures' => ['data' => $procedures, 'total' => count($procedures)],
+            'exportUrl' => null,
+            'printUrl' => null,
+            'printMode' => true,
+        ]);
+    }
+
+    public function exportReport(Request $request, PerawatClinicResolver $clinics, ClinicalAuditRecorder $audit): BinaryFileResponse
+    {
+        $filters = $this->reportFilters($request);
+        $clinicId = $clinics->clinicId($request->user());
+        $audit->record($request, 'nursing_procedure.report_export', metadata: ['clinic_id' => $clinicId, 'filters' => $filters]);
+
+        return Excel::download(new NursingProcedureExport($filters, $clinicId), 'laporan-tindakan-perawat-'.today()->format('Y-m-d').'.xlsx');
+    }
+
     public function index(Request $request, PerawatClinicResolver $clinics): Response
     {
         $filters = $request->validate([
@@ -30,7 +87,8 @@ class TindakanPerawatController extends Controller
         $completedTreatments = fn ($query) => $query->where('execution_role', 'perawat')->where('execution_status', 'completed');
         $doctorInProgress = fn ($query) => $query->where('status', 'pemeriksaan')
             ->whereHas('pemeriksaan', fn ($examination) => $examination->whereNotNull('started_at')->whereNull('signed_at'));
-        $clinicVisits = Kunjungan::query()->where('poliklinik_id', $clinicId)
+        $allClinicVisits = Kunjungan::query()->where('poliklinik_id', $clinicId);
+        $clinicVisits = (clone $allClinicVisits)
             ->where(fn ($query) => $query->where($doctorInProgress)
                 ->orWhere(fn ($ready) => $ready->whereHas('tindakanKunjungan', $nurseTreatments)
                     ->whereHas('pemeriksaan', fn ($examination) => $examination->whereNotNull('signed_at'))));
@@ -65,7 +123,7 @@ class TindakanPerawatController extends Controller
 
         return Inertia::render('pelayanan/tindakan/index', [
             'stats' => [
-                'todayTotal' => (clone $todaySummary)->count(),
+                'todayTotal' => (clone $allClinicVisits)->whereDate('tanggal', today())->where('status', '!=', 'batal')->count(),
                 'todayPending' => (clone $todaySummary)->where('status', 'tindakan')->whereHas('tindakanKunjungan', $pendingTreatments)->count(),
                 'todayCompleted' => (clone $todaySummary)->whereHas('tindakanKunjungan', $completedTreatments)->whereDoesntHave('tindakanKunjungan', $pendingTreatments)->count(),
                 'allPending' => (clone $clinicVisits)->where('status', 'tindakan')->whereHas('tindakanKunjungan', $pendingTreatments)->count(),
@@ -162,5 +220,61 @@ class TindakanPerawatController extends Controller
     private function authorizeVisit(Request $request, Kunjungan $visit, PerawatClinicResolver $clinics): void
     {
         abort_unless($visit->poliklinik_id === $clinics->clinicId($request->user()), 403, 'Kunjungan bukan tanggung jawab poli Anda.');
+    }
+
+    /**
+     * @return array{dari: ?string, sampai: ?string, search: ?string, status: ?string}
+     */
+    private function reportFilters(Request $request): array
+    {
+        $period = DateRangeFilter::fromRequest($request);
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:pending,completed'],
+        ]);
+
+        return [
+            'dari' => $period->from,
+            'sampai' => $period->to,
+            'search' => $filters['search'] ?? null,
+            'status' => $filters['status'] ?? null,
+        ];
+    }
+
+    /** @return array{total: int, visits: int, pending: int, completed: int} */
+    private function reportStats(Builder $query): array
+    {
+        return [
+            'total' => (clone $query)->count(),
+            'visits' => (clone $query)->distinct('kunjungan_id')->count('kunjungan_id'),
+            'pending' => (clone $query)->where('execution_status', 'pending')->count(),
+            'completed' => (clone $query)->where('execution_status', 'completed')->count(),
+        ];
+    }
+
+    /** @return array<string, int|string|null> */
+    private function mapReportProcedure(TindakanKunjungan $procedure): array
+    {
+        $visit = $procedure->kunjungan;
+
+        return [
+            'id' => $procedure->id,
+            'date' => $visit?->tanggal?->format('d/m/Y') ?? 'Belum diisi',
+            'visitNumber' => $visit?->no_kunjungan ?? 'Belum diisi',
+            'patient' => $visit?->pasien?->nama ?? 'Belum diisi',
+            'medicalRecordNumber' => $visit?->pasien?->no_rm ?? 'Belum diisi',
+            'clinic' => $visit?->poliklinik?->nama ?? 'Belum diisi',
+            'doctor' => $visit?->dokter?->nama ?? 'Belum dicatat',
+            'name' => $procedure->nama_tindakan ?? $procedure->nama_tindakan_manual ?? $procedure->tindakan?->nama ?? 'Tindakan',
+            'code' => $procedure->kode_icd9cm,
+            'quantity' => $procedure->jumlah,
+            'tooth' => $procedure->tooth_fdi,
+            'instructions' => $procedure->catatan,
+            'status' => $procedure->execution_status,
+            'result' => $procedure->execution_result,
+            'performedBy' => $procedure->performedBy?->name,
+            'performedAt' => $procedure->performed_at?->format('d/m/Y H:i'),
+            'visitUrl' => $visit ? route('pelayanan.tindakan.show', $visit) : null,
+        ];
     }
 }

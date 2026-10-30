@@ -137,7 +137,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
                 <Card>
                     <CardHeader>
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Search className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Search className="size-5" /></span>
                             <div><CardTitle>Cari pasien</CardTitle><CardDescription className="mt-1">Cari berdasarkan nama, nomor rekam medis, NIK, atau NIP.</CardDescription></div>
                         </div>
                     </CardHeader>
@@ -199,7 +199,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
                     <Card>
                         <CardHeader>
                             <div className="flex items-start gap-3">
-                                <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UserRoundPlus className="size-5" /></span>
+                                <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span>
                                 <div><CardTitle>Data kunjungan baru</CardTitle><CardDescription className="mt-1">Pasien yang sama dapat memiliki banyak kunjungan pada tanggal yang berbeda.</CardDescription></div>
                             </div>
                         </CardHeader>

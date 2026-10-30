@@ -22,7 +22,7 @@ export default function Inventory({ medicines, filters }: { medicines: Paginatio
         <Card className="overflow-hidden">
             <CardHeader className="border-b border-neutral-100">
                 <div className="flex items-start gap-3">
-                    <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Package className="size-5" /></span>
+                    <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Package className="size-5" /></span>
                     <div>
                         <CardTitle>Daftar persediaan</CardTitle>
                         <CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(medicines.total)} item obat dan BHP tercatat.</CardDescription>
@@ -35,7 +35,7 @@ export default function Inventory({ medicines, filters }: { medicines: Paginatio
                 </form></FilterPanel>
             </CardHeader>
             <CardContent className="p-0">
-                <div className="overflow-x-auto"><Table className="min-w-[800px]"><TableHeader><TableRow><TableHead>Item persediaan</TableHead><TableHead>Jenis</TableHead><TableHead>Total fisik</TableHead><TableHead>Layak pakai</TableHead><TableHead>Batas minimum</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader><TableBody>{medicines.data.length ? medicines.data.map((medicine) => <TableRow key={medicine.id}><TableCell><p className="font-medium">{medicine.name}</p><p className="font-mono text-xs text-neutral-500">{medicine.code}</p></TableCell><TableCell className="uppercase">{medicine.type}</TableCell><TableCell>{formatNumber(medicine.stock)} {medicine.unit}</TableCell><TableCell><Badge variant={medicine.usable <= medicine.minimum ? 'waiting' : 'complete'}>{formatNumber(medicine.usable)} {medicine.unit}</Badge></TableCell><TableCell>{formatNumber(medicine.minimum)} {medicine.unit}</TableCell><TableCell><ActionButton asChild action="stock" label="Batch & kartu stok"><Link href={medicine.url} /></ActionButton></TableCell></TableRow>) : <TableRow><TableCell colSpan={6}><Empty title="Persediaan belum tersedia" size="compact" /></TableCell></TableRow>}</TableBody></Table></div>
+                <div className="overflow-x-auto"><Table className="min-w-[800px]"><TableHeader><TableRow><TableHead>Item persediaan</TableHead><TableHead>Jenis</TableHead><TableHead>Total fisik</TableHead><TableHead>Layak pakai</TableHead><TableHead>Batas minimum</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader><TableBody>{medicines.data.length ? medicines.data.map((medicine) => <TableRow key={medicine.id}><TableCell><p className="font-medium">{medicine.name}</p><p className="font-mono text-xs text-neutral-500">{medicine.code}</p></TableCell><TableCell className="uppercase">{medicine.type}</TableCell><TableCell>{formatNumber(medicine.stock)} {medicine.unit}</TableCell><TableCell><Badge variant={medicine.usable <= medicine.minimum ? 'warning' : 'default'}>{formatNumber(medicine.usable)} {medicine.unit}</Badge></TableCell><TableCell>{formatNumber(medicine.minimum)} {medicine.unit}</TableCell><TableCell><ActionButton asChild action="stock" label="Batch & kartu stok"><Link href={medicine.url} /></ActionButton></TableCell></TableRow>) : <TableRow><TableCell colSpan={6}><Empty title="Persediaan belum tersedia" size="compact" /></TableCell></TableRow>}</TableBody></Table></div>
                 <Pagination pagination={medicines} />
             </CardContent>
         </Card>

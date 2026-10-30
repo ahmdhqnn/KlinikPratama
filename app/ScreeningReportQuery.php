@@ -9,7 +9,7 @@ class ScreeningReportQuery
 {
     public function query(array $filters, ?int $staffId, ?int $clinicId): Builder
     {
-        return Screening::query()->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'petugas'])
+        return Screening::query()->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'kunjungan.pemeriksaan', 'petugas'])
             ->whereHas('kunjungan', fn ($visits) => $visits
                 ->whereHas('poliklinik', fn ($clinics) => $clinics->whereIn('jenis', ['umum', 'gigi']))
                 ->when($clinicId, fn ($query) => $query->where('poliklinik_id', $clinicId))

@@ -155,7 +155,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                             {Object.entries(visitStatusFilterLabels).map(([status, label]) => (
                                 <Link aria-label={`${label}: ${formatNumber(visitStatuses[status] ?? 0)}. Lihat daftar terkait`} className="flex items-center justify-between gap-3 rounded-lg p-1 transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" href={visitStatusUrls[status]} key={status}>
                                     <div className="flex items-center gap-3">
-                                        <span className={`size-2 rounded-full ${status === 'selesai' ? 'bg-emerald-500' : status === 'batal' ? 'bg-red-500' : 'bg-neutral-500'}`} />
+                                        <span className={`size-2 rounded-full ${status === 'batal' ? 'bg-red-500' : 'bg-neutral-500'}`} />
                                         <span className="text-sm text-neutral-600">{label}</span>
                                     </div>
                                     <span className="min-w-8 rounded-full bg-neutral-100 px-2 py-1 text-center text-xs font-semibold text-neutral-700">

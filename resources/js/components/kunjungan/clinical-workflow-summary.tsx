@@ -52,17 +52,17 @@ export function DentalExaminationSummary({ anamnesis, intraoralExam, extraoralEx
                 <div className="overflow-x-auto rounded-xl border border-neutral-200">
                     <Table aria-label="Ringkasan temuan odontogram" className="min-w-[36rem] table-fixed">
                         <TableHeader><TableRow>
-                            <TableHead className="w-20 px-4 py-3 text-left">Gigi FDI</TableHead>
-                            <TableHead className="w-36 px-4 py-3 text-left">Permukaan</TableHead>
-                            <TableHead className="w-40 px-4 py-3 text-left">Temuan</TableHead>
-                            <TableHead className="px-4 py-3 text-left">Catatan</TableHead>
+                            <TableHead className="w-20 px-4 py-3 text-center">Gigi FDI</TableHead>
+                            <TableHead className="w-36 px-4 py-3 text-center">Permukaan</TableHead>
+                            <TableHead className="w-40 px-4 py-3 text-center">Temuan</TableHead>
+                            <TableHead className="px-4 py-3 text-center">Catatan</TableHead>
                         </TableRow></TableHeader>
                         <TableBody>{findings.map((finding) => (
                             <TableRow key={finding.toothFdi + '-' + finding.surface}>
-                                <TableCell className="px-4 py-3 text-left align-top font-mono font-semibold">{finding.toothFdi}</TableCell>
-                                <TableCell className="break-words px-4 py-3 text-left align-top">{options.surfaces[finding.surface] ?? finding.surface}</TableCell>
-                                <TableCell className="break-words px-4 py-3 text-left align-top">{options.findings[finding.findingCode] ?? finding.findingCode}</TableCell>
-                                <TableCell className="whitespace-pre-wrap break-words px-4 py-3 text-left align-top">{normalizeClinicalAnswer(finding.notes) ?? optionalAnswers.notRecorded}</TableCell>
+                                <TableCell className="px-4 py-3 text-center align-middle font-mono font-semibold">{finding.toothFdi}</TableCell>
+                                <TableCell className="break-words px-4 py-3 text-center align-middle">{options.surfaces[finding.surface] ?? finding.surface}</TableCell>
+                                <TableCell className="break-words px-4 py-3 text-center align-middle">{options.findings[finding.findingCode] ?? finding.findingCode}</TableCell>
+                                <TableCell className="whitespace-pre-wrap break-words px-4 py-3 text-center align-middle">{normalizeClinicalAnswer(finding.notes) ?? optionalAnswers.notRecorded}</TableCell>
                             </TableRow>
                         ))}</TableBody>
                     </Table>
@@ -179,7 +179,7 @@ function WorkflowSummary({ id, title, description, icon: Icon, counts, reviewLab
                     </div>
                     <ActionButton action="detail" className="shrink-0" label={reviewLabel} onClick={onReview} />
                 </div>
-                {(counts || hasUnsavedChanges) && <div className="flex flex-wrap gap-2 pt-2">{counts}{hasUnsavedChanges && <Badge variant="waiting">Ada perubahan belum disimpan</Badge>}</div>}
+                {(counts || hasUnsavedChanges) && <div className="flex flex-wrap gap-2 pt-2">{counts}{hasUnsavedChanges && <Badge variant="warning">Ada perubahan belum disimpan</Badge>}</div>}
             </CardHeader>
             <CardContent className="space-y-4">
                 {hasUnsavedChanges && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700" role="status">{unsavedMessage}</p>}

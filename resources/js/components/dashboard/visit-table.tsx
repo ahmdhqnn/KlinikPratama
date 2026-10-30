@@ -32,19 +32,19 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                     <TableHead className="text-center">Poliklinik</TableHead>
                     <TableHead className="text-center">Prioritas</TableHead>
                     <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-center">Aksi cepat</TableHead>
+                    <TableHead className="text-center">Aksi</TableHead>
                 </tr></TableHeader>
                 <TableBody>
                     {visits.length > 0 ? visits.map((visit) => (
-                        <tr className="transition-colors hover:bg-neutral-50/80 dark:hover:bg-neutral-800/50" key={visit.id}>
-                            <TableCell className="text-center whitespace-nowrap font-mono text-xs text-neutral-600 dark:text-neutral-400">
-                                <Link className="font-medium text-neutral-900 underline-offset-4 hover:underline dark:text-neutral-100" href={visit.actionUrl}>{visit.number}</Link>
+                        <tr className="transition-colors hover:bg-neutral-50/80" key={visit.id}>
+                            <TableCell className="text-center whitespace-nowrap font-mono text-xs text-neutral-600">
+                                <Link className="font-medium text-neutral-900 underline-offset-4 hover:underline" href={visit.actionUrl}>{visit.number}</Link>
                             </TableCell>
                             <TableCell className="text-center">
-                                <p className="font-medium text-neutral-900 dark:text-neutral-100">{visit.patient}</p>
-                                <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{visit.medicalRecordNumber}</p>
+                                <p className="font-medium text-neutral-900">{visit.patient}</p>
+                                <p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p>
                             </TableCell>
-                            <TableCell className="text-center text-neutral-600 dark:text-neutral-400">{visit.clinic}</TableCell>
+                            <TableCell className="text-center text-neutral-600">{visit.clinic}</TableCell>
                             <TableCell className="text-center">
                                 <PriorityBadge triage={visit.triage} priority={visit.priority} />
                             </TableCell>

@@ -54,7 +54,7 @@ export default function DoctorPatients({ search, patients }: Props) {
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UsersRound className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UsersRound className="size-5" /></span>
                             <div><CardTitle>Database pasien</CardTitle><CardDescription className="mt-1">Informasi identitas dibatasi pada kebutuhan pelayanan.</CardDescription></div>
                         </div>
                     </CardHeader>

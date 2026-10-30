@@ -56,6 +56,22 @@ class Kunjungan extends Model
         return $this->hasOne(Screening::class);
     }
 
+    public function canUpdateScreening(): bool
+    {
+        if ($this->tanggal?->isFuture()) {
+            return false;
+        }
+
+        if (in_array($this->status, ['menunggu', 'screening'], true)) {
+            return true;
+        }
+
+        return $this->status === 'pemeriksaan'
+            && $this->screening?->submitted_at !== null
+            && $this->pemeriksaan?->started_at === null
+            && $this->pemeriksaan?->signed_at === null;
+    }
+
     public function pemeriksaan(): HasOne
     {
         return $this->hasOne(Pemeriksaan::class);

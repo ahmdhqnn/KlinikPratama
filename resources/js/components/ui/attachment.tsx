@@ -27,7 +27,7 @@ export function Attachment({
         <div className="min-w-0 space-y-2">
             <Label className="block" htmlFor={id}>{label}</Label>
             <div className={cn('relative flex min-h-20 min-w-0 items-center gap-3 rounded-xl border border-dashed bg-surface px-4 py-3 transition-colors focus-within:ring-2 focus-within:ring-neutral-400', error ? 'border-red-300 bg-red-50/40' : 'border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50/30', disabled && 'cursor-not-allowed opacity-60')}>
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-50 text-neutral-700">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-700">
                     {fileName ? <Paperclip aria-hidden="true" className="size-5" /> : <Upload aria-hidden="true" className="size-5" />}
                 </span>
                 <span className="min-w-0 flex-1">

@@ -68,15 +68,15 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                 </div>
 
                 <section aria-label="Ringkasan antrean poliklinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <StatCard description="Seluruh kunjungan sesuai akses poliklinik Anda" icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan" value={stats.total} />
-                    <StatCard description="Kunjungan sampai hari ini yang belum dikaji" icon={<Clock3 className="size-5" />} iconClassName="bg-amber-50 text-amber-700" label="Menunggu pengkajian awal" value={stats.waiting} />
-                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan dokter" value={stats.examination} />
-                    <StatCard description="Pelayanan selesai pada tanggal hari ini" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-emerald-50 text-emerald-700" label="Kunjungan selesai hari ini" value={stats.completedToday} />
+                    <StatCard description="Seluruh kunjungan sesuai akses poliklinik Anda" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan" value={stats.total} />
+                    <StatCard description="Kunjungan sampai hari ini yang belum dikaji" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Menunggu pengkajian awal" value={stats.waiting} />
+                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Pemeriksaan dokter" value={stats.examination} />
+                    <StatCard description="Pelayanan selesai pada tanggal hari ini" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Kunjungan selesai hari ini" value={stats.completedToday} />
                 </section>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Clock3 className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Clock3 className="size-5" /></span>
                             <div><CardTitle>Kunjungan hari ini</CardTitle><CardDescription className="mt-1">Seluruh kunjungan hari ini sesuai akses poliklinik Anda.</CardDescription></div>
                         </div>
                     </CardHeader>
@@ -122,7 +122,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><CalendarDays className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span>
                             <div><CardTitle>Daftar kunjungan pasien</CardTitle><CardDescription className="mt-1">Seluruh kunjungan sesuai filter poliklinik, tanggal, dan status.</CardDescription></div>
                         </div>
                     </CardHeader>

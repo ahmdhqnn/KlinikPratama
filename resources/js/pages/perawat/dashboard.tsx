@@ -1,6 +1,6 @@
 import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
 import { Head, Link, router } from '@inertiajs/react';
-import { Activity, AlertTriangle, CalendarDays, ClipboardCheck, HeartPulse, Stethoscope, UsersRound } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowRight, CalendarDays, ClipboardCheck, HeartPulse, Stethoscope, UsersRound } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { VisitTable, type DashboardVisit } from '@/components/dashboard/visit-table';
@@ -48,9 +48,9 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                     <p className="mt-1 text-sm text-neutral-500">Ringkasan menunjukkan pengkajian dan tindakan poli; antrean dan kebutuhan respons menampilkan kondisi hari ini.</p>
                 </div>
                 <section aria-label="Statistik keperawatan" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>a>section]:h-full [&>a>section>div]:h-full">
-                    <StatCard description={`Seluruh kunjungan poli Anda${todayCountDescription(stats.total_kunjungan_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli" icon={<Activity className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Total kunjungan" value={stats.total_kunjungan} />
-                    <StatCard description="Pengkajian yang masih terbuka hari ini" href="/pelayanan/screening" icon={<HeartPulse className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pengkajian awal" value={stats.menunggu_ttv} />
-                    <StatCard description={`Menunggu / sedang diperiksa${todayCountDescription(stats.siap_dokter_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli?status=pemeriksaan" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Pemeriksaan dokter" value={stats.siap_dokter} />
+                    <StatCard description={`Seluruh kunjungan poli Anda${todayCountDescription(stats.total_kunjungan_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan" value={stats.total_kunjungan} />
+                    <StatCard description="Pengkajian yang masih terbuka hari ini" href="/pelayanan/screening" icon={<HeartPulse className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Pengkajian awal" value={stats.menunggu_ttv} />
+                    <StatCard description={`Menunggu / sedang diperiksa${todayCountDescription(stats.siap_dokter_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli?status=pemeriksaan" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Pemeriksaan dokter" value={stats.siap_dokter} />
                     <StatCard description="Kunjungan hari ini dengan triase merah yang belum selesai" icon={<AlertTriangle className="size-5" />} iconClassName="bg-red-50 text-red-700" label="Triase merah aktif" value={stats.triase_darurat} />
                 </section>
                 <section aria-label="Jadwal dan tindakan perawat" className="grid items-stretch gap-4 lg:grid-cols-2 [&>a>section]:h-full [&>a>section>div]:h-full">
@@ -65,11 +65,11 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                                     </div> : <p className="mt-2 text-sm text-neutral-500">Tidak ada dokter terjadwal hari ini.</p>}
                                     <p className="mt-2 text-xs font-medium text-neutral-600">Lihat jadwal</p>
                                 </div>
-                                <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><CalendarDays className="size-5" /></span>
+                                <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span>
                             </CardContent>
                         </Card>
                     </Link>
-                    <StatCard description="Instruksi dokter yang menunggu pelaksanaan, termasuk kunjungan sebelumnya" href="/pelayanan/tindakan-perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-50 text-neutral-700" label="Tindakan perawat" value={stats.menunggu_tindakan} />
+                    <StatCard description="Instruksi dokter yang menunggu pelaksanaan, termasuk kunjungan sebelumnya" href="/pelayanan/tindakan-perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Tindakan perawat" value={stats.menunggu_tindakan} />
                 </section>
                 <FollowUp data={followUp} />
                 <Card>
@@ -78,7 +78,7 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                         <CardDescription>Buka pengkajian, tindakan, dan informasi layanan yang sering digunakan.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <QuickLink href="/pelayanan/screening" icon={<HeartPulse className="size-4" />} label="Antrean pengkajian awal" />
+                        <QuickLink href="/pelayanan/screening" icon={<HeartPulse className="size-4" />} label="Pengkajian awal" />
                         <QuickLink href="/pelayanan/tindakan-perawat" icon={<ClipboardCheck className="size-4" />} label="Tindakan perawat" />
                         <QuickLink href="/pendaftaran/kunjungan-per-poli" icon={<Activity className="size-4" />} label="Kunjungan poli" />
                         <QuickLink href="/pendaftaran/database-pasien" icon={<UsersRound className="size-4" />} label="Database pasien" />
@@ -87,13 +87,13 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><ClipboardCheck className="size-5" /></span>
-                            <div><CardTitle>Siap dilayani hari ini</CardTitle><CardDescription className="mt-1">Pengkajian dan tindakan yang dapat dikerjakan perawat; pasien dengan waktu tunggu terlama ditampilkan lebih dahulu.</CardDescription></div>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ClipboardCheck className="size-5" /></span>
+                            <div><CardTitle>Siap dilayani hari ini</CardTitle><CardDescription className="mt-1">Pasien yang menunggu pengkajian awal atau tindakan perawat. Yang paling lama menunggu ditampilkan lebih dulu.</CardDescription></div>
                         </div>
                     </CardHeader>
                     <VisitTable visits={visits.data} />
                     <Pagination pagination={visits} />
-                    <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/screening">Lihat antrean pengkajian</Link></Button></div>
+                    <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/screening">Antrean pengkajian</Link></Button><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/tindakan-perawat">Antrean tindakan</Link></Button></div>
                 </Card>
             </div>
         </>
@@ -101,8 +101,8 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
 }
 
 function QuickLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
-    return <Button asChild className="h-auto justify-start gap-3 py-3" variant="secondary">
-        <Link href={href}>{icon}<span>{label}</span></Link>
+    return <Button asChild className="group h-auto w-full justify-start gap-3 py-3" variant="secondary">
+        <Link href={href}>{icon}<span>{label}</span><ArrowRight aria-hidden="true" className="ml-auto size-4 shrink-0 text-neutral-500 transition-transform group-hover:translate-x-0.5" /></Link>
     </Button>;
 }
 

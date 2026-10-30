@@ -22,13 +22,16 @@ after(async () => { await server?.close(); });
 
 async function renderPage(path, props, url = '/pendaftaran') {
     const pageDefaults = {
-        'pelayanan/screening/index': { serviceName: 'Poli Umum', stats: { total: 0, waiting: 0, inProgress: 0, submitted: 0 }, todayVisits: pageOf([]), visits: pageOf([]) },
+        'pelayanan/screening/index': { serviceName: 'Poli Umum', stats: { total: 0, waiting: 0, submitted: 0, allPending: 0 }, todayVisits: pageOf([]), visits: pageOf([]) },
         'perawat/dashboard': { schedules: [], clinicName: 'Poli Umum' },
         'pelayanan/pemeriksaan/index': { filters: { search: '', tanggal: '' }, stats: { total: 0, waiting: 0, inProgress: 0, completed: 0 } },
         'dokter/appointments': { stats: { total: 0, today: 0, waiting: 0, completed: 0 } },
         'pendaftaran/dashboard': { schedules: [], visits: pageOf([]) },
     };
     props = { ...pageDefaults[path], ...props };
+    if (path === 'pelayanan/screening/show' && props.visit) {
+        props.visit = { examinationStarted: false, editable: true, submitted: false, ...props.visit };
+    }
     const { default: Component } = await server.ssrLoadModule(`/resources/js/pages/${path}.tsx`);
     const result = await createInertiaApp({
         page: { component: path, props: { errors: {}, ...props }, url, version: null, clearHistory: false, encryptHistory: false },
@@ -70,8 +73,8 @@ for (const clinicType of ['umum', 'gigi']) {
         });
         assert.match(html, /id="section-ringkas"/);
         const assessment = html.slice(html.indexOf('id="section-ringkas"'));
-        assert.ok(assessment.indexOf('Anamnesis dasar') < assessment.indexOf('Riwayat alergi dan kesehatan'));
-        assert.ok(assessment.indexOf('Riwayat alergi dan kesehatan') < assessment.indexOf('Pemeriksaan umum · tanda vital'));
+        assert.ok(assessment.indexOf('Keluhan dan informasi pasien') < assessment.indexOf('Alergi dan riwayat kesehatan'));
+        assert.ok(assessment.indexOf('Alergi dan riwayat kesehatan') < assessment.indexOf('Tanda vital'));
         assert.match(html, /id="berat_badan"/);
         assert.match(html, /id="tinggi_badan"/);
         assert.match(html, /id="lama_keluhan"/);
@@ -93,10 +96,10 @@ for (const clinicType of ['umum', 'gigi']) {
         assert.match(html, /id="suhu"/);
         assert.match(html, /id="catatan_triase"[^>]*>/, 'the optional triage note should be available in compact mode');
         assert.match(html, /id="triage-quick-normal-compact"[^>]*aria-checked="false"|aria-checked="false"[^>]*id="triage-quick-normal-compact"/, 'quick normal screening starts unchecked');
-        assert.match(html, /Semua indikator penapisan normal setelah dinilai/);
+        assert.match(html, /Semua jawaban kondisi awal normal setelah diperiksa/);
         assert.doesNotMatch(html, /<label[^>]*rounded-lg border[^>]*for="triage-quick-normal-compact"/);
         assert.ok(html.indexOf('id="catatan_triase"') < html.indexOf('id="triage-quick-normal-compact"'), 'quick normal checkbox follows the screening fields');
-        assert.match(html, /Catatan penapisan \/ komunikasi kepada dokter/);
+        assert.match(html, /Catatan untuk dokter/);
         assert.match(html, /min-w-0 xl:col-span-2/, 'the triage note should fill the two columns beside the final triage item');
         assert.match(html, /id="td_sistole"/);
         assert.match(html, /Tekanan darah \(mmHg\)/);
@@ -107,8 +110,8 @@ for (const clinicType of ['umum', 'gigi']) {
         assert.match(html, /grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4/, 'vital signs should use the same four-column wide layout as anthropometry');
         assert.doesNotMatch(html, /rounded-lg border border-neutral-200 bg-neutral-50\/50 p-3 sm:col-start-2 xl:col-start-2/, 'the last triage card should stay at the start of its row');
         assert.match(html, /id="section-attachments"/);
-        assert.match(html, /Lampiran pasien/);
-        assert.match(html, /Opsional\. Kosong berarti belum dinilai, bukan hasil normal\./);
+        assert.match(html, /Berkas pendukung/);
+        assert.match(html, /Jawaban kosong berarti belum dinilai/);
         assert.doesNotMatch(html, /Buka semua|Tutup semua|Alasan TTV \/ antropometri belum lengkap/);
         assert.match(html, /id="status_alergi-ada"/);
         assert.match(html, /id="status_riwayat_penyakit-ada"/);
@@ -196,8 +199,8 @@ test('nurse queue labels saved draft as in progress rather than completed screen
     });
     assert.match(html, /Pengkajian awal berlangsung/);
     assert.match(html, /Lanjutkan pengkajian/);
-    assert.doesNotMatch(html, /Pengkajian selesai/);
-    assert.match(html, /Siap dikaji hari ini/);
+    assert.doesNotMatch(html, />Selesai<\/span>/);
+    assert.match(html, /Menunggu pengkajian hari ini/);
     assert.match(html, /Daftar kunjungan pasien/);
     assert.doesNotMatch(html, /Pengkajian saya/);
     assert.match(html, /id="screening-queue-search"/);
@@ -238,8 +241,10 @@ test('nursing procedures show today and all visits with pending and completed ac
         stats: { todayTotal: 1, todayPending: 1, todayCompleted: 0, allPending: 1 },
         filters: { search: '', tanggal: '', status: '' }, todayVisits: pageOf([pending]), visits: pageOf([pending, completed]),
     });
-    assert.match(html, /Kunjungan hari ini/);
-    assert.match(html, /Siap ditindak hari ini/);
+    assert.match(html, /Kunjungan poli hari ini/);
+    assert.match(html, /Menunggu tindakan hari ini/);
+    assert.match(html, /href="\/perawat\/laporan-tindakan"[^>]*>[\s\S]*?Laporan tindakan/);
+    assert.match(html, /Tindakan tertunda/);
     assert.match(html, /Daftar kunjungan pasien/);
     assert.match(html, /Pasien Sebelumnya/);
     assert.match(html, /aria-label="Lihat pelaksanaan"/);
@@ -252,6 +257,28 @@ test('nursing procedures show today and all visits with pending and completed ac
     assert.match(html, />1(?:<!-- -->)? selesai<\/p>/);
     assert.doesNotMatch(html, /Total (?:<!-- -->)?1|Belum dimulai<\/p>/);
     assert.match(html, />Selesai<\/span>/);
+});
+
+test('nursing procedure report has filter actions and prints the complete filtered result', async () => {
+    const common = {
+        title: 'Laporan tindakan perawat', clinicName: 'Poli Umum',
+        filters: { dari: '2026-10-01', sampai: '2026-10-29', search: 'Pasien Uji', status: 'completed' },
+        stats: { total: 1, visits: 1, pending: 0, completed: 1 },
+        procedures: pageOf([{ id: 1, date: '29/10/2026', visitNumber: 'K-001', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', doctor: 'Dokter Uji', name: 'Perawatan luka', code: '93.57', quantity: 1, tooth: null, instructions: 'Ikuti instruksi dokter', status: 'completed', result: 'Pasien nyaman setelah tindakan', performedBy: 'Perawat Uji', performedAt: '29/10/2026 09:00', visitUrl: '/pelayanan/tindakan-perawat/1' }]),
+        exportUrl: '/perawat/laporan-tindakan/export?status=completed', printUrl: '/perawat/laporan-tindakan/cetak?status=completed', printMode: false,
+    };
+    const report = await renderPage('pelayanan/tindakan/report', common);
+    assert.match(report, /Laporan tindakan perawat/);
+    assert.match(report, /Periode tanggal kunjungan/);
+    assert.match(report, /Cetak laporan/);
+    assert.match(report, /Ekspor Excel/);
+    assert.match(report, /Pasien nyaman setelah tindakan/);
+
+    const print = await renderPage('pelayanan/tindakan/report', { ...common, printMode: true, printUrl: null, exportUrl: null, procedures: { data: common.procedures.data, total: 1 } });
+    assert.match(print, /Kembali ke laporan tindakan/);
+    assert.match(print, /Cetak laporan/);
+    assert.match(print, /Pasien nyaman setelah tindakan/);
+    assert.doesNotMatch(print, /Terapkan filter|Ekspor Excel/);
 });
 
 test('started examination appears in nurse treatment queue without an actionable link', async () => {
@@ -277,13 +304,14 @@ test('nurse sees an ongoing treatment while other roles see the pending handoff'
 
 test('screening report keeps the assessment summary out of the compact table', async () => {
     const html = await renderPage('pelayanan/screening/history', {
-        filters: { search: '', tanggal: '', poliklinikId: '' }, canSelectClinic: false, clinics: [], screenings: pageOf([{ id: 1, date: '29/10/2026', visitNumber: 'K-001', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', staff: 'Perawat Uji', triage: 'hijau', priority: 'normal', visitUrl: '/pelayanan/kunjungan/1', printUrl: '/pelayanan/screening/1/cetak', isDraft: false }]),
+        filters: { search: '', tanggal: '', poliklinikId: '' }, canSelectClinic: false, clinics: [], screenings: pageOf([{ id: 1, date: '29/10/2026', visitNumber: 'K-001', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', staff: 'Perawat Uji', triage: 'hijau', priority: 'normal', visitUrl: '/pelayanan/kunjungan/1', printUrl: '/pelayanan/screening/1/cetak', editUrl: '/pelayanan/screening/1', isDraft: false }]),
         isReport: true, serviceName: 'Poli Umum', exportUrl: null,
     });
     assert.match(html, /Laporan pengkajian/);
     assert.doesNotMatch(html, /Ringkasan pengkajian/);
     assert.match(html, /Pasien Uji/);
     assert.match(html, /Cetak pengkajian/);
+    assert.match(html, /aria-label="Perbarui pengkajian"/);
 });
 
 test('dashboard queues clarify each workflow and center headers, cells, and status badges', async () => {
@@ -349,6 +377,18 @@ test('dashboard summaries and day bars navigate to their related menus', async (
     assert.match(nurseDashboard, /08:00[\s\S]*?–[\s\S]*?12:00/);
     assert.match(nurseDashboard, /aria-label="Jadwal praktik hari ini di Poli Gigi\. Lihat jadwal"/);
     assert.match(nurseDashboard, /flex min-h-32 items-center justify-between gap-4 p-5 sm:p-6/);
+    for (const [href, label] of [
+        ['/pelayanan/screening', 'Pengkajian awal'],
+        ['/pelayanan/tindakan-perawat', 'Tindakan perawat'],
+        ['/pendaftaran/kunjungan-per-poli', 'Kunjungan poli'],
+        ['/pendaftaran/database-pasien', 'Database pasien'],
+    ]) {
+        assert.match(nurseDashboard, new RegExp(`href="${href}"[\\s\\S]*?${label}`));
+    }
+    assert.equal((nurseDashboard.match(/lucide-arrow-right/g) ?? []).length, 4);
+    assert.doesNotMatch(nurseDashboard, /Laporan tindakan/);
+    assert.doesNotMatch(nurseDashboard, /Lihat antrean pengkajian/);
+    assert.match(nurseDashboard, /<th[^>]*>Aksi<\/th>/);
 
     const activeTreatment = await renderPage('perawat/dashboard', {
         clinicName: 'Poli Gigi', schedules: [], followUp: { upcoming: 0, overdue: 0, href: '/pelayanan/screening' },
@@ -357,6 +397,7 @@ test('dashboard summaries and day bars navigate to their related menus', async (
     });
     const activeTreatmentTable = activeTreatment.match(/<table\b[\s\S]*?<\/table>/)?.[0];
     assert.match(activeTreatmentTable, /Tindakan berlangsung/);
+    assert.match(activeTreatmentTable, /Belum ditentukan/);
     assert.match(activeTreatmentTable, /aria-label="Lanjutkan tindakan"[^>]*href="\/pelayanan\/tindakan-perawat\/1#pelaksanaan-tindakan"/);
     assertIconActions(activeTreatmentTable, 1);
 });
@@ -389,7 +430,11 @@ test('shared waiting and completed codes retain their pharmacy and laboratory me
     ]) {
         const html = renderToString(createElement(StatusBadge, { context, status }));
         assert.ok(html.includes(`>${label}</span>`), `${context}: ${status}`);
+        assert.match(html, /bg-neutral-100 text-neutral-700/, `${context}: ${status} uses the neutral status style`);
+        assert.doesNotMatch(html, /bg-(?:blue|violet|orange|emerald)-50/, `${context}: ${status} avoids decorative colors`);
     }
+    const cancelled = renderToString(createElement(StatusBadge, { status: 'batal' }));
+    assert.match(cancelled, /bg-red-50/, 'cancellation remains a clear warning');
     const reservation = renderToString(createElement(StatusBadge, { status: 'menunggu', reservation: true }));
     assert.match(reservation, />Reservasi</);
     assert.doesNotMatch(reservation, /Menunggu pengkajian awal/);
@@ -847,6 +892,15 @@ test('service detail resumes an unfinished assessment and shows a neutral negati
     assert.doesNotMatch(html, /bg-red-50|>Mulai pengkajian awal</);
 });
 
+test('service detail offers submitted assessment updates before the doctor starts', async () => {
+    const html = await renderPage('pelayanan/kunjungan/show', {
+        visit: { ...visitDetail, status: 'pemeriksaan', screeningSubmitted: true },
+        permissions: { editVisit: false, viewRme: true, processScreening: true }, backUrl: '/perawat/dashboard',
+        links: { edit: null, patient: '/pelayanan/pasien/7', screening: '/pelayanan/screening/42', medicalRecord: '/pelayanan/pasien/7/rekam-medis' },
+    });
+    assert.match(html, /Perbarui pengkajian awal/);
+});
+
 for (const [name, controlProps] of [
     ['Input', {}], ['Textarea', {}], ['Select', { value: '' }], ['DatePicker', { value: '' }], ['DateRangePicker', { from: '', to: '', onChange: () => {} }],
 ]) {
@@ -923,78 +977,22 @@ for (const page of ['index', 'history']) {
     });
 }
 
-function printThemePage({ savedTheme = null, prefersDark = false, storageBlocked = false } = {}) {
-    const template = readFileSync(new URL('../resources/views/screening/print.blade.php', import.meta.url), 'utf8');
-    const script = template.match(/<script>([\s\S]*?)<\/script>/)?.[1];
-    assert.ok(script);
-    const elements = new Map();
-    const events = new Map();
-    const stored = new Map(savedTheme ? [['clinic-theme', savedTheme]] : []);
-    function element() {
-        const classes = new Set();
-        const attributes = new Map();
-        const listeners = new Map();
-        return {
-            attributes, listeners,
-            classList: {
-                toggle(name, enabled) { const next = enabled ?? !classes.has(name); if (next) { classes.add(name); } else { classes.delete(name); } return next; },
-                contains(name) { return classes.has(name); },
-            },
-            setAttribute(name, value) { attributes.set(name, value); },
-            addEventListener(name, listener) { listeners.set(name, listener); },
-        };
-    }
-    const root = element();
-    const system = { matches: prefersDark, addEventListener(name, listener) { events.set('system:' + name, listener); } };
-    const storage = { getItem(key) { if (storageBlocked) { throw new Error('Storage blocked'); } return stored.get(key) ?? null; }, setItem(key, value) { if (storageBlocked) { throw new Error('Storage blocked'); } stored.set(key, value); } };
-    runInNewContext(script, {
-        document: { documentElement: root, getElementById(id) { return elements.get(id); }, addEventListener(name, listener) { events.set('document:' + name, listener); } },
-        window: { localStorage: storage, matchMedia() { return system; }, addEventListener(name, listener) { events.set('window:' + name, listener); } },
-    });
-    const initialDark = root.classList.contains('dark');
-    for (const id of ['themeToggleBtn', 'sunIcon', 'moonIcon']) { elements.set(id, element()); }
-    events.get('document:DOMContentLoaded')();
-    return { root, initialDark, elements, events, stored, system, click: () => elements.get('themeToggleBtn').listeners.get('click')() };
-}
-
-for (const [savedTheme, prefersDark, expectedDark] of [['dark', false, true], ['light', true, false], [null, true, true], [null, false, false]]) {
-    test('print header honors saved theme ' + (savedTheme ?? 'system') + ' before rendering with OS dark ' + prefersDark, () => {
-        const page = printThemePage({ savedTheme, prefersDark });
-        assert.equal(page.initialDark, expectedDark);
-        assert.equal(page.root.classList.contains('dark'), expectedDark);
-        assert.equal(page.elements.get('themeToggleBtn').attributes.get('aria-pressed'), String(expectedDark));
-        assert.equal(page.elements.get('themeToggleBtn').attributes.get('aria-label'), expectedDark ? 'Aktifkan tema terang' : 'Aktifkan tema gelap');
-        assert.equal(page.elements.get('sunIcon').classList.contains('hidden'), !expectedDark);
-        assert.equal(page.elements.get('moonIcon').classList.contains('hidden'), expectedDark);
-    });
-}
-
-test('print header toggle persists selection and remains usable when storage is blocked', () => {
-    for (const storageBlocked of [false, true]) {
-        const page = printThemePage({ storageBlocked });
-        page.click();
-        assert.equal(page.root.classList.contains('dark'), true);
-        assert.equal(page.elements.get('themeToggleBtn').attributes.get('title'), 'Aktifkan tema terang');
-        if (!storageBlocked) { assert.equal(page.stored.get('clinic-theme'), 'dark'); }
-        page.click();
-        assert.equal(page.root.classList.contains('dark'), false);
-        assert.equal(page.elements.get('themeToggleBtn').attributes.get('aria-pressed'), 'false');
-    }
-});
-
-test('print header follows system changes until an explicit theme is chosen and synchronizes other tabs', () => {
-    const page = printThemePage();
-    page.system.matches = true;
-    page.events.get('system:change')();
-    assert.equal(page.root.classList.contains('dark'), true);
-    page.click();
-    page.events.get('system:change')();
-    assert.equal(page.root.classList.contains('dark'), false);
-    page.events.get('window:storage')({ key: 'clinic-theme', newValue: 'dark' });
-    assert.equal(page.root.classList.contains('dark'), true);
-    page.system.matches = false;
-    page.events.get('window:storage')({ key: null, newValue: null });
-    assert.equal(page.root.classList.contains('dark'), false);
+test('screening print returns to the nurse assessment queue and follows the shared correspondence document layout', async () => {
+    const html = await renderPage('pelayanan/screening/print', { document: {
+        clinic: { name: 'Klinik Uji', address: 'Jl. Contoh', phone: '021123', email: 'klinik@example.test', logoUrl: null },
+        patient: { name: 'Pasien Uji', medicalRecordNumber: 'RM-007', gender: 'P', age: 30, address: null },
+        visitNumber: 'K-007', clinicName: 'Poli Umum', clinicType: 'umum', doctorName: 'Dokter Uji', nurseName: 'Perawat Uji',
+        visitStatus: 'pemeriksaan', isDraft: false, startedAt: '24/10/2026 09:00', submittedAt: '24/10/2026 09:10',
+        printDate: '24 Oktober 2026', printedAt: '24/10/2026 09:15', signatureDataUrl: null, backUrl: '/pelayanan/screening',
+        sections: { history: { 'Keluhan utama': 'Demam sejak kemarin' }, vitals: { 'Suhu tubuh': '38 °C' }, measurements: {}, measurementNote: null, triage: {}, dental: {}, additional: {} },
+    } });
+    assert.match(html, /href="\/pelayanan\/screening"[^>]*>[\s\S]*?Kembali ke pengkajian awal/);
+    assert.match(html, /Cetak dokumen/);
+    assert.match(html, /Klinik Uji/);
+    assert.match(html, /Pengkajian Awal Perawat &amp; Tanda-Tanda Vital/);
+    assert.match(html, /Demam sejak kemarin/);
+    assert.doesNotMatch(html, /Pengkajian saya/);
+    assert.doesNotMatch(html, /Pengkajian Khusus Gigi dan Mulut/);
 });
 
 function examinationProps(clinicType = 'gigi', overrides = {}) {
@@ -1181,8 +1179,8 @@ async function renderRoleNavigation(role, url, clinicType = null) {
 for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
     ['admin', null, '/', '/pelayanan/kunjungan', ['Ringkasan', 'Operasional', 'Data Master', 'Pengelolaan', 'Laporan', 'Akun'], 18],
     ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 9],
-    ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 9],
-    ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 9],
+    ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 10],
+    ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 10],
     ['dokter', 'umum', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 10],
     ['dokter', 'gigi', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 10],
     ['farmasi', null, '/farmasi/dashboard', '/pelayanan/farmasi', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Akun'], 4],
@@ -2643,11 +2641,12 @@ for (const hasMedication of [true, false]) {
         const html = await renderPage('pelayanan/tindakan/show', { visit });
         assert.match(html, /mx-auto max-w-5xl space-y-6/);
         assert.match(html, /href="\/pelayanan\/tindakan-perawat"[^>]*>[\s\S]*?Kembali<\/a>/);
-        assert.match(html, /Belum diketahui; konfirmasi sebelum tindakan/);
+        assert.match(html, /href="\/perawat\/laporan-tindakan\/cetak\?search=K-CARE"[^>]*target="_blank"[^>]*>[\s\S]*?Cetak tindakan/);
+        assert.match(html, /Belum diketahui; konfirmasi bersama pasien sebelum tindakan/);
         assert.match(html, /Latihan sesuai toleransi/);
         assert.match(html, />Mulai tindakan<\/button>/);
         assert.doesNotMatch(html, /Hasil pelaksanaan dan respons pasien|<textarea/);
-        assert.match(html, hasMedication ? /pasien diteruskan ke farmasi/ : /kunjungan selesai dan pasien dapat pulang/);
+        assert.match(html, hasMedication ? /pasien melanjutkan ke farmasi/ : /kunjungan berakhir dan pasien dapat pulang/);
 
         const started = await renderPage('pelayanan/tindakan/show', { visit: { ...visit, treatmentStartedAt: '29/10/2026 09:00' } });
         assert.match(started, /Hasil pelaksanaan dan respons pasien/);

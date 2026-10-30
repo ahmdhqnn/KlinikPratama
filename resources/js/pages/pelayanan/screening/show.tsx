@@ -44,7 +44,7 @@ const assessmentPlaceholders = {
 type Option = [string, string];
 interface Visit {
     attachments?: ClinicalAttachment[]; attachmentUploadUrl?: string;
-    id: number; number: string; status: string; clinic: string; clinicType: 'umum' | 'gigi'; doctor: string;
+    id: number; number: string; status: string; examinationStarted: boolean; editable: boolean; submitted: boolean; clinic: string; clinicType: 'umum' | 'gigi'; doctor: string;
     patient: { name: string; medicalRecordNumber: string; gender: string | null; age: number | null; bloodType: string | null; allergyHistory: string | null };
     screening: Record<string, string | number | string[] | null>;
     triage: string | null; priority: string | null; printUrl: string | null; startedAt: string | null;
@@ -81,7 +81,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     const [mode, setMode] = useState('ringkas');
     const errorSummary = useRef<HTMLDivElement>(null);
     const isDental = visit.clinicType === 'gigi';
-    const editable = ['menunggu', 'screening'].includes(visit.status);
+    const editable = visit.editable;
     const bmi = Number(form.data.berat_badan) > 0 && Number(form.data.tinggi_badan) > 0 ? (Number(form.data.berat_badan) / (Number(form.data.tinggi_badan) / 100) ** 2).toFixed(2) : null;
     const emergency = form.data.nyeri_dada === 'ya' || form.data.kejang === 'ya' || form.data.nadi_teraba === 'tidak_teraba' || form.data.kesadaran === 'tidak_sadar' || form.data.pola_pernapasan === 'tidak_normal';
     const priority = form.data.kesadaran === 'menurun' || form.data.kondisi_psikiatri === 'terganggu' || ['sedang', 'tinggi'].includes(form.data.risiko_jatuh_visual);
@@ -92,7 +92,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     const responseLabel = triage === 'merah' ? 'Merah · perlu respons segera' : triage === 'kuning' ? 'Kuning · perlu penilaian lanjut' : 'Hijau · prioritas rutin';
     const quickNormalTriage = (id: string) => <label className={`flex items-center gap-2 text-sm leading-6 ${triageHasAbnormal ? 'cursor-not-allowed text-neutral-400' : 'cursor-pointer text-neutral-700'}`} htmlFor={id}>
         <Checkbox checked={triageAnswersNormal} className="shrink-0" disabled={triageHasAbnormal} id={id} onCheckedChange={(checked) => form.setData((data) => ({ ...data, ...quickNormalTriagePatch(checked === true) }))} />
-        <span>Semua indikator penapisan normal setelah dinilai{triageHasAbnormal && <span className="text-neutral-500"> · ada temuan tidak normal</span>}</span>
+        <span>Semua jawaban kondisi awal normal setelah diperiksa{triageHasAbnormal && <span className="text-neutral-500"> · ada temuan tidak normal</span>}</span>
     </label>;
     const update = (name: ScalarField, value: string) => form.setData((data) => ({ ...data, [name]: value, ...(['status_alergi', 'riwayat_alergi', 'alergi_jenis', 'alergi_reaksi', 'status_riwayat_penyakit', 'riwayat_penyakit', 'penyakit_nama', 'penyakit_keterangan', 'riwayat_obat', 'riwayat_penyakit_keluarga'].includes(name) ? { konfirmasi_riwayat: false } : {}) }));
     const allSections = (open: boolean) => setExpanded(Object.fromEntries(sections.map((key) => [key, open])) as Record<Section, boolean>);
@@ -164,7 +164,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         onToggle={() => setExpanded((state) => ({ ...state, ringkas: !state.ringkas }))}
     >
         <section className="space-y-4">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Anamnesis dasar</h4><p className="mt-1 text-xs text-neutral-500">Keluhan, lama keluhan, dan sumber informasi.</p></div>
+            <div><h4 className="text-sm font-semibold text-neutral-900">Keluhan dan informasi pasien</h4><p className="mt-1 text-xs text-neutral-500">Catat keluhan, lama keluhan, dan siapa yang menyampaikan informasi.</p></div>
             <div className="grid min-w-0 gap-4 md:grid-cols-2">
                 <div className="min-w-0 md:col-span-2">{text('keluhan', 'Keluhan utama / alasan kunjungan', true, true)}</div>
                 {text('keluhan_tambahan', 'Keluhan tambahan', false, true)}{text('lama_keluhan', 'Sejak kapan / lama keluhan', true)}
@@ -176,45 +176,45 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
             </div>
         </section>
         <section className="space-y-4 border-t border-neutral-100 pt-5">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Riwayat alergi dan kesehatan</h4><p className="mt-1 text-xs text-neutral-500">Riwayat dari kunjungan sebelumnya dapat diperbarui. Konfirmasi kembali dengan pasien sebelum meneruskan ke dokter.</p></div>
+            <div><h4 className="text-sm font-semibold text-neutral-900">Alergi dan riwayat kesehatan</h4><p className="mt-1 text-xs text-neutral-500">Periksa kembali informasi sebelumnya bersama pasien sebelum dikirim ke dokter.</p></div>
             <div className="space-y-4">
                 {single('status_alergi', 'Status riwayat alergi', historyOptions)}
                 {form.data.status_alergi === 'ada' && <div className="grid min-w-0 gap-4 md:grid-cols-2"><div className="min-w-0 col-span-full">{text('riwayat_alergi', 'Rincian alergi obat / makanan / lainnya', true, true)}</div>{text('alergi_reaksi', 'Reaksi alergi', false, true)}{text('alergi_jenis', 'Jenis / pemicu alergi')}</div>}
             </div>
             <div className="space-y-4 border-t border-neutral-100 pt-5">
-                {single('status_riwayat_penyakit', 'Status riwayat penyakit sistemik', historyOptions)}
-                {(form.data.status_riwayat_penyakit === 'ada' || showOptional('riwayat_penyakit', 'riwayat_obat', 'penyakit_nama', 'penyakit_keterangan')) && <div className="grid min-w-0 gap-4 md:grid-cols-2"><div className="min-w-0 col-span-full">{text('riwayat_penyakit', 'Riwayat penyakit sistemik', form.data.status_riwayat_penyakit === 'ada', true)}</div>{text('riwayat_obat', 'Obat rutin / sedang digunakan', false, true)}{text('penyakit_nama', 'Nama penyakit spesifik')}{text('penyakit_keterangan', 'Keterangan riwayat penyakit', false, true)}</div>}
+                {single('status_riwayat_penyakit', 'Riwayat penyakit yang pernah atau sedang dialami', historyOptions)}
+                {(form.data.status_riwayat_penyakit === 'ada' || showOptional('riwayat_penyakit', 'riwayat_obat', 'penyakit_nama', 'penyakit_keterangan')) && <div className="grid min-w-0 gap-4 md:grid-cols-2"><div className="min-w-0 col-span-full">{text('riwayat_penyakit', 'Riwayat penyakit yang pernah atau sedang dialami', form.data.status_riwayat_penyakit === 'ada', true)}</div>{text('riwayat_obat', 'Obat rutin / sedang digunakan', false, true)}{text('penyakit_nama', 'Nama penyakit spesifik')}{text('penyakit_keterangan', 'Keterangan riwayat penyakit', false, true)}</div>}
             </div>
             {!isDental && historyConfirmation}
         </section>
         <section className="space-y-4 border-t border-neutral-100 pt-5">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Pemeriksaan umum · tanda vital</h4><p className="mt-1 text-xs text-neutral-500">Catat hasil pengukuran, bukan perkiraan.</p></div>
+            <div><h4 className="text-sm font-semibold text-neutral-900">Tanda vital</h4><p className="mt-1 text-xs text-neutral-500">Isi berdasarkan hasil pengukuran.</p></div>
             <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {bloodPressure()}{numeric('nadi', 'Denyut nadi', 'kali/menit', true)}
                 {numeric('suhu', 'Suhu tubuh', '°C', true, '0.1', 45)}{numeric('respirasi', 'Frekuensi napas', 'kali/menit', true, '1', 100)}{numeric('spo2', 'Saturasi oksigen', '%', false, '1', 100)}
             </div>
         </section>
         <section className="space-y-4 border-t border-neutral-100 pt-5">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Antropometri</h4><p className="mt-1 text-xs text-neutral-500">Opsional: berat badan, tinggi badan, dan lingkar perut.</p></div>
+            <div><h4 className="text-sm font-semibold text-neutral-900">Berat, tinggi, dan lingkar perut</h4><p className="mt-1 text-xs text-neutral-500">Isi bila pengukuran tersedia.</p></div>
             {anthropometry}
         </section>
         {isDental && <section className="space-y-4 border-t border-neutral-100 pt-5" aria-label="Pengkajian khusus gigi dan mulut">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Pengkajian khusus gigi & mulut</h4><p className="mt-1 text-xs text-neutral-500">Catat keluhan gigi, risiko medis, dan informasi yang perlu diteruskan kepada dokter gigi.</p></div>
+            <div><h4 className="text-sm font-semibold text-neutral-900">Pengkajian khusus gigi & mulut</h4><p className="mt-1 text-xs text-neutral-500">Catat keluhan gigi, kondisi kesehatan, dan informasi untuk dokter gigi.</p></div>
             {dentalAssessment}
         </section>}
         <section className="space-y-4 border-t border-neutral-100 pt-5">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Penapisan cepat</h4><p className="mt-1 text-xs text-neutral-500">Opsional. Kosong berarti belum dinilai, bukan hasil normal.</p></div>
+            <div><h4 className="text-sm font-semibold text-neutral-900">Pemeriksaan kondisi awal</h4><p className="mt-1 text-xs text-neutral-500">Isi sesuai kondisi pasien. Jawaban kosong berarti belum dinilai.</p></div>
             <div className="grid min-w-0 items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {triageFields.map((field) => <div key={field.name} className="min-w-0 rounded-lg border border-neutral-200 bg-neutral-50/50 p-3">{single(field.name, field.label, field.options, false)}</div>)}
-                <div className="min-w-0 xl:col-span-2">{text('catatan_triase', 'Catatan penapisan / komunikasi kepada dokter', false, true, true)}</div>
+                <div className="min-w-0 xl:col-span-2">{text('catatan_triase', 'Catatan untuk dokter', false, true, true)}</div>
             </div>
             {quickNormalTriage('triage-quick-normal-compact')}
             {triage && <div role="status" className={`rounded-lg border p-3 text-sm ${triage === 'merah' ? 'border-red-200 bg-red-50 text-red-900' : triage === 'kuning' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}><strong>Kebutuhan respons awal: {responseLabel}.</strong> {triage === 'merah' ? 'Segera hubungi dokter dan ikuti prosedur kegawatdaruratan klinik; jangan menunda pertolongan untuk melengkapi formulir.' : 'Gunakan hasil ini sebagai informasi awal dan tetap ikuti penilaian klinis serta prosedur klinik.'}</div>}
         </section>
     </AssessmentSection>;
     return <><Head title={`Pengkajian awal ${isDental ? 'gigi' : 'umum'} - ${visit.patient.name}`} />
-        <form className="mx-auto max-w-6xl space-y-5" noValidate onSubmit={submit}>
-            <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <form className="mx-auto max-w-5xl space-y-6" noValidate onSubmit={submit}>
+            <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div className="min-w-0">
                     <p className="text-sm font-medium text-neutral-500">{visit.clinic}</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pengkajian awal {isDental ? 'gigi dan mulut' : 'poli umum'}</h2>
@@ -237,7 +237,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                                 <p className="mt-1 break-words text-sm text-neutral-600">No. RM <span className="font-medium tabular-nums">{visit.patient.medicalRecordNumber}</span></p>
                             </div>
                         </div>
-                        <div className="shrink-0 self-start sm:self-center"><StatusBadge context="nurse" status={visit.status} /></div>
+                        <div className="shrink-0 self-start sm:self-center"><StatusBadge context="nurse" examinationStarted={visit.examinationStarted} status={visit.status} /></div>
                     </div>
                     <dl className="grid grid-cols-2 gap-x-5 gap-y-4 border-t border-neutral-100 bg-neutral-50/60 px-5 py-4 sm:grid-cols-3 sm:px-6">
                         <ProfileDetail label="Jenis kelamin">{visit.patient.gender === 'L' ? 'Laki-laki' : visit.patient.gender === 'P' ? 'Perempuan' : 'Belum dicatat'}</ProfileDetail>
@@ -264,6 +264,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                     </div>
                 </CardContent>
             </Card>
+            {visit.submitted && <div role="status" className="rounded-xl border border-neutral-200 bg-neutral-100 p-4 text-sm text-neutral-800"><strong>Pengkajian sudah dikirim.</strong> Dokter belum memulai pemeriksaan, jadi Anda masih dapat memperbarui catatan ini.</div>}
             {visit.patient.allergyHistory && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><strong>Riwayat alergi tersimpan:</strong> {visit.patient.allergyHistory}<p className="mt-1 text-xs">Konfirmasi kembali dengan pasien. Riwayat sebelumnya tetap tersedia untuk membantu pengkajian.</p></div>}
             {Object.keys(form.errors).length > 0 && <div ref={errorSummary} tabIndex={-1} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><strong>Pengkajian belum dapat disimpan.</strong><ul className="mt-2 list-inside list-disc">{Object.entries(form.errors).map(([name, error]) => <li key={name}>{error}</li>)}</ul></div>}
             <Tabs value={mode} onValueChange={setMode} className="space-y-4">
@@ -271,7 +272,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                     <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                         <div>
                             <h3 className="text-sm font-semibold text-neutral-900">Pengkajian pasien</h3>
-                            <p className="mt-1 text-xs leading-5 text-neutral-500"><span className="font-semibold text-red-600">*</span> Isian bertanda wajib dilengkapi sebelum dikirim ke dokter.</p>
+                    <p className="mt-1 text-xs leading-5 text-neutral-500"><span className="font-semibold text-red-600">*</span> Lengkapi isian bertanda wajib sebelum mengirim pengkajian.</p>
                         </div>
                     </div>
                     <TabsList aria-label="Tingkat detail pengkajian" className="mt-3 px-2 sm:px-3">
@@ -279,14 +280,14 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                         <TabsTrigger aria-controls="screening-assessment" value="lengkap">Lengkap</TabsTrigger>
                     </TabsList>
                     <p className="px-4 py-3 text-xs leading-5 text-neutral-500 sm:px-5">
-                        {mode === 'ringkas' ? 'Isian inti pengkajian awal pasien.' : 'Seluruh isian pengkajian awal dan informasi tambahan.'}
+                        {mode === 'ringkas' ? 'Isian utama untuk pengkajian pasien.' : 'Isian tambahan sesuai kebutuhan pasien.'}
                     </p>
                 </div>
                 <TabsContent id="screening-assessment" value={mode} className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400">
                 <fieldset disabled={!editable || form.processing || starting} className="min-w-0 space-y-4">
                 {mode === 'ringkas' && compactAssessment}
                 {mode === 'lengkap' && <>
-                {section('complaint', '1. Anamnesis dasar', 'Keluhan dan sumber informasi pasien.', <>
+                {section('complaint', '1. Keluhan dan informasi pasien', 'Catat keluhan, lama keluhan, dan siapa yang menyampaikan informasi.', <>
                     <div className="grid min-w-0 gap-4 md:grid-cols-2">
                         <div className="min-w-0 md:col-span-2">{text('keluhan', 'Keluhan utama / alasan kunjungan', true, true)}</div>
                         {showOptional('keluhan_tambahan') && <div className="min-w-0 md:col-span-2">{text('keluhan_tambahan', 'Keluhan tambahan', false, true)}</div>}
@@ -303,7 +304,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                     </div>
                 </>)}
 
-                {section('history', '2. Riwayat alergi dan kesehatan', 'Konfirmasi kembali alergi dan penyakit pada kunjungan ini.', <>
+                {section('history', '2. Alergi dan riwayat kesehatan', 'Tanyakan kembali alergi, penyakit yang pernah dialami, dan obat yang digunakan.', <>
                     <div className="space-y-4">
                         {single('status_alergi', 'Status riwayat alergi', historyOptions)}
                         {form.data.status_alergi === 'ada' && <div className="grid min-w-0 gap-4">
@@ -324,7 +325,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                     {!isDental && historyConfirmation}
                 </>)}
 
-                {section('vitals', '3. Pemeriksaan umum · tanda vital', 'Tekanan darah, nadi, suhu, dan frekuensi napas.', <>
+                {section('vitals', '3. Tanda vital', 'Catat tekanan darah, nadi, suhu, dan frekuensi napas yang sudah diukur.', <>
                     <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
                         {bloodPressure()}
                         {numeric('nadi', 'Denyut nadi', 'kali/menit', true)}
@@ -334,15 +335,15 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                     </div>
                 </>)}
 
-                {section('anthropometry', '4. Antropometri', 'Opsional. Berat badan, tinggi badan, lingkar perut, dan indeks massa tubuh.', anthropometry)}
+                {section('anthropometry', '4. Berat, tinggi, dan lingkar perut', 'Isi bila pengukuran tersedia. Indeks massa tubuh dihitung otomatis.', anthropometry)}
 
                 {isDental && section('dental', '5. Pengkajian khusus gigi & mulut', 'Keluhan gigi dan mulut, risiko medis, serta informasi untuk dokter gigi.', dentalAssessment)}
 
-                {section('triage', `${isDental ? '6' : '5'}. Penapisan cepat`, 'Pilih jawaban sesuai hasil pengkajian. Bagian ini membantu mengenali kebutuhan respons awal.', <>
-                    <p className="text-xs leading-5 text-neutral-500">Opsional. Biarkan kosong bila belum dinilai; jawaban kosong tidak dianggap normal.</p>
+                {section('triage', `${isDental ? '6' : '5'}. Pemeriksaan kondisi awal`, 'Catat temuan yang perlu segera diketahui dokter.', <>
+                    <p className="text-xs leading-5 text-neutral-500">Biarkan kosong bila belum dinilai. Jawaban kosong tidak dianggap normal.</p>
                     <div className="grid min-w-0 items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         {triageFields.map((field) => <div key={field.name} className="min-w-0 rounded-lg border border-neutral-200 bg-neutral-50/50 p-3">{single(field.name, field.label, field.options, false)}</div>)}
-                        <div className="min-w-0 xl:col-span-2">{text('catatan_triase', 'Catatan penapisan / komunikasi kepada dokter', false, true, true)}</div>
+                        <div className="min-w-0 xl:col-span-2">{text('catatan_triase', 'Catatan untuk dokter', false, true, true)}</div>
                     </div>
                     {quickNormalTriage('triage-quick-normal-full')}
                     {triage && <div role="status" className={`rounded-lg border p-3 text-sm ${triage === 'merah' ? 'border-red-200 bg-red-50 text-red-900' : triage === 'kuning' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}><strong>Kebutuhan respons awal: {responseLabel}.</strong> {triage === 'merah' ? 'Segera hubungi dokter dan ikuti prosedur kegawatdaruratan klinik; jangan menunda pertolongan untuk melengkapi formulir.' : 'Gunakan hasil ini sebagai informasi awal dan tetap ikuti penilaian klinis serta prosedur klinik.'}</div>}
@@ -353,11 +354,11 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                 </fieldset>
                 </TabsContent>
             </Tabs>
-            {section('attachments', 'Lampiran pasien', 'Opsional. Hasil lab, surat rujukan, atau riwayat pendukung pemeriksaan.', <VisitAttachments attachments={visit.attachments} uploadUrl={editable ? visit.attachmentUploadUrl : undefined} disabled={form.processing || starting} onPendingChange={setAttachmentPending} />)}
+            {section('attachments', 'Berkas pendukung', 'Tambahkan hasil pemeriksaan atau dokumen lain yang membantu dokter.', <VisitAttachments attachments={visit.attachments} uploadUrl={editable ? visit.attachmentUploadUrl : undefined} disabled={form.processing || starting} onPendingChange={setAttachmentPending} />)}
             <footer className="rounded-xl border border-neutral-200 bg-surface p-4 shadow-sm sm:sticky sm:bottom-3 sm:z-10 sm:p-5">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div className="min-w-0 text-xs leading-5 text-neutral-500" aria-live="polite">
-                        <p>Kirim pengkajian awal kepada dokter untuk ditindaklanjuti.</p>
+                        <p>{visit.submitted ? 'Simpan perubahan pengkajian sebelum dokter memulai pemeriksaan.' : 'Kirim pengkajian awal kepada dokter setelah semua isian wajib lengkap.'}</p>
                         {form.isDirty && <p className="font-medium text-amber-700">Perubahan belum disimpan.</p>}
                         {attachmentPending && <p className="font-medium text-amber-700">Unggah atau batalkan berkas di bagian Lampiran pasien terlebih dahulu.</p>}
                     </div>
@@ -365,11 +366,11 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                         <Button disabled={!visit.printUrl || form.isDirty || form.processing || starting || attachmentPending} onClick={() => visit.printUrl && window.location.assign(visit.printUrl)} title={form.isDirty ? 'Simpan perubahan sebelum mencetak' : !visit.printUrl ? 'Simpan pengkajian sebelum mencetak' : 'Cetak pengkajian tersimpan'} type="button" variant="secondary">
                             <Printer className="size-4" />Cetak pengkajian
                         </Button>
-                        <Button disabled={form.processing || starting || !editable || attachmentPending} onClick={() => save('draf')} type="button" variant="secondary">
+                        {!visit.submitted && <Button disabled={form.processing || starting || !editable || attachmentPending} onClick={() => save('draf')} type="button" variant="secondary">
                             <Save className="size-4" />Simpan draf
-                        </Button>
+                        </Button>}
                         <Button className="col-span-2" disabled={form.processing || starting || !editable || attachmentPending} type="submit">
-                            <ClipboardCheck className="size-4" />{form.processing ? 'Menyimpan…' : 'Simpan & kirim ke dokter'}
+                            <ClipboardCheck className="size-4" />{form.processing ? 'Menyimpan…' : visit.submitted ? 'Simpan perubahan' : 'Simpan & kirim ke dokter'}
                         </Button>
                     </div>
                 </div>

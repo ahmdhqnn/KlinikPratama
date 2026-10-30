@@ -153,7 +153,7 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
                             <Button type="submit"><Search className="size-4" />Cari pasien</Button>
                         </form></FilterPanel>
                 <Card className="overflow-hidden">
-                    <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><UsersRound className="size-5" /></span><div><CardTitle>Pasien terdaftar</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(patients.total)} pasien ditemukan.</CardDescription></div></div></CardHeader>
+                    <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UsersRound className="size-5" /></span><div><CardTitle>Pasien terdaftar</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(patients.total)} pasien ditemukan.</CardDescription></div></div></CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto"><Table className="min-w-[1120px]"><TableHeader><tr><TableHead>No. RM</TableHead><TableHead>Pasien</TableHead><TableHead>JK / Umur</TableHead><TableHead>Kontak</TableHead><TableHead>Alamat</TableHead><TableHead>Kepesertaan</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                             <TableBody>{patients.data.length ? patients.data.map((patient) => <TableRow key={patient.id}>

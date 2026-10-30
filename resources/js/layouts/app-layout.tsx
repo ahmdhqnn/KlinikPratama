@@ -156,7 +156,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Jadwal Praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
             ],
         },
-        { label: 'Laporan', items: [{ label: 'Laporan Pengkajian', href: '/perawat/laporan-pengkajian', icon: ClipboardCheck }, { label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined }] },
+        { label: 'Laporan', items: [{ label: 'Laporan Pengkajian', href: '/perawat/laporan-pengkajian', icon: ClipboardCheck }, { label: 'Laporan Tindakan', href: '/perawat/laporan-tindakan', icon: ClipboardCheck }, { label: 'Top Diagnosis', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined }] },
     ],
     dokter: [
         { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/dokter', icon: LayoutDashboard, exact: true }] },
@@ -360,7 +360,7 @@ function AccountMenu({ user, isSidebar = false, isCollapsed = false }: { user: A
         <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
                 {isSidebar ? (
-                    <button aria-label={`Menu akun ${name}`} className={`flex w-full min-w-0 items-center gap-3 rounded-xl bg-neutral-50 p-3 text-left outline-none transition hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-400 ${isCollapsed ? 'flex-col px-1.5' : ''}`} type="button">
+                    <button aria-label={`Menu akun ${name}`} className={`flex w-full min-w-0 items-center gap-3 rounded-xl bg-transparent p-3 text-left outline-none transition hover:bg-neutral-100/40 focus-visible:ring-2 focus-visible:ring-neutral-400 ${isCollapsed ? 'flex-col px-1.5' : ''}`} type="button">
                         <AccountAvatar user={user} />
                         {!isCollapsed && <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-semibold text-neutral-900">{name}</span>

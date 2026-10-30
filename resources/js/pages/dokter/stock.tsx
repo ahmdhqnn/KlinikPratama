@@ -37,7 +37,7 @@ export default function DoctorStock({ medicines }: Props) {
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
-                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><PackageSearch className="size-5" /></span>
+                            <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><PackageSearch className="size-5" /></span>
                             <div><CardTitle>Stok obat aktif</CardTitle><CardDescription className="mt-1">Stok pada atau di bawah batas minimum ditandai.</CardDescription></div>
                         </div>
                     </CardHeader>
@@ -51,7 +51,7 @@ export default function DoctorStock({ medicines }: Props) {
                                             <TableCell className="font-mono text-xs text-neutral-500">{medicine.code}</TableCell>
                                             <TableCell className="font-medium text-neutral-900">{medicine.name}</TableCell>
                                             <TableCell className="text-neutral-600">{medicine.unit}</TableCell>
-                                            <TableCell className="text-center"><Badge variant={medicine.isLow ? 'cancelled' : 'complete'}>{formatStock(medicine.stock)}</Badge></TableCell>
+                                            <TableCell className="text-center"><Badge variant={medicine.isLow ? 'warning' : 'default'}>{formatStock(medicine.stock)}</Badge></TableCell>
                                             <TableCell className="text-center tabular-nums text-neutral-600">{formatStock(medicine.minimumStock)}</TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada data obat aktif." /></TableCell></TableRow>}

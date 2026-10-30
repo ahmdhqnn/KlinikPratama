@@ -675,7 +675,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                     <CardHeader className="p-0 sm:p-0">
                         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                             <div className="flex min-w-0 items-start gap-3">
-                                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-50 text-neutral-700"><Stethoscope className="size-5" /></span>
+                                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Stethoscope className="size-5" /></span>
                                 <div className="min-w-0 space-y-1.5"><CardTitle>Odontogram Kunjungan (Peta Gigi FDI)</CardTitle>
                                 <CardDescription>{canEdit ? 'Pilih gigi dan permukaan untuk mencatat temuan pemeriksaan.' : canCorrect ? 'Tinjau temuan gigi. Koreksi disimpan sebagai addendum dengan alasan perubahan.' : 'Tinjau temuan gigi yang sudah tercatat pada kunjungan ini.'}</CardDescription></div>
                             </div>

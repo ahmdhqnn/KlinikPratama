@@ -5,10 +5,10 @@ import { cn } from '@/lib/utils';
 const alertVariants = cva('relative w-full rounded-xl border px-4 py-3 text-sm [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-3.5 [&>svg]:size-4 [&>svg~*]:pl-7', {
     variants: {
         variant: {
-            default: 'border-blue-200 bg-blue-50 text-blue-950 [&>svg]:text-blue-700',
+            default: 'border-neutral-200 bg-neutral-50 text-neutral-900 [&>svg]:text-neutral-600',
             destructive: 'border-red-200 bg-red-50 text-red-950 [&>svg]:text-red-700',
             warning: 'border-amber-200 bg-amber-50 text-amber-950 [&>svg]:text-amber-700',
-            success: 'border-emerald-200 bg-emerald-50 text-emerald-950 [&>svg]:text-emerald-700',
+            success: 'border-neutral-200 bg-neutral-50 text-neutral-900 [&>svg]:text-neutral-600',
         },
     },
     defaultVariants: { variant: 'default' },
