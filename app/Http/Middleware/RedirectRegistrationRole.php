@@ -100,6 +100,6 @@ class RedirectRegistrationRole
 
     private function isAllowedForPharmacy(Request $request): bool
     {
-        return $request->routeIs('farmasi.dashboard', 'pelayanan.farmasi.*', 'stok.persediaan.*', 'stok.batch.*', 'stok.mutasi.*', 'logout');
+        return $request->routeIs('farmasi.*', 'pelayanan.farmasi.*', 'pelayanan.pasien.index', 'pelayanan.pasien.show', 'stok.persediaan.*', 'stok.batch.*', 'stok.mutasi.*', 'logout');
     }
 }

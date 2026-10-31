@@ -74,6 +74,7 @@ interface Visit {
     number: string;
     status: string;
     canClaim: boolean;
+    screeningSubmitted: boolean;
     doctorId: number | null;
     clinicId: number;
     clinicType: string | null;

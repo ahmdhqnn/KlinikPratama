@@ -29,11 +29,24 @@ class RoleBoundaryTest extends TestCase
             ->assertForbidden();
 
         $this->actingAs($pharmacist)->get(route('stok.persediaan.index'))->assertOk();
+        $this->actingAs($pharmacist)->get(route('farmasi.pasien'))->assertOk();
+        $this->actingAs($pharmacist)->get(route('farmasi.resep-luar.index'))->assertOk();
+        $this->actingAs($pharmacist)->get(route('farmasi.laporan.resep-luar'))->assertOk();
+        $this->actingAs($pharmacist)->get(route('pelayanan.pasien.index'))->assertOk();
+        $this->actingAs($pharmacist)->get(route('farmasi.pemberian-obat.index'))->assertOk();
+        $this->actingAs($pharmacist)->get(route('farmasi.pemberian-obat.create'))->assertOk();
+        $this->actingAs($pharmacist)->get(route('farmasi.laporan'))->assertOk();
+        $this->actingAs($pharmacist)->get(route('farmasi.laporan.pemberian-langsung'))->assertOk();
         $this->actingAs($cashier)
             ->get(route('dashboard'))
             ->assertForbidden();
         $this->actingAs($cashier)
             ->get(route('pelayanan.farmasi.index'))
             ->assertForbidden();
+        $this->actingAs($cashier)->get(route('farmasi.pemberian-obat.create'))->assertForbidden();
+        $this->actingAs($cashier)->get(route('farmasi.resep-luar.index'))->assertForbidden();
+        $this->actingAs($cashier)->get(route('farmasi.laporan.resep-luar'))->assertForbidden();
+        $this->actingAs($cashier)->get(route('pelayanan.pasien.index'))->assertForbidden();
+        $this->actingAs($cashier)->get(route('farmasi.laporan.pemberian-langsung'))->assertForbidden();
     }
 }

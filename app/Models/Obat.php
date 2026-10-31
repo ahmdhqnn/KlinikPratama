@@ -15,11 +15,12 @@ class Obat extends Model
     protected $fillable = [
         'kode', 'kode_kfa', 'nama', 'satuan_besar', 'satuan_kecil',
         'konversi_satuan', 'indikasi',
-        'kandungan', 'stok', 'stok_minimum', 'jenis', 'is_active',
+        'kandungan', 'stok', 'stok_minimum', 'jenis', 'is_active', 'boleh_diberikan_langsung',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'boleh_diberikan_langsung' => 'boolean',
     ];
 
     public function stokObat(): HasMany

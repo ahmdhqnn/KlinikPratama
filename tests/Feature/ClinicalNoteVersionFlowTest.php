@@ -10,6 +10,7 @@ use App\Models\Nakes;
 use App\Models\Pasien;
 use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
+use App\Models\Screening;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -40,6 +41,7 @@ class ClinicalNoteVersionFlowTest extends TestCase
             'poliklinik_id' => $clinic->id, 'dokter_id' => $doctor->id,
             'tanggal' => today(), 'status' => 'pemeriksaan',
         ]);
+        Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
         $examination = Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id]);
 
         $this->actingAs($doctorUser)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertUnprocessable();

@@ -38,6 +38,7 @@ class DoctorExaminationFlowTest extends TestCase
             'dokter_id' => $doctor->id, 'tanggal' => today(), 'status' => 'pemeriksaan',
             'jenis_pasien' => 'lama',
         ]);
+        Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
 
         $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))
             ->assertInertia(fn (Assert $page) => $page
@@ -143,6 +144,7 @@ class DoctorExaminationFlowTest extends TestCase
             'riwayat_penyakit_keluarga' => 'Hipertensi',
             'riwayat_alergi' => 'Alergi udang',
             'risiko_jatuh' => 'rendah',
+            'submitted_at' => now(),
             'skala_nyeri' => 2,
         ]);
         Diagnosa::create([
@@ -339,7 +341,7 @@ class DoctorExaminationFlowTest extends TestCase
             'jenis_pasien' => 'lama',
         ]);
         $examination = Pemeriksaan::create(['kunjungan_id' => $visit->id, 'status' => 'draft']);
-        Screening::create(['kunjungan_id' => $visit->id, 'keluhan' => 'Nyeri gigi saat mengunyah']);
+        Screening::create(['kunjungan_id' => $visit->id, 'keluhan' => 'Nyeri gigi saat mengunyah', 'submitted_at' => now()]);
         JadwalDokter::create([
             'dokter_id' => $doctor->id,
             'poliklinik_id' => $clinic->id,
@@ -510,8 +512,8 @@ class DoctorExaminationFlowTest extends TestCase
             'riwayat_penyakit_sekarang' => $placeholder, 'riwayat_penyakit_dahulu' => $placeholder,
             'riwayat_penyakit_keluarga' => $placeholder, 'riwayat_alergi' => $placeholder,
         ]);
-        Screening::create([
-            'kunjungan_id' => $visit->id, 'riwayat_penyakit' => $placeholder,
+        Screening::where('kunjungan_id', $visit->id)->update([
+            'riwayat_penyakit' => $placeholder,
             'riwayat_penyakit_keluarga' => $placeholder, 'riwayat_alergi' => $placeholder,
         ]);
 
@@ -543,7 +545,7 @@ class DoctorExaminationFlowTest extends TestCase
     {
         [$user, $visit, $examination] = $this->examinationWithSections('gigi');
         $examination->update(['riwayat_penyakit_dahulu' => 'Belum dicatat', 'riwayat_penyakit_keluarga' => 'Belum dicatat']);
-        Screening::create(['kunjungan_id' => $visit->id, 'riwayat_penyakit' => 'Diabetes', 'riwayat_penyakit_keluarga' => 'Hipertensi pada ayah']);
+        Screening::where('kunjungan_id', $visit->id)->update(['riwayat_penyakit' => 'Diabetes', 'riwayat_penyakit_keluarga' => 'Hipertensi pada ayah']);
 
         $this->actingAs($user)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('visit.examinationFormDefaults.pastHistory', 'Diabetes')
@@ -612,7 +614,7 @@ class DoctorExaminationFlowTest extends TestCase
             'riwayat_penyakit_sekarang' => 'Belum diisi', 'riwayat_penyakit_dahulu' => 'Belum di catat',
             'riwayat_penyakit_keluarga' => 'Belum dicatat', 'riwayat_alergi' => 'Belum diketahui',
         ]);
-        Screening::create(['kunjungan_id' => $visit->id, 'riwayat_penyakit_keluarga' => 'Hipertensi pada ayah']);
+        Screening::where('kunjungan_id', $visit->id)->update(['riwayat_penyakit_keluarga' => 'Hipertensi pada ayah']);
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'R50.9', 'nama_diagnosa' => 'Demam', 'jenis' => 'utama']);
 
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertRedirect();
@@ -683,6 +685,7 @@ class DoctorExaminationFlowTest extends TestCase
             'no_kunjungan' => 'KNJ-SECTION', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id,
             'dokter_id' => $doctor->id, 'tanggal' => today(), 'status' => 'pemeriksaan',
         ]);
+        Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
         $examination = Pemeriksaan::create([
             'kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id,
             'anamnesis' => 'Keluhan awal', 'pemeriksaan_fisik' => 'Temuan awal', 'riwayat_alergi' => 'Penisilin',

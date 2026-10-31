@@ -7,6 +7,8 @@ interface PrimaryAction {
     href: string;
     label: string;
     type: VisitActionType;
+    disabled?: boolean;
+    title?: string;
 }
 
 interface Props {
@@ -21,7 +23,9 @@ interface Props {
 export function VisitActionButtons({ patient, primary, recordUrl, recordLabel, letterUrl, showLetterAction = true }: Props) {
     return (
         <div className="flex items-center justify-center gap-2">
-            {primary && <ActionButton asChild action={primary.type} label={primary.label}><Link href={primary.href} /></ActionButton>}
+            {primary && (primary.disabled
+                ? <ActionButton disabled title={primary.title} action={primary.type} label={primary.label} />
+                : <ActionButton asChild title={primary.title} action={primary.type} label={primary.label}><Link href={primary.href} /></ActionButton>)}
             {recordUrl && primary?.href !== recordUrl && <ActionButton asChild action="rme" label={recordLabel ?? `Lihat RME ${patient}`}><Link href={recordUrl} /></ActionButton>}
             {showLetterAction && (letterUrl
                 ? <ActionButton asChild action="issue" label={`Terbitkan surat untuk ${patient}`}><Link href={letterUrl} /></ActionButton>

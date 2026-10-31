@@ -220,12 +220,19 @@ class PersuratanController extends Controller
 
     public function printPrescription(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): Response
     {
-        $this->authorizeVisitDocument($request->user(), $kunjungan);
-        $kunjungan->load(['pasien', 'poliklinik', 'dokter.user', 'resep.dokter.user', 'resep.resepObat']);
+        if ($request->routeIs('farmasi.resep-luar.cetak')) {
+            if ($request->query('asal') === 'pasien') {
+                return ['backUrl' => route('farmasi.pasien.kunjungan', $visit), 'backLabel' => 'Kembali ke detail pasien'];
+            }
+            abort_unless($request->user()?->role === 'farmasi' && $kunjungan->pemeriksaan?->signed_at !== null, 404);
+        } else {
+            $this->authorizeVisitDocument($request->user(), $kunjungan);
+        }
+        $kunjungan->load(['pasien', 'poliklinik', 'dokter.user', 'resep.dokter.user', 'resep.resepObat.obat', 'resep.resepObat.farmasiResepLuar']);
         abort_unless($kunjungan->resep && $kunjungan->resep->resepObat->isNotEmpty(), 404);
         $auditRecorder->record($request, 'prescription.print', $kunjungan->pasien_id, $kunjungan->id);
 
-        $items = $kunjungan->resep->resepObat->where('is_resep_luar', true)->values();
+        $items = $kunjungan->resep->resepObat->filter(fn ($item): bool => $item->is_resep_luar || $item->farmasiResepLuar !== null)->values();
         abort_unless($items->isNotEmpty(), 404, 'Resep luar belum tersedia untuk dicetak.');
 
         return Inertia::render('persuratan/cetak', [
@@ -233,12 +240,12 @@ class PersuratanController extends Controller
                 'number' => $kunjungan->resep->no_resep,
                 'date' => $kunjungan->tanggal?->locale('id')->isoFormat('D MMMM Y'),
                 'items' => $items->map(fn ($item): array => [
-                    'name' => $item->nama_obat,
+                    'name' => $item->nama_obat ?? $item->obat?->nama,
                     'type' => $item->jenis,
                     'quantity' => $item->jumlah,
                     'unit' => $item->satuan,
                     'instructions' => $item->aturan_pakai,
-                    'note' => $item->catatan,
+                    'note' => collect([$item->catatan, $item->farmasiResepLuar ? 'Dialihkan oleh farmasi karena stok klinik kosong.' : null])->filter()->implode(' · '),
                 ])->all(),
             ] + $this->documentReturn($request, $kunjungan, 'resep-luar', 'Kembali ke resep luar'),
         ]);
@@ -334,6 +341,17 @@ class PersuratanController extends Controller
     /** @return array{backUrl: string, backLabel: string} */
     private function documentReturn(Request $request, Kunjungan $visit, string $tab, string $label): array
     {
+        if ($request->routeIs('farmasi.resep-luar.cetak')) {
+            if ($request->query('asal') === 'penyerahan') {
+                return ['backUrl' => route('pelayanan.farmasi.show', $visit), 'backLabel' => 'Kembali ke penyerahan obat'];
+            }
+
+            if ($request->query('asal') === 'laporan') {
+                return ['backUrl' => route('farmasi.laporan.resep-luar'), 'backLabel' => 'Kembali ke laporan resep luar'];
+            }
+
+            return ['backUrl' => route('farmasi.resep-luar.index'), 'backLabel' => 'Kembali ke resep luar'];
+        }
         if ($request->query('asal') === 'pemeriksaan') {
             return [
                 'backUrl' => route('pelayanan.pemeriksaan.show', $visit).'?tab='.$tab,

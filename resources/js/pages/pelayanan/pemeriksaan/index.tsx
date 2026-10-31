@@ -25,6 +25,7 @@ interface Visit {
     doctor: string | null;
     status: string;
     examinationStarted: boolean;
+    canExamine: boolean;
     diagnosisCount: number;
     recordUrl: string | null;
     letterUrl: string | null;
@@ -137,7 +138,7 @@ function VisitList({ title, description, icon, visits, emptyTitle, emptyDescript
                                     <TableCell className="text-center text-neutral-600">{visit.doctor ?? 'Belum ditentukan'}</TableCell>
                                     <TableCell className="text-center"><StatusBadge examinationStarted={visit.examinationStarted} status={visit.status} /></TableCell>
                                     <TableCell className="text-center tabular-nums">{visit.diagnosisCount}</TableCell>
-                                    <TableCell className="text-center"><VisitActionButtons letterUrl={visit.letterUrl} patient={visit.patient} primary={{ href: `/pelayanan/pemeriksaan/${visit.id}`, label: visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan', type: 'examination' }} recordLabel="Rekam medis" recordUrl={visit.recordUrl} showLetterAction={canIssueLetters} /></TableCell>
+                                    <TableCell className="text-center"><VisitActionButtons letterUrl={visit.letterUrl} patient={visit.patient} primary={{ href: `/pelayanan/pemeriksaan/${visit.id}`, label: visit.canExamine ? (visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan') : 'Menunggu pengkajian perawat', disabled: !visit.canExamine, title: visit.canExamine ? undefined : 'Pemeriksaan dokter dapat dimulai setelah pengkajian perawat dikirim.', type: 'examination' }} recordLabel="Rekam medis" recordUrl={visit.recordUrl} showLetterAction={canIssueLetters} /></TableCell>
                                 </TableRow>
                             )) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={8}><Empty description={emptyDescription} size="compact" title={emptyTitle} /></TableCell></TableRow>}
                         </TableBody>

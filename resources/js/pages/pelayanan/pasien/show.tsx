@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 interface Visit {
     id: number;
-    url: string;
+    url: string | null;
     number: string;
     date: string | null;
     clinic: string;
@@ -77,7 +77,7 @@ export default function PatientDetail({ patient, permissions, backUrl, openVisit
                     <Card className="overflow-hidden">
                         <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarPlus className="size-5" /></span><div><CardTitle>Riwayat kunjungan</CardTitle><CardDescription className="mt-1">Menampilkan hingga 20 kunjungan terakhir pasien.</CardDescription></div></div></CardHeader>
                         <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[720px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Poli</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead></tr></TableHeader><TableBody>
-                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={visit.url}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? 'Belum diisi'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada riwayat kunjungan." /></TableCell></TableRow>}
+                            {patient.visits.length ? patient.visits.map((visit) => <TableRow key={visit.id}><TableCell>{visit.url ? <Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={visit.url}>{visit.number}</Link> : <span className="font-mono text-xs text-neutral-600">{visit.number}</span>}</TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date ?? 'Belum diisi'}</TableCell><TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell><TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada riwayat kunjungan." /></TableCell></TableRow>}
                         </TableBody></Table></div></CardContent>
                     </Card>
                 </div>

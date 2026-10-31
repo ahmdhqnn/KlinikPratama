@@ -10,6 +10,7 @@ use App\Models\Nakes;
 use App\Models\Pasien;
 use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
+use App\Models\Screening;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class BodyMapExaminationTest extends TestCase
         $clinic = Poliklinik::create(['kode' => 'UMUM-BODY', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-BODY', 'nama' => 'Pasien Pemeriksaan']);
         $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-BODY', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'dokter_id' => $doctor->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
+        Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
         Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id, 'anamnesis' => 'Benjolan di dahi', 'pemeriksaan_fisik' => 'Keadaan umum baik']);
         $this->actingAs($user);
 

@@ -53,6 +53,7 @@ class ObatController extends Controller
                     'ingredients' => $medicine->kandungan,
                     'type' => $medicine->jenis,
                     'active' => $medicine->is_active,
+                    'directDispensingAllowed' => $medicine->boleh_diberikan_langsung,
                 ])->values(),
                 'currentPage' => $obat->currentPage(),
                 'lastPage' => $obat->lastPage(),
@@ -86,9 +87,11 @@ class ObatController extends Controller
             'stok_minimum' => ['required', 'integer', 'min:0'],
             'jenis' => ['required', 'in:obat,bhp'],
             'is_active' => ['boolean'],
+            'boleh_diberikan_langsung' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['boleh_diberikan_langsung'] = $request->boolean('boleh_diberikan_langsung') && $data['jenis'] === 'obat';
         Obat::create($data);
 
         return back()->with('success', 'Item obat/BHP berhasil ditambahkan.');
@@ -108,9 +111,11 @@ class ObatController extends Controller
             'stok_minimum' => ['required', 'integer', 'min:0'],
             'jenis' => ['required', 'in:obat,bhp'],
             'is_active' => ['boolean'],
+            'boleh_diberikan_langsung' => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
+        $data['boleh_diberikan_langsung'] = $request->boolean('boleh_diberikan_langsung') && $data['jenis'] === 'obat';
         $obat->update($data);
 
         return back()->with('success', 'Item obat/BHP berhasil diperbarui.');

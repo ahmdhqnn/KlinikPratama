@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Pelayanan;
 
 use App\ClinicalAuditRecorder;
+use App\Exports\FarmasiDispensingExport;
+use App\Exports\FarmasiResepLuarExport;
 use App\Http\Controllers\Controller;
 use App\Models\Farmasi;
+use App\Models\FarmasiItem;
+use App\Models\FarmasiResepLuar;
 use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\ResepObat;
@@ -13,12 +17,14 @@ use App\PatientAllergyHistory;
 use App\PersediaanRecorder;
 use App\VisitQueryService;
 use App\VisitSchedulingService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
 
 class FarmasiController extends Controller
 {
@@ -27,26 +33,45 @@ class FarmasiController extends Controller
     public function index(Request $request, VisitQueryService $visits): Response
     {
         $filters = $visits->filters($request);
-        $kunjungan = $visits->filtered($filters)
+        $pharmacyVisits = fn (Builder $query): Builder => $query
+            ->where(fn (Builder $visits) => $visits->where('status', 'farmasi')->orWhereHas('farmasi', fn (Builder $records) => $records->where('status', 'selesai')));
+        $kunjungan = $pharmacyVisits($visits->filtered($filters))
             ->with(['pasien', 'poliklinik', 'dokter', 'farmasi', 'resep.resepObat'])
-            ->where(fn ($query) => $query->where('status', 'farmasi')->orWhereHas('farmasi', fn ($query) => $query->where('status', 'selesai')))
             ->latest('tanggal')->latest('id')
             ->paginate(10)
             ->withQueryString();
+        $activeVisits = Kunjungan::query()->where('status', 'farmasi')
+            ->whereDoesntHave('farmasi', fn (Builder $records) => $records->where('status', 'selesai'));
+        $todayActive = (clone $activeVisits)->whereDate('tanggal', today());
+        $todayVisits = (clone $todayActive)->with(['pasien', 'poliklinik', 'dokter', 'farmasi', 'resep.resepObat'])
+            ->orderBy('created_at')->orderBy('id')->paginate(10, ['*'], 'today_page')->withQueryString();
+        $mapVisit = fn (Kunjungan $visit): array => [
+            'id' => $visit->id,
+            'prescriptionNumber' => $visit->resep?->no_resep,
+            'date' => $visit->tanggal?->format('d/m/Y'),
+            'patient' => $visit->pasien?->nama ?? 'Belum diisi',
+            'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
+            'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
+            'doctor' => $visit->dokter?->nama,
+            'itemCount' => $visit->resep?->resepObat->count() ?? 0,
+            'pharmacyStatus' => $visit->farmasi?->status ?? 'menunggu',
+        ];
 
         return Inertia::render('pelayanan/farmasi/index', [
+            'stats' => [
+                'today' => $pharmacyVisits(Kunjungan::query()->whereDate('tanggal', today()))->count(),
+                'waiting' => (clone $todayActive)->whereDoesntHave('farmasi', fn (Builder $records) => $records->where('status', 'diproses'))->count(),
+                'processing' => (clone $todayActive)->whereHas('farmasi', fn (Builder $records) => $records->where('status', 'diproses'))->count(),
+                'completed' => Farmasi::query()->where('status', 'selesai')->whereDate('dispensed_at', today())->count(),
+            ],
+            'todayVisits' => [
+                'data' => $todayVisits->getCollection()->map($mapVisit)->values(),
+                'currentPage' => $todayVisits->currentPage(), 'lastPage' => $todayVisits->lastPage(),
+                'from' => $todayVisits->firstItem(), 'to' => $todayVisits->lastItem(), 'total' => $todayVisits->total(),
+                'previousUrl' => $todayVisits->previousPageUrl(), 'nextUrl' => $todayVisits->nextPageUrl(),
+            ],
             'visits' => [
-                'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit) => [
-                    'id' => $visit->id,
-                    'prescriptionNumber' => $visit->resep?->no_resep,
-                    'date' => $visit->tanggal?->format('d/m/Y'),
-                    'patient' => $visit->pasien?->nama ?? 'Belum diisi',
-                    'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
-                    'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
-                    'doctor' => $visit->dokter?->nama,
-                    'itemCount' => $visit->resep?->resepObat->count() ?? 0,
-                    'pharmacyStatus' => $visit->farmasi?->status ?? 'menunggu',
-                ])->values(),
+                'data' => $kunjungan->getCollection()->map($mapVisit)->values(),
                 'currentPage' => $kunjungan->currentPage(),
                 'lastPage' => $kunjungan->lastPage(),
                 'from' => $kunjungan->firstItem(),
@@ -60,6 +85,179 @@ class FarmasiController extends Controller
         ]);
     }
 
+    public function externalPrescriptions(Request $request, VisitQueryService $visits): Response
+    {
+        $filters = $visits->filters($request);
+        $query = fn (Builder $builder): Builder => $builder
+            ->whereHas('pemeriksaan', fn (Builder $exam) => $exam->whereNotNull('signed_at'))
+            ->whereHas('resep.resepObat', fn (Builder $items) => $items->where(fn (Builder $item) => $item
+                ->where('is_resep_luar', true)->orWhereHas('farmasiResepLuar')));
+        $records = $query($visits->filtered($filters))
+            ->with(['pasien', 'poliklinik', 'dokter', 'resep.resepObat.farmasiResepLuar'])
+            ->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
+        $todayRecords = $query(Kunjungan::query()->whereDate('tanggal', today()))
+            ->with(['pasien', 'poliklinik', 'dokter', 'resep.resepObat.farmasiResepLuar'])
+            ->orderBy('created_at')->orderBy('id')->paginate(10, ['*'], 'today_page')->withQueryString();
+        $mapRecord = fn (Kunjungan $visit): array => [
+            'id' => $visit->id,
+            'date' => $visit->tanggal?->format('d/m/Y') ?? 'Belum diisi',
+            'number' => $visit->resep?->no_resep ?? 'Belum diisi',
+            'visitNumber' => $visit->no_kunjungan,
+            'patient' => $visit->pasien?->nama ?? 'Belum diisi',
+            'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
+            'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
+            'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
+            'itemCount' => $visit->resep?->resepObat->filter(fn (ResepObat $item): bool => $item->is_resep_luar || $item->farmasiResepLuar !== null)->count() ?? 0,
+            'printUrl' => route('farmasi.resep-luar.cetak', $visit),
+        ];
+        $page = fn ($paginator): array => [
+            'data' => $paginator->getCollection()->map($mapRecord)->values(),
+            'currentPage' => $paginator->currentPage(), 'lastPage' => $paginator->lastPage(),
+            'from' => $paginator->firstItem(), 'to' => $paginator->lastItem(), 'total' => $paginator->total(),
+            'previousUrl' => $paginator->previousPageUrl(), 'nextUrl' => $paginator->nextPageUrl(),
+        ];
+
+        return Inertia::render('farmasi/resep-luar', [
+            'stats' => [
+                'today' => $query(Kunjungan::query()->whereDate('tanggal', today()))->count(),
+                'all' => $query(Kunjungan::query())->count(),
+            ],
+            'filters' => ['search' => $filters['search'] ?? '', 'tanggal' => $filters['tanggal'] ?? ''],
+            'todayRecords' => $page($todayRecords),
+            'records' => $page($records),
+        ]);
+    }
+
+    public function externalReport(Request $request): Response
+    {
+        $filters = $request->validate(['dari' => ['nullable', 'date'], 'sampai' => ['nullable', 'date', 'after_or_equal:dari'], 'search' => ['nullable', 'string', 'max:100']]);
+        $filtered = [...$filters, 'dari' => $filters['dari'] ?? today()->startOfMonth()->toDateString(), 'sampai' => $filters['sampai'] ?? today()->toDateString()];
+        $query = $this->externalReportQuery($filtered);
+        $rows = (clone $query)->with(['obat', 'resep.kunjungan.pasien', 'resep.kunjungan.poliklinik', 'farmasiResepLuar.petugas'])
+            ->latest('id')->paginate(10)->withQueryString();
+
+        return Inertia::render('farmasi/laporan-resep-luar', [
+            'filters' => ['dari' => $filtered['dari'], 'sampai' => $filtered['sampai'], 'search' => $filtered['search'] ?? ''],
+            'stats' => [
+                'items' => (clone $query)->count(),
+                'prescriptions' => (clone $query)->distinct('resep_id')->count('resep_id'),
+                'redirected' => (clone $query)->whereHas('farmasiResepLuar')->count(),
+            ],
+            'rows' => [
+                'data' => $rows->getCollection()->map(fn (ResepObat $item): array => [
+                    'id' => $item->id,
+                    'date' => $item->resep?->kunjungan?->tanggal?->format('d/m/Y') ?? 'Belum diisi',
+                    'prescription' => $item->resep?->no_resep ?? 'Belum diisi',
+                    'patient' => $item->resep?->kunjungan?->pasien?->nama ?? 'Belum diisi',
+                    'medicalRecordNumber' => $item->resep?->kunjungan?->pasien?->no_rm ?? 'Belum diisi',
+                    'clinic' => $item->resep?->kunjungan?->poliklinik?->nama ?? 'Belum diisi',
+                    'medicine' => $item->nama_obat ?? $item->obat?->nama ?? 'Belum diisi',
+                    'quantity' => (float) $item->jumlah, 'unit' => $item->satuan,
+                    'source' => $item->farmasiResepLuar ? 'Dialihkan farmasi' : 'Diresepkan dokter',
+                    'printUrl' => route('farmasi.resep-luar.cetak', $item->resep->kunjungan).'?asal=laporan',
+                ])->values(),
+                'currentPage' => $rows->currentPage(), 'lastPage' => $rows->lastPage(),
+                'from' => $rows->firstItem(), 'to' => $rows->lastItem(), 'total' => $rows->total(),
+                'previousUrl' => $rows->previousPageUrl(), 'nextUrl' => $rows->nextPageUrl(),
+            ],
+            'exportUrl' => route('farmasi.laporan.resep-luar.export', $request->query()),
+        ]);
+    }
+
+    public function exportExternalReport(Request $request)
+    {
+        $filters = $request->validate(['dari' => ['nullable', 'date'], 'sampai' => ['nullable', 'date', 'after_or_equal:dari'], 'search' => ['nullable', 'string', 'max:100']]);
+        $filters['dari'] ??= today()->startOfMonth()->toDateString();
+        $filters['sampai'] ??= today()->toDateString();
+
+        return Excel::download(new FarmasiResepLuarExport($this->externalReportQuery($filters)), 'laporan-resep-luar-'.today()->format('Y-m-d').'.xlsx');
+    }
+
+    private function externalReportQuery(array $filters): Builder
+    {
+        return ResepObat::query()
+            ->where(fn (Builder $items) => $items->where('is_resep_luar', true)->orWhereHas('farmasiResepLuar'))
+            ->whereHas('resep.kunjungan', fn (Builder $visits) => $visits
+                ->whereHas('pemeriksaan', fn (Builder $exam) => $exam->whereNotNull('signed_at'))
+                ->when($filters['dari'] ?? null, fn (Builder $records, string $date) => $records->whereDate('tanggal', '>=', $date))
+                ->when($filters['sampai'] ?? null, fn (Builder $records, string $date) => $records->whereDate('tanggal', '<=', $date)))
+            ->when($filters['search'] ?? null, fn (Builder $items, string $search) => $items->where(fn (Builder $matches) => $matches
+                ->where('nama_obat', 'like', "%{$search}%")
+                ->orWhereHas('resep', fn (Builder $prescriptions) => $prescriptions->where('no_resep', 'like', "%{$search}%")
+                    ->orWhereHas('kunjungan.pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%")))));
+    }
+
+    public function report(Request $request): Response
+    {
+        $filters = $request->validate([
+            'dari' => ['nullable', 'date'], 'sampai' => ['nullable', 'date', 'after_or_equal:dari'],
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
+        $filtered = [
+            ...$filters,
+            'dari' => $filters['dari'] ?? today()->startOfMonth()->toDateString(),
+            'sampai' => $filters['sampai'] ?? today()->toDateString(),
+        ];
+        $records = $this->dispensingReportQuery($filtered)
+            ->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'items.obat', 'dispensingPharmacist'])
+            ->latest('dispensed_at')->paginate(10)->withQueryString();
+        $total = $this->dispensingReportQuery($filtered);
+        $stats = [
+            'total' => (clone $total)->count(),
+            'patients' => (clone $total)->distinct('kunjungan_id')->count('kunjungan_id'),
+            'items' => FarmasiItem::query()->whereHas('farmasi', fn (Builder $query) => $this->applyDispensingReportFilters($query, $filtered))->count(),
+        ];
+
+        return Inertia::render('farmasi/laporan-penyerahan', [
+            'filters' => ['dari' => $filtered['dari'], 'sampai' => $filtered['sampai'], 'search' => $filtered['search'] ?? ''],
+            'stats' => $stats,
+            'rows' => [
+                'data' => $records->getCollection()->map(fn (Farmasi $record): array => [
+                    'date' => $record->dispensed_at?->format('d/m/Y H:i') ?? 'Belum dicatat',
+                    'number' => $record->kunjungan?->no_kunjungan ?? 'Belum diisi',
+                    'patient' => $record->kunjungan?->pasien?->nama ?? 'Belum diisi',
+                    'medicalRecordNumber' => $record->kunjungan?->pasien?->no_rm ?? 'Belum diisi',
+                    'clinic' => $record->kunjungan?->poliklinik?->nama ?? 'Belum diisi',
+                    'medicine' => $record->items->map(fn ($item) => $item->obat?->nama)->filter()->unique()->values()->implode(', ') ?: 'Tidak ada item yang diserahkan',
+                    'quantity' => $record->items->count(),
+                    'pharmacist' => $record->dispensingPharmacist?->name ?? 'Belum dicatat',
+                    'detailUrl' => $record->kunjungan ? route('farmasi.pasien.kunjungan', $record->kunjungan).'?asal=laporan' : route('pelayanan.farmasi.index'),
+                ])->values(),
+                'currentPage' => $records->currentPage(), 'lastPage' => $records->lastPage(), 'from' => $records->firstItem(), 'to' => $records->lastItem(),
+                'total' => $records->total(), 'previousUrl' => $records->previousPageUrl(), 'nextUrl' => $records->nextPageUrl(),
+            ],
+            'exportUrl' => route('farmasi.laporan.export', $request->query()),
+        ]);
+    }
+
+    public function exportReport(Request $request)
+    {
+        $filters = $request->validate([
+            'dari' => ['nullable', 'date'], 'sampai' => ['nullable', 'date', 'after_or_equal:dari'],
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
+        $filters['dari'] ??= today()->startOfMonth()->toDateString();
+        $filters['sampai'] ??= today()->toDateString();
+
+        return Excel::download(new FarmasiDispensingExport($filters), 'laporan-penyerahan-obat-'.today()->format('Y-m-d').'.xlsx');
+    }
+
+    private function dispensingReportQuery(array $filters): Builder
+    {
+        return $this->applyDispensingReportFilters(Farmasi::query(), $filters);
+    }
+
+    private function applyDispensingReportFilters(Builder $query, array $filters): Builder
+    {
+        return $query->where('status', 'selesai')->whereNotNull('dispensed_at')
+            ->when($filters['dari'] ?? null, fn (Builder $records, string $date) => $records->whereDate('dispensed_at', '>=', $date))
+            ->when($filters['sampai'] ?? null, fn (Builder $records, string $date) => $records->whereDate('dispensed_at', '<=', $date))
+            ->when($filters['search'] ?? null, fn (Builder $records, string $search) => $records->whereHas('kunjungan', fn (Builder $visit) => $visit
+                ->where('no_kunjungan', 'like', "%{$search}%")
+                ->orWhereHas('pasien', fn (Builder $patient) => $patient->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))
+                ->orWhereHas('resep.resepObat', fn (Builder $items) => $items->where('nama_obat', 'like', "%{$search}%"))));
+    }
+
     public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $audit, PatientAllergyHistory $allergies): Response
     {
         abort_unless($kunjungan->status === 'farmasi' || $kunjungan->farmasi()->where('status', 'selesai')->exists(), 404);
@@ -67,6 +265,7 @@ class FarmasiController extends Controller
         $kunjungan->load([
             'pasien', 'screening', 'pemeriksaan', 'poliklinik', 'dokter',
             'resep.resepObat.obat.batches',
+            'resep.resepObat.farmasiResepLuar',
             'farmasi.items.obat', 'farmasi.items.resepObat',
         ]);
 
@@ -78,6 +277,7 @@ class FarmasiController extends Controller
                 'id' => $kunjungan->id,
                 'number' => $kunjungan->no_kunjungan,
                 'status' => $kunjungan->status,
+                'examinationSigned' => $kunjungan->pemeriksaan?->signed_at !== null,
                 'prescriptionNumber' => $kunjungan->resep?->no_resep,
                 'patient' => [
                     'id' => $kunjungan->pasien->id,
@@ -118,7 +318,10 @@ class FarmasiController extends Controller
                             : ($item->is_resep_luar || in_array($kunjungan->farmasi?->status, ['diproses', 'selesai'], true) ? 0 : (float) $item->jumlah),
                         'unit' => $item->satuan,
                         'instructions' => $pharmacyItem?->aturan_pakai ?? $item->aturan_pakai,
-                        'external' => $item->is_resep_luar,
+                        'external' => $item->is_resep_luar || $item->farmasiResepLuar !== null,
+                        'externalByPharmacy' => $item->farmasiResepLuar !== null,
+                        'externalActionUrl' => route('pelayanan.farmasi.resep-luar', [$kunjungan, $item]),
+                        'externalPrintUrl' => route('farmasi.resep-luar.cetak', $kunjungan).'?asal=penyerahan',
                         'reserved' => $item->stok_dikurangi,
                         'stock' => (float) ($item->obat?->batches->filter(fn ($batch): bool => $batch->status === 'tersedia' && $batch->expired_at?->gt(today()))->sum('stok') ?? 0),
                         'stockUnit' => $item->obat?->satuan_kecil,
@@ -158,7 +361,31 @@ class FarmasiController extends Controller
             ]);
         });
 
-        return back()->with('success', 'Data farmasi berhasil disimpan.');
+        return back()->with('success', 'Catatan penyerahan obat berhasil disimpan.');
+    }
+
+    public function markExternal(Request $request, Kunjungan $kunjungan, ResepObat $resepObat, ClinicalAuditRecorder $audit): RedirectResponse
+    {
+        DB::transaction(function () use ($request, $kunjungan, $resepObat, $audit): void {
+            $visit = Kunjungan::query()->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            abort_unless($visit->status === 'farmasi' && $visit->pemeriksaan?->signed_at !== null, 422);
+            $this->scheduling->ensureServiceDate($visit);
+            $item = ResepObat::query()->whereKey($resepObat->id)->lockForUpdate()->firstOrFail();
+            abort_unless($visit->resep?->id === $item->resep_id && ! $item->is_resep_luar && $item->obat_id !== null, 422);
+            abort_if($item->farmasiResepLuar()->exists() || $item->stok_dikurangi, 422);
+            abort_if(Farmasi::query()->where('kunjungan_id', $visit->id)->where('status', 'selesai')->exists(), 422);
+            abort_if(FarmasiItem::query()->where('resep_obat_id', $item->id)->where('jumlah_diberikan', '>', 0)->exists(), 422);
+            Obat::query()->whereKey($item->obat_id)->lockForUpdate()->firstOrFail();
+            $available = (float) $item->obat->batches()->usable()->sum('stok');
+            if ($available > 0) {
+                throw ValidationException::withMessages(['resep_luar' => 'Resep luar tersedia ketika stok layak pakai obat ini kosong.']);
+            }
+
+            FarmasiResepLuar::create(['resep_obat_id' => $item->id, 'petugas_id' => $request->user()->id]);
+            $audit->record($request, 'pharmacy.external_prescription', $visit->pasien_id, $visit->id, ['prescription_item_id' => $item->id]);
+        });
+
+        return back()->with('success', 'Obat dicatat untuk ditebus di luar klinik. Resep luar siap dicetak.');
     }
 
     public function selesai(Request $request, Kunjungan $kunjungan, PersediaanRecorder $inventory, ClinicalAuditRecorder $audit): RedirectResponse
@@ -192,8 +419,8 @@ class FarmasiController extends Controller
                 $farmasi->update(['status' => 'diproses', 'catatan' => $data['catatan']]);
             }
 
-            $farmasi->load(['items.obat', 'items.resepObat']);
-            $lockedVisit->loadMissing('resep.resepObat');
+            $farmasi->load(['items.obat', 'items.resepObat.farmasiResepLuar']);
+            $lockedVisit->loadMissing('resep.resepObat.farmasiResepLuar');
 
             foreach ($farmasi->items as $item) {
                 if (floor((float) $item->jumlah_diberikan) !== (float) $item->jumlah_diberikan) {
@@ -224,7 +451,7 @@ class FarmasiController extends Controller
 
             foreach ($lockedVisit->resep?->resepObat ?? collect() as $prescriptionItem) {
                 $dispensed = (float) $farmasi->items->where('resep_obat_id', $prescriptionItem->id)->sum('jumlah_diberikan');
-                if (! $prescriptionItem->is_resep_luar && $dispensed < (float) $prescriptionItem->jumlah && blank($farmasi->catatan)) {
+                if (! $prescriptionItem->is_resep_luar && ! $prescriptionItem->farmasiResepLuar && $dispensed < (float) $prescriptionItem->jumlah && blank($farmasi->catatan)) {
                     throw ValidationException::withMessages(['catatan' => 'Catat alasan dan tindak lanjut untuk resep yang belum diserahkan seluruhnya.']);
                 }
             }
@@ -234,7 +461,7 @@ class FarmasiController extends Controller
                 $prescriptionItem = $item->resepObat;
                 if (! $prescriptionItem
                     || (int) $prescriptionItem->resep_id !== (int) $lockedVisit->resep?->id
-                    || $prescriptionItem->is_resep_luar
+                    || $prescriptionItem->is_resep_luar || $prescriptionItem->farmasiResepLuar
                     || (int) $prescriptionItem->obat_id !== (int) $item->obat_id
                     || (float) $item->jumlah_diberikan > (float) $prescriptionItem->jumlah
                     || in_array($prescriptionItem->id, $processedPrescriptionItemIds, true)) {
@@ -301,7 +528,7 @@ class FarmasiController extends Controller
             ? trim($data['catatan'])
             : null;
 
-        $kunjungan->loadMissing('resep.resepObat');
+        $kunjungan->loadMissing('resep.resepObat.farmasiResepLuar');
         $prescriptionItems = $kunjungan->resep?->resepObat ?? collect();
         $submittedPrescriptionItemIds = [];
 
@@ -346,7 +573,7 @@ class FarmasiController extends Controller
                 $submittedPrescriptionItemIds[] = $resepObat->id;
             }
 
-            if ($resepObat?->is_resep_luar && (float) $item['jumlah_diberikan'] > 0) {
+            if (($resepObat?->is_resep_luar || $resepObat?->farmasiResepLuar) && (float) $item['jumlah_diberikan'] > 0) {
                 throw ValidationException::withMessages([
                     "items.$index.jumlah_diberikan" => 'Resep luar harus ditebus di apotek luar klinik.',
                 ]);

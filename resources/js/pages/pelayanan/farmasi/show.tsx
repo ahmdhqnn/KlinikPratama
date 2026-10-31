@@ -1,6 +1,6 @@
 import { getAllergyStatus } from '@/lib/allergy-status';
 import { ActionButton } from '@/components/ui/action-button';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { ArrowLeft, Check, ChevronDown, ChevronUp, CircleCheck, CircleHelp, Printer, Save, TriangleAlert, Pill } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { StatusBadge } from '@/components/dashboard/status-badge';
@@ -24,6 +24,9 @@ interface PrescriptionItem {
     unit: string | null;
     instructions: string | null;
     external: boolean;
+    externalByPharmacy: boolean;
+    externalActionUrl: string;
+    externalPrintUrl: string;
     reserved: boolean;
     stock: number;
     stockUnit: string | null;
@@ -33,6 +36,7 @@ interface Visit {
     id: number;
     number: string;
     status: string;
+    examinationSigned: boolean;
     prescriptionNumber: string | null;
     patient: { id: number; name: string; medicalRecordNumber: string; allergies: string | null; screeningAllergies: string | null; examinationAllergies: string | null };
     doctor: string | null;
@@ -74,9 +78,15 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
     }
 
     function finishDispensing() {
-        confirmAction('Selesaikan penyerahan obat? Perubahan form akan disimpan bersama proses ini dan stok akan berkurang dari batch layak pakai sesuai jumlah yang diserahkan.', () => {
+        confirmAction(allExternal ? 'Selesaikan layanan resep luar? Tidak ada obat yang diserahkan dari stok klinik. Pastikan dokumen resep luar sudah disiapkan untuk pasien.' : 'Selesaikan penyerahan obat? Perubahan form akan disimpan bersama proses ini dan stok akan berkurang dari batch layak pakai sesuai jumlah yang diserahkan.', () => {
             form.post(`/pelayanan/farmasi/${visit.id}/selesai`, { preserveScroll: true });
         }, 'Lanjutkan');
+    }
+
+    function markExternal(item: PrescriptionItem) {
+        confirmAction(`Stok ${item.name} kosong. Catat obat ini untuk ditebus di luar klinik dan siapkan dokumen resep luar?${form.isDirty ? ' Simpan perubahan lain pada formulir terlebih dahulu; perubahan yang belum disimpan akan hilang.' : ''}`, () => {
+            router.post(item.externalActionUrl, {}, { preserveScroll: true, preserveState: false });
+        }, 'Catat resep luar');
     }
 
     function printLabel() {
@@ -94,6 +104,7 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
     }
 
     const alreadyComplete = visit.pharmacy?.status === 'selesai' || visit.status !== 'farmasi';
+    const allExternal = visit.prescriptionItems.length > 0 && visit.prescriptionItems.every((item) => item.external);
     const pharmacyStatus = visit.status === 'batal' ? null : visit.pharmacy?.status ?? (visit.status === 'farmasi' ? 'menunggu' : null);
     const dispensedMedicineCount = new Set(visit.allocations.map((allocation) => allocation.medicine)).size;
     const firstAllocation = visit.allocations[0];
@@ -105,9 +116,9 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
 
     return (
         <>
-            <Head title={`Dispensing ${visit.patient.name}`} />
+            <Head title={`Penyerahan obat ${visit.patient.name}`} />
             <div className="space-y-6">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-neutral-700">Dispensing farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{visit.patient.name}</h2><p className="mt-1 text-sm text-neutral-500">{visit.patient.medicalRecordNumber} · Kunjungan {visit.number}</p></div><Button asChild variant="secondary"><Link href="/pelayanan/farmasi"><ArrowLeft className="size-4" />Kembali ke antrean</Link></Button></div>
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-neutral-700">Penyerahan obat</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{visit.patient.name}</h2><p className="mt-1 text-sm text-neutral-500">{visit.patient.medicalRecordNumber} · Kunjungan {visit.number}</p></div><Button asChild variant="secondary"><Link href="/pelayanan/farmasi"><ArrowLeft className="size-4" />Kembali ke penyerahan obat</Link></Button></div>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <CardTitle>Detail resep</CardTitle>
@@ -124,23 +135,23 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
                     </CardContent>
                 </Card>
                 <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Pill className="size-5" /></span><div><CardTitle>Verifikasi dan penyiapan obat</CardTitle><CardDescription className="mt-1">Periksa jumlah dan aturan pakai. Stok keluar saat obat diserahkan. Catat alasan dan tindak lanjut jika resep belum terpenuhi seluruhnya.</CardDescription></div></div></CardHeader>
-                    <form onSubmit={saveDispensing}><CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[980px]"><TableHeader><tr><TableHead>Obat</TableHead><TableHead>Permintaan resep</TableHead><TableHead>Stok layak pakai</TableHead><TableHead>Jumlah diserahkan</TableHead><TableHead>Aturan pakai</TableHead><TableHead>Etiket</TableHead></tr></TableHeader><TableBody>
+                    <form onSubmit={saveDispensing}><CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[980px]"><TableHeader><tr><TableHead className="text-center">Obat</TableHead><TableHead className="text-center">Permintaan resep</TableHead><TableHead className="text-center">Stok layak pakai</TableHead><TableHead className="text-center">Jumlah diserahkan</TableHead><TableHead className="text-center">Aturan pakai</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>
                         {visit.prescriptionItems.length ? visit.prescriptionItems.map((item, index) => {
                             const current = form.data.items[index];
                             const quantity = Number(current?.jumlah_diberikan ?? 0);
                             const sufficient = quantity <= item.requestedQuantity && quantity <= item.stock;
                             return <TableRow key={item.id}>
-                                <TableCell><p className="font-medium text-neutral-900">{item.name}</p><div className="mt-1 flex flex-wrap items-center justify-center gap-1.5"><span className="rounded-full bg-neutral-50 px-2 py-0.5 text-[11px] font-medium text-neutral-700">{item.type === 'jadi' ? 'Obat jadi' : 'Racikan'}</span>{item.external && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">Resep luar</span>}</div></TableCell>
-                                <TableCell className="whitespace-nowrap font-mono text-neutral-700">{item.requestedQuantity} {item.unit}</TableCell>
-                                <TableCell className="whitespace-nowrap">{item.external ? <span className="text-xs text-neutral-500">Ditebus di luar</span> : item.reserved ? <span className="text-xs font-medium text-neutral-700">Sudah direservasi</span> : <span className={item.stock >= quantity ? 'font-medium text-emerald-700' : 'font-medium text-red-700'}>{item.stock} {item.stockUnit}</span>}</TableCell>
-                                <TableCell>{item.external ? <div><p className="font-medium text-neutral-700">Tidak diserahkan di klinik</p><input name={`items[${index}][jumlah_diberikan]`} type="hidden" value="0" /></div> : <div className="space-y-1"><Input aria-label={`Jumlah ${item.name} diserahkan`} className="w-32 font-mono" disabled={alreadyComplete} min="0" onChange={(event) => form.setData('items', form.data.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, jumlah_diberikan: event.target.value } : entry))} step="1" type="number" value={current?.jumlah_diberikan ?? '0'} />{!sufficient && <p className="text-xs font-medium text-red-700">Jumlah melebihi resep atau stok tersedia.</p>}{form.errors[`items.${index}.jumlah_diberikan` as keyof typeof form.errors] && <p className="text-xs text-red-700">{form.errors[`items.${index}.jumlah_diberikan` as keyof typeof form.errors]}</p>}</div>}</TableCell>
-                                <TableCell><Input aria-label={`Aturan pakai ${item.name}`} disabled={alreadyComplete || item.external} onChange={(event) => form.setData('items', form.data.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, aturan_pakai: event.target.value } : entry))} placeholder="Dosis, frekuensi, dan waktu penggunaan" value={current?.aturan_pakai ?? ''} /></TableCell>
-                                <TableCell>{!item.external && <ActionButton onClick={() => setEtiketItem({ name: item.name, instructions: current?.aturan_pakai ?? '' })} type="button" action="print" label="Etiket" />}</TableCell>
+                                <TableCell className="text-center"><p className="font-medium text-neutral-900">{item.name}</p><div className="mt-1 flex flex-wrap items-center justify-center gap-1.5"><span className="rounded-full bg-neutral-50 px-2 py-0.5 text-[11px] font-medium text-neutral-700">{item.type === 'jadi' ? 'Obat jadi' : 'Racikan'}</span>{item.external && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">Resep luar</span>}</div></TableCell>
+                                <TableCell className="whitespace-nowrap text-center font-mono text-neutral-700">{item.requestedQuantity} {item.unit}</TableCell>
+                                <TableCell className="whitespace-nowrap text-center">{item.external ? <span className="text-xs text-neutral-500">Ditebus di luar</span> : item.reserved ? <span className="text-xs font-medium text-neutral-700">Sudah direservasi</span> : <span className={item.stock >= quantity ? 'font-medium text-emerald-700' : 'font-medium text-red-700'}>{item.stock} {item.stockUnit}</span>}</TableCell>
+                                <TableCell className="text-center">{item.external ? <div><p className="font-medium text-neutral-700">Tidak diserahkan di klinik</p><input name={`items[${index}][jumlah_diberikan]`} type="hidden" value="0" /></div> : <div className="flex flex-col items-center gap-1"><Input aria-label={`Jumlah ${item.name} diserahkan`} className="w-32 text-center font-mono" disabled={alreadyComplete} min="0" onChange={(event) => form.setData('items', form.data.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, jumlah_diberikan: event.target.value } : entry))} step="1" type="number" value={current?.jumlah_diberikan ?? '0'} />{!sufficient && <p className="text-xs font-medium text-red-700">Jumlah melebihi resep atau stok tersedia.</p>}{form.errors[`items.${index}.jumlah_diberikan` as keyof typeof form.errors] && <p className="text-xs text-red-700">{form.errors[`items.${index}.jumlah_diberikan` as keyof typeof form.errors]}</p>}</div>}</TableCell>
+                                <TableCell><Input aria-label={`Aturan pakai ${item.name}`} className="text-center" disabled={alreadyComplete || item.external} onChange={(event) => form.setData('items', form.data.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, aturan_pakai: event.target.value } : entry))} placeholder="Dosis, frekuensi, dan waktu penggunaan" value={current?.aturan_pakai ?? ''} /></TableCell>
+                                <TableCell className="text-center"><div className="flex items-center justify-center gap-2"><ActionButton disabled={item.external || (!alreadyComplete && item.stock <= 0) || quantity <= 0} onClick={() => setEtiketItem({ name: item.name, instructions: current?.aturan_pakai ?? '' })} type="button" action="print" label="Cetak etiket" />{item.external ? <ActionButton asChild action="print" disabled={!visit.examinationSigned} label="Cetak resep luar"><Link href={item.externalPrintUrl} /></ActionButton> : <ActionButton action="issue" disabled={alreadyComplete || !visit.examinationSigned || item.reserved || item.stock > 0 || item.medicineId === null} label="Resep luar" onClick={() => markExternal(item)} title={!visit.examinationSigned ? 'Pemeriksaan dokter belum ditandatangani' : item.stock > 0 ? 'Stok obat masih tersedia' : 'Catat untuk ditebus di luar klinik'} />}</div></TableCell>
                             </TableRow>;
-                        }) : <TableRow><TableCell colSpan={6}><Empty size="compact" title="Tidak ada item resep untuk disiapkan." /></TableCell></TableRow>}
+                        }) : <TableRow><TableCell className="text-center" colSpan={6}><Empty size="compact" title="Tidak ada item resep untuk disiapkan." /></TableCell></TableRow>}
                     </TableBody></Table></div></CardContent>
-                    <div className="space-y-4 border-t border-neutral-100 p-5 sm:p-6"><Field error={form.errors.catatan} htmlFor="catatan-farmasi" label="Catatan tambahan farmasi"><Input disabled={alreadyComplete} id="catatan-farmasi" onChange={(event) => form.setData('catatan', event.target.value)} placeholder="Informasi dispensing atau penyimpanan" value={form.data.catatan} /></Field>{form.errors.items && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{form.errors.items}</p>}
-                        {form.isDirty && <p role="status" className="text-sm text-muted-foreground">Perubahan akan disimpan bersama proses penyerahan obat.</p>}<div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><p className="text-xs text-neutral-500">Resep luar dicatat pada resep dan tidak dimasukkan dalam stok dispensing klinik.</p><div className="flex flex-wrap justify-end gap-2"><Button asChild variant="secondary"><Link href="/pelayanan/farmasi">Batalkan</Link></Button><Button disabled={form.processing || alreadyComplete} type="submit" variant="secondary"><Save className="size-4" />Simpan draf</Button><Button disabled={form.processing || alreadyComplete} onClick={finishDispensing} type="button"><Check className="size-4" />Serahkan obat & selesaikan</Button></div></div>
+                    <div className="space-y-4 border-t border-neutral-100 p-5 sm:p-6"><Field error={form.errors.catatan} htmlFor="catatan-farmasi" label="Catatan tambahan"><Input disabled={alreadyComplete} id="catatan-farmasi" onChange={(event) => form.setData('catatan', event.target.value)} placeholder="Informasi penyerahan atau penyimpanan obat" value={form.data.catatan} /></Field>{form.errors.items && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{form.errors.items}</p>}
+                        {form.isDirty && <p role="status" className="text-sm text-muted-foreground">Perubahan akan disimpan saat layanan diselesaikan.</p>}<div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><p className="text-xs text-neutral-500">{allExternal ? 'Siapkan dokumen resep luar untuk pasien. Tidak ada obat yang diserahkan dari stok klinik.' : 'Obat dari resep luar dicatat, tetapi tidak mengurangi persediaan klinik.'}</p><div className="flex flex-wrap justify-end gap-2"><Button asChild variant="secondary"><Link href="/pelayanan/farmasi">Batalkan</Link></Button><Button disabled={form.processing || alreadyComplete} type="submit" variant="secondary"><Save className="size-4" />Simpan draf</Button><Button disabled={form.processing || alreadyComplete || visit.prescriptionItems.length === 0} onClick={finishDispensing} type="button"><Check className="size-4" />{allExternal ? 'Selesaikan resep luar' : 'Serahkan obat & selesaikan'}</Button></div></div>
                     </div></form>
                 </Card>
                 {visit.allocations.length > 0 && (
@@ -171,15 +182,15 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
                         {allocationsExpanded && (
                             <div className="overflow-x-auto border-t border-neutral-100" id="dispensed-allocation-details">
                                 <Table className="min-w-[760px]">
-                                    <TableHeader><TableRow><TableHead>Obat</TableHead><TableHead>Batch</TableHead><TableHead>Kedaluwarsa</TableHead><TableHead>Jumlah</TableHead><TableHead>Petugas / waktu</TableHead></TableRow></TableHeader>
+                                    <TableHeader><TableRow><TableHead className="text-center">Obat</TableHead><TableHead className="text-center">Batch</TableHead><TableHead className="text-center">Kedaluwarsa</TableHead><TableHead className="text-center">Jumlah</TableHead><TableHead className="text-center">Petugas / waktu</TableHead></TableRow></TableHeader>
                                     <TableBody>
                                         {visit.allocations.map((allocation, index) => (
                                             <TableRow key={`${allocation.medicine}-${allocation.batch ?? 'historis'}-${index}`}>
-                                                <TableCell>{allocation.medicine}</TableCell>
-                                                <TableCell className="font-mono">{allocation.batch ?? 'Historis'}</TableCell>
-                                                <TableCell>{allocation.expiry ?? 'Historis'}</TableCell>
-                                                <TableCell>{allocation.quantity}</TableCell>
-                                                <TableCell>{allocation.actor ?? 'Historis'}<p className="text-xs text-muted-foreground">{allocation.at}</p></TableCell>
+                                                <TableCell className="text-center">{allocation.medicine}</TableCell>
+                                                <TableCell className="text-center font-mono">{allocation.batch ?? 'Historis'}</TableCell>
+                                                <TableCell className="text-center">{allocation.expiry ?? 'Historis'}</TableCell>
+                                                <TableCell className="text-center">{allocation.quantity}</TableCell>
+                                                <TableCell className="text-center">{allocation.actor ?? 'Historis'}<p className="text-xs text-muted-foreground">{allocation.at}</p></TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>

@@ -50,7 +50,7 @@ class PemeriksaanController extends Controller
         $visitQuery = $this->doctorAccess->visibleVisits($request->user(), $claimDate)
             ->whereIn('status', ['pemeriksaan', 'tindakan', 'farmasi', 'kasir', 'selesai']);
         $kunjungan = (clone $visitQuery)
-            ->with(['pasien', 'poliklinik', 'dokter', 'pemeriksaan.diagnosa', 'pemeriksaan.clinicalNoteVersions'])
+            ->with(['pasien', 'poliklinik', 'dokter', 'screening', 'pemeriksaan.diagnosa', 'pemeriksaan.clinicalNoteVersions'])
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->whereHas('pasien', fn ($patients) => $patients
                 ->where(fn ($names) => $names->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
             ->when($date, fn ($query) => $query->whereDate('tanggal', $date))
@@ -80,6 +80,7 @@ class PemeriksaanController extends Controller
             'canClaim' => $doctorId !== null && $visit->dokter_id === null,
             'status' => $visit->status,
             'examinationStarted' => $visit->pemeriksaan !== null,
+            'canExamine' => $visit->canOpenExamination(),
             'diagnosisCount' => $visit->pemeriksaan?->diagnosa->count() ?? 0,
             'recordUrl' => in_array((int) $visit->pasien_id, $recordPatientIds, true) ? route('pelayanan.pasien.rekam-medis', $visit->pasien_id) : null,
             'letterUrl' => $doctorId !== null && in_array($visit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true)
@@ -201,6 +202,7 @@ class PemeriksaanController extends Controller
                 'number' => $kunjungan->no_kunjungan,
                 'status' => $kunjungan->status,
                 'examinationStarted' => $kunjungan->pemeriksaan !== null,
+                'screeningSubmitted' => $kunjungan->screening?->submitted_at !== null,
                 'doctorId' => $kunjungan->dokter_id,
                 'canClaim' => auth()->user()->role === 'dokter' && $kunjungan->dokter_id === null,
                 'isReservation' => $kunjungan->status === 'menunggu' && $kunjungan->tanggal?->isAfter(today()),
@@ -1229,10 +1231,12 @@ class PemeriksaanController extends Controller
         }
 
         abort_unless(
-            $kunjungan->status === 'pemeriksaan' && $kunjungan->pemeriksaan?->status !== 'selesai' && ! $kunjungan->pemeriksaan?->signed_at,
+            $kunjungan->status === 'pemeriksaan' && $kunjungan->canOpenExamination()
+                && $kunjungan->pemeriksaan?->status !== 'selesai' && ! $kunjungan->pemeriksaan?->signed_at,
             422,
             match (true) {
                 (bool) $kunjungan->pemeriksaan?->signed_at, $kunjungan->pemeriksaan?->status === 'selesai' => 'Pemeriksaan telah difinalisasi dan tidak dapat diubah langsung.',
+                $kunjungan->status === 'pemeriksaan' && ! $kunjungan->canOpenExamination() => 'Selesaikan pengkajian awal sebelum mencatat pemeriksaan dokter.',
                 $kunjungan->status === 'menunggu', $kunjungan->status === 'screening' => 'Selesaikan pengkajian awal sebelum mencatat pemeriksaan dokter.',
                 $kunjungan->status === 'batal' => 'Kunjungan dibatalkan dan tidak dapat dilanjutkan.',
                 default => 'Kunjungan tidak berada pada tahap pemeriksaan dokter.',

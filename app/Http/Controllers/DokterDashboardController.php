@@ -74,9 +74,10 @@ class DokterDashboardController extends Controller
                         : route('pelayanan.pasien.rekam-medis', $visit->pasien),
                     'recordUrl' => route('pelayanan.pasien.rekam-medis', $visit->pasien),
                     'actionLabel' => $visit->status === 'pemeriksaan'
-                        ? ($visit->pemeriksaan ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan')
+                        ? ($visit->screening?->submitted_at === null ? 'Menunggu pengkajian perawat' : ($visit->pemeriksaan ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan'))
                         : 'Lihat RME',
                     'actionType' => $visit->status === 'pemeriksaan' ? 'examination' : 'detail',
+                    'actionDisabled' => $visit->status === 'pemeriksaan' && ! $visit->canOpenExamination(),
                     'letterUrl' => $this->letterUrl($visit, $notes),
                     'showLetterAction' => true,
                 ])->values(),
@@ -138,6 +139,7 @@ class DokterDashboardController extends Controller
                     'triage' => $visit->screening?->kesimpulan_triase,
                     'priority' => $visit->screening?->prioritas_layanan,
                     'examinationUrl' => route('pelayanan.pemeriksaan.show', $visit),
+                    'canExamine' => $visit->canOpenExamination(),
                     'recordUrl' => route('pelayanan.pasien.rekam-medis', $visit->pasien_id),
                     'letterUrl' => $this->letterUrl($visit, $notes),
                 ])->values(),

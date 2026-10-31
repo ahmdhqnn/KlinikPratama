@@ -29,6 +29,11 @@ class Farmasi extends Model
         return $this->belongsTo(Nakes::class, 'petugas_id');
     }
 
+    public function dispensingPharmacist(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'dispensed_by');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(FarmasiItem::class);

@@ -1,6 +1,7 @@
 interface ExaminationVisit {
     status: string;
     canClaim: boolean;
+    screeningSubmitted: boolean;
     isReservation?: boolean;
     examination?: { status?: string; signedAt?: string | null; integrityValid?: boolean | null } | null;
 }
@@ -10,8 +11,8 @@ export function examinationState(visit: ExaminationVisit) {
     const signed = Boolean(visit.examination?.signedAt);
     const invalid = visit.examination?.integrityValid === false;
     const finalized = signed || visit.examination?.status === 'selesai';
-    const canStart = !invalid && !finalized && !visit.isReservation && visit.status === 'pemeriksaan' && (!visit.examination || visit.canClaim);
-    const canEdit = !visit.canClaim && Boolean(visit.examination) && !invalid && !finalized && visit.status === 'pemeriksaan';
+    const canStart = !invalid && !finalized && visit.screeningSubmitted === true && !visit.isReservation && visit.status === 'pemeriksaan' && (!visit.examination || visit.canClaim);
+    const canEdit = visit.screeningSubmitted === true && !visit.canClaim && Boolean(visit.examination) && !invalid && !finalized && visit.status === 'pemeriksaan';
     const canCorrect = !visit.canClaim && signed && visit.examination?.integrityValid === true && ['tindakan', 'farmasi', 'kasir', 'selesai'].includes(visit.status);
     let notice: ExaminationNotice | null = null;
     if (invalid) {
@@ -26,6 +27,8 @@ export function examinationState(visit: ExaminationVisit) {
             : { title: 'Menunggu pengkajian awal', description: 'Pasien belum menyelesaikan pengkajian awal perawat. Pemeriksaan dokter dapat diisi setelah pasien diteruskan ke tahap pemeriksaan.' };
     } else if (visit.status === 'screening') {
         notice = { title: 'Pengkajian awal berlangsung', description: 'Perawat sedang melengkapi pengkajian awal. Pemeriksaan dokter dapat diisi setelah pengkajian diselesaikan.' };
+    } else if (visit.status === 'pemeriksaan' && !visit.screeningSubmitted) {
+        notice = { title: 'Menunggu pengkajian awal', description: 'Pemeriksaan dokter dapat dimulai setelah perawat mengirim pengkajian awal pasien.' };
     } else if (canStart) {
         notice = { title: 'Menunggu pemeriksaan', description: 'Pengkajian awal sudah selesai. Klik Mulai pemeriksaan saat Anda mulai memeriksa pasien.' };
     } else if (!canEdit) {
