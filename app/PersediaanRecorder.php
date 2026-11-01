@@ -5,6 +5,7 @@ namespace App;
 use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\ObatBatch;
+use App\Models\Pasien;
 use App\Models\StokMutasi;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -44,6 +45,29 @@ class PersediaanRecorder
                 $taken = min($quantity, (float) $batch->stok);
                 $this->change($medicine, $batch, -$taken, 'keluar', $actor, "Pemakaian {$visit->no_kunjungan}", $referenceType, $referenceId, $visit, $pharmacyItemId);
                 $quantity = round($quantity - $taken, 2);
+                if ($quantity <= 0) {
+                    break;
+                }
+            }
+        });
+    }
+
+    public function issueWithoutVisit(int $medicineId, int $quantity, User $actor, Pasien $patient, string $referenceType, int $referenceId): void
+    {
+        DB::transaction(function () use ($medicineId, $quantity, $actor, $patient, $referenceType, $referenceId): void {
+            $medicine = Obat::whereKey($medicineId)->lockForUpdate()->firstOrFail();
+            $this->assertBalance($medicine);
+            if (! $medicine->is_active || $medicine->jenis !== 'obat' || ! $medicine->boleh_diberikan_langsung || $quantity <= 0) {
+                throw ValidationException::withMessages(['obat_id' => 'Pilih obat aktif yang sudah disetujui untuk layanan langsung.']);
+            }
+            $batches = $medicine->batches()->usable()->orderBy('expired_at')->orderBy('id')->lockForUpdate()->get();
+            if (round((float) $batches->sum('stok'), 2) < $quantity) {
+                throw ValidationException::withMessages(['jumlah' => "Stok layak pakai {$medicine->nama} tidak mencukupi."]);
+            }
+            foreach ($batches as $batch) {
+                $taken = min($quantity, (float) $batch->stok);
+                $this->change($medicine, $batch, -$taken, 'keluar', $actor, 'Pemberian obat langsung kepada pasien '.$patient->no_rm, $referenceType, $referenceId);
+                $quantity -= (int) $taken;
                 if ($quantity <= 0) {
                     break;
                 }
@@ -111,7 +135,7 @@ class PersediaanRecorder
             $this->assertBalance($medicine);
             $original = StokMutasi::with('batch')->whereKey($original->id)->lockForUpdate()->firstOrFail();
             $returned = (float) StokMutasi::where('mutasi_asal_id', $original->id)->where('jenis', 'retur')->sum('jumlah');
-            if ($original->jenis !== 'keluar' || $original->referensi_type !== 'Farmasi' || ! $original->batch || $quantity <= 0 || $quantity > (float) $original->jumlah - $returned) {
+            if ($original->jenis !== 'keluar' || ! in_array($original->referensi_type, ['Farmasi', 'FarmasiMandiri'], true) || ! $original->batch || $quantity <= 0 || $quantity > (float) $original->jumlah - $returned) {
                 throw ValidationException::withMessages(['jumlah' => 'Retur harus mengacu pengeluaran resep dan tidak melebihi jumlah yang belum diretur.']);
             }
             $batch = $medicine->batches()->create([
@@ -119,8 +143,9 @@ class PersediaanRecorder
                 'expired_at' => $original->batch->expired_at,
                 'stok' => 0, 'status' => 'karantina', 'sumber' => 'retur', 'referensi' => $reason,
             ]);
-            $visit = Kunjungan::findOrFail($original->kunjungan_id);
-            $movement = $this->change($medicine, $batch, $quantity, 'retur', $actor, $reason, 'FarmasiRetur', $original->referensi_id, $visit, $original->farmasi_item_id);
+            $visit = $original->kunjungan_id ? Kunjungan::findOrFail($original->kunjungan_id) : null;
+            $returnReferenceType = $original->referensi_type === 'Farmasi' ? 'FarmasiRetur' : 'FarmasiMandiriRetur';
+            $movement = $this->change($medicine, $batch, $quantity, 'retur', $actor, $reason, $returnReferenceType, $original->referensi_id, $visit, $original->farmasi_item_id);
             $movement->update(['mutasi_asal_id' => $original->id]);
         });
     }

@@ -30,7 +30,17 @@ class PersediaanController extends Controller
                 'url' => route('stok.persediaan.show', $medicine),
             ]);
 
-        return Inertia::render('stok/persediaan/index', ['medicines' => $this->pageData($medicines), 'filters' => $filters]);
+        $summary = Obat::query()->withSum(['batches as usable_stock' => fn ($query) => $query->usable()], 'stok')->get(['id', 'jenis', 'stok_minimum', 'is_active']);
+
+        return Inertia::render('stok/persediaan/index', [
+            'medicines' => $this->pageData($medicines),
+            'filters' => $filters,
+            'stats' => [
+                'medicines' => $summary->where('jenis', 'obat')->count(),
+                'supplies' => $summary->where('jenis', 'bhp')->count(),
+                'lowStock' => $summary->filter(fn (Obat $medicine): bool => $medicine->is_active && (float) $medicine->usable_stock <= (float) $medicine->stok_minimum)->count(),
+            ],
+        ]);
     }
 
     public function show(Obat $obat): Response
@@ -43,7 +53,7 @@ class PersediaanController extends Controller
                 'batch' => $movement->batch?->nomor_batch, 'quantity' => (float) $movement->jumlah,
                 'before' => (float) $movement->stok_sebelum, 'after' => (float) $movement->stok_sesudah,
                 'actor' => $movement->actor?->name, 'reason' => $movement->keterangan,
-                'canReturn' => $movement->jenis === 'keluar' && $movement->referensi_type === 'Farmasi',
+                'canReturn' => $movement->jenis === 'keluar' && in_array($movement->referensi_type, ['Farmasi', 'FarmasiMandiri'], true),
             ]);
 
         return Inertia::render('stok/persediaan/show', [

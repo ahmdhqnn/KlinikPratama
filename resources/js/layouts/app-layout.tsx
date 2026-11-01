@@ -9,6 +9,7 @@ import {
     ChartNoAxesCombined,
     ClipboardList,
     ClipboardCheck,
+    FilePlus2,
     FileText,
     HeartPulse,
     LayoutDashboard,
@@ -53,6 +54,7 @@ interface SharedPageProps extends PageProps {
     modules?: Partial<Record<'laboratory' | 'medicine_depots' | 'medical_equipment' | 'medical_treatments', boolean>>;
     nurseQueues?: { assessment: number; treatments: number } | null;
     doctorQueues?: { examinations: number } | null;
+    pharmacyQueues?: { handovers: number } | null;
     auth: { user: AppUser | null };
     flash: { success?: string | null; error?: string | null };
 }
@@ -187,8 +189,21 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
     ],
     farmasi: [
         { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/farmasi/dashboard', icon: LayoutDashboard, exact: true }] },
-        { label: 'Operasional', items: [{ label: 'Antrean Farmasi', href: '/pelayanan/farmasi', icon: Pill }] },
-        { label: 'Pengelolaan', items: [{ label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes }] },
+        { label: 'Operasional', items: [
+            { label: 'Penyerahan obat', href: '/pelayanan/farmasi', icon: Pill },
+            { label: 'Obat langsung', href: '/farmasi/pemberian-obat', icon: FilePlus2 },
+            { label: 'Resep luar', href: '/farmasi/resep-luar', icon: FileText },
+            { label: 'Pasien', href: '/farmasi/pasien', icon: UsersRound },
+        ] },
+        { label: 'Pengelolaan obat', items: [
+            { label: 'Obat & BHP', href: '/stok/persediaan', icon: Boxes },
+            { label: 'Database pasien', href: '/pelayanan/pasien', icon: UsersRound },
+        ] },
+        { label: 'Laporan', items: [
+            { label: 'Laporan obat', href: '/farmasi/laporan/penyerahan-obat', icon: ClipboardCheck },
+            { label: 'Laporan obat langsung', href: '/farmasi/laporan/pemberian-langsung', icon: FileText },
+            { label: 'Laporan resep luar', href: '/farmasi/laporan/resep-luar', icon: ClipboardList },
+        ] },
     ],
     manajemen: [
         { label: 'Ringkasan', items: [{ label: 'Dashboard', href: '/', icon: LayoutDashboard, exact: true }] },
@@ -207,7 +222,7 @@ function getPageTitle(component: string): string {
     const titles: Record<string, string> = {
         'dashboard/index': 'Dashboard',
         'kepesertaan/index': 'Kepesertaan',
-        'stok/persediaan/index': 'Persediaan Obat & BHP',
+        'stok/persediaan/index': 'Obat & BHP',
         'stok/persediaan/show': 'Batch & Kartu Stok',
         'pendaftaran/dashboard': 'Dashboard Pendaftaran',
         'pendaftaran/pendaftaran-baru': 'Pendaftaran Pasien',
@@ -245,9 +260,18 @@ function getPageTitle(component: string): string {
         'persuratan/cetak': 'Cetak Dokumen',
         'pelayanan/tindakan/index': 'Tindakan Perawat',
         'pelayanan/tindakan/show': 'Pelaksanaan Tindakan',
-        'pelayanan/farmasi/index': 'Antrean Farmasi',
-        'pelayanan/farmasi/show': 'Dispensing Obat',
+        'pelayanan/farmasi/index': 'Penyerahan Obat',
+        'pelayanan/farmasi/show': 'Penyerahan Obat',
         'farmasi/dashboard': 'Dashboard Farmasi',
+        'farmasi/resep-luar': 'Resep Luar',
+        'farmasi/pasien': 'Pasien',
+        'farmasi/pasien-kunjungan': 'Detail Layanan Pasien',
+        'farmasi/pemberian-obat/form': 'Pemberian Obat Tanpa Pemeriksaan',
+        'farmasi/pemberian-obat/index': 'Obat Langsung',
+        'farmasi/pemberian-obat/cetak': 'Bukti Pemberian Obat',
+        'farmasi/laporan': 'Laporan Obat Langsung',
+        'farmasi/laporan-penyerahan': 'Laporan Obat',
+        'farmasi/laporan-resep-luar': 'Laporan Resep Luar',
         'laporan/kunjungan': 'Laporan Kunjungan',
         'laporan/stok': 'Laporan Stok',
         'laporan/laboratorium': 'Laporan Laboratorium',
@@ -412,7 +436,7 @@ function AccountAvatar({ user }: { user: AppUser | null }) {
 
 export default function AppLayout({ children }: { children: ReactNode }) {
     const page = usePage<SharedPageProps>();
-    const { auth, flash, modules, nurseQueues, doctorQueues } = page.props;
+    const { auth, flash, modules, nurseQueues, doctorQueues, pharmacyQueues } = page.props;
     const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -429,7 +453,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     ? item.href === '/pelayanan/screening' ? nurseQueues?.assessment : item.href === '/pelayanan/tindakan-perawat' ? nurseQueues?.treatments : undefined
                     : user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
                         ? doctorQueues?.examinations
-                        : undefined;
+                        : user?.role === 'farmasi' && item.href === '/pelayanan/farmasi'
+                            ? pharmacyQueues?.handovers
+                            : undefined;
 
                 return { ...item, label, badge: badge ?? undefined };
             }),
@@ -464,13 +490,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (user?.role !== 'perawat' && user?.role !== 'dokter') {
+        if (user?.role !== 'perawat' && user?.role !== 'dokter' && user?.role !== 'farmasi') {
             return;
         }
 
         const refreshQueues = () => {
             if (document.visibilityState === 'visible') {
-                router.reload({ only: user?.role === 'perawat' ? ['nurseQueues'] : ['doctorQueues'], async: true });
+                router.reload({ only: user?.role === 'perawat' ? ['nurseQueues'] : user?.role === 'dokter' ? ['doctorQueues'] : ['pharmacyQueues'], async: true });
             }
         };
         const interval = window.setInterval(refreshQueues, 30_000);

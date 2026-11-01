@@ -13,6 +13,7 @@ use App\Models\OdontogramFinding;
 use App\Models\Pasien;
 use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
+use App\Models\Screening;
 use App\Models\Tindakan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -270,6 +271,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
         Nakes::create(['kode' => 'NUR-CARE', 'nama' => 'Perawat Uji', 'kategori' => 'medis', 'jabatan' => 'perawat', 'user_id' => $nurse->id, 'poliklinik_id' => $clinic->id, 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-CARE', 'nama' => 'Pasien Sintetis']);
         $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-CARE', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'dokter_id' => $doctor->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
+        Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
         $examination = Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id, 'anamnesis' => 'Keluhan uji', 'pemeriksaan_fisik' => 'Temuan uji']);
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'R50.9', 'nama_diagnosa' => 'Diagnosis uji', 'jenis' => 'utama']);
         if ($type === 'gigi') {

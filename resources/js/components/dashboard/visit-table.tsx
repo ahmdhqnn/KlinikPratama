@@ -23,6 +23,7 @@ export interface DashboardVisit {
     showLetterAction?: boolean;
     actionLabel: string;
     actionType: 'screening' | 'examination' | 'pharmacy' | 'procedure' | 'detail';
+    actionDisabled?: boolean;
 }
 
 export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
@@ -58,7 +59,9 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                             </TableCell>
                             <TableCell className="text-center">
                                 <div className="flex items-center justify-center gap-2">
-                                    <ActionButton asChild action={visit.actionLabel === 'Lihat RME' ? 'rme' : visit.actionType} label={visit.actionLabel}><Link href={visit.actionUrl} /></ActionButton>
+                                    {visit.actionDisabled
+                                        ? <ActionButton disabled title="Pemeriksaan dokter dapat dimulai setelah pengkajian perawat dikirim." action={visit.actionType} label={visit.actionLabel} />
+                                        : <ActionButton asChild action={visit.actionLabel === 'Lihat RME' ? 'rme' : visit.actionType} label={visit.actionLabel}><Link href={visit.actionUrl} /></ActionButton>}
                                     {visit.actionLabel !== 'Lihat RME' && visit.recordUrl && <ActionButton asChild action="rme" label={`Lihat RME ${visit.patient}`}><Link href={visit.recordUrl} /></ActionButton>}
                                     {visit.showLetterAction && (visit.letterUrl ? <ActionButton asChild action="issue" label={`Terbitkan surat untuk ${visit.patient}`}><Link href={visit.letterUrl} /></ActionButton> : <ActionButton action="issue" disabled label={`Surat belum dapat diterbitkan untuk ${visit.patient}`} title="Surat dapat diterbitkan setelah pemeriksaan difinalisasi dan diverifikasi." />)}
                                 </div>

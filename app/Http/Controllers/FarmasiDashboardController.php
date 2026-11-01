@@ -15,10 +15,18 @@ class FarmasiDashboardController extends Controller
     public function index(): Response
     {
         $today = today()->toDateString();
-        $pharmacyVisits = Kunjungan::query()->whereDate('tanggal', $today)->where('status', 'farmasi');
+        $activePharmacyVisits = Kunjungan::query()->where('status', 'farmasi')
+            ->whereDoesntHave('farmasi', fn (Builder $query) => $query->where('status', 'selesai'));
+        $pharmacyVisits = (clone $activePharmacyVisits)->whereDate('tanggal', $today);
         $waitingVisits = (clone $pharmacyVisits)->whereDoesntHave('farmasi', fn (Builder $query) => $query->where('status', 'diproses'))->count();
         $processingVisits = (clone $pharmacyVisits)->whereHas('farmasi', fn (Builder $query) => $query->where('status', 'diproses'))->count();
         $completedToday = Farmasi::query()->where('status', 'selesai')->whereDate('dispensed_at', $today)->count();
+        $totalPharmacyVisits = Kunjungan::query()->where(fn (Builder $query) => $query->where('status', 'farmasi')
+            ->orWhereHas('farmasi', fn (Builder $records) => $records->where('status', 'selesai')))->count();
+        $externalToday = Kunjungan::query()->whereDate('tanggal', $today)
+            ->whereHas('pemeriksaan', fn (Builder $exam) => $exam->whereNotNull('signed_at'))
+            ->whereHas('resep.resepObat', fn (Builder $items) => $items->where(fn (Builder $item) => $item
+                ->where('is_resep_luar', true)->orWhereHas('farmasiResepLuar')))->count();
         $lowStockMedicines = Obat::query()
             ->where('is_active', true)
             ->where('jenis', 'obat')
@@ -30,28 +38,34 @@ class FarmasiDashboardController extends Controller
         $recentVisits = (clone $pharmacyVisits)
             ->with(['pasien', 'poliklinik', 'farmasi'])
             ->orderBy('created_at')->orderBy('id')
-            ->limit(3)
-            ->get();
+            ->paginate(10);
 
         return Inertia::render('farmasi/dashboard', [
-            'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()->where('status', 'farmasi')), 'href' => route('pelayanan.farmasi.index')],
+            'followUp' => [...app(VisitOverviewService::class)->summarize($activePharmacyVisits), 'href' => route('pelayanan.farmasi.index')],
             'stats' => [
                 'waitingVisits' => $waitingVisits,
                 'processingVisits' => $processingVisits,
                 'completedToday' => $completedToday,
                 'lowStockMedicines' => $lowStockMedicines,
+                'totalPharmacyVisits' => $totalPharmacyVisits,
+                'externalToday' => $externalToday,
             ],
-            'recentVisits' => $recentVisits->map(fn (Kunjungan $visit): array => [
-                'id' => $visit->id,
-                'number' => $visit->no_kunjungan,
-                'patient' => $visit->pasien?->nama ?? 'Belum diisi',
-                'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
-                'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
-                'status' => $visit->farmasi?->status === 'diproses' ? 'diproses' : 'farmasi',
-                'actionUrl' => route('pelayanan.farmasi.show', $visit),
-                'actionLabel' => $visit->farmasi?->status === 'diproses' ? 'Lanjutkan' : 'Proses resep',
-                'actionType' => 'pharmacy',
-            ])->values(),
+            'recentVisits' => [
+                'data' => $recentVisits->getCollection()->map(fn (Kunjungan $visit): array => [
+                    'id' => $visit->id,
+                    'number' => $visit->no_kunjungan,
+                    'patient' => $visit->pasien?->nama ?? 'Belum diisi',
+                    'medicalRecordNumber' => $visit->pasien?->no_rm ?? 'Belum diisi',
+                    'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
+                    'status' => $visit->farmasi?->status === 'diproses' ? 'diproses' : 'farmasi',
+                    'actionUrl' => route('pelayanan.farmasi.show', $visit),
+                    'actionLabel' => $visit->farmasi?->status === 'diproses' ? 'Lanjutkan' : 'Proses resep',
+                    'actionType' => 'pharmacy',
+                ])->values(),
+                'currentPage' => $recentVisits->currentPage(), 'lastPage' => $recentVisits->lastPage(),
+                'from' => $recentVisits->firstItem(), 'to' => $recentVisits->lastItem(), 'total' => $recentVisits->total(),
+                'previousUrl' => $recentVisits->previousPageUrl(), 'nextUrl' => $recentVisits->nextPageUrl(),
+            ],
         ]);
     }
 }

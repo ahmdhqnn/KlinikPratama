@@ -320,7 +320,7 @@ test('dashboard queues clarify each workflow and center headers, cells, and stat
     for (const [page, props, expected, destination] of [
         ['perawat/dashboard', { stats: { total_kunjungan: 1, total_kunjungan_hari_ini: 1, menunggu_ttv: 1, menunggu_ttv_hari_ini: 1, siap_dokter: 0, siap_dokter_hari_ini: 0, triase_darurat: 0 }, visits: pageOf([{ ...visit, status: 'menunggu', actionType: 'screening' }]) }, 'Menunggu pengkajian awal', '/pelayanan/screening'],
         ['dokter/dashboard', { stats: { visitsToday: 1, totalVisits: 2, waitingExaminations: 1, completedToday: 0 }, schedule: [], recentVisits: pageOf([{ ...visit, status: 'pemeriksaan', actionType: 'examination' }]) }, 'Menunggu pemeriksaan', '/pelayanan/pemeriksaan'],
-        ['farmasi/dashboard', { stats: { waitingVisits: 0, processingVisits: 1, completedToday: 0, lowStockMedicines: 0 }, recentVisits: [{ ...visit, status: 'diproses', actionType: 'pharmacy' }] }, 'Penyiapan obat berlangsung', '/pelayanan/farmasi'],
+        ['farmasi/dashboard', { stats: { waitingVisits: 0, processingVisits: 1, completedToday: 0, lowStockMedicines: 0, totalPharmacyVisits: 2, externalToday: 0 }, recentVisits: pageOf([{ ...visit, status: 'diproses', actionType: 'pharmacy' }]) }, 'Penyiapan obat berlangsung', '/pelayanan/farmasi'],
     ]) {
         const html = await renderPage(page, { ...props, followUp });
         assert.ok(html.includes(`href="${destination}"`), `${page} summary card should link to its related menu`);
@@ -490,6 +490,72 @@ test('pharmacy detail shows saved processing status instead of treating it as wa
     assert.doesNotMatch(html, />Menunggu penyiapan obat<|>Penyerahan obat selesai</);
 });
 
+test('pharmacy item actions enable external prescription only when usable stock is zero', async () => {
+    const item = { id: 1, medicineId: 4, name: 'Obat Uji', type: 'jadi', requestedQuantity: 2, dispensedQuantity: 0, unit: 'tablet', instructions: '1 x 1', external: false, externalByPharmacy: false, externalActionUrl: '/pelayanan/farmasi/1/resep-luar/1', externalPrintUrl: '/farmasi/resep-luar/1/cetak', reserved: false, stock: 0, stockUnit: 'tablet' };
+    const visit = { id: 1, number: 'KNJ-1', status: 'farmasi', examinationSigned: true, prescriptionNumber: 'RSP-1', doctor: 'Dokter Uji', patient: { id: 1, name: 'Pasien Uji', medicalRecordNumber: 'RM-1', allergies: null, screeningAllergies: null, examinationAllergies: null }, pharmacy: null, prescriptionItems: [item], allocations: [] };
+    const empty = await renderPage('pelayanan/farmasi/show', { visit, today: '2026-10-31', appName: 'Klinik Uji' });
+    assert.match(empty, /<th[^>]*>Aksi<\/th>/);
+    assert.match(empty.match(/<button[^>]*aria-label="Resep luar"[^>]*>/)?.[0] ?? '', /aria-label="Resep luar"/);
+    assert.doesNotMatch(empty.match(/<button[^>]*aria-label="Resep luar"[^>]*>/)?.[0] ?? '', /\sdisabled(?:=|\s|>)/);
+    const stocked = await renderPage('pelayanan/farmasi/show', { visit: { ...visit, prescriptionItems: [{ ...item, stock: 4 }] }, today: '2026-10-31', appName: 'Klinik Uji' });
+    assert.match(stocked.match(/<button[^>]*aria-label="Resep luar"[^>]*>/)?.[0] ?? '', /\sdisabled(?:=|\s|>)/);
+});
+
+test('pharmacy direct dispensing captures patient, medicine, reason, and safe-use instructions', async () => {
+    const html = await renderPage('farmasi/pemberian-obat/form', {
+        search: '',
+        patients: [{ id: 1, name: 'Pasien Uji', medicalRecordNumber: 'RM-001', allergies: 'Alergi penisilin' }],
+        medicines: [{ id: 1, name: 'Parasetamol', unit: 'tablet', stock: 10 }],
+    });
+    assert.match(html, /Catat pemberian obat langsung/);
+    assert.match(html, /Dasar pemberian dan catatan/);
+    assert.match(html, /Catat dan serahkan obat/);
+    assert.match(html, /Pilih dari daftar/);
+    assert.match(html, /Cari pasien/);
+    assert.match(html, /role="tablist"/);
+    assert.match(html, /2\. Obat dan penyerahan/);
+});
+
+test('pharmacy operational pages show today before the full history', async () => {
+    const direct = await renderPage('farmasi/pemberian-obat/index', {
+        stats: { today: 1, patients: 1, all: 2 }, search: '',
+        todayRecords: pageOf([{ number: 'FMD-1', date: '31/10/2026 10:00', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', medicine: 'Parasetamol', quantity: 2, unit: 'tablet', pharmacist: 'Petugas', printUrl: '/farmasi/pemberian-obat/1/cetak' }]),
+        records: pageOf([]),
+    });
+    assert.ok(direct.indexOf('Pemberian obat hari ini') < direct.indexOf('Semua pemberian obat'));
+    assert.match(direct, /href="\/farmasi\/pemberian-obat\/baru"/);
+
+    const handover = await renderPage('pelayanan/farmasi/index', {
+        stats: { today: 1, waiting: 1, processing: 0, completed: 0 }, date: '', search: '',
+        todayVisits: pageOf([{ id: 1, date: '31/10/2026', prescriptionNumber: 'R-001', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', doctor: 'Dokter Uji', itemCount: 1, pharmacyStatus: 'menunggu' }]),
+        visits: pageOf([]),
+    });
+    assert.ok(handover.indexOf('Menunggu penyerahan hari ini') < handover.indexOf('Semua penyerahan obat'));
+    assert.match(handover, /href="\/pelayanan\/farmasi\/1"/);
+});
+
+test('pharmacy report shows an exportable, centered direct-dispensing ledger', async () => {
+    const html = await renderPage('farmasi/laporan', {
+        filters: { dari: '', sampai: '', search: '' }, stats: { total: 1, patients: 1, items: 2 },
+        rows: pageOf([{ date: '31/10/2026 10:00', number: 'FMD-20261031-ABC123', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', medicine: 'Parasetamol', quantity: 2, unit: 'tablet', instruction: '1 tablet bila perlu', pharmacist: 'Petugas Farmasi', printUrl: '/farmasi/pemberian-obat/1/cetak' }]),
+        exportUrl: '/farmasi/laporan/pemberian-langsung/export',
+    });
+    assert.match(html, /Laporan obat langsung/);
+    assert.match(html, /Ekspor Excel/);
+    assert.match(html, /Tanpa pemeriksaan/);
+});
+
+test('pharmacy handover report remains separate from direct medicine dispensing', async () => {
+    const html = await renderPage('farmasi/laporan-penyerahan', {
+        filters: { dari: '2026-10-01', sampai: '2026-10-31', search: '' }, stats: { total: 1, patients: 1, items: 3 },
+        rows: pageOf([{ date: '31/10/2026 10:00', number: 'K-001', patient: 'Pasien Uji', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', medicine: 'Parasetamol', quantity: 3, pharmacist: 'Petugas Farmasi', detailUrl: '/pelayanan/farmasi/1' }]),
+        exportUrl: '/farmasi/laporan/penyerahan-obat/export',
+    });
+    assert.match(html, /berdasarkan resep dokter/);
+    assert.match(html, /Laporan obat/);
+    assert.match(html, /Ekspor Excel/);
+});
+
 for (const [role, url, expected] of [
     ['pendaftaran', '/pendaftaran', '/pendaftaran'],
     ['pendaftaran', '/pendaftaran/pendaftaran-baru?tab=registered', '/pendaftaran/pendaftaran-baru'],
@@ -502,6 +568,9 @@ for (const [role, url, expected] of [
     ['perawat', '/pelayanan/screening/42', '/pelayanan/screening'],
     ['admin', '/master/obat/12/stok', '/master/obat'],
     ['farmasi', '/pelayanan/farmasi/42', '/pelayanan/farmasi'],
+    ['farmasi', '/farmasi/pasien', '/farmasi/pasien'],
+    ['farmasi', '/farmasi/laporan/penyerahan-obat', '/farmasi/laporan/penyerahan-obat'],
+    ['farmasi', '/farmasi/laporan/pemberian-langsung', '/farmasi/laporan/pemberian-langsung'],
     ['manajemen', '/laporan/kunjungan', '/laporan/kunjungan'],
 ]) {
     test(`sidebar ${role} activates only the matching menu for ${url}`, async () => {
@@ -1039,7 +1108,7 @@ function examinationProps(clinicType = 'gigi', overrides = {}) {
         dentalOptions: { teeth: ['11', '46', '51', '85'], surfaces: { W: 'Seluruh gigi', O: 'Oklusal', D: 'Distal' }, findings: { caries: 'Karies', sound: 'Sehat', missing: 'Hilang' } },
         today: '2026-10-24', correspondenceTemplates: [],
         visit: {
-            id: 1, number: 'K-001', status: 'pemeriksaan', canClaim: false, doctorId: 1, clinicId: 1, clinicType, clinic: 'Poli ' + clinicType,
+            id: 1, number: 'K-001', status: 'pemeriksaan', canClaim: false, screeningSubmitted: true, doctorId: 1, clinicId: 1, clinicType, clinic: 'Poli ' + clinicType,
             patient: { id: 1, name: 'Pasien Uji', medicalRecordNumber: 'RM-001', gender: 'P', age: 35, bloodType: null, allergies: 'Tidak ada alergi' },
             examinationFormDefaults: { anamnesis: 'Nyeri sejak kemarin', currentHistory: null, pastHistory: null, familyHistory: null, allergyHistory: 'Tidak ada alergi' },
             screening: null,
@@ -1220,7 +1289,7 @@ for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
     ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 10],
     ['dokter', 'umum', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 13],
     ['dokter', 'gigi', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 13],
-    ['farmasi', null, '/farmasi/dashboard', '/pelayanan/farmasi', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Akun'], 4],
+    ['farmasi', null, '/farmasi/dashboard', '/pelayanan/farmasi', ['Ringkasan', 'Operasional', 'Pengelolaan obat', 'Laporan', 'Akun'], 11],
     ['manajemen', null, '/', '/laporan/kunjungan', ['Ringkasan', 'Laporan', 'Akun'], 4],
 ]) {
     test(role + ' ' + (clinicType ?? '') + ' groups its menus and places primary work immediately after dashboard', async () => {
@@ -2288,7 +2357,7 @@ test('compact annotation examination keeps existing drawing and note visible wit
 
 for (const page of ['dokter/appointments', 'pelayanan/pemeriksaan/index']) {
     test(page + ' provides an RME icon action for the patient rather than the visit id', async () => {
-        const visit = { id: 17, date: '26/10/2026', number: 'K-17', patient: 'Pasien Uji', medicalRecordNumber: 'RM-88', clinic: 'Poli Umum', status: 'pemeriksaan', diagnosisCount: 0, recordUrl: '/pelayanan/pasien/88/rekam-medis', examinationUrl: '/pelayanan/pemeriksaan/17' };
+        const visit = { id: 17, date: '26/10/2026', number: 'K-17', patient: 'Pasien Uji', medicalRecordNumber: 'RM-88', clinic: 'Poli Umum', status: 'pemeriksaan', canExamine: true, diagnosisCount: 0, recordUrl: '/pelayanan/pasien/88/rekam-medis', examinationUrl: '/pelayanan/pemeriksaan/17' };
         const html = await renderPage(page, { visits: { ...singlePage, data: [visit] }, todayVisits: { ...singlePage, data: [visit] }, filters: { dari: '', sampai: '' }, date: '', stats: { total: 1, waiting: 1, inProgress: 0, completed: 0 } });
         const rme = html.match(/<a[^>]*aria-label="Rekam medis[^"]*"[^>]*>[\s\S]*?<\/a>/)?.[0];
         assert.ok(rme);
@@ -2300,11 +2369,21 @@ for (const page of ['dokter/appointments', 'pelayanan/pemeriksaan/index']) {
 }
 
 test('unassigned examination can be started without exposing an unauthorized RME link', async () => {
-    const visit = { id: 17, date: '26/10/2026', number: 'K-17', patient: 'Pasien Uji', medicalRecordNumber: 'RM-88', clinic: 'Poli Umum', status: 'pemeriksaan', diagnosisCount: 0, recordUrl: null };
+    const visit = { id: 17, date: '26/10/2026', number: 'K-17', patient: 'Pasien Uji', medicalRecordNumber: 'RM-88', clinic: 'Poli Umum', status: 'pemeriksaan', canExamine: true, diagnosisCount: 0, recordUrl: null };
     const html = await renderPage('pelayanan/pemeriksaan/index', { visits: { ...singlePage, data: [visit] }, todayVisits: { ...singlePage, data: [visit] }, date: '', stats: { total: 1, waiting: 1, inProgress: 0, completed: 0 } });
     assert.match(html, /Mulai pemeriksaan/);
     assert.doesNotMatch(html, /href="[^"]*rekam-medis/);
 });
+
+for (const page of ['dokter/appointments', 'pelayanan/pemeriksaan/index']) {
+    test(page + ' disables examination until the nurse assessment has been submitted', async () => {
+        const visit = { id: 18, date: '26/10/2026', number: 'K-18', patient: 'Pasien Menunggu', medicalRecordNumber: 'RM-89', clinic: 'Poli Umum', status: 'pemeriksaan', canExamine: false, diagnosisCount: 0, recordUrl: '/pelayanan/pasien/89/rekam-medis', examinationUrl: '/pelayanan/pemeriksaan/18' };
+        const html = await renderPage(page, { visits: { ...singlePage, data: [visit] }, todayVisits: { ...singlePage, data: [visit] }, filters: { dari: '', sampai: '' }, date: '', stats: { total: 1, waiting: 1, inProgress: 0, completed: 0 } });
+        assert.match(html, /aria-label="Menunggu pengkajian perawat"[^>]*disabled/);
+        assert.match(html, /Pemeriksaan dokter dapat dimulai setelah pengkajian perawat dikirim/);
+        assert.doesNotMatch(html, /<a[^>]+href="\/pelayanan\/pemeriksaan\/18"/);
+    });
+}
 
 test('medical record uses one shared filter panel with one reset control and no nested filter card', async () => {
     const html = await renderPage('pelayanan/pasien/rekam-medis', { patient: { id: 88, name: 'Pasien Uji', medicalRecordNumber: 'RM-88', age: null }, visits: [], backUrl: '/dokter/pasien', canSelectClinic: false, filters: { search: 'batuk', poliklinik_id: '', status: '', dari: '', sampai: '' }, clinics: [], pagination: { ...singlePage, total: 0 } }, '/pelayanan/pasien/88/rekam-medis?search=batuk');
@@ -2325,10 +2404,10 @@ for (const [status, reservation, title] of [['menunggu', false, 'Menunggu pengka
 
 test('examination state allows addenda only for valid signed records and blocks direct edits of signed drafts', async () => {
     const { examinationState } = await server.ssrLoadModule('/resources/js/lib/examination-state.ts');
-    const waiting = examinationState({ status: 'pemeriksaan', canClaim: false, examination: null });
+    const waiting = examinationState({ status: 'pemeriksaan', canClaim: false, screeningSubmitted: true, examination: null });
     assert.equal(waiting.canStart, true);
     assert.equal(waiting.canEdit, false);
-    const draft = examinationState({ status: 'pemeriksaan', canClaim: false, examination: { status: 'draft' } });
+    const draft = examinationState({ status: 'pemeriksaan', canClaim: false, screeningSubmitted: true, examination: { status: 'draft' } });
     assert.equal(draft.canStart, false);
     assert.equal(draft.canEdit, true);
     assert.equal(draft.notice, null);
@@ -2346,6 +2425,14 @@ test('examination state allows addenda only for valid signed records and blocks 
     const invalid = examinationState({ status: 'selesai', canClaim: false, examination: { signedAt: '26/10/2026', integrityValid: false } });
     assert.equal(invalid.canCorrect, false);
     assert.equal(invalid.notice.destructive, true);
+});
+
+test('examination detail locks start and editing when the nurse assessment has not been submitted', async () => {
+    const props = examinationProps('umum', { screeningSubmitted: false, examination: null, screening: null });
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    assert.match(html, /Menunggu pengkajian awal/);
+    assert.doesNotMatch(html, /Mulai pemeriksaan<\/button>/);
+    assert.match(html, /dapat dimulai setelah perawat mengirim pengkajian awal pasien/);
 });
 
 for (const [dentition, count] of [['adult', 32], ['primary', 20]]) {
@@ -2456,7 +2543,7 @@ test('visit progress labels distinguish waiting from active examinations without
 });
 
 test('examination queue separates today\'s patients from all filtered visits and keeps contextual actions', async () => {
-    const visit = { date: '26/10/2026', patient: 'Pasien Uji', medicalRecordNumber: 'RM-1', gender: 'P', clinic: 'Poli Umum', doctor: 'Dokter', diagnosisCount: 0, recordUrl: null };
+    const visit = { date: '26/10/2026', patient: 'Pasien Uji', medicalRecordNumber: 'RM-1', gender: 'P', clinic: 'Poli Umum', doctor: 'Dokter', diagnosisCount: 0, canExamine: true, recordUrl: null };
     const today = pageOf([
         { ...visit, id: 1, number: 'KNJ-1', status: 'pemeriksaan', examinationStarted: false },
         { ...visit, id: 2, number: 'KNJ-2', status: 'pemeriksaan', examinationStarted: true },

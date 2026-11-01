@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DokterDashboardController;
 use App\Http\Controllers\DokterTindakanController;
 use App\Http\Controllers\FarmasiDashboardController;
+use App\Http\Controllers\FarmasiMandiriController;
 use App\Http\Controllers\KepesertaanController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\Master\AlkesController;
@@ -85,6 +86,22 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     Route::get('/farmasi/dashboard', [FarmasiDashboardController::class, 'index'])
         ->middleware(EnsureRole::class.':farmasi')
         ->name('farmasi.dashboard');
+    Route::prefix('farmasi')->name('farmasi.')->middleware(EnsureRole::class.':farmasi')->group(function (): void {
+        Route::get('resep-luar', [FarmasiController::class, 'externalPrescriptions'])->name('resep-luar.index');
+        Route::get('resep-luar/{kunjungan}/cetak', [PersuratanController::class, 'printPrescription'])->name('resep-luar.cetak');
+        Route::get('laporan/resep-luar', [FarmasiController::class, 'externalReport'])->name('laporan.resep-luar');
+        Route::get('laporan/resep-luar/export', [FarmasiController::class, 'exportExternalReport'])->name('laporan.resep-luar.export');
+        Route::get('pasien', [FarmasiMandiriController::class, 'patients'])->name('pasien');
+        Route::get('pasien/kunjungan/{kunjungan}', [FarmasiMandiriController::class, 'patientVisit'])->name('pasien.kunjungan');
+        Route::get('pemberian-obat', [FarmasiMandiriController::class, 'index'])->name('pemberian-obat.index');
+        Route::get('pemberian-obat/baru', [FarmasiMandiriController::class, 'create'])->name('pemberian-obat.create');
+        Route::post('pemberian-obat', [FarmasiMandiriController::class, 'store'])->name('pemberian-obat.store');
+        Route::get('pemberian-obat/{farmasiMandiri}/cetak', [FarmasiMandiriController::class, 'print'])->name('pemberian-obat.cetak');
+        Route::get('laporan/penyerahan-obat', [FarmasiController::class, 'report'])->name('laporan');
+        Route::get('laporan/penyerahan-obat/export', [FarmasiController::class, 'exportReport'])->name('laporan.export');
+        Route::get('laporan/pemberian-langsung', [FarmasiMandiriController::class, 'report'])->name('laporan.pemberian-langsung');
+        Route::get('laporan/pemberian-langsung/export', [FarmasiMandiriController::class, 'export'])->name('laporan.pemberian-langsung.export');
+    });
     Route::prefix('dokter')->name('dokter.')->middleware(EnsureRole::class.':dokter')->group(function (): void {
         Route::get('/', [DokterDashboardController::class, 'index'])->name('dashboard');
         Route::get('kunjungan', [DokterDashboardController::class, 'appointments'])->name('kunjungan');
@@ -176,7 +193,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::middleware(EnsureRole::class.':admin,pendaftaran')->withoutMiddleware(RedirectRegistrationRole::class)->group(function (): void {
             Route::resource('pasien', PasienController::class)->only(['edit', 'update']);
         });
-        Route::middleware(EnsureRole::class.':admin,perawat,pendaftaran,dokter')->group(function (): void {
+        Route::middleware(EnsureRole::class.':admin,perawat,pendaftaran,dokter,farmasi')->group(function (): void {
             Route::resource('pasien', PasienController::class)->only(['index']);
             Route::get('pasien/{pasien}', [PasienController::class, 'show'])->withoutMiddleware(RedirectRegistrationRole::class)->name('pasien.show');
         });
@@ -249,6 +266,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::get('farmasi', [FarmasiController::class, 'index'])->name('farmasi.index');
             Route::get('farmasi/{kunjungan}', [FarmasiController::class, 'show'])->name('farmasi.show');
             Route::post('farmasi/{kunjungan}', [FarmasiController::class, 'store'])->name('farmasi.store');
+            Route::post('farmasi/{kunjungan}/resep-luar/{resepObat}', [FarmasiController::class, 'markExternal'])->name('farmasi.resep-luar');
             Route::post('farmasi/{kunjungan}/selesai', [FarmasiController::class, 'selesai'])->name('farmasi.selesai');
         });
 

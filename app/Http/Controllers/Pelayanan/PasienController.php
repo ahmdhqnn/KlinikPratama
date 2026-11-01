@@ -254,7 +254,7 @@ class PasienController extends Controller
         $pasien->load(['kepesertaan', 'kunjungan' => fn ($q) => $q
             ->when(auth()->user()->role === 'dokter', fn ($visits) => $visits->where('dokter_id', $this->doctorId()))
             ->when($clinicId, fn ($visits) => $visits->where('poliklinik_id', $clinicId))
-            ->with(['poliklinik', 'dokter', 'pemeriksaan'])->latest()->limit(10)]);
+            ->with(['poliklinik', 'dokter', 'pemeriksaan', 'farmasi'])->latest()->limit(10)]);
 
         return Inertia::render('pelayanan/pasien/show', [
             'backUrl' => route($request->user()->role === 'pendaftaran' ? 'pendaftaran.database-pasien' : 'pelayanan.pasien.index'),
@@ -286,14 +286,16 @@ class PasienController extends Controller
                 'phone' => $pasien->telepon,
                 'address' => $pasien->kepesertaan?->alamat ?? $pasien->alamat,
                 'membership' => $pasien->kepesertaan?->membershipLabel() ?? 'Belum terverifikasi',
-                'allergies' => in_array(auth()->user()->role, ['dokter', 'perawat'], true)
+                'allergies' => in_array(auth()->user()->role, ['dokter', 'perawat', 'farmasi'], true)
                     ? ($pasien->riwayat_alergi ?: 'Belum dicatat')
                     : null,
                 'visits' => $pasien->kunjungan->map(fn ($visit) => [
                     'id' => $visit->id,
-                    'url' => auth()->user()->role === 'dokter'
-                        ? route('pelayanan.pemeriksaan.show', $visit)
-                        : route('pelayanan.kunjungan.show', $visit),
+                    'url' => auth()->user()->role === 'farmasi'
+                        ? ($visit->status === 'farmasi' || $visit->farmasi?->status === 'selesai' ? route('pelayanan.farmasi.show', $visit) : null)
+                        : (auth()->user()->role === 'dokter'
+                            ? route('pelayanan.pemeriksaan.show', $visit)
+                            : route('pelayanan.kunjungan.show', $visit)),
                     'number' => $visit->no_kunjungan,
                     'date' => $visit->tanggal?->isoFormat('D MMM Y'),
                     'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',

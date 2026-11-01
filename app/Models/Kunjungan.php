@@ -72,6 +72,15 @@ class Kunjungan extends Model
             && $this->pemeriksaan?->signed_at === null;
     }
 
+    public function canOpenExamination(): bool
+    {
+        if ($this->status === 'pemeriksaan') {
+            return $this->screening?->submitted_at !== null;
+        }
+
+        return in_array($this->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true);
+    }
+
     public function pemeriksaan(): HasOne
     {
         return $this->hasOne(Pemeriksaan::class);

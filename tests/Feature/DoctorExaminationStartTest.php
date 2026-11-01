@@ -8,6 +8,7 @@ use App\Models\Nakes;
 use App\Models\Pasien;
 use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
+use App\Models\Screening;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -100,6 +101,17 @@ class DoctorExaminationStartTest extends TestCase
         $this->assertDatabaseCount('pemeriksaan', 0);
     }
 
+    public function test_examination_cannot_start_until_the_nurse_submits_the_assessment(): void
+    {
+        [$doctor, , $visit] = $this->visitContext();
+        $visit->screening()->delete();
+
+        $this->actingAs($doctor)->postJson(route('pelayanan.pemeriksaan.start', $visit))
+            ->assertUnprocessable()->assertJsonPath('message', 'Selesaikan pengkajian awal sebelum mencatat pemeriksaan dokter.');
+
+        $this->assertDatabaseCount('pemeriksaan', 0);
+    }
+
     public function test_final_examination_cannot_be_reopened_by_starting_again(): void
     {
         [$doctor, $staff, $visit] = $this->visitContext();
@@ -142,6 +154,7 @@ class DoctorExaminationStartTest extends TestCase
         $staff = Nakes::create(['kode' => 'DOCTOR', 'nama' => 'Dokter Pemeriksa', 'kategori' => 'medis', 'jabatan' => 'dokter', 'poliklinik_id' => $clinic->id, 'user_id' => $doctor->id, 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-START', 'nama' => 'Pasien Pemeriksaan']);
         $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-START', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'dokter_id' => $staff->id, 'tanggal' => today(), 'status' => 'pemeriksaan', 'jenis_pasien' => 'lama']);
+        Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
 
         return [$doctor, $staff, $visit];
     }

@@ -3,8 +3,10 @@
 namespace App\Http\Middleware;
 
 use App\DoctorAccessService;
+use App\Models\Kunjungan;
 use App\NurseQueueCounts;
 use App\PerawatClinicResolver;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -46,6 +48,7 @@ class HandleInertiaRequests extends Middleware
             'modules' => config('clinic.modules'),
             'nurseQueues' => fn (): ?array => $this->nurseQueues($request),
             'doctorQueues' => fn (): ?array => $this->doctorQueues($request),
+            'pharmacyQueues' => fn (): ?array => $this->pharmacyQueues($request),
             'auth' => [
                 'user' => $request->user() ? [
                     ...$request->user()->only('id', 'name', 'email', 'role'),
@@ -86,5 +89,16 @@ class HandleInertiaRequests extends Middleware
 
         return ['examinations' => app(DoctorAccessService::class)->visibleVisits($request->user(), today()->toDateString())
             ->whereDate('tanggal', today())->where('status', 'pemeriksaan')->whereDoesntHave('pemeriksaan')->count()];
+    }
+
+    /** @return array{handovers: int}|null */
+    private function pharmacyQueues(Request $request): ?array
+    {
+        if ($request->user()?->role !== 'farmasi') {
+            return null;
+        }
+
+        return ['handovers' => Kunjungan::query()->where('status', 'farmasi')
+            ->whereDoesntHave('farmasi', fn (Builder $records) => $records->where('status', 'selesai'))->count()];
     }
 }

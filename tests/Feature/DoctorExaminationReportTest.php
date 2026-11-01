@@ -12,6 +12,7 @@ use App\Models\Pasien;
 use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
 use App\Models\Resep;
+use App\Models\Screening;
 use App\Models\TindakanKunjungan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -35,6 +36,7 @@ class DoctorExaminationReportTest extends TestCase
                 foreach (['draft', 'final', 'waiting'] as $state) {
                     $visit = Kunjungan::create(['no_kunjungan' => $type.$staff->id.$state, 'pasien_id' => $patient->id, 'dokter_id' => $staff->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => $state === 'final' ? 'selesai' : 'pemeriksaan']);
                     if ($state !== 'waiting') {
+                        Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
                         $examination = Pemeriksaan::create([
                             'kunjungan_id' => $visit->id,
                             'dokter_id' => $staff->id,
@@ -53,14 +55,16 @@ class DoctorExaminationReportTest extends TestCase
                 ->where('visits.data.0.letterUrl', route('persuratan.surat.create', $doctor->kunjungan()->where('status', 'selesai')->firstOrFail())));
             $this->get(route('dokter.kunjungan'))->assertInertia(fn (Assert $page) => $page
                 ->where('stats.total', 3)->where('stats.today', 3)->where('stats.completed', 1)
+                ->where('visits.data.0.canExamine', false)->where('visits.data.1.canExamine', true)
                 ->where('visits.data.1.letterUrl', route('persuratan.surat.create', $doctor->kunjungan()->where('status', 'selesai')->firstOrFail())));
             $this->get(route('pelayanan.pemeriksaan.index'))->assertInertia(fn (Assert $page) => $page
                 ->where('stats.total', 3)->where('stats.waiting', 1)->where('stats.inProgress', 1)->where('stats.completed', 1)
-                ->where('todayVisits.total', 2)->where('todayVisits.data.0.status', 'pemeriksaan')
+                ->where('todayVisits.total', 2)->where('todayVisits.data.0.status', 'pemeriksaan')->where('todayVisits.data.0.canExamine', true)
                 ->where('visits.data.1.letterUrl', route('persuratan.surat.create', $doctor->kunjungan()->where('status', 'selesai')->firstOrFail())));
             $this->get(route('dokter.dashboard'))->assertInertia(fn (Assert $page) => $page
                 ->where('stats.totalVisits', 3)->where('stats.visitsToday', 3)->where('doctorQueues.examinations', 1)
                 ->where('recentVisits.total', 3)->has('recentVisits.data', 3)
+                ->where('recentVisits.data.0.actionDisabled', true)
                 ->where('recentVisits.data.1.letterUrl', route('persuratan.surat.create', $doctor->kunjungan()->where('status', 'selesai')->firstOrFail())));
             $this->get(route('dokter.pasien'))->assertInertia(fn (Assert $page) => $page
                 ->where('patients.data.0.letterUrl', route('persuratan.surat.create', $doctor->kunjungan()->where('status', 'selesai')->firstOrFail())));

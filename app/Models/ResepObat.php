@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ResepObat extends Model
 {
@@ -34,5 +35,10 @@ class ResepObat extends Model
     public function farmasiItem(): HasMany
     {
         return $this->hasMany(FarmasiItem::class);
+    }
+
+    public function farmasiResepLuar(): HasOne
+    {
+        return $this->hasOne(FarmasiResepLuar::class);
     }
 }

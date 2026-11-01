@@ -24,6 +24,7 @@ interface Visit {
     clinic: string;
     status: string;
     examinationStarted?: boolean;
+    canExamine: boolean;
     isReservation?: boolean;
     triage?: string | null;
     priority?: string | null;
@@ -106,7 +107,7 @@ export default function DoctorAppointments({ filters, visits, isReport, exportUr
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                                             <TableCell className="text-center">{isReport ? <div><span className="font-medium">{visit.finalizedAt ? 'Final' : 'Draf'}</span>{visit.finalizedAt && <p className="mt-1 text-xs text-neutral-500">{visit.finalizedAt}</p>}</div> : <StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} />}</TableCell>
                                             <TableCell className="text-center">{isReport ? <p className="max-w-xs whitespace-normal">{visit.diagnoses || 'Belum dicatat'}</p> : <PriorityBadge triage={visit.triage} priority={visit.priority} />}</TableCell>
-                                            <TableCell className="text-center"><VisitActionButtons letterUrl={visit.letterUrl} patient={visit.patient} primary={{ href: visit.examinationUrl, label: visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan', type: 'examination' }} recordLabel="Rekam medis" recordUrl={visit.recordUrl} /></TableCell>
+                                            <TableCell className="text-center"><VisitActionButtons letterUrl={visit.letterUrl} patient={visit.patient} primary={{ href: visit.examinationUrl, label: visit.canExamine ? (visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan') : visit.status === 'batal' ? 'Kunjungan dibatalkan' : visit.isReservation ? 'Sesuai jadwal kunjungan' : 'Menunggu pengkajian perawat', disabled: !visit.canExamine, title: visit.canExamine ? undefined : visit.status === 'batal' ? 'Kunjungan dibatalkan dan tidak dapat diperiksa.' : visit.isReservation ? 'Pemeriksaan dapat dimulai pada tanggal kunjungan.' : 'Pemeriksaan dokter dapat dimulai setelah pengkajian perawat dikirim.', type: 'examination' }} recordLabel="Rekam medis" recordUrl={visit.recordUrl} /></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada kunjungan pada rentang tanggal ini." /></TableCell></TableRow>}
                                 </TableBody>
