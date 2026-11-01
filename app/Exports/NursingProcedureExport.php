@@ -16,7 +16,7 @@ class NursingProcedureExport implements FromQuery, WithHeadings, WithMapping, Wi
     /**
      * @param  array{dari?: ?string, sampai?: ?string, search?: ?string, status?: ?string}  $filters
      */
-    public function __construct(private array $filters, private int $clinicId) {}
+    public function __construct(private array $filters, private ?int $clinicId) {}
 
     public function query(): Builder
     {

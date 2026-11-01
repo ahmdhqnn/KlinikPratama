@@ -45,7 +45,19 @@ class KunjunganInertiaTest extends TestCase
         $this->actingAs($admin)->get(route('pelayanan.kunjungan.index'))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/kunjungan/index')
             ->has('visits.data', 1)
+            ->has('todayVisits.data', 1)
+            ->where('stats.total', 1)
             ->where('visits.data.0.patient', 'Pasien Uji')
+        );
+
+        $otherTodayVisit = Kunjungan::create([
+            'no_kunjungan' => 'KNJ-20261016-0002', 'pasien_id' => $patient->id,
+            'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => 'selesai', 'jenis_pasien' => 'lama',
+        ]);
+        $this->get(route('pelayanan.kunjungan.index', ['status' => 'selesai']))->assertInertia(fn (Assert $page) => $page
+            ->where('todayVisits.total', 2)
+            ->where('visits.total', 1)
+            ->where('visits.data.0.id', $otherTodayVisit->id)
         );
 
         $this->get(route('pelayanan.kunjungan.create', ['pasien_id' => $patient->id]))->assertInertia(fn (Assert $page) => $page
@@ -61,6 +73,30 @@ class KunjunganInertiaTest extends TestCase
             ->has('visit.progress', 4)
         );
 
+        $contextUrl = route('pendaftaran.kunjungan-per-poli', ['tanggal' => today()->toDateString(), 'status' => 'pemeriksaan', 'redirect_to' => 'https://outside.example']);
+        $safeContextUrl = route('pendaftaran.kunjungan-per-poli', ['tanggal' => today()->toDateString(), 'status' => 'pemeriksaan']);
+        $this->withHeader('Referer', $contextUrl)->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('backUrl', $safeContextUrl));
+        $serviceContextUrl = route('pelayanan.kunjungan.index', ['scope' => 'today', 'search' => 'Pasien', 'redirect_to' => 'https://outside.example']);
+        $safeServiceContextUrl = route('pelayanan.kunjungan.index', ['scope' => 'today', 'search' => 'Pasien']);
+        $this->withHeader('Referer', $serviceContextUrl)->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('backUrl', $safeServiceContextUrl));
+        $this->withHeader('Referer', 'https://outside.example/kunjungan')->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('backUrl', route('pelayanan.kunjungan.index')));
+        $this->withHeader('Referer', route('users.index'))->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('backUrl', route('pelayanan.kunjungan.index')));
+        $patientUrl = route('pelayanan.pasien.show', $patient);
+        $this->withHeader('Referer', $patientUrl)->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('backUrl', $patientUrl));
+
+        $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        Nakes::create(['kode' => 'NURSE-BACK-001', 'nama' => $nurse->name, 'kategori' => 'medis', 'jabatan' => 'perawat', 'poliklinik_id' => $clinic->id, 'user_id' => $nurse->id, 'is_active' => true]);
+        $this->actingAs($nurse)->withHeader('Referer', $contextUrl)->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('backUrl', $safeContextUrl));
+        $this->withHeader('Referer', $patientUrl)->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('backUrl', $patientUrl));
+
+        $this->actingAs($admin);
         $this->get(route('pelayanan.kunjungan.edit', $visit))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/kunjungan/form')
             ->where('visit.patient.name', 'Pasien Uji')
@@ -68,7 +104,7 @@ class KunjunganInertiaTest extends TestCase
 
         $this->get(route('pelayanan.antrian'))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/kunjungan/antrian')
-            ->has('visits.data', 1)
+            ->has('visits.data', 2)
         );
 
         $this->put(route('pelayanan.kunjungan.update', $visit), [

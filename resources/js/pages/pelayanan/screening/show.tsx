@@ -1,10 +1,11 @@
+import { AssistanceReasonField } from '@/components/kunjungan/assistance-reason-field';
 import { isNoAllergyReport } from '@/lib/allergy-status';
 import { allTriageAnswersNormal, hasAbnormalTriageAnswer, quickNormalTriagePatch } from '@/lib/triage-quick-normal';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { ArrowLeft, ChevronDown, ClipboardCheck, Play, Printer, Save, UserRound } from 'lucide-react';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -19,6 +20,7 @@ type ScreeningValues = Record<ScalarField, string> & {
     risiko_medis_gigi: string[];
     riwayat_infeksi_gigi: string[];
     konfirmasi_riwayat: boolean;
+    assistance_reason: string;
 };
 const scalarFields = ['petugas_id', 'keluhan', 'keluhan_tambahan', 'lama_keluhan', 'sumber_informasi', 'td_sistole', 'td_diastole', 'nadi', 'suhu', 'respirasi', 'spo2', 'berat_badan', 'tinggi_badan', 'lingkar_perut', 'alasan_pengukuran_tidak_lengkap', 'riwayat_alergi', 'status_alergi', 'alergi_jenis', 'alergi_reaksi', 'status_riwayat_penyakit', 'riwayat_penyakit', 'penyakit_nama', 'penyakit_keterangan', 'riwayat_obat', 'riwayat_penyakit_keluarga', 'skala_nyeri', 'skrining_gizi', 'pemeriksaan_fisik', 'nyeri_dada', 'kejang', 'nadi_teraba', 'pola_pernapasan', 'kesadaran', 'kondisi_psikiatri', 'risiko_jatuh_visual', 'catatan_triase', 'lokasi_nyeri_gigi', 'durasi_keluhan_gigi', 'catatan_medis_gigi'] as const;
 type ScalarField = typeof scalarFields[number];
@@ -74,7 +76,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         values.status_riwayat_penyakit = /^(pasien menyangkal|tidak ada)/i.test(values.riwayat_penyakit.trim()) ? 'tidak_ada' : 'ada';
     }
     const list = (key: string): string[] => Array.isArray(visit.screening[key]) ? visit.screening[key].map(String) : [];
-    const form = useForm<ScreeningValues>({ ...values, pemicu_nyeri_gigi: list('pemicu_nyeri_gigi'), risiko_medis_gigi: list('risiko_medis_gigi'), riwayat_infeksi_gigi: list('riwayat_infeksi_gigi'), konfirmasi_riwayat: false });
+    const form = useForm<ScreeningValues>({ ...values, pemicu_nyeri_gigi: list('pemicu_nyeri_gigi'), risiko_medis_gigi: list('risiko_medis_gigi'), riwayat_infeksi_gigi: list('riwayat_infeksi_gigi'), konfirmasi_riwayat: false, assistance_reason: '' });
     const [expanded, setExpanded] = useState<Record<Section, boolean>>({ triage: false, complaint: true, history: true, vitals: true, anthropometry: false, dental: false, additional: false, ringkas: true, attachments: false });
     const [attachmentPending, setAttachmentPending] = useState(false);
     const [starting, setStarting] = useState(false);
@@ -105,7 +107,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); save('kirim'); }
     function start() {
         setStarting(true);
-        router.post(`/pelayanan/screening/${visit.id}/mulai`, { petugas_id: form.data.petugas_id }, { preserveScroll: true, onFinish: () => setStarting(false), onError: (errors) => { form.setError(errors); onError(); } });
+        router.post(`/pelayanan/screening/${visit.id}/mulai`, { petugas_id: form.data.petugas_id, assistance_reason: form.data.assistance_reason }, { preserveScroll: true, onFinish: () => setStarting(false), onError: (errors) => { form.setError(errors); onError(); } });
     }
     const section = (id: Section, title: string, description: string, children: ReactNode) => <AssessmentSection id={id} title={title} description={description} open={expanded[id]} onToggle={() => setExpanded((state) => ({ ...state, [id]: !state[id] }))}>{children}</AssessmentSection>;
     const showOptional = (...names: (ScalarField | 'pemicu_nyeri_gigi' | 'risiko_medis_gigi' | 'riwayat_infeksi_gigi')[]) => mode === 'lengkap' || names.some((name) => Boolean(form.errors[name]) || form.data[name].length > 0);
@@ -129,6 +131,10 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         <p className="text-xs leading-5 text-neutral-500">IMT dihitung dari berat dan tinggi badan. Interpretasi sesuai usia dan kondisi klinis.</p>
         {text('alasan_pengukuran_tidak_lengkap', 'Catatan Pengkajian', false, true, true)}
     </>;
+    const assistance = canSelectStaff && <Card><CardHeader><CardTitle>Bantuan pengkajian admin</CardTitle></CardHeader><CardContent className="space-y-4">
+        <p className="text-sm text-neutral-600">Anda menginput sebagai operator bantuan admin. Pilih petugas yang melakukan pengkajian; tanda tangannya tidak ditambahkan otomatis pada hasil input admin.</p>
+        <AssistanceReasonField error={form.errors.assistance_reason} id="assistance-reason" value={form.data.assistance_reason} onChange={(value) => form.setData('assistance_reason', value)} disabled={form.processing} />
+    </CardContent></Card>;
     const historyConfirmation = <>
         <label className="flex cursor-pointer items-start gap-2 text-sm leading-6">
             <Checkbox className="mt-1 shrink-0" id="konfirmasi_riwayat" checked={form.data.konfirmasi_riwayat} onCheckedChange={(checked) => form.setData('konfirmasi_riwayat', checked === true)} />
@@ -213,6 +219,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         </section>
     </AssessmentSection>;
     return <><Head title={`Pengkajian awal ${isDental ? 'gigi' : 'umum'} - ${visit.patient.name}`} />
+        {assistance}
         <form className="mx-auto max-w-5xl space-y-6" noValidate onSubmit={submit}>
             <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div className="min-w-0">

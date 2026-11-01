@@ -55,7 +55,7 @@ class PasienController extends Controller
 
         return Inertia::render('pelayanan/pasien/index', [
             'permissions' => [
-                'viewRme' => in_array($request->user()->role, ['dokter', 'perawat'], true),
+                'viewRme' => in_array($request->user()->role, ['admin', 'dokter', 'perawat'], true),
                 'managePatients' => $request->user()->role === 'admin',
             ],
             'patients' => [
@@ -262,7 +262,7 @@ class PasienController extends Controller
                 ? route('pendaftaran.pendaftaran-baru', ['tab' => 'registered', 'pasien_id' => $pasien->id])
                 : route('pelayanan.kunjungan.create', ['pasien_id' => $pasien->id]),
             'permissions' => [
-                'viewRme' => in_array(auth()->user()->role, ['dokter', 'perawat'], true),
+                'viewRme' => in_array(auth()->user()->role, ['admin', 'dokter', 'perawat'], true),
                 'editPatient' => in_array(auth()->user()->role, ['admin', 'pendaftaran'], true),
                 'openVisit' => in_array(auth()->user()->role, ['admin', 'pendaftaran'], true),
             ],
@@ -301,7 +301,7 @@ class PasienController extends Controller
                     'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
                     'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'status' => $visit->status,
-                    'examinationStarted' => $visit->pemeriksaan !== null,
+                    'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                 ]),
             ],
@@ -399,7 +399,7 @@ class PasienController extends Controller
         return redirect()->route('pelayanan.pasien.index')->with('success', 'Data pasien berhasil dihapus.');
     }
 
-    public function rekamMedis(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, ClinicalNoteRecorder $noteRecorder, PerawatClinicResolver $perawatClinicResolver, CorrespondenceService $correspondence): Response
+    public function rekamMedis(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, ClinicalNoteRecorder $noteRecorder, PerawatClinicResolver $perawatClinicResolver, CorrespondenceService $correspondence): \Illuminate\Http\Response
     {
         $this->authorizeDoctorPatient($pasien);
         $pasien->load('kepesertaan');
@@ -457,6 +457,7 @@ class PasienController extends Controller
             'resep.resepObat',
             'tindakanKunjungan.tindakan:id,nama',
             'tindakanKunjungan.performedBy:id,name',
+            'suratMedis', 'rujukanInternal',
         ])->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
         $backUrl = route('pelayanan.pasien.show', $pasien);
         $referer = $request->headers->get('referer');
@@ -527,6 +528,10 @@ class PasienController extends Controller
                     ])->all());
 
                 return [
+                    'documents' => in_array(auth()->user()->role, ['admin', 'dokter'], true) ? [
+                        ...$visit->suratMedis->map(fn ($letter): array => ['name' => $letter->nomor_surat ?? 'Surat medis', 'type' => 'Surat medis', 'printUrl' => route('persuratan.surat.cetak', $letter).'?asal=rme'])->all(),
+                        ...$visit->rujukanInternal->map(fn ($referral): array => ['name' => $referral->nomor_surat ?? 'Rujukan internal', 'type' => 'Rujukan internal', 'printUrl' => route('persuratan.rujukan.cetak', $referral).'?asal=rme'])->all(),
+                    ] : [],
                     'id' => $visit->id,
                     'number' => $visit->no_kunjungan,
                     'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
@@ -534,7 +539,7 @@ class PasienController extends Controller
                     'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'date' => $visit->tanggal?->locale('id')->isoFormat('dddd, D MMMM Y'),
                     'status' => $visit->status,
-                    'examinationStarted' => $visit->pemeriksaan !== null,
+                    'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'attachments' => $visit->attachmentSummaries(),
                     'screening' => $visit->screening ? [
@@ -648,7 +653,7 @@ class PasienController extends Controller
                     ])->values()->all(),
                 ];
             })->all(),
-        ]);
+        ])->toResponse($request)->header('Cache-Control', 'private, no-store');
     }
 
     private function authorizeDoctorPatient(Pasien $pasien): void

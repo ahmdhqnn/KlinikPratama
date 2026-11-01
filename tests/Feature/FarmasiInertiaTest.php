@@ -187,6 +187,7 @@ class FarmasiInertiaTest extends TestCase
             ->component('farmasi/resep-luar')->where('stats.today', 0)->where('todayRecords.total', 0));
         $this->get(route('farmasi.resep-luar.cetak', $visit))->assertNotFound();
 
+        $this->get(route('farmasi.resep-luar.cetak', $visit).'?asal=pasien')->assertNotFound();
         $examination->update(['status' => 'final', 'signed_at' => now()]);
         $this->get(route('farmasi.resep-luar.index'))->assertInertia(fn (Assert $page) => $page
             ->where('stats.today', 1)->where('todayRecords.data.0.patient', 'Pasien Resep Luar')
@@ -195,6 +196,14 @@ class FarmasiInertiaTest extends TestCase
             ->component('persuratan/cetak')->where('document.kind', 'resep_luar')
             ->where('document.items.0.name', 'Obat dari luar klinik')
             ->where('document.backUrl', route('farmasi.resep-luar.index')));
+        foreach (['admin', 'farmasi'] as $role) {
+            $operator = User::factory()->create(['role' => $role, 'is_active' => true]);
+            $this->actingAs($operator)->get(route('farmasi.resep-luar.cetak', $visit).'?asal=pasien')
+                ->assertInertia(fn (Assert $page) => $page->component('persuratan/cetak')
+                    ->where('document.backUrl', route('farmasi.pasien.kunjungan', $visit))
+                    ->where('document.items.0.name', 'Obat dari luar klinik'));
+            $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $operator->id, 'kunjungan_id' => $visit->id, 'action' => 'prescription.print']);
+        }
     }
 
     public function test_pharmacy_redirects_only_out_of_stock_items_to_external_prescription_without_changing_the_doctor_order(): void

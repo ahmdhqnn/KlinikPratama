@@ -12,6 +12,7 @@ use App\Models\ObatBatch;
 use App\Models\Pasien;
 use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
+use App\Models\Screening;
 use App\Models\Tindakan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -156,6 +157,7 @@ class SimplifiedClinicModulesTest extends TestCase
         $staff = Nakes::create(['kode' => 'DOK', 'nama' => 'Dokter', 'kategori' => 'medis', 'jabatan' => 'dokter', 'user_id' => $doctor->id, 'poliklinik_id' => $clinic->id, 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-TEST', 'nama' => 'Pasien']);
         $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-TEST', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'dokter_id' => $staff->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
+        Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
         Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $staff->id]);
         $lab = Tindakan::create(['kode' => 'LAB', 'nama' => 'Tes lama', 'kategori' => 'lab', 'poliklinik_id' => $clinic->id, 'is_active' => true]);
         $medical = Tindakan::create(['kode' => 'MEDIS', 'nama' => 'Perawatan luka', 'kategori' => 'medis', 'poliklinik_id' => $clinic->id, 'is_active' => true]);

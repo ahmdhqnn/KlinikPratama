@@ -12,6 +12,7 @@ use App\Models\TindakanKunjungan;
 use App\NursingProcedureReportQuery;
 use App\PerawatClinicResolver;
 use App\VisitCareWorkflow;
+use App\VisitSchedulingService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,20 +27,23 @@ class TindakanPerawatController extends Controller
     public function report(Request $request, PerawatClinicResolver $clinics, ClinicalAuditRecorder $audit): Response
     {
         $filters = $this->reportFilters($request);
-        $nurse = $clinics->nakes($request->user());
-        $clinicId = (int) $nurse->poliklinik_id;
+        $isAdmin = $request->user()->isAdmin();
+        $nurse = $isAdmin ? null : $clinics->nakes($request->user());
+        $clinicId = $nurse?->poliklinik_id;
         $query = (new NursingProcedureReportQuery)->query($filters, $clinicId);
         $audit->record($request, 'nursing_procedure.report_view', metadata: ['clinic_id' => $clinicId, 'filters' => $filters]);
         $procedures = (clone $query)->paginate(15)->withQueryString();
+        $baseUrl = route($isAdmin ? 'admin.laporan.tindakan-perawat' : 'perawat.laporan-tindakan');
 
         return Inertia::render('pelayanan/tindakan/report', [
             'title' => 'Laporan tindakan perawat',
-            'clinicName' => $nurse->poliklinik->nama,
+            'clinicName' => $nurse?->poliklinik?->nama ?? 'Semua poli aktif',
+            'baseUrl' => $baseUrl,
             'filters' => $filters,
             'stats' => $this->reportStats(clone $query),
             'procedures' => $this->pageData($procedures->through(fn (TindakanKunjungan $procedure): array => $this->mapReportProcedure($procedure))),
-            'exportUrl' => route('perawat.laporan-tindakan.export', $filters),
-            'printUrl' => route('perawat.laporan-tindakan.cetak', $filters),
+            'exportUrl' => route($isAdmin ? 'admin.laporan.tindakan-perawat.export' : 'perawat.laporan-tindakan.export', $filters),
+            'printUrl' => route($isAdmin ? 'admin.laporan.tindakan-perawat.cetak' : 'perawat.laporan-tindakan.cetak', $filters),
             'printMode' => false,
         ]);
     }
@@ -47,15 +51,18 @@ class TindakanPerawatController extends Controller
     public function printReport(Request $request, PerawatClinicResolver $clinics, ClinicalAuditRecorder $audit): Response
     {
         $filters = $this->reportFilters($request);
-        $nurse = $clinics->nakes($request->user());
-        $clinicId = (int) $nurse->poliklinik_id;
+        $isAdmin = $request->user()->isAdmin();
+        $nurse = $isAdmin ? null : $clinics->nakes($request->user());
+        $clinicId = $nurse?->poliklinik_id;
         $query = (new NursingProcedureReportQuery)->query($filters, $clinicId);
         $audit->record($request, 'nursing_procedure.report_print', metadata: ['clinic_id' => $clinicId, 'filters' => $filters]);
         $procedures = $query->get()->map(fn (TindakanKunjungan $procedure): array => $this->mapReportProcedure($procedure))->all();
+        $baseUrl = route($isAdmin ? 'admin.laporan.tindakan-perawat' : 'perawat.laporan-tindakan');
 
         return Inertia::render('pelayanan/tindakan/report', [
             'title' => 'Laporan tindakan perawat',
-            'clinicName' => $nurse->poliklinik->nama,
+            'clinicName' => $nurse?->poliklinik?->nama ?? 'Semua poli aktif',
+            'baseUrl' => $baseUrl,
             'filters' => $filters,
             'stats' => $this->reportStats((new NursingProcedureReportQuery)->query($filters, $clinicId)),
             'procedures' => ['data' => $procedures, 'total' => count($procedures)],
@@ -68,7 +75,7 @@ class TindakanPerawatController extends Controller
     public function exportReport(Request $request, PerawatClinicResolver $clinics, ClinicalAuditRecorder $audit): BinaryFileResponse
     {
         $filters = $this->reportFilters($request);
-        $clinicId = $clinics->clinicId($request->user());
+        $clinicId = $request->user()->isAdmin() ? null : $clinics->clinicId($request->user());
         $audit->record($request, 'nursing_procedure.report_export', metadata: ['clinic_id' => $clinicId, 'filters' => $filters]);
 
         return Excel::download(new NursingProcedureExport($filters, $clinicId), 'laporan-tindakan-perawat-'.today()->format('Y-m-d').'.xlsx');
@@ -81,13 +88,14 @@ class TindakanPerawatController extends Controller
             'tanggal' => ['nullable', 'date_format:Y-m-d'],
             'status' => ['nullable', 'in:pending,completed'],
         ]);
-        $clinicId = $clinics->clinicId($request->user());
+        $clinicId = $request->user()->isAdmin() ? null : $clinics->clinicId($request->user());
         $nurseTreatments = fn ($query) => $query->where('execution_role', 'perawat');
         $pendingTreatments = fn ($query) => $query->where('execution_role', 'perawat')->where('execution_status', 'pending');
         $completedTreatments = fn ($query) => $query->where('execution_role', 'perawat')->where('execution_status', 'completed');
         $doctorInProgress = fn ($query) => $query->where('status', 'pemeriksaan')
             ->whereHas('pemeriksaan', fn ($examination) => $examination->whereNotNull('started_at')->whereNull('signed_at'));
-        $allClinicVisits = Kunjungan::query()->where('poliklinik_id', $clinicId);
+        $allClinicVisits = Kunjungan::query()->when($clinicId !== null, fn ($query) => $query->where('poliklinik_id', $clinicId))
+            ->whereHas('poliklinik', fn ($query) => $query->where('is_active', true)->whereIn('jenis', ['umum', 'gigi']));
         $clinicVisits = (clone $allClinicVisits)
             ->where(fn ($query) => $query->where($doctorInProgress)
                 ->orWhere(fn ($ready) => $ready->whereHas('tindakanKunjungan', $nurseTreatments)
@@ -155,6 +163,7 @@ class TindakanPerawatController extends Controller
                 'diagnoses' => collect($payload['diagnoses'] ?? [])->pluck('name')->all(),
                 'hasMedication' => $kunjungan->resep?->resepObat()->where('is_resep_luar', false)->exists() ?? false,
                 'recordUrl' => route('pelayanan.pasien.rekam-medis', $kunjungan->pasien_id),
+                'adminAssistance' => $request->user()->isAdmin(),
                 'treatments' => $kunjungan->tindakanKunjungan->where('execution_role', 'perawat')->map(fn (TindakanKunjungan $item): array => [
                     'id' => $item->id, 'name' => $item->nama_tindakan ?? $item->nama_tindakan_manual ?? $item->tindakan?->nama,
                     'code' => $item->kode_icd9cm, 'quantity' => $item->jumlah, 'toothFdi' => $item->tooth_fdi,
@@ -171,7 +180,9 @@ class TindakanPerawatController extends Controller
     {
         $this->authorizeVisit($request, $kunjungan, $clinics);
 
-        DB::transaction(function () use ($request, $kunjungan, $clinics, $notes, $audit): void {
+        $data = $this->assistanceData($request);
+
+        DB::transaction(function () use ($request, $kunjungan, $clinics, $notes, $audit, $data): void {
             $visit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeVisit($request, $visit, $clinics);
             abort_unless($visit->status === 'tindakan', 422, 'Kunjungan tidak berada pada tahap tindakan perawat.');
@@ -181,7 +192,7 @@ class TindakanPerawatController extends Controller
 
             if ($visit->tindakan_started_at === null) {
                 $visit->update(['tindakan_started_at' => now()]);
-                $audit->record($request, 'nursing_procedure.started', $visit->pasien_id, $visit->id);
+                $audit->record($request, 'nursing_procedure.started', $visit->pasien_id, $visit->id, $data ? ['assistance_reason' => $data['assistance_reason'], 'clinic_id' => $visit->poliklinik_id] : []);
             }
         });
 
@@ -192,7 +203,10 @@ class TindakanPerawatController extends Controller
     {
         $this->authorizeVisit($request, $kunjungan, $clinics);
         abort_unless($tindakanKunjungan->kunjungan_id === $kunjungan->id, 404);
-        $data = $request->validate(['execution_result' => ['required', 'string', 'min:3', 'max:5000']]);
+        if (is_string($request->input('execution_result'))) {
+            $request->merge(['execution_result' => trim($request->input('execution_result'))]);
+        }
+        $data = [...$this->assistanceData($request), ...$request->validate(['execution_result' => ['required', 'string', 'min:3', 'max:5000']])];
 
         DB::transaction(function () use ($request, $kunjungan, $tindakanKunjungan, $clinics, $workflow, $notes, $audit, $data): void {
             $visit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
@@ -211,14 +225,35 @@ class TindakanPerawatController extends Controller
                 'performed_at' => now(), 'execution_result' => trim($data['execution_result']),
             ]);
             $workflow->advance($visit);
-            $audit->record($request, 'nursing_procedure.complete', $visit->pasien_id, $visit->id, ['procedure_id' => $procedure->id, 'next_status' => $visit->status]);
+            $audit->record($request, 'nursing_procedure.complete', $visit->pasien_id, $visit->id, ['procedure_id' => $procedure->id, 'next_status' => $visit->status, ...($request->user()->isAdmin() ? ['assistance_reason' => $data['assistance_reason'], 'clinic_id' => $visit->poliklinik_id] : [])]);
         });
 
         return redirect()->route('pelayanan.tindakan.show', $kunjungan)->with('success', 'Pelaksanaan tindakan tersimpan. Status kunjungan telah diperbarui.');
     }
 
+    /** @return array{assistance_reason?: string} */
+    private function assistanceData(Request $request): array
+    {
+        if (! $request->user()->isAdmin()) {
+            return [];
+        }
+        if (is_string($request->input('assistance_reason'))) {
+            $request->merge(['assistance_reason' => trim($request->input('assistance_reason'))]);
+        }
+
+        return $request->validate(['assistance_reason' => ['required', 'string', 'min:10', 'max:1000']]);
+    }
+
     private function authorizeVisit(Request $request, Kunjungan $visit, PerawatClinicResolver $clinics): void
     {
+        if ($request->user()->isAdmin()) {
+            abort_unless($visit->poliklinik?->is_active && in_array($visit->poliklinik->jenis, ['umum', 'gigi'], true), 403);
+            if (! $request->isMethod('GET')) {
+                app(VisitSchedulingService::class)->ensureServiceDate($visit);
+            }
+
+            return;
+        }
         abort_unless($visit->poliklinik_id === $clinics->clinicId($request->user()), 403, 'Kunjungan bukan tanggung jawab poli Anda.');
     }
 

@@ -65,7 +65,7 @@ class DokterDashboardController extends Controller
                     'medicalRecordNumber' => $visit->pasien->no_rm,
                     'clinic' => $visit->poliklinik->nama,
                     'status' => $visit->status,
-                    'examinationStarted' => $visit->pemeriksaan !== null,
+                    'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'triage' => $visit->screening?->kesimpulan_triase,
                     'priority' => $visit->screening?->prioritas_layanan,
@@ -74,7 +74,7 @@ class DokterDashboardController extends Controller
                         : route('pelayanan.pasien.rekam-medis', $visit->pasien),
                     'recordUrl' => route('pelayanan.pasien.rekam-medis', $visit->pasien),
                     'actionLabel' => $visit->status === 'pemeriksaan'
-                        ? ($visit->screening?->submitted_at === null ? 'Menunggu pengkajian perawat' : ($visit->pemeriksaan ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan'))
+                        ? ($visit->screening?->submitted_at === null ? 'Menunggu pengkajian perawat' : ($visit->pemeriksaan?->started_at !== null ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan'))
                         : 'Lihat RME',
                     'actionType' => $visit->status === 'pemeriksaan' ? 'examination' : 'detail',
                     'actionDisabled' => $visit->status === 'pemeriksaan' && ! $visit->canOpenExamination(),
@@ -134,7 +134,7 @@ class DokterDashboardController extends Controller
                     'status' => $visit->status,
                     'diagnoses' => $visit->pemeriksaan?->diagnosa->map(fn ($diagnosis) => $diagnosis->kode_icd10.' - '.$diagnosis->nama_diagnosa)->implode('; ') ?? '',
                     'finalizedAt' => $visit->pemeriksaan?->signed_at?->format('d/m/Y H:i'),
-                    'examinationStarted' => $visit->pemeriksaan !== null,
+                    'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'triage' => $visit->screening?->kesimpulan_triase,
                     'priority' => $visit->screening?->prioritas_layanan,
@@ -164,7 +164,7 @@ class DokterDashboardController extends Controller
         return Excel::download(new PemeriksaanExport($doctorId, $period, $filters['search'] ?? ''), 'laporan-pemeriksaan-'.today()->format('Y-m-d').'.xlsx');
     }
 
-    public function reports(Request $request, ClinicalNoteRecorder $notes): Response
+    public function reports(Request $request, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit): Response
     {
         $request->merge(['jenis' => $request->route('jenis')]);
         $filters = $request->validate([
@@ -173,16 +173,20 @@ class DokterDashboardController extends Controller
             'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
             'search' => ['nullable', 'string', 'max:100'],
         ]);
-        $doctorId = $this->dokterId();
+        $isAdmin = $request->user()->isAdmin();
+        $doctorId = $isAdmin ? null : $this->dokterId();
         $type = $filters['jenis'];
         $period = DateRangeFilter::fromRequest($request);
         $search = trim($filters['search'] ?? '');
+        if ($isAdmin) {
+            $audit->record($request, 'admin.report.doctor.view', metadata: ['type' => $type, 'from' => $period->from, 'to' => $period->to]);
+        }
         $reportQueries = new DoctorActivityReportQuery;
         $base = $type === 'tindakan'
             ? $reportQueries->treatments($doctorId, $period, $search)
             : $reportQueries->medicines($doctorId, $period, $search);
         $rows = $base->paginate(10)->withQueryString();
-        $data = $rows->getCollection()->map(function ($item) use ($type, $notes): array {
+        $data = $rows->getCollection()->map(function ($item) use ($type, $notes, $isAdmin): array {
             $visit = $type === 'tindakan' ? $item->kunjungan : $item->resep?->kunjungan;
             $name = $type === 'tindakan'
                 ? ($item->nama_tindakan ?: $item->nama_tindakan_manual ?: $item->tindakan?->nama ?: 'Tindakan tidak tersedia')
@@ -208,7 +212,7 @@ class DokterDashboardController extends Controller
                     },
                 'executionRole' => $type === 'tindakan' ? $item->execution_role : null,
                 'detailUrl' => $visit ? route('pelayanan.pemeriksaan.show', $visit) : route('dokter.kunjungan'),
-                'letterUrl' => $this->letterUrl($visit, $notes),
+                'letterUrl' => $isAdmin ? null : $this->letterUrl($visit, $notes),
                 'recordUrl' => $visit ? route('pelayanan.pasien.rekam-medis', $visit->pasien_id) : null,
             ];
         });
@@ -226,7 +230,9 @@ class DokterDashboardController extends Controller
                 'tertiary' => (clone $base)->where('is_resep_luar', true)->count(),
                 'related' => (clone $base)->distinct()->count('resep_id'),
             ],
-            'exportUrl' => route('dokter.laporan.export', ['jenis' => $type, 'dari' => $period->from, 'sampai' => $period->to, 'search' => $search]),
+            'exportUrl' => route($isAdmin ? 'admin.laporan.dokter.export' : 'dokter.laporan.export', ['jenis' => $type, 'dari' => $period->from, 'sampai' => $period->to, 'search' => $search]),
+            'baseUrl' => route($isAdmin ? 'admin.laporan.dokter' : 'dokter.laporan', ['jenis' => $type]),
+            'isAdmin' => $isAdmin,
             'rows' => [...$this->pagination($rows), 'data' => $data->values()],
         ]);
     }
@@ -240,7 +246,7 @@ class DokterDashboardController extends Controller
             'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
             'search' => ['nullable', 'string', 'max:100'],
         ]);
-        $doctorId = $this->dokterId();
+        $doctorId = $request->user()->isAdmin() ? null : $this->dokterId();
         $period = DateRangeFilter::fromRequest($request);
         $search = trim($filters['search'] ?? '');
         $type = $filters['jenis'];

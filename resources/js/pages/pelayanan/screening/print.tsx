@@ -14,6 +14,7 @@ interface Props {
         clinicType: string | null;
         doctorName: string | null;
         nurseName: string | null;
+        recordedBy?: string | null;
         visitStatus: string;
         isDraft: boolean;
         startedAt: string | null;
@@ -44,6 +45,7 @@ export default function ScreeningPrint({ document }: Props) {
         ['Poliklinik', document.clinicName, '', ''],
         ['No. kunjungan', document.visitNumber, '', 'font-mono text-neutral-900 print:text-black'],
         ['Petugas', document.nurseName, '', ''],
+        ...(document.recordedBy ? [['Diinput oleh', document.recordedBy, '', '']] : []),
         ['Dokter tujuan', document.doctorName, '', ''],
         ['Alamat', patient.address, 'sm:col-span-2', ''],
     ].filter((row): row is [string, string, string, string] => Boolean(row[1]));

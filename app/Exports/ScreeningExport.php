@@ -13,11 +13,11 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class ScreeningExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 {
-    public function __construct(private array $filters, private Nakes $nurse) {}
+    public function __construct(private array $filters, private ?Nakes $nurse) {}
 
     public function query(): Builder
     {
-        return (new ScreeningReportQuery)->query($this->filters, $this->nurse->id, $this->nurse->poliklinik_id);
+        return (new ScreeningReportQuery)->query($this->filters, $this->nurse?->id, $this->nurse?->poliklinik_id ?? ($this->filters['poliklinik_id'] ?? null));
     }
 
     public function headings(): array
@@ -28,7 +28,7 @@ class ScreeningExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             'Sistole (mmHg)', 'Diastole (mmHg)', 'Nadi (/menit)', 'Suhu (C)', 'SpO2 (%)',
             'Respirasi (/menit)', 'Berat Badan (kg)', 'Tinggi Badan (cm)', 'Riwayat Alergi',
             'Riwayat Penyakit', 'Riwayat Obat', 'Skala Nyeri',
-        ], $this->nurse->poliklinik->jenis === 'gigi' ? ['Lokasi Nyeri Gigi', 'Durasi Keluhan Gigi', 'Catatan Medis Gigi'] : []);
+        ], $this->nurse?->poliklinik?->jenis === 'gigi' || $this->nurse === null ? ['Lokasi Nyeri Gigi', 'Durasi Keluhan Gigi', 'Catatan Medis Gigi'] : []);
     }
 
     public function map($screening): array
@@ -44,7 +44,7 @@ class ScreeningExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             $screening->spo2, $screening->respirasi, $screening->berat_badan, $screening->tinggi_badan,
             $screening->riwayat_alergi, $screening->riwayat_penyakit, $screening->riwayat_obat, $screening->skala_nyeri,
         ];
-        if ($this->nurse->poliklinik->jenis === 'gigi') {
+        if ($visit->poliklinik?->jenis === 'gigi' || $this->nurse === null) {
             array_push($values, $screening->lokasi_nyeri_gigi, $screening->durasi_keluhan_gigi, $screening->catatan_medis_gigi);
         }
 

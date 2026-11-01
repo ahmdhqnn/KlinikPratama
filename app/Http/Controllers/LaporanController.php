@@ -57,7 +57,7 @@ class LaporanController extends Controller
                 'doctor' => $visit->dokter?->nama,
                 'unit' => $visit->unit_kerja ?? 'Belum dicatat',
                 'status' => $visit->status,
-                'examinationStarted' => $visit->pemeriksaan !== null,
+                'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
             ]),
         ]);
     }

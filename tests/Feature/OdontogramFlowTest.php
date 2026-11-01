@@ -45,6 +45,7 @@ class OdontogramFlowTest extends TestCase
         Screening::create([
             'kunjungan_id' => $visit->id,
             'keluhan' => 'Sakit gigi saat makan manis',
+            'submitted_at' => now(),
             'lokasi_nyeri_gigi' => 'Geraham kanan bawah',
             'pemicu_nyeri_gigi' => ['manis', 'dingin'],
             'durasi_keluhan_gigi' => '3 hari',
@@ -300,6 +301,7 @@ class OdontogramFlowTest extends TestCase
             'kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id,
             'anamnesis' => 'Nyeri geraham', 'pemeriksaan_fisik' => 'Kavitas pada gigi 46',
         ]);
+        Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
 
         return [$user, $visit, $examination];
     }

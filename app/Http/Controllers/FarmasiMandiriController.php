@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\AdminPharmacyAssistance;
 use App\ClinicalAuditRecorder;
 use App\Exports\FarmasiMandiriExport;
 use App\Models\Farmasi;
@@ -76,6 +77,8 @@ class FarmasiMandiriController extends Controller
             ->orderBy('nama')->get();
 
         return Inertia::render('farmasi/pemberian-obat/form', [
+            'adminAssistance' => $request->user()->isAdmin(),
+            'requestKey' => (string) Str::uuid(),
             'search' => $search,
             'patients' => $patients->map(fn (Pasien $patient): array => ['id' => $patient->id, 'name' => $patient->nama, 'medicalRecordNumber' => $patient->no_rm, 'allergies' => $patient->riwayat_alergi]),
             'medicines' => $medicines->map(fn (Obat $medicine): array => ['id' => $medicine->id, 'name' => $medicine->nama, 'unit' => $medicine->satuan_kecil, 'stock' => (float) $medicine->usable_stock]),
@@ -84,25 +87,36 @@ class FarmasiMandiriController extends Controller
 
     public function store(Request $request, PersediaanRecorder $inventory, ClinicalAuditRecorder $audit): RedirectResponse
     {
+        $assistance = app(AdminPharmacyAssistance::class)->context($request);
         $data = $request->validate([
+            'request_key' => [$request->user()->isAdmin() ? 'required' : 'nullable', 'uuid'],
             'pasien_id' => ['required', 'integer', 'exists:pasien,id'], 'obat_id' => ['required', 'integer', 'exists:obat,id'],
             'jumlah' => ['required', 'integer', 'min:1'], 'aturan_pakai' => ['required', 'string', 'max:255'],
             'dasar_pemberian' => ['required', 'string', 'max:2000'],
             'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
-        $record = DB::transaction(function () use ($data, $request, $inventory, $audit): FarmasiMandiri {
+        $record = DB::transaction(function () use ($data, $request, $inventory, $audit, $assistance): FarmasiMandiri {
             $patient = Pasien::query()->whereKey($data['pasien_id'])->lockForUpdate()->firstOrFail();
+            $fingerprint = hash('sha256', json_encode($data, JSON_THROW_ON_ERROR));
+            if (! empty($data['request_key'])) {
+                $existing = FarmasiMandiri::where('request_key', $data['request_key'])->lockForUpdate()->first();
+                if ($existing) {
+                    abort_unless($existing->petugas_id === $request->user()->id && hash_equals($existing->request_fingerprint ?? '', $fingerprint), 409, 'Identitas transaksi sudah digunakan untuk data lain.');
+
+                    return $existing;
+                }
+            }
             $medicine = Obat::query()->whereKey($data['obat_id'])->where('is_active', true)->where('jenis', 'obat')
                 ->where('boleh_diberikan_langsung', true)->first();
             if (! $medicine) {
                 throw ValidationException::withMessages(['obat_id' => 'Obat belum disetujui untuk diberikan tanpa pemeriksaan.']);
             }
             $record = FarmasiMandiri::create([
-                ...$data, 'nomor' => 'FMD-'.today()->format('Ymd').'-'.Str::ulid(),
+                ...$data, 'request_fingerprint' => $fingerprint, 'nomor' => 'FMD-'.today()->format('Ymd').'-'.Str::ulid(),
                 'petugas_id' => $request->user()->id, 'diserahkan_pada' => now(),
             ]);
             $inventory->issueWithoutVisit($medicine->id, (int) $data['jumlah'], $request->user(), $patient, 'FarmasiMandiri', $record->id);
-            $audit->record($request, 'pharmacy.direct_dispensed', $patient->id, metadata: ['record_id' => $record->id, 'medicine_id' => $medicine->id]);
+            $audit->record($request, 'pharmacy.direct_dispensed', $patient->id, metadata: ['record_id' => $record->id, 'medicine_id' => $medicine->id, ...$assistance]);
 
             return $record;
         });

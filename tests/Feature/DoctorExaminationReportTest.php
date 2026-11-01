@@ -134,4 +134,43 @@ class DoctorExaminationReportTest extends TestCase
             return true;
         });
     }
+
+    public function test_admin_doctor_activity_reports_aggregate_active_clinics_without_issuing_documents(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $doctors = [
+            Nakes::create(['kode' => 'ADMIN-REPORT-DOC-1', 'nama' => 'Dokter Umum', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]),
+            Nakes::create(['kode' => 'ADMIN-REPORT-DOC-2', 'nama' => 'Dokter Gigi', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]),
+        ];
+        foreach (['umum', 'gigi'] as $index => $type) {
+            $clinic = Poliklinik::create(['kode' => 'ADMIN-DOC-REPORT-'.$type, 'nama' => 'Poli '.ucfirst($type), 'jenis' => $type, 'is_active' => true]);
+            $patient = Pasien::create(['no_rm' => 'RM-ADMIN-DOC-'.$type, 'nama' => 'Pasien '.ucfirst($type)]);
+            $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-ADMIN-DOC-'.$type, 'pasien_id' => $patient->id, 'dokter_id' => $doctors[$index]->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => 'selesai']);
+            TindakanKunjungan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctors[$index]->id, 'nama_tindakan' => 'Tindakan '.ucfirst($type), 'jumlah' => 1, 'execution_role' => 'dokter', 'execution_status' => 'completed']);
+            $prescription = Resep::create(['no_resep' => 'RSP-ADMIN-'.$type, 'kunjungan_id' => $visit->id, 'dokter_id' => $doctors[$index]->id, 'status' => 'menunggu']);
+            $prescription->resepObat()->create(['nama_obat' => 'Obat '.ucfirst($type), 'jumlah' => 2, 'satuan' => 'tablet', 'aturan_pakai' => '2 kali sehari', 'is_resep_luar' => false]);
+        }
+
+        $this->actingAs($admin)->get(route('admin.laporan.dokter', ['jenis' => 'tindakan']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('dokter/reports')
+                ->where('isAdmin', true)
+                ->where('baseUrl', route('admin.laporan.dokter', ['jenis' => 'tindakan']))
+                ->where('rows.total', 2)
+                ->where('rows.data.0.letterUrl', null));
+        $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'action' => 'admin.report.doctor.view']);
+
+        $this->get(route('admin.laporan.dokter', ['jenis' => 'obat']))
+            ->assertInertia(fn (Assert $page) => $page->where('rows.total', 2)->where('rows.data.0.name', 'Obat Gigi'));
+
+        Excel::fake();
+        $this->get(route('admin.laporan.dokter.export', ['jenis' => 'tindakan']))->assertOk();
+        Excel::assertDownloaded('laporan-tindakan-'.today()->format('Y-m-d').'.xlsx', function (DoctorActivityExport $export): bool {
+            $this->assertCount(2, $export->query()->get());
+
+            return true;
+        });
+
+        $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'action' => 'doctor.tindakan.report_export']);
+    }
 }

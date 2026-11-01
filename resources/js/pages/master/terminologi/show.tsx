@@ -46,18 +46,19 @@ export default function ClinicalTerminologyShow({ catalog, codes, search: initia
                         <Button asChild className="mb-4" size="sm" variant="secondary"><Link href="/master/terminologi-klinis"><ArrowLeft className="size-4" />Kembali ke katalog</Link></Button>
                         <p className="text-sm font-medium text-neutral-700">Detail katalog terminologi</p>
                         <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{catalog.label}</h2>
-                        <p className="mt-1 text-sm text-neutral-500">Rilis {catalog.release} · {new Intl.NumberFormat('id-ID').format(catalog.count)} kode · Impor terakhir {catalog.importedAt ?? 'Belum diisi'}</p>
+                        <p className="mt-1 text-sm text-neutral-500">Rilis {catalog.release} Â· {new Intl.NumberFormat('id-ID').format(catalog.count)} kode Â· Impor terakhir {catalog.importedAt ?? 'Belum diisi'}</p>
                     </div>
                     <Button onClick={removeCatalog} variant="destructive"><Trash2 className="size-4" />Hapus katalog</Button>
                 </div>
+                <FilterPanel><form className="grid gap-3  sm:grid-cols-2 lg:grid-cols-4" onSubmit={applySearch}>
+                            <Input aria-label="Cari kode atau uraian" onChange={(event) => setSearch(event.target.value)} placeholder="Cari kode atau uraian" value={search} />
+                            <Button type="submit"><Search className="size-4" />Cari</Button>
+                        </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <CardTitle>Daftar kode</CardTitle>
                         <CardDescription>Kode dan uraian asli dari sistem terminologi terpilih.</CardDescription>
-                        <FilterPanel><form className="grid gap-3  sm:grid-cols-2 lg:grid-cols-4" onSubmit={applySearch}>
-                            <Input aria-label="Cari kode atau uraian" onChange={(event) => setSearch(event.target.value)} placeholder="Cari kode atau uraian" value={search} />
-                            <Button type="submit"><Search className="size-4" />Cari</Button>
-                        </form></FilterPanel>
+
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">

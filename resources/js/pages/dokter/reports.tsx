@@ -35,6 +35,8 @@ interface ReportRow {
 
 interface Props {
     type: ReportType;
+    baseUrl?: string;
+    isAdmin?: boolean;
     filters: { dari: string; sampai: string; search: string };
     stats: { total: number; secondary: number; tertiary: number; related: number };
     rows: PaginationData & { data: ReportRow[] };
@@ -42,18 +44,18 @@ interface Props {
 }
 
 const reportDetails: Record<ReportType, { title: string; description: string; icon: typeof ClipboardCheck; empty: string }> = {
-    tindakan: { title: 'Laporan tindakan', description: 'Tindakan yang dicatat pada pemeriksaan Anda.', icon: ClipboardCheck, empty: 'Belum ada tindakan pada periode ini.' },
-    obat: { title: 'Laporan obat', description: 'Obat yang diresepkan pada pemeriksaan Anda.', icon: Pill, empty: 'Belum ada obat yang diresepkan pada periode ini.' },
+    tindakan: { title: 'Laporan tindakan', description: 'Tindakan yang dicatat pada pemeriksaan dokter.', icon: ClipboardCheck, empty: 'Belum ada tindakan pada periode ini.' },
+    obat: { title: 'Laporan obat', description: 'Obat yang diresepkan pada pemeriksaan dokter.', icon: Pill, empty: 'Belum ada obat yang diresepkan pada periode ini.' },
 };
 
-export default function DoctorReports({ type, filters, stats, rows, exportUrl }: Props) {
+export default function DoctorReports({ type, baseUrl = `/dokter/laporan/${type}`, isAdmin = false, filters, stats, rows, exportUrl }: Props) {
     const [values, setValues] = useState(filters);
     const detail = reportDetails[type];
     const Icon = detail.icon;
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get(`/dokter/laporan/${type}`, values, { preserveState: true, preserveScroll: true, replace: true });
+        router.get(baseUrl, values, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     return (
@@ -63,7 +65,7 @@ export default function DoctorReports({ type, filters, stats, rows, exportUrl }:
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Laporan pelayanan dokter</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{detail.title}</h2>
-                    <p className="mt-1 text-sm text-neutral-500">{detail.description} Atur periode untuk melihat catatan yang sesuai.</p>
+                    <p className="mt-1 text-sm text-neutral-500">{detail.description} {isAdmin ? 'Seluruh dokter pada poli aktif.' : 'Akun dokter Anda.'} Atur periode untuk melihat catatan yang sesuai.</p>
                 </div>
                 <section aria-label="Ringkasan laporan" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard label={type === 'tindakan' ? 'Total tindakan' : 'Total obat'} value={stats.total} description="Sesuai filter laporan" icon={<Icon className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
@@ -76,7 +78,7 @@ export default function DoctorReports({ type, filters, stats, rows, exportUrl }:
                         <Field htmlFor="doctor-report-search" label="Cari pasien atau catatan"><Input id="doctor-report-search" onChange={(event) => setValues({ ...values, search: event.target.value })} placeholder="Nama, No. RM, atau nama catatan" value={values.search} /></Field>
                         <Field htmlFor="doctor-report-period" label="Periode kunjungan"><DateRangePicker from={values.dari} id="doctor-report-period" onChange={(range) => setValues({ ...values, dari: range.from, sampai: range.to })} to={values.sampai} /></Field>
                         <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
-                        <Button asChild variant="secondary"><Link href={`/dokter/laporan/${type}`}>Reset</Link></Button>
+                        <Button asChild variant="secondary"><Link href={baseUrl}>Reset</Link></Button>
                     </form>
                 </FilterPanel>
                 <Card className="overflow-hidden">

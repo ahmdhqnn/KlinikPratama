@@ -10,13 +10,14 @@ class NursingProcedureReportQuery
     /**
      * @param  array{dari?: ?string, sampai?: ?string, search?: ?string, status?: ?string}  $filters
      */
-    public function query(array $filters, int $clinicId): Builder
+    public function query(array $filters, ?int $clinicId): Builder
     {
         return TindakanKunjungan::query()
             ->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'kunjungan.dokter', 'performedBy', 'tindakan'])
             ->where('execution_role', 'perawat')
             ->whereHas('kunjungan', fn (Builder $visit) => $visit
-                ->where('poliklinik_id', $clinicId)
+                ->whereHas('poliklinik', fn (Builder $clinic) => $clinic->where('is_active', true)->whereIn('jenis', ['umum', 'gigi']))
+                ->when($clinicId !== null, fn (Builder $query) => $query->where('poliklinik_id', $clinicId))
                 ->when($filters['dari'] ?? null, fn (Builder $query, string $date) => $query->whereDate('tanggal', '>=', $date))
                 ->when($filters['sampai'] ?? null, fn (Builder $query, string $date) => $query->whereDate('tanggal', '<=', $date)))
             ->when($filters['search'] ?? null, fn (Builder $query, string $search) => $query->where(fn (Builder $matches) => $matches

@@ -9,7 +9,7 @@ class FarmasiMandiri extends Model
 {
     protected $table = 'farmasi_mandiris';
 
-    protected $fillable = ['nomor', 'pasien_id', 'obat_id', 'petugas_id', 'jumlah', 'aturan_pakai', 'dasar_pemberian', 'catatan', 'diserahkan_pada'];
+    protected $fillable = ['request_key', 'request_fingerprint', 'nomor', 'pasien_id', 'obat_id', 'petugas_id', 'jumlah', 'aturan_pakai', 'dasar_pemberian', 'catatan', 'diserahkan_pada'];
 
     protected $casts = ['diserahkan_pada' => 'datetime'];
 

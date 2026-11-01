@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Pelayanan;
 
+use App\AdminClinicalAssistance;
 use App\ClinicalAnswer;
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
@@ -48,7 +49,8 @@ class PemeriksaanController extends Controller
         $date = $filters['tanggal'] ?? '';
         $claimDate = $date ?: today()->toDateString();
         $visitQuery = $this->doctorAccess->visibleVisits($request->user(), $claimDate)
-            ->whereIn('status', ['pemeriksaan', 'tindakan', 'farmasi', 'kasir', 'selesai']);
+            ->whereIn('status', ['pemeriksaan', 'tindakan', 'farmasi', 'kasir', 'selesai'])
+            ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status));
         $kunjungan = (clone $visitQuery)
             ->with(['pasien', 'poliklinik', 'dokter', 'screening', 'pemeriksaan.diagnosa', 'pemeriksaan.clinicalNoteVersions'])
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->whereHas('pasien', fn ($patients) => $patients
@@ -79,10 +81,10 @@ class PemeriksaanController extends Controller
             'doctor' => $visit->dokter?->nama,
             'canClaim' => $doctorId !== null && $visit->dokter_id === null,
             'status' => $visit->status,
-            'examinationStarted' => $visit->pemeriksaan !== null,
+            'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
             'canExamine' => $visit->canOpenExamination(),
             'diagnosisCount' => $visit->pemeriksaan?->diagnosa->count() ?? 0,
-            'recordUrl' => in_array((int) $visit->pasien_id, $recordPatientIds, true) ? route('pelayanan.pasien.rekam-medis', $visit->pasien_id) : null,
+            'recordUrl' => ($request->user()->isAdmin() || ($doctorId !== null && in_array((int) $visit->pasien_id, $recordPatientIds, true))) ? route('pelayanan.pasien.rekam-medis', $visit->pasien_id) : null,
             'letterUrl' => $doctorId !== null && in_array($visit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true)
                 && $visit->pemeriksaan?->signed_at && $noteRecorder->verify($visit->pemeriksaan)
                 ? route('persuratan.surat.create', $visit)
@@ -136,7 +138,7 @@ class PemeriksaanController extends Controller
 
         $dokterList = auth()->user()->role === 'dokter'
             ? Nakes::whereKey($this->currentDoctorId())->get()
-            : Nakes::where('jabatan', 'dokter')->where('is_active', true)->orderBy('nama')->get();
+            : Nakes::whereKey($kunjungan->dokter_id)->where('jabatan', 'dokter')->where('is_active', true)->get();
         $tindakanList = Tindakan::where('is_active', true)->where('poliklinik_id', $kunjungan->poliklinik_id)
             ->when(! config('clinic.modules.laboratory', false), fn ($query) => $query->where('kategori', 'medis'))
             ->orderBy('nama')->get();
@@ -158,7 +160,6 @@ class PemeriksaanController extends Controller
         $effectiveNote = $noteIntegrityValid ? $latestNote->payload : null;
         $allergyHistory = $this->allergies->forVisit($kunjungan)['riwayat_alergi'];
         $clinicalHistory = $this->clinicalHistory->forVisit($kunjungan);
-        $clinicalAnswer = static fn (?string $value, string $fallback): string => ClinicalAnswer::normalize($value) ?? $fallback;
         $firstRecordedValue = static function (?string ...$values): ?string {
             foreach ($values as $value) {
                 $recordedValue = ClinicalAnswer::normalize($value);
@@ -194,6 +195,8 @@ class PemeriksaanController extends Controller
                 'notes' => $finding->notes,
             ])->all());
 
+        $assistedWrite = app(AdminClinicalAssistance::class)->latestWrite($kunjungan);
+
         return Inertia::render('pelayanan/pemeriksaan/show', [
             'initialTab' => is_string($request->query('tab')) ? $request->query('tab') : 'anamnesis',
             'visit' => [
@@ -201,12 +204,12 @@ class PemeriksaanController extends Controller
                 'attachments' => $kunjungan->attachmentSummaries(),
                 'number' => $kunjungan->no_kunjungan,
                 'status' => $kunjungan->status,
-                'examinationStarted' => $kunjungan->pemeriksaan !== null,
+                'examinationStarted' => $kunjungan->pemeriksaan?->started_at !== null,
                 'screeningSubmitted' => $kunjungan->screening?->submitted_at !== null,
                 'doctorId' => $kunjungan->dokter_id,
                 'canClaim' => auth()->user()->role === 'dokter' && $kunjungan->dokter_id === null,
                 'isReservation' => $kunjungan->status === 'menunggu' && $kunjungan->tanggal?->isAfter(today()),
-                'recordUrl' => (auth()->user()->role !== 'dokter' || $kunjungan->pasien->kunjungan()->where('dokter_id', $this->currentDoctorId())->exists()) ? route('pelayanan.pasien.rekam-medis', $kunjungan->pasien_id) : null,
+                'recordUrl' => (auth()->user()->isAdmin() || (auth()->user()->role === 'dokter' && $kunjungan->pasien->kunjungan()->where('dokter_id', $this->currentDoctorId())->exists())) ? route('pelayanan.pasien.rekam-medis', $kunjungan->pasien_id) : null,
                 'clinicId' => $kunjungan->poliklinik_id,
                 'clinicType' => $kunjungan->poliklinik?->jenis,
                 'clinic' => $kunjungan->poliklinik?->nama ?? 'Belum diisi',
@@ -232,19 +235,20 @@ class PemeriksaanController extends Controller
                     'bmi' => $kunjungan->screening->imt,
                     'respiration' => $kunjungan->screening->respirasi,
                     'complaint' => $kunjungan->screening->keluhan,
-                    'medicalHistory' => $clinicalAnswer($kunjungan->screening->riwayat_penyakit, 'Belum dicatat'),
-                    'familyHistory' => $clinicalAnswer($kunjungan->screening->riwayat_penyakit_keluarga, 'Belum dicatat'),
-                    'allergyHistory' => $clinicalAnswer($kunjungan->screening->riwayat_alergi ?: $kunjungan->pasien->riwayat_alergi, 'Belum dicatat'),
+                    'medicalHistory' => ClinicalAnswer::normalize($kunjungan->screening->riwayat_penyakit),
+                    'familyHistory' => ClinicalAnswer::normalize($kunjungan->screening->riwayat_penyakit_keluarga),
+                    'allergyHistory' => ClinicalAnswer::normalize($kunjungan->screening->riwayat_alergi),
+                    'waistCircumference' => $kunjungan->screening->lingkar_perut,
                     'painScale' => $kunjungan->screening->skala_nyeri,
                     'fallRisk' => $kunjungan->screening->risiko_jatuh,
                     'triage' => $kunjungan->screening->kesimpulan_triase,
                     'priority' => $kunjungan->screening->prioritas_layanan,
-                    'dentalPainLocation' => $clinicalAnswer($kunjungan->screening->lokasi_nyeri_gigi, 'Belum dicatat'),
+                    'dentalPainLocation' => ClinicalAnswer::normalize($kunjungan->screening->lokasi_nyeri_gigi),
                     'dentalPainTriggers' => $kunjungan->screening->pemicu_nyeri_gigi ?? [],
-                    'dentalPainDuration' => $clinicalAnswer($kunjungan->screening->durasi_keluhan_gigi, 'Belum dicatat'),
+                    'dentalPainDuration' => ClinicalAnswer::normalize($kunjungan->screening->durasi_keluhan_gigi),
                     'dentalMedicalRisks' => $kunjungan->screening->risiko_medis_gigi ?? [],
                     'dentalInfectionHistory' => $kunjungan->screening->riwayat_infeksi_gigi ?? [],
-                    'dentalNotes' => $clinicalAnswer($kunjungan->screening->catatan_medis_gigi, 'Belum dicatat'),
+                    'dentalNotes' => ClinicalAnswer::normalize($kunjungan->screening->catatan_medis_gigi),
                 ] : null,
                 'examination' => $kunjungan->pemeriksaan ? [
                     'doctorId' => $kunjungan->pemeriksaan->dokter_id,
@@ -346,6 +350,8 @@ class PemeriksaanController extends Controller
                     'printUrl' => route('persuratan.rujukan.cetak', $referral).'?asal=pemeriksaan',
                 ])->values(),
             ],
+            'assistanceReview' => $assistedWrite && ! $kunjungan->pemeriksaan?->signed_at ? ['auditId' => $assistedWrite->id, 'operator' => $assistedWrite->operator, 'lastEditedAt' => $assistedWrite->occurred_at, 'draftHash' => $kunjungan->pemeriksaan ? app(AdminClinicalAssistance::class)->draftHash($kunjungan, $kunjungan->pemeriksaan) : null] : null,
+            'assistance' => ['isAdmin' => $request->user()->isAdmin(), 'active' => app(AdminClinicalAssistance::class)->active($request, $kunjungan)],
             'doctors' => $dokterList->map(fn (Nakes $doctor) => ['id' => $doctor->id, 'name' => $doctor->nama]),
             'diagnosisCodeSystems' => $diagnosisCodeSystems,
             'procedureCatalogAvailable' => ClinicalTerminology::query()->where('code_system', 'icd9cm_procedure')
@@ -381,13 +387,36 @@ class PemeriksaanController extends Controller
         ]);
     }
 
+    public function assist(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $audit): RedirectResponse
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        if (is_string($request->input('reason'))) {
+            $request->merge(['reason' => trim($request->input('reason'))]);
+        }
+        $data = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:1000']]);
+        DB::transaction(function () use ($request, $kunjungan, $audit, $data): void {
+            $visit = Kunjungan::query()->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            app(VisitSchedulingService::class)->ensureServiceDate($visit);
+            abort_unless($visit->status === 'pemeriksaan' && $visit->canOpenExamination() && ! $visit->pemeriksaan?->signed_at && $visit->pemeriksaan?->status !== 'selesai', 422, 'Bantuan hanya untuk pemeriksaan yang masih dapat diisi.');
+            abort_unless($visit->dokter?->is_active && $visit->dokter->jabatan === 'dokter', 422, 'Tetapkan dokter penanggung jawab aktif melalui kunjungan terlebih dahulu.');
+            abort_unless($visit->poliklinik?->is_active && in_array($visit->poliklinik->jenis, ['umum', 'gigi'], true), 422);
+            DB::table('admin_clinical_assistances')->updateOrInsert(
+                ['actor_id' => $request->user()->id, 'kunjungan_id' => $visit->id],
+                ['dokter_id' => $visit->dokter_id, 'poliklinik_id' => $visit->poliklinik_id, 'service_date' => $visit->tanggal->toDateString(), 'reason' => trim($data['reason']), 'expires_at' => now()->addHours(2), 'created_at' => now(), 'updated_at' => now()],
+            );
+            $audit->record($request, 'admin_assistance.started', $visit->pasien_id, $visit->id, ['doctor_id' => $visit->dokter_id, 'reason' => trim($data['reason'])]);
+        });
+
+        return back()->with('success', 'Bantuan draf aktif selama dua jam. Finalisasi dilakukan dokter penanggung jawab.');
+    }
+
     public function start(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): RedirectResponse
     {
         DB::transaction(function () use ($request, $kunjungan, $auditRecorder): void {
             $visit = Kunjungan::query()->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             app(VisitSchedulingService::class)->ensureServiceDate($visit);
             $this->authorizeVisit($visit);
-            $doctorId = $this->currentDoctorId();
+            $doctorId = $request->user()->isAdmin() ? $visit->dokter_id : $this->currentDoctorId();
 
             if ($visit->dokter_id === null) {
                 $visit->update(['dokter_id' => $doctorId]);
@@ -760,6 +789,8 @@ class PemeriksaanController extends Controller
 
     public function storeSurat(Request $request, Kunjungan $kunjungan, CorrespondenceService $correspondence, ClinicalNoteRecorder $noteRecorder): RedirectResponse
     {
+        abort_unless($request->user()->role === 'dokter', 403, 'Finalisasi, koreksi final dan penerbitan dokumen dilakukan dokter penanggung jawab.');
+
         return DB::transaction(function () use ($request, $kunjungan, $correspondence, $noteRecorder): RedirectResponse {
             $kunjungan = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeVisit($kunjungan);
@@ -818,6 +849,8 @@ class PemeriksaanController extends Controller
 
     public function storeRujukan(Request $request, Kunjungan $kunjungan, CorrespondenceService $correspondence): RedirectResponse
     {
+        abort_unless($request->user()->role === 'dokter', 403, 'Finalisasi, koreksi final dan penerbitan dokumen dilakukan dokter penanggung jawab.');
+
         return DB::transaction(function () use ($request, $kunjungan, $correspondence): RedirectResponse {
             $kunjungan = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeMutableVisit($kunjungan);
@@ -871,6 +904,7 @@ class PemeriksaanController extends Controller
 
     public function selesai(Request $request, Kunjungan $kunjungan, ClinicalNoteRecorder $noteRecorder, ClinicalAuditRecorder $auditRecorder): RedirectResponse
     {
+        abort_unless($request->user()->role === 'dokter', 403, 'Finalisasi, koreksi final dan penerbitan dokumen dilakukan dokter penanggung jawab.');
         $request->validate([
             'signature_password' => ['required', 'current_password'],
         ], [
@@ -880,8 +914,22 @@ class PemeriksaanController extends Controller
         DB::transaction(function () use ($request, $kunjungan, $noteRecorder, $auditRecorder): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeMutableVisit($lockedVisit);
+            $assistedWrite = app(AdminClinicalAssistance::class)->latestWrite($lockedVisit);
+            if ($assistedWrite) {
+                $request->validate([
+                    'review_admin_assistance' => ['required', 'accepted'],
+                    'assistance_review_id' => ['required', 'integer', Rule::in([$assistedWrite->id])],
+                ], [
+                    'review_admin_assistance.required' => 'Tinjau dan konfirmasi draf bantuan admin sebelum menandatangani.',
+                    'review_admin_assistance.accepted' => 'Tinjau dan konfirmasi draf bantuan admin sebelum menandatangani.',
+                    'assistance_review_id.in' => 'Draf bantuan admin telah berubah. Muat ulang halaman dan tinjau kembali.',
+                ]);
+            }
             $examination = $lockedVisit->pemeriksaan()->lockForUpdate()->first();
             abort_unless($examination, 422, 'Simpan hasil pemeriksaan sebelum menyelesaikan kunjungan.');
+            if ($assistedWrite) {
+                $request->validate(['assistance_review_hash' => ['required', 'string', Rule::in([app(AdminClinicalAssistance::class)->draftHash($lockedVisit, $examination)])]], ['assistance_review_hash.in' => 'Isi draf telah berubah. Muat ulang halaman dan tinjau kembali.']);
+            }
             abort_unless(ClinicalAnswer::normalize($examination->anamnesis) !== null, 422, 'Anamnesis wajib diisi sebelum finalisasi.');
             $hasPhysicalFinding = ClinicalAnswer::normalize($examination->pemeriksaan_fisik) !== null
                 || filled($examination->pemeriksaan_fisik_terstruktur)
@@ -902,7 +950,8 @@ class PemeriksaanController extends Controller
                 $procedure->update(['execution_status' => 'completed', 'performed_by' => $request->user()->id, 'performed_at' => now(), 'execution_result' => $procedure->catatan]);
             }
 
-            $noteRecorder->recordFinal($examination, $noteRecorder->snapshot($lockedVisit, $examination), $request->user()->id);
+            $lockedVisit->unsetRelation('tindakanKunjungan');
+            $finalVersion = $noteRecorder->recordFinal($examination, $noteRecorder->snapshot($lockedVisit, $examination), $request->user()->id);
             $examination->update([
                 'status' => 'selesai',
                 'signed_by_user_id' => $request->user()->id,
@@ -912,6 +961,14 @@ class PemeriksaanController extends Controller
 
             app(VisitCareWorkflow::class)->advance($lockedVisit);
 
+            if ($assistedWrite) {
+                $auditRecorder->record($request, 'admin_assistance.reviewed', $lockedVisit->pasien_id, $lockedVisit->id, [
+                    'last_admin_write_id' => $assistedWrite->id,
+                    'operator_id' => $assistedWrite->actor_id,
+                    'clinical_note_version_id' => $finalVersion->id,
+                    'content_hash' => $finalVersion->content_hash,
+                ]);
+            }
             $auditRecorder->record($request, 'clinical_examination.finalize', $lockedVisit->pasien_id, $lockedVisit->id);
         });
 
@@ -921,6 +978,7 @@ class PemeriksaanController extends Controller
 
     public function addendum(Request $request, Kunjungan $kunjungan, ClinicalNoteRecorder $noteRecorder, ClinicalAuditRecorder $auditRecorder): RedirectResponse
     {
+        abort_unless($request->user()->role === 'dokter', 403, 'Finalisasi, koreksi final dan penerbitan dokumen dilakukan dokter penanggung jawab.');
         $this->authorizeVisit($kunjungan);
         $isGeneralClinic = $kunjungan->poliklinik?->jenis === 'umum';
         $isDentalClinic = $kunjungan->poliklinik?->jenis === 'gigi';
@@ -1053,6 +1111,7 @@ class PemeriksaanController extends Controller
                 return;
             }
 
+            abort_unless($request->user()->role === 'dokter', 403);
             $reason = trim((string) ($data['reason'] ?? ''));
             if (mb_strlen($reason) < 10) {
                 throw ValidationException::withMessages(['reason' => 'Alasan pembatalan temuan final minimal 10 karakter.']);
@@ -1079,6 +1138,7 @@ class PemeriksaanController extends Controller
 
     public function addendumOdontogram(Request $request, Kunjungan $kunjungan, ClinicalNoteRecorder $noteRecorder, ClinicalAuditRecorder $auditRecorder): RedirectResponse
     {
+        abort_unless($request->user()->role === 'dokter', 403, 'Finalisasi, koreksi final dan penerbitan dokumen dilakukan dokter penanggung jawab.');
         $this->authorizeVisit($kunjungan);
         $data = $this->validateDentalFinding($request);
         $reason = trim($request->validate(['reason' => ['required', 'string', 'min:10', 'max:2000']])['reason']);
@@ -1210,6 +1270,9 @@ class PemeriksaanController extends Controller
 
     private function authorizeVisit(Kunjungan $kunjungan): void
     {
+        if (auth()->user()->isAdmin()) {
+            abort_unless($kunjungan->poliklinik?->is_active && in_array($kunjungan->poliklinik->jenis, ['umum', 'gigi'], true), 404);
+        }
         if (auth()->user()->role === 'dokter') {
             $doctorId = $this->currentDoctorId();
             $isAssigned = $kunjungan->dokter_id === $doctorId;
@@ -1224,6 +1287,7 @@ class PemeriksaanController extends Controller
     private function authorizeMutableVisit(Kunjungan $kunjungan): void
     {
         app(VisitSchedulingService::class)->ensureServiceDate($kunjungan);
+        app(AdminClinicalAssistance::class)->authorizeDraft(request(), $kunjungan);
         $this->authorizeVisit($kunjungan);
 
         if (auth()->user()->role === 'dokter') {

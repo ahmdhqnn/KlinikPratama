@@ -12,6 +12,7 @@ use App\Models\Poliklinik;
 use App\Models\Resep;
 use App\Models\ResepObat;
 use App\Models\RujukanInternal;
+use App\Models\Screening;
 use App\Models\SuratMedis;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -73,6 +74,20 @@ class PersuratanFlowTest extends TestCase
         $this->put(route('persuratan.template.update', $active), $this->templatePayload(['kode' => 'SKS-UPDATED']))
             ->assertSessionHasNoErrors();
         $this->assertDatabaseHas('correspondence_templates', ['id' => $active->id, 'kode' => 'SKS-UPDATED']);
+    }
+
+    public function test_admin_can_review_the_document_issuance_tab_but_only_the_attending_doctor_can_issue(): void
+    {
+        [, $doctor, $visit] = $this->visitFixture();
+        Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id, 'status' => 'selesai', 'signed_at' => now()]);
+        $visit->update(['status' => 'selesai']);
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+
+        $this->actingAs($admin)->get(route('persuratan.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('isAdmin', true)
+            ->where('eligibleVisits.total', 1)
+            ->where('eligibleVisits.data.0.letterUrl', null));
+        $this->get(route('persuratan.surat.create', $visit))->assertForbidden();
     }
 
     public function test_doctor_can_issue_numbered_letter_and_internal_referral_then_print_them(): void
@@ -203,6 +218,8 @@ class PersuratanFlowTest extends TestCase
             'status' => 'pemeriksaan',
             'jenis_pasien' => 'lama',
         ]);
+
+        Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
 
         return [$user, $doctor, $visit, $origin, $target, $patient];
     }

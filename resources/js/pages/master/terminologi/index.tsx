@@ -1,7 +1,8 @@
 import { ActionButton } from '@/components/ui/action-button';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { FileSpreadsheet, Upload } from 'lucide-react';
+import { ChevronDown, FileSpreadsheet, Upload } from 'lucide-react';
 import type { FormEvent } from 'react';
+import { useId, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +28,8 @@ interface Props {
 }
 
 export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props) {
+    const [importExpanded, setImportExpanded] = useState(true);
+    const importPanelId = useId();
     const form = useForm<{ file: File | null; code_system: string; custom_system: string; release: string }>({
         file: null,
         code_system: 'icd10_who',
@@ -56,9 +59,12 @@ export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props
                 </div>
                 <Card>
                     <CardHeader>
-                        <div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Upload className="size-5" /></span><div><CardTitle>Impor berkas terminologi</CardTitle><CardDescription className="mt-1">Unggah CSV atau Excel dari sumber resmi. Kode, uraian, dan tipe kolom dideteksi dari header; data divalidasi sebelum disimpan.</CardDescription></div></div>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Upload className="size-5" /></span><div><CardTitle>Impor berkas terminologi</CardTitle><CardDescription className="mt-1">Unggah CSV atau Excel dari sumber resmi. Kode, uraian, dan tipe kolom dideteksi dari header; data divalidasi sebelum disimpan.</CardDescription></div></div>
+                            <Button aria-controls={importPanelId} aria-expanded={importExpanded} onClick={() => setImportExpanded((expanded) => !expanded)} size="sm" type="button" variant="secondary">{importExpanded ? 'Tutup' : 'Buka'}<ChevronDown className={`size-4 transition-transform ${importExpanded ? 'rotate-180' : ''}`} /></Button>
+                        </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent hidden={!importExpanded} id={importPanelId}>
                         <form className="space-y-4" encType="multipart/form-data" onSubmit={submit}>
                             <div className="grid gap-4 md:grid-cols-2">
                                 <Field error={form.errors.code_system} htmlFor="terminology-system" label="Sistem kode" required><Select id="terminology-system" onChange={(event) => form.setData('code_system', event.target.value)} value={form.data.code_system}>{codeSystems.map((system) => <option key={system.value} value={system.value}>{system.label}</option>)}<option value="other">Terminologi lain</option></Select></Field>

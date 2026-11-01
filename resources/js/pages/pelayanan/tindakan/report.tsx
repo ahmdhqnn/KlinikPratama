@@ -38,6 +38,7 @@ interface ProcedureRow {
 interface Props {
     title: string;
     clinicName: string;
+    baseUrl?: string;
     filters: { dari: string; sampai: string; search: string; status: string };
     stats: { total: number; visits: number; pending: number; completed: number };
     procedures: PaginationData & { data: ProcedureRow[] };
@@ -46,19 +47,19 @@ interface Props {
     printMode: boolean;
 }
 
-export default function NursingProcedureReport({ title, clinicName, filters: initialFilters, stats, procedures, exportUrl, printUrl, printMode }: Props) {
+export default function NursingProcedureReport({ title, clinicName, baseUrl = '/perawat/laporan-tindakan', filters: initialFilters, stats, procedures, exportUrl, printUrl, printMode }: Props) {
     const [filters, setFilters] = useState(initialFilters);
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get('/perawat/laporan-tindakan', filters, { preserveState: true, preserveScroll: true, replace: true });
+        router.get(baseUrl, filters, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     return <>
         <Head title={title} />
         <div className="space-y-6">
             {printMode ? <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-                <Button asChild variant="secondary"><Link href={`/perawat/laporan-tindakan${queryString(filters)}`}><ArrowLeft className="size-4" />Kembali ke laporan tindakan</Link></Button>
+                <Button asChild variant="secondary"><Link href={`${baseUrl}${queryString(filters)}`}><ArrowLeft className="size-4" />Kembali ke laporan tindakan</Link></Button>
                 <Button onClick={() => window.print()} type="button"><Printer className="size-4" />Cetak laporan</Button>
             </div> : <div>
                 <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan · {clinicName}</p>
@@ -104,7 +105,7 @@ export default function NursingProcedureReport({ title, clinicName, filters: ini
                                 {printMode && <TableCell className="min-w-56"><p className="whitespace-pre-wrap text-neutral-700">{procedure.instructions || 'Tidak ada instruksi tambahan'}</p>{procedure.status === 'completed' && <p className="mt-2 whitespace-pre-wrap border-t border-neutral-100 pt-2 text-xs text-neutral-600">Hasil: {procedure.result || 'Belum ada catatan hasil'}</p>}</TableCell>}
                                 <TableCell className="min-w-36">{procedure.status === 'completed' ? <><p className="font-medium text-neutral-800">{procedure.performedBy || 'Belum dicatat'}</p><p className="mt-0.5 text-xs text-neutral-500">{procedure.performedAt || 'Waktu belum dicatat'}</p></> : <span className="text-neutral-500">Belum dilaksanakan</span>}</TableCell>
                                 <TableCell><Badge>{procedure.status === 'completed' ? 'Selesai' : 'Menunggu tindakan'}</Badge></TableCell>
-                                {!printMode && <TableCell className="print:hidden"><div className="flex justify-center">{procedure.visitUrl && <ActionButton asChild action="detail" label="Lihat pelaksanaan"><Link href={procedure.visitUrl} /></ActionButton>}</div></TableCell>}
+                                {!printMode && <TableCell className="print:hidden"><div className="flex justify-center"><ActionButton disabledReason="Detail kunjungan belum tersedia." disabled={!procedure.visitUrl} asChild action="detail" label="Lihat pelaksanaan"><Link href={procedure.visitUrl ?? ''} /></ActionButton></div></TableCell>}
                             </TableRow>) : <TableRow><TableCell colSpan={printMode ? 7 : 8}><Empty size="compact" title="Belum ada tindakan sesuai filter." description="Ubah periode atau kata pencarian untuk melihat catatan tindakan lainnya." /></TableCell></TableRow>}</TableBody>
                         </Table>
                     </div>

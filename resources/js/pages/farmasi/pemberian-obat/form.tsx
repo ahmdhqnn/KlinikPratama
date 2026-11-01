@@ -1,3 +1,4 @@
+import { AssistanceReasonField } from '@/components/kunjungan/assistance-reason-field';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { ArrowLeft, ClipboardCheck, Pill, Search, UserRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -12,11 +13,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Patient { id: number; name: string; medicalRecordNumber: string; allergies: string | null }
 interface Medicine { id: number; name: string; unit: string; stock: number }
-interface Data { pasien_id: string; obat_id: string; jumlah: string; aturan_pakai: string; dasar_pemberian: string; catatan: string }
+interface Data { request_key: string; assistance_reason: string; pasien_id: string; obat_id: string; jumlah: string; aturan_pakai: string; dasar_pemberian: string; catatan: string }
 
-export default function DirectDispensing({ search, patients, medicines }: { search: string; patients: Patient[]; medicines: Medicine[] }) {
+export default function DirectDispensing({ search, patients, medicines, adminAssistance = false, requestKey = '' }: { search: string; patients: Patient[]; medicines: Medicine[]; adminAssistance?: boolean; requestKey?: string }) {
     const [patientMode, setPatientMode] = useState<'list' | 'search'>(search ? 'search' : 'list');
-    const form = useForm<Data>({ pasien_id: '', obat_id: '', jumlah: '1', aturan_pakai: '', dasar_pemberian: '', catatan: '' });
+    const form = useForm<Data>({ request_key: requestKey, assistance_reason: '', pasien_id: '', obat_id: '', jumlah: '1', aturan_pakai: '', dasar_pemberian: '', catatan: '' });
     const visiblePatients = patientMode === 'search' && !search ? [] : patients;
     const patient = visiblePatients.find((item) => String(item.id) === form.data.pasien_id);
     const medicine = medicines.find((item) => String(item.id) === form.data.obat_id);
@@ -51,6 +52,7 @@ export default function DirectDispensing({ search, patients, medicines }: { sear
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Field className="md:col-span-2" error={form.errors.obat_id} htmlFor="direct-medicine" label="Obat dari stok klinik" required><Select id="direct-medicine" onChange={(event) => form.setData('obat_id', event.target.value)} required value={form.data.obat_id}><option value="">Pilih obat</option>{medicines.map((item) => <option disabled={item.stock <= 0} key={item.id} value={item.id}>{item.name} · {item.stock > 0 ? `stok layak pakai ${item.stock} ${item.unit}` : 'tidak ada stok layak pakai'}</option>)}</Select></Field><Field error={form.errors.jumlah} htmlFor="direct-quantity" label="Jumlah" required><Input id="direct-quantity" min="1" max={medicine?.stock} onChange={(event) => form.setData('jumlah', event.target.value)} required type="number" value={form.data.jumlah} /></Field><Field htmlFor="direct-unit" label="Satuan"><Input id="direct-unit" readOnly placeholder="Terisi dari obat" value={medicine?.unit ?? ''} /></Field></div>
             <Field error={form.errors.aturan_pakai} htmlFor="direct-instruction" label="Aturan pakai" required><Input id="direct-instruction" maxLength={255} onChange={(event) => form.setData('aturan_pakai', event.target.value)} placeholder="Dosis, frekuensi, dan waktu penggunaan" required value={form.data.aturan_pakai} /></Field>
             <Field error={form.errors.catatan} htmlFor="direct-notes" label="Catatan tambahan"><Input id="direct-notes" maxLength={2000} onChange={(event) => form.setData('catatan', event.target.value)} placeholder="Informasi tambahan saat penyerahan obat" value={form.data.catatan} /></Field>
+            {adminAssistance && <AssistanceReasonField error={form.errors.assistance_reason} id="direct-assistance" value={form.data.assistance_reason} onChange={(value) => form.setData('assistance_reason', value)} disabled={form.processing} />}
             <Field error={form.errors.dasar_pemberian} htmlFor="direct-basis" label="Alasan pemberian langsung" required><Textarea id="direct-basis" maxLength={2000} onChange={(event) => form.setData('dasar_pemberian', event.target.value)} placeholder="Catat permintaan atau keluhan pasien dan alasan pemberian obat." required rows={4} value={form.data.dasar_pemberian} /></Field>
             {availableMedicines.length === 0 && <div role="status" className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 text-sm text-neutral-700">{medicines.length === 0 ? 'Belum ada obat aktif yang disetujui untuk pemberian langsung tanpa pemeriksaan. Minta pengelola master obat menetapkan obat yang sesuai sebelum layanan ini digunakan.' : <>Obat yang disetujui sudah tercantum tetapi belum memiliki batch layak pakai. Periksa tanggal kedaluwarsa, status, dan stok pada <Link className="font-medium underline underline-offset-2" href="/stok/persediaan">Obat & BHP</Link>.</>}</div>}
             <div className="flex justify-end border-t border-neutral-100 pt-5"><Button disabled={form.processing || availableMedicines.length === 0 || !form.data.pasien_id} type="submit"><ClipboardCheck className="size-4" />Catat dan serahkan obat</Button></div>

@@ -7,7 +7,9 @@ import {
     CalendarPlus2,
     ClipboardPlus,
     ClipboardList,
+    HeartPulse,
     Pill,
+    Stethoscope,
     UsersRound,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -80,15 +82,16 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
     const peakVisits = Math.max(1, ...visitsByDay.map((day) => day.jumlah));
     const today = visitsByDay.at(-1)?.tanggal ?? '';
     const todayReportUrl = `/laporan/kunjungan?dari=${today}&sampai=${today}`;
+    const reportStatusUrl = (status: string) => `/laporan/kunjungan?dari=${today}&sampai=${today}&status=${status}`;
     const visitStatusUrls: Record<string, string> = canRegister ? {
         menunggu: `/pendaftaran/kunjungan-per-poli?tanggal=${today}&status=menunggu`,
-        screening: '/pelayanan/screening',
-        pemeriksaan: `/pendaftaran/kunjungan-per-poli?tanggal=${today}&status=pemeriksaan`,
-        tindakan: `/pendaftaran/kunjungan-per-poli?tanggal=${today}&status=tindakan`,
-        farmasi: todayReportUrl,
-        kasir: todayReportUrl,
-        selesai: todayReportUrl,
-        batal: todayReportUrl,
+        screening: `/pelayanan/screening?tanggal=${today}`,
+        pemeriksaan: `/pelayanan/pemeriksaan?tanggal=${today}&status=pemeriksaan`,
+        tindakan: `/pelayanan/tindakan-perawat?tanggal=${today}&status=pending`,
+        farmasi: `/pelayanan/farmasi?tanggal=${today}`,
+        kasir: reportStatusUrl('kasir'),
+        selesai: reportStatusUrl('selesai'),
+        batal: reportStatusUrl('batal'),
     } : Object.fromEntries(Object.keys(visitStatusFilterLabels).map((status) => [status, todayReportUrl]));
 
     return (
@@ -102,7 +105,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                         <p className="mt-1 text-sm text-neutral-500">Pantau aktivitas pelayanan klinik hari ini.</p>
                     </div>
                     {canRegister && <Button asChild>
-                        <Link href="/pelayanan/kunjungan/create">
+                        <Link href="/pendaftaran/pendaftaran-baru">
                             <ClipboardPlus className="size-4" />
                             Buat kunjungan
                         </Link>
@@ -212,12 +215,15 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                     </Card>
                 </section>
 
-                {canRegister && <section aria-label="Aksi cepat" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {canRegister && <section aria-label="Aksi cepat" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     {[
-                        { label: 'Daftarkan pasien', href: '/pelayanan/pasien/create', icon: UsersRound },
-                        { label: 'Buka kunjungan', href: '/pelayanan/kunjungan/create', icon: ClipboardPlus },
-                        { label: 'Lihat antrian', href: '/pelayanan/antrian', icon: ClipboardList },
-                        { label: 'Stok obat', href: '/master/obat', icon: Pill },
+                        { label: 'Pendaftaran pasien', href: '/pendaftaran/pendaftaran-baru', icon: UsersRound },
+                        { label: 'Kunjungan poli', href: '/pendaftaran/kunjungan-per-poli', icon: ClipboardPlus },
+                        { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
+                        { label: 'Pemeriksaan dokter', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
+                        { label: 'Tindakan perawat', href: '/pelayanan/tindakan-perawat', icon: ClipboardList },
+                        { label: 'Penyerahan obat', href: '/pelayanan/farmasi', icon: Pill },
+                        { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Pill },
                     ].map(({ href, icon: Icon, label }) => (
                         <Link className="group flex items-center justify-between rounded-xl border border-neutral-200 bg-surface p-4 text-sm font-medium text-neutral-700 shadow-sm transition hover:border-neutral-200 hover:bg-neutral-50/50 hover:text-neutral-800" href={href} key={href}>
                             <span className="flex items-center gap-3">

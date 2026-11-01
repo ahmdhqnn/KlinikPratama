@@ -124,11 +124,11 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                             <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
                                             <TableCell>
                                                 <div className="flex items-center justify-center gap-2">
-                                                    {visit.ticketUrl && <ActionButton asChild action="print" label="Cetak nomor antrean"><a href={visit.ticketUrl} /></ActionButton>}
-                                                    {visit.editUrl && <ActionButton asChild action="edit" label="Edit kunjungan"><a href={visit.editUrl} /></ActionButton>}
-                                                    {visit.cancelUrl && <ActionButton onClick={() => {
+                                                    <ActionButton disabledReason="Dokumen belum tersedia untuk dicetak." disabled={!visit.ticketUrl} asChild action="print" label="Cetak nomor antrean"><a href={visit.ticketUrl ?? ''} /></ActionButton>
+                                                    <ActionButton disabledReason="Data ini belum dapat diubah pada tahap pelayanan saat ini." disabled={!visit.editUrl} asChild action="edit" label="Edit kunjungan"><a href={visit.editUrl ?? ''} /></ActionButton>
+                                                    <ActionButton disabledReason="Hanya kunjungan yang belum dilayani yang dapat dibatalkan." disabled={!visit.cancelUrl} onClick={() => {
                                                         confirmAction('Batalkan kunjungan ini?', () => { router.post(visit.cancelUrl as string); }, 'Batalkan');
-                                                    }} action="cancel" label="Batalkan kunjungan" />}
+                                                    }} action="cancel" label="Batalkan kunjungan" />
                                                     {!visit.ticketUrl && !visit.editUrl && !visit.cancelUrl && <span className="pr-2 text-xs text-neutral-400">Tidak ada tindakan</span>}
                                                 </div>
                                             </TableCell>

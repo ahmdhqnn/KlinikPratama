@@ -34,6 +34,10 @@ final class DoctorAccessService
      */
     public function visibleVisits(User $user, ?string $claimDate = null): Builder
     {
+        if ($user->isAdmin()) {
+            return Kunjungan::query()->whereHas('poliklinik', fn (Builder $query) => $query->where('is_active', true)->whereIn('jenis', ['umum', 'gigi']));
+        }
+
         $doctorId = $this->doctorId($user);
         $clinicIds = $claimDate ? $this->scheduledClinicIds($doctorId, $claimDate) : [];
 
