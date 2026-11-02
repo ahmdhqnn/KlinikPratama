@@ -46,12 +46,12 @@ interface DocumentRow {
 }
 
 interface Props {
-    filters: { search: string };
+    filters: { search: string; visitId?: number | null };
     isAdmin: boolean;
     templates: PaginationData & { data: Template[] };
     letters: PaginationData & { data: DocumentRow[] };
     referrals: PaginationData & { data: DocumentRow[] };
-    eligibleVisits: (PaginationData & { data: { id: number; date: string; number: string; patient: string; medicalRecordNumber: string; clinic: string; letterUrl: string }[] }) | null;
+    eligibleVisits: (PaginationData & { data: { id: number; date: string; number: string; patient: string; medicalRecordNumber: string; clinic: string; letterUrl: string | null }[] }) | null;
 }
 
 const documentTypes = [
@@ -116,35 +116,37 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
         <>
             <Head title="Persuratan" />
             <div className="space-y-6">
+                {isAdmin && <p className="rounded-xl border border-neutral-200 bg-surface p-4 text-sm text-neutral-600">Arsip dokumen dapat ditinjau dan dicetak lintas poli. Template dikelola pada tab tersendiri. Surat baru diterbitkan oleh dokter penanggung jawab setelah pemeriksaan final.</p>}
                 <div>
                     <p className="text-sm font-medium text-neutral-600">Dokumen klinis dan administrasi</p>
                     <h1 className="mt-1 text-2xl font-semibold text-neutral-950">Persuratan</h1>
                     <p className="mt-1 text-sm text-neutral-500">Terbitkan surat dari pemeriksaan pasien dan tinjau dokumen yang sudah dibuat.</p>
                 </div>
 
-                <section aria-label="Ringkasan persuratan" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <section aria-label="Ringkasan persuratan" className="grid auto-rows-fr items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Total dokumen terbit" value={letterPagination.total + referralPagination.total} description="Surat medis dan rujukan internal" icon={<Files className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                     <StatCard label="Surat medis" value={letterPagination.total} description="Surat yang sudah diterbitkan" icon={<FileText className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                     <StatCard label="Rujukan internal" value={referralPagination.total} description="Rujukan antarpoliklinik terbit" icon={<ArrowRightLeft className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
-                    {eligibleVisits && <StatCard label="Siap diterbitkan" value={eligibleVisits.total} description="Pemeriksaan final yang dapat dibuatkan surat" icon={<Plus className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />}
+                    {eligibleVisits && <StatCard label="Penerbitan dokumen" value={eligibleVisits.total} description={isAdmin ? 'Kunjungan memenuhi syarat penerbitan oleh dokter' : 'Pemeriksaan final yang dapat dibuatkan surat'} icon={<Plus className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />}
                 </section>
+                {filters.visitId && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm"><p>Dokumen untuk kunjungan yang dipilih dari antrean.</p><Button asChild size="sm" variant="secondary"><Link href="/persuratan">Tampilkan semua dokumen</Link></Button></div>}
             <Tabs className="space-y-5" onValueChange={setActiveTab} value={activeTab}>
                     <TabsList aria-label="Bagian persuratan">
                         <TabsTrigger value="dokumen">Dokumen terbit</TabsTrigger>
-                        {eligibleVisits && <TabsTrigger value="terbitkan">Terbitkan dokumen</TabsTrigger>}
+                        {eligibleVisits && <TabsTrigger value="terbitkan">Penerbitan dokumen</TabsTrigger>}
                         {isAdmin && <TabsTrigger value="template">Template & penomoran</TabsTrigger>}
                     </TabsList>
                     <TabsContent className="space-y-5" value="terbitkan">
-                        {eligibleVisits && <SearchFilter search={search} onSearchChange={setSearch} />}
+                        {eligibleVisits && <SearchFilter visitId={filters.visitId} search={search} onSearchChange={setSearch} />}
                         {eligibleVisits && <Card className="overflow-hidden">
-                            <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><FileText className="size-5" /></span><div><CardTitle>Siap diterbitkan surat</CardTitle><CardDescription className="mt-1">Pemeriksaan final pasien Anda. Pilih kunjungan untuk membuat surat medis.</CardDescription></div></div></CardHeader>
-                            <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[700px]"><TableHeader><TableRow><TableHead className="text-center">Tanggal</TableHead><TableHead className="text-center">No. kunjungan</TableHead><TableHead className="text-center">Pasien</TableHead><TableHead className="text-center">Poliklinik</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>{eligibleVisits.data.length ? eligibleVisits.data.map((visit) => <TableRow key={visit.id}><TableCell className="text-center whitespace-nowrap">{visit.date}</TableCell><TableCell className="text-center font-mono text-xs">{visit.number}</TableCell><TableCell className="text-center"><p className="font-medium">{visit.patient}</p><p className="text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell><TableCell className="text-center">{visit.clinic}</TableCell><TableCell className="text-center"><ActionButton asChild action="issue" label={`Terbitkan surat untuk ${visit.patient}`}><Link href={visit.letterUrl} /></ActionButton></TableCell></TableRow>) : <TableRow><TableCell className="text-center" colSpan={5}><Empty size="compact" title="Belum ada pemeriksaan final untuk dibuatkan surat." /></TableCell></TableRow>}</TableBody></Table></div><Pagination pagination={eligibleVisits} /></CardContent>
+                            <CardHeader className="min-h-24 border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><FileText className="size-5" /></span><div className="min-w-0"><CardTitle>{isAdmin ? 'Kunjungan siap diterbitkan' : 'Siap diterbitkan surat'}</CardTitle><CardDescription className="mt-1">{isAdmin ? 'Dokter penanggung jawab menerbitkan surat setelah pemeriksaan final.' : 'Pemeriksaan final pasien Anda. Pilih kunjungan untuk membuat surat medis.'}</CardDescription></div></div></CardHeader>
+                            <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[700px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>{eligibleVisits.data.length ? eligibleVisits.data.map((visit) => <TableRow key={visit.id}><TableCell className="font-mono text-xs">{visit.number}</TableCell><TableCell className="whitespace-nowrap">{visit.date}</TableCell><TableCell><p className="font-medium">{visit.patient}</p><p className="text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell><TableCell>{visit.clinic}</TableCell><TableCell className="text-center"><ActionButton asChild action="issue" disabled={!visit.letterUrl} disabledReason="Surat diterbitkan oleh dokter penanggung jawab setelah pemeriksaan final." label={`Terbitkan surat untuk ${visit.patient}`}><Link href={visit.letterUrl ?? ''} /></ActionButton></TableCell></TableRow>) : <TableRow><TableCell colSpan={5}><Empty size="compact" title="Belum ada pemeriksaan final untuk dibuatkan surat." /></TableCell></TableRow>}</TableBody></Table></div><Pagination pagination={eligibleVisits} /></CardContent>
                         </Card>}
                     </TabsContent>
                     <TabsContent className="space-y-5" value="dokumen">
-                        <SearchFilter search={search} onSearchChange={setSearch} />
+                        <SearchFilter visitId={filters.visitId} search={search} onSearchChange={setSearch} />
                         <Card>
-                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><FileText className="size-5" /></span><div><CardTitle>Surat medis</CardTitle><CardDescription className="mt-1">Surat yang terkait dengan kunjungan pasien.</CardDescription></div></div></CardHeader>
+                            <CardHeader className="min-h-24"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><FileText className="size-5" /></span><div className="min-w-0"><CardTitle>Surat medis</CardTitle><CardDescription className="mt-1">Surat yang terkait dengan kunjungan pasien.</CardDescription></div></div></CardHeader>
                             <CardContent className="p-0"><div className="overflow-x-auto">
                                 <Table className="min-w-[760px]"><TableHeader><TableRow><TableHead className="text-center">Nomor / tanggal</TableHead><TableHead className="text-center">Pasien</TableHead><TableHead className="text-center">Jenis</TableHead><TableHead className="text-center">Poli / dokter</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                                     <TableBody>{letters.length ? letters.map((letter) => <TableRow key={letter.id}><TableCell className="text-center"><span className="font-mono text-sm">{letter.number ?? 'Belum diisi'}</span><p className="mt-1 text-xs text-neutral-500">{letter.date ?? 'Belum diisi'}</p></TableCell><TableCell className="text-center"><span className="font-medium">{letter.patient}</span><p className="text-xs text-neutral-500">{letter.visitNumber}</p></TableCell><TableCell className="text-center"><Badge variant="examination">{documentTypes.find(([value]) => value === letter.type)?.[1] ?? letter.type}</Badge></TableCell><TableCell className="text-center">{letter.clinic}<p className="text-xs text-neutral-500">{letter.doctor}</p></TableCell><TableCell className="text-center"><ActionButton asChild action="print" label="Cetak"><a href={letter.printUrl} /></ActionButton></TableCell></TableRow>) : <TableRow><TableCell className="text-center" colSpan={5}><Empty size="compact" title="Belum ada surat medis." /></TableCell></TableRow>}</TableBody>
@@ -153,7 +155,7 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
                         </Card>
 
                         <Card>
-                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ArrowRightLeft className="size-5" /></span><div><CardTitle>Rujukan internal</CardTitle><CardDescription className="mt-1">Rujukan antarpoliklinik yang telah diterbitkan.</CardDescription></div></div></CardHeader>
+                            <CardHeader className="min-h-24"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ArrowRightLeft className="size-5" /></span><div className="min-w-0"><CardTitle>Rujukan internal</CardTitle><CardDescription className="mt-1">Rujukan antarpoliklinik yang telah diterbitkan.</CardDescription></div></div></CardHeader>
                             <CardContent className="p-0"><div className="overflow-x-auto">
                                 <Table className="min-w-[760px]"><TableHeader><TableRow><TableHead className="text-center">Nomor / tanggal</TableHead><TableHead className="text-center">Pasien</TableHead><TableHead className="text-center">Tujuan</TableHead><TableHead className="text-center">Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                                     <TableBody>{referrals.length ? referrals.map((referral) => <TableRow key={referral.id}><TableCell className="text-center"><span className="font-mono text-sm">{referral.number ?? 'Belum diisi'}</span><p className="mt-1 text-xs text-neutral-500">{referral.date ?? 'Belum diisi'}</p></TableCell><TableCell className="text-center"><span className="font-medium">{referral.patient}</span><p className="text-xs text-neutral-500">{referral.visitNumber}</p></TableCell><TableCell className="text-center">{referral.fromClinic} → {referral.toClinic}<p className="text-xs text-neutral-500">{referral.doctor}</p></TableCell><TableCell className="text-center"><Badge variant={referral.status === 'selesai' ? 'complete' : 'waiting'}>{referral.status}</Badge></TableCell><TableCell className="text-center"><ActionButton asChild action="print" label="Cetak"><a href={referral.printUrl} /></ActionButton></TableCell></TableRow>) : <TableRow><TableCell className="text-center" colSpan={5}><Empty size="compact" title="Belum ada rujukan internal." /></TableCell></TableRow>}</TableBody>
@@ -183,7 +185,7 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
                             </CardContent>
                         </Card>
 
-                        <SearchFilter search={search} onSearchChange={setSearch} />
+                        <SearchFilter visitId={filters.visitId} search={search} onSearchChange={setSearch} />
                         <Card>
                             <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Files className="size-5" /></span><div><CardTitle>Template tersedia</CardTitle><CardDescription className="mt-1">{templatePagination.total} template surat dan penomoran.</CardDescription></div></div></CardHeader>
                             <CardContent className="p-0"><div className="overflow-x-auto">
@@ -199,6 +201,6 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
     );
 }
 
-function SearchFilter({ search, onSearchChange }: { search: string; onSearchChange: (value: string) => void }) {
-    return <FilterPanel><form className="flex flex-col gap-3 sm:flex-row" onSubmit={(event) => { event.preventDefault(); router.get('/persuratan', { search }, { preserveState: true, preserveScroll: true, replace: true }); }}><Input aria-label="Cari dokumen atau pasien" placeholder="Cari nama, No. RM, nomor surat, atau template" value={search} onChange={(event) => onSearchChange(event.target.value)} /><Button type="submit" variant="secondary">Terapkan filter</Button></form></FilterPanel>;
+function SearchFilter({ search, onSearchChange, visitId }: { visitId?: number | null; search: string; onSearchChange: (value: string) => void }) {
+    return <FilterPanel><form className="flex flex-col gap-3 sm:flex-row" onSubmit={(event) => { event.preventDefault(); router.get('/persuratan', { search, kunjungan_id: visitId ?? '' }, { preserveState: true, preserveScroll: true, replace: true }); }}><Input aria-label="Cari dokumen atau pasien" placeholder="Cari nama, No. RM, nomor surat, atau template" value={search} onChange={(event) => onSearchChange(event.target.value)} /><Button type="submit" variant="secondary">Terapkan filter</Button></form></FilterPanel>;
 }

@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\AdminAssistanceAuditController;
+use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DokterDashboardController;
@@ -30,6 +32,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\Stok\PersediaanController;
 use App\Http\Controllers\UserController;
+use App\Http\Middleware\AuditAdminAssistanceFailures;
 use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsureModuleEnabled;
 use App\Http\Middleware\EnsureRegistrationRole;
@@ -80,13 +83,26 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
 
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/admin/audit-bantuan', [AdminAssistanceAuditController::class, 'index'])
+        ->middleware(EnsureAdminRole::class)
+        ->name('admin.audit-bantuan');
+    Route::prefix('admin/laporan')->name('admin.laporan.')->middleware(EnsureAdminRole::class)->group(function (): void {
+        Route::get('/', [AdminReportController::class, 'index'])->name('index');
+        Route::get('pengkajian/export', [ScreeningController::class, 'exportReport'])->name('pengkajian.export');
+        Route::get('pengkajian', [ScreeningController::class, 'history'])->name('pengkajian');
+        Route::get('tindakan-perawat/cetak', [TindakanPerawatController::class, 'printReport'])->name('tindakan-perawat.cetak');
+        Route::get('tindakan-perawat/export', [TindakanPerawatController::class, 'exportReport'])->name('tindakan-perawat.export');
+        Route::get('tindakan-perawat', [TindakanPerawatController::class, 'report'])->name('tindakan-perawat');
+        Route::get('dokter/{jenis}/export', [DokterDashboardController::class, 'exportActivityReport'])->where('jenis', 'tindakan|obat')->name('dokter.export');
+        Route::get('dokter/{jenis}', [DokterDashboardController::class, 'reports'])->where('jenis', 'tindakan|obat')->name('dokter');
+    });
     Route::get('/perawat/dashboard', PerawatDashboardController::class)
         ->middleware(EnsureRole::class.':perawat')
         ->name('perawat.dashboard');
     Route::get('/farmasi/dashboard', [FarmasiDashboardController::class, 'index'])
         ->middleware(EnsureRole::class.':farmasi')
         ->name('farmasi.dashboard');
-    Route::prefix('farmasi')->name('farmasi.')->middleware(EnsureRole::class.':farmasi')->group(function (): void {
+    Route::prefix('farmasi')->name('farmasi.')->middleware(EnsureRole::class.':admin,farmasi')->group(function (): void {
         Route::get('resep-luar', [FarmasiController::class, 'externalPrescriptions'])->name('resep-luar.index');
         Route::get('resep-luar/{kunjungan}/cetak', [PersuratanController::class, 'printPrescription'])->name('resep-luar.cetak');
         Route::get('laporan/resep-luar', [FarmasiController::class, 'externalReport'])->name('laporan.resep-luar');
@@ -197,7 +213,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::resource('pasien', PasienController::class)->only(['index']);
             Route::get('pasien/{pasien}', [PasienController::class, 'show'])->withoutMiddleware(RedirectRegistrationRole::class)->name('pasien.show');
         });
-        Route::middleware(EnsureRole::class.':perawat,dokter')->group(function (): void {
+        Route::middleware(EnsureRole::class.':admin,perawat,dokter')->group(function (): void {
             Route::get('pasien/{pasien}/rekam-medis', [PasienController::class, 'rekamMedis'])->name('pasien.rekam-medis');
         });
         Route::middleware(EnsureAdminRole::class)->group(function (): void {
@@ -220,7 +236,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             ->middleware(EnsureRole::class.':admin,pendaftaran')
             ->name('dokter.by-poli');
 
-        Route::middleware(EnsureRole::class.':admin,perawat')->group(function (): void {
+        Route::middleware([AuditAdminAssistanceFailures::class, EnsureRole::class.':admin,perawat'])->group(function (): void {
             Route::get('screening', [ScreeningController::class, 'index'])->name('screening.index');
             Route::get('screening/riwayat', [ScreeningController::class, 'history'])->name('screening.history');
             Route::post('screening/{kunjungan}/mulai', [ScreeningController::class, 'start'])->name('screening.start');
@@ -231,7 +247,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::post('kunjungan/{kunjungan}/screening', [ScreeningController::class, 'store'])->name('kunjungan.screening.store');
         });
 
-        Route::middleware(EnsureRole::class.':dokter')->group(function (): void {
+        Route::middleware([AuditAdminAssistanceFailures::class, EnsureRole::class.':admin,dokter'])->group(function (): void {
+            Route::post('pemeriksaan/{kunjungan}/bantuan', [PemeriksaanController::class, 'assist'])->name('pemeriksaan.assist');
             Route::get('pemeriksaan', [PemeriksaanController::class, 'index'])->name('pemeriksaan.index');
             Route::get('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'show'])->name('pemeriksaan.show');
             Route::post('pemeriksaan/{kunjungan}/mulai', [PemeriksaanController::class, 'start'])->name('pemeriksaan.start');
@@ -255,14 +272,14 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::get('icd9cm/search', [PemeriksaanController::class, 'searchIcd9cm'])->name('icd9cm.search');
         });
 
-        Route::middleware(EnsureRole::class.':perawat')->group(function (): void {
+        Route::middleware([AuditAdminAssistanceFailures::class, EnsureRole::class.':admin,perawat'])->group(function (): void {
             Route::get('tindakan-perawat', [TindakanPerawatController::class, 'index'])->name('tindakan.index');
             Route::get('tindakan-perawat/{kunjungan}', [TindakanPerawatController::class, 'show'])->name('tindakan.show');
             Route::post('tindakan-perawat/{kunjungan}/mulai', [TindakanPerawatController::class, 'start'])->name('tindakan.start');
             Route::post('tindakan-perawat/{kunjungan}/{tindakanKunjungan}/selesai', [TindakanPerawatController::class, 'complete'])->name('tindakan.complete');
         });
 
-        Route::middleware(EnsureRole::class.':farmasi')->group(function (): void {
+        Route::middleware([AuditAdminAssistanceFailures::class, EnsureRole::class.':admin,farmasi'])->group(function (): void {
             Route::get('farmasi', [FarmasiController::class, 'index'])->name('farmasi.index');
             Route::get('farmasi/{kunjungan}', [FarmasiController::class, 'show'])->name('farmasi.show');
             Route::post('farmasi/{kunjungan}', [FarmasiController::class, 'store'])->name('farmasi.store');

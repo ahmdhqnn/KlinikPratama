@@ -11,6 +11,13 @@ use Illuminate\Validation\Validator;
 
 class StoreScreeningRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('assistance_reason'))) {
+            $this->merge(['assistance_reason' => trim($this->input('assistance_reason'))]);
+        }
+    }
+
     public function authorize(): bool
     {
         /** @var Kunjungan $visit */
@@ -33,6 +40,7 @@ class StoreScreeningRequest extends FormRequest
         $wasSubmitted = $this->route('kunjungan')->screening?->submitted_at !== null;
         $required = $wasSubmitted || $this->input('tindakan', 'kirim') === 'kirim' ? 'required' : 'nullable';
         $rules = [
+            'assistance_reason' => [Rule::excludeIf($this->user()->role !== 'admin'), 'required', 'string', 'min:10', 'max:1000'],
             'tindakan' => ['sometimes', Rule::in($wasSubmitted ? ['kirim'] : ['draf', 'kirim'])],
             'petugas_id' => [Rule::excludeIf($this->user()->role === 'perawat'), 'required', Rule::exists('nakes', 'id')->whereIn('jabatan', ['perawat', 'bidan', 'terapis_gigi'])->where('poliklinik_id', $this->route('kunjungan')->poliklinik_id)->where('is_active', true)->whereNull('deleted_at')],
             'keluhan' => [$required, 'string', 'max:5000'],
@@ -136,6 +144,8 @@ class StoreScreeningRequest extends FormRequest
             'required' => ':attribute wajib diisi sebelum meneruskan pasien.',
             'in' => 'Pilih jawaban :attribute yang tersedia.',
             'konfirmasi_riwayat.accepted' => 'Konfirmasi riwayat pasien setelah melakukan pengkajian.',
+            'assistance_reason.required' => 'Alasan bantuan admin wajib diisi.',
+            'assistance_reason.min' => 'Alasan bantuan admin minimal 10 karakter.',
             'petugas_id.exists' => 'Pilih petugas aktif yang ditugaskan di poli ini.',
             'numeric' => ':attribute harus berupa angka.',
             'integer' => ':attribute harus berupa bilangan bulat.',

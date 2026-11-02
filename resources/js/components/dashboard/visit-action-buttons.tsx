@@ -26,10 +26,10 @@ export function VisitActionButtons({ patient, primary, recordUrl, recordLabel, l
             {primary && (primary.disabled
                 ? <ActionButton disabled title={primary.title} action={primary.type} label={primary.label} />
                 : <ActionButton asChild title={primary.title} action={primary.type} label={primary.label}><Link href={primary.href} /></ActionButton>)}
-            {recordUrl && primary?.href !== recordUrl && <ActionButton asChild action="rme" label={recordLabel ?? `Lihat RME ${patient}`}><Link href={recordUrl} /></ActionButton>}
-            {showLetterAction && (letterUrl
+            {primary?.type !== 'rme' && <ActionButton asChild disabled={!recordUrl} disabledReason="Rekam medis belum tersedia atau tidak dapat diakses oleh akun Anda." action="rme" label={recordLabel ?? `Lihat RME ${patient}`}><Link href={recordUrl ?? ''} /></ActionButton>}
+            {(showLetterAction && letterUrl
                 ? <ActionButton asChild action="issue" label={`Terbitkan surat untuk ${patient}`}><Link href={letterUrl} /></ActionButton>
-                : <ActionButton action="issue" disabled label={`Surat belum dapat diterbitkan untuk ${patient}`} title="Surat dapat diterbitkan setelah pemeriksaan difinalisasi dan diverifikasi." />)}
+                : <ActionButton action="issue" disabled label={`Terbitkan surat untuk ${patient}`} disabledReason={showLetterAction ? 'Surat dapat diterbitkan setelah pemeriksaan difinalisasi dan diverifikasi.' : 'Surat diterbitkan oleh dokter penanggung jawab setelah pemeriksaan final.'} />)}
         </div>
     );
 }

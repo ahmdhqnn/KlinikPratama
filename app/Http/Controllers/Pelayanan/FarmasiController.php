@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Pelayanan;
 
+use App\AdminPharmacyAssistance;
 use App\ClinicalAuditRecorder;
 use App\Exports\FarmasiDispensingExport;
 use App\Exports\FarmasiResepLuarExport;
@@ -273,6 +274,7 @@ class FarmasiController extends Controller
         $movements = StokMutasi::with(['batch', 'actor', 'obat'])->where('referensi_type', 'Farmasi')->where('referensi_id', $kunjungan->farmasi?->id ?? 0)->get();
 
         return Inertia::render('pelayanan/farmasi/show', [
+            'adminAssistance' => $request->user()->isAdmin(),
             'visit' => [
                 'id' => $kunjungan->id,
                 'number' => $kunjungan->no_kunjungan,
@@ -335,14 +337,16 @@ class FarmasiController extends Controller
 
     public function store(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
+        $assistance = app(AdminPharmacyAssistance::class)->context($request);
         abort_unless($kunjungan->status === 'farmasi', 422, 'Kunjungan tidak berada pada tahap farmasi.');
 
         $data = $this->validateDispensingData($request, $kunjungan);
 
-        DB::transaction(function () use ($data, $kunjungan, $request): void {
+        DB::transaction(function () use ($data, $kunjungan, $request, $assistance): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             abort_unless($lockedVisit->status === 'farmasi', 422, 'Kunjungan tidak berada pada tahap farmasi.');
             $this->scheduling->ensureServiceDate($lockedVisit);
+            app(AdminPharmacyAssistance::class)->authorizeVisit($request, $lockedVisit);
 
             $farmasi = Farmasi::where('kunjungan_id', $kunjungan->id)->lockForUpdate()->first();
             abort_if($farmasi?->status === 'selesai', 422, 'Dispensing sudah selesai dan tidak dapat diubah.');
@@ -354,7 +358,7 @@ class FarmasiController extends Controller
 
             $this->replaceDispensingItems($farmasi, $data);
 
-            app(ClinicalAuditRecorder::class)->record($request, 'pharmacy.draft_saved', $kunjungan->pasien_id, $kunjungan->id);
+            app(ClinicalAuditRecorder::class)->record($request, 'pharmacy.draft_saved', $kunjungan->pasien_id, $kunjungan->id, $assistance);
             $farmasi->update([
                 'status' => 'diproses',
                 'catatan' => $data['catatan'],
@@ -366,10 +370,12 @@ class FarmasiController extends Controller
 
     public function markExternal(Request $request, Kunjungan $kunjungan, ResepObat $resepObat, ClinicalAuditRecorder $audit): RedirectResponse
     {
-        DB::transaction(function () use ($request, $kunjungan, $resepObat, $audit): void {
+        $assistance = app(AdminPharmacyAssistance::class)->context($request);
+        DB::transaction(function () use ($request, $kunjungan, $resepObat, $audit, $assistance): void {
             $visit = Kunjungan::query()->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             abort_unless($visit->status === 'farmasi' && $visit->pemeriksaan?->signed_at !== null, 422);
             $this->scheduling->ensureServiceDate($visit);
+            app(AdminPharmacyAssistance::class)->authorizeVisit($request, $visit);
             $item = ResepObat::query()->whereKey($resepObat->id)->lockForUpdate()->firstOrFail();
             abort_unless($visit->resep?->id === $item->resep_id && ! $item->is_resep_luar && $item->obat_id !== null, 422);
             abort_if($item->farmasiResepLuar()->exists() || $item->stok_dikurangi, 422);
@@ -382,7 +388,7 @@ class FarmasiController extends Controller
             }
 
             FarmasiResepLuar::create(['resep_obat_id' => $item->id, 'petugas_id' => $request->user()->id]);
-            $audit->record($request, 'pharmacy.external_prescription', $visit->pasien_id, $visit->id, ['prescription_item_id' => $item->id]);
+            $audit->record($request, 'pharmacy.external_prescription', $visit->pasien_id, $visit->id, ['prescription_item_id' => $item->id, ...$assistance]);
         });
 
         return back()->with('success', 'Obat dicatat untuk ditebus di luar klinik. Resep luar siap dicetak.');
@@ -390,9 +396,10 @@ class FarmasiController extends Controller
 
     public function selesai(Request $request, Kunjungan $kunjungan, PersediaanRecorder $inventory, ClinicalAuditRecorder $audit): RedirectResponse
     {
+        $assistance = app(AdminPharmacyAssistance::class)->context($request);
         $data = $request->exists('items') ? $this->validateDispensingData($request, $kunjungan) : null;
 
-        $result = DB::transaction(function () use ($kunjungan, $request, $inventory, $audit, $data): string {
+        $result = DB::transaction(function () use ($kunjungan, $request, $inventory, $audit, $data, $assistance): string {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $farmasi = Farmasi::where('kunjungan_id', $kunjungan->id)->lockForUpdate()->first();
 
@@ -406,6 +413,7 @@ class FarmasiController extends Controller
 
             abort_unless($lockedVisit->status === 'farmasi', 422, 'Kunjungan tidak berada pada tahap farmasi.');
             $this->scheduling->ensureServiceDate($lockedVisit);
+            app(AdminPharmacyAssistance::class)->authorizeVisit($request, $lockedVisit);
 
             $lockedVisit->loadMissing('resep');
             $farmasi ??= Farmasi::create([
@@ -480,7 +488,7 @@ class FarmasiController extends Controller
                 $inventory->issue((int) $item->obat_id, (float) $item->jumlah_diberikan, $request->user(), $lockedVisit, 'Farmasi', $farmasi->id, $item->id);
             }
 
-            $audit->record($request, 'pharmacy.dispensed', $lockedVisit->pasien_id, $lockedVisit->id);
+            $audit->record($request, 'pharmacy.dispensed', $lockedVisit->pasien_id, $lockedVisit->id, $assistance);
             $farmasi->update(['status' => 'selesai', 'dispensed_by' => $request->user()->id, 'dispensed_at' => now()]);
             $lockedVisit->resep?->update(['status' => 'selesai']);
             $lockedVisit->update(['status' => 'selesai']);

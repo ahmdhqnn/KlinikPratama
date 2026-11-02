@@ -51,6 +51,82 @@ class DoctorExaminationStartTest extends TestCase
         $this->get(route('dokter.kunjungan'))->assertInertia(fn (Assert $page) => $page->where('visits.data.0.examinationStarted', true));
     }
 
+    public function test_doctor_handover_uses_only_saved_screening_answers_and_matches_the_printed_assessment(): void
+    {
+        [$doctor, , $visit] = $this->visitContext();
+        $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        Nakes::create(['kode' => 'NURSE-HANDOVER', 'nama' => 'Perawat Penguji', 'kategori' => 'medis', 'jabatan' => 'perawat', 'poliklinik_id' => $visit->poliklinik_id, 'user_id' => $nurse->id, 'is_active' => true]);
+        $visit->pasien->update(['riwayat_alergi' => 'Alergi lama di profil pasien']);
+        $visit->screening()->update([
+            'keluhan' => 'Batuk sejak dua hari',
+            'lama_keluhan' => '2 hari',
+            'sumber_informasi' => 'pasien',
+            'td_sistole' => 120,
+            'td_diastole' => 80,
+            'suhu' => 36.5,
+            'lingkar_perut' => 72.4,
+            'nyeri_dada' => 'tidak',
+            'kesimpulan_triase' => 'hijau',
+            'prioritas_layanan' => 'normal',
+            'submitted_at' => now(),
+        ]);
+
+        $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visit.screening.complaint', 'Batuk sejak dua hari')
+                ->where('visit.screening.systolic', 120)
+                ->where('visit.screening.waistCircumference', '72.4')
+                ->where('visit.screening.oxygenSaturation', null)
+                ->where('visit.screening.allergyHistory', null)
+                ->where('visit.screening.summary.Kebutuhan respons awal', 'Hijau - prioritas rutin · Normal')
+                ->where('visit.screening.summary.Nyeri dada', 'Tidak')
+                ->where('visit.screening.summary.Skala nyeri', null));
+
+        $this->actingAs($nurse)->get(route('pelayanan.screening.print', $visit))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('document.sections.history.Keluhan utama', 'Batuk sejak dua hari')
+                ->where('document.sections.measurements.Lingkar perut', '72.4 cm')
+                ->where('document.sections.triage.Kebutuhan respons awal', 'Hijau - prioritas rutin · Normal'));
+    }
+
+    public function test_unstarted_draft_is_not_labeled_as_an_examination_in_progress_across_roles(): void
+    {
+        [$doctor, $staff, $visit] = $this->visitContext();
+        $visit->pemeriksaan()->create(['dokter_id' => $staff->id, 'status' => 'draft'])->update(['started_at' => null]);
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $registration = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
+
+        $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.examinationStarted', false));
+        $this->get(route('pelayanan.pemeriksaan.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.examinationStarted', false));
+        $this->get(route('dokter.dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->where('recentVisits.data.0.examinationStarted', false)
+            ->where('recentVisits.data.0.actionLabel', 'Mulai pemeriksaan'));
+        $this->get(route('dokter.kunjungan'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.examinationStarted', false));
+
+        $this->actingAs($admin)->get(route('pelayanan.kunjungan.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.examinationStarted', false));
+        $this->get(route('pelayanan.antrian'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.examinationStarted', false));
+        $this->get(route('pelayanan.pemeriksaan.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.examinationStarted', false));
+        $this->get(route('pendaftaran.kunjungan-per-poli'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.examinationStarted', false));
+        $this->get(route('laporan.kunjungan'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.examinationStarted', false));
+        $this->get(route('pelayanan.pasien.show', $visit->pasien))->assertInertia(fn (Assert $page) => $page
+            ->where('patient.visits.0.examinationStarted', false));
+        $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.0.examinationStarted', false));
+
+        $this->actingAs($registration)->get(route('pendaftaran.dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.examinationStarted', false));
+        $this->get(route('pendaftaran.kunjungan-per-poli'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.data.0.examinationStarted', false));
+    }
+
     public function test_start_claims_unassigned_visit_only_for_a_scheduled_doctor(): void
     {
         [$doctor, $staff, $visit] = $this->visitContext();

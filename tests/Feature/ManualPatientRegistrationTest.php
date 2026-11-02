@@ -181,9 +181,9 @@ class ManualPatientRegistrationTest extends TestCase
         $response = $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
             ...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
         ]);
-        $response->assertSessionHasNoErrors()->assertRedirect(route('pendaftaran.laporan-kunjungan'));
+        $response->assertSessionHasNoErrors()->assertRedirect(route('pendaftaran.kunjungan-per-poli', ['tanggal' => today()->toDateString()]));
         $this->get($response->headers->get('Location'))->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->component('pendaftaran/laporan-kunjungan')
+            ->component('pendaftaran/kunjungan-per-poli')
             ->has('visits.data', 1)
         );
     }
@@ -198,15 +198,25 @@ class ManualPatientRegistrationTest extends TestCase
         $this->assertDatabaseCount('kunjungan', 0);
     }
 
-    public function test_manual_dental_registration_still_requires_a_future_reservation(): void
+    public function test_manual_dental_registration_supports_a_future_reservation(): void
     {
         [$user, $clinic] = $this->registrationContext('gigi');
         $data = [...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id];
-        $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), $data)->assertSessionHasErrors('tanggal');
-        $this->assertDatabaseCount('pasien', 0);
+        $this->actingAs($user);
         $this->post(route('pendaftaran.store-pasien-baru'), [...$data, 'tanggal' => '2026-10-21'])->assertSessionHasNoErrors();
         $this->assertSame('2026-10-21', Kunjungan::sole()->tanggal->toDateString());
         $this->assertDatabaseCount('kepesertaan', 0);
+    }
+
+    public function test_manual_dental_registration_accepts_today_when_a_doctor_is_scheduled(): void
+    {
+        [$user, $clinic] = $this->registrationContext('gigi');
+        $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
+        ])->assertSessionHasNoErrors();
+        $visit = Kunjungan::sole();
+        $this->assertSame(today()->toDateString(), $visit->tanggal->toDateString());
+        $this->get(route('pendaftaran.cetak-antrian', $visit))->assertInertia(fn (Assert $page) => $page->where('ticket.isReservation', false));
     }
 
     /** @return array<string, array{string}> */

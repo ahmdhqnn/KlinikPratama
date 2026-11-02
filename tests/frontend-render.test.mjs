@@ -44,6 +44,24 @@ async function renderPage(path, props, url = '/pendaftaran') {
 
 const singlePage = { currentPage: 1, lastPage: 1, from: 1, to: 9, total: 9, previousUrl: null, nextUrl: null };
 const pageOf = (data) => ({ currentPage: 1, lastPage: 1, from: data.length ? 1 : null, to: data.length || null, total: data.length, previousUrl: null, nextUrl: null, data });
+function htmlElementById(html, id) {
+    const idIndex = html.indexOf(`id="${id}"`);
+    assert.notEqual(idIndex, -1, `expected element #${id}`);
+    const openingTag = html.slice(0, idIndex).match(/<([a-z][a-z0-9-]*)\b[^<>]*$/i);
+    assert.ok(openingTag, `expected an opening tag for #${id}`);
+    const tag = openingTag[1];
+    const start = idIndex - openingTag[0].length;
+    const elements = new RegExp(`<\\/?${tag}\\b[^>]*>`, 'g');
+    elements.lastIndex = start;
+    let depth = 0;
+    let match;
+    while ((match = elements.exec(html))) {
+        if (match[0].startsWith(`</${tag}`)) depth -= 1;
+        else depth += 1;
+        if (depth === 0) return html.slice(start, elements.lastIndex);
+    }
+    assert.fail(`expected a closing ${tag} element for #${id}`);
+}
 
 test('membership directory exposes management actions only to admin', async () => {
     const props = {
@@ -1143,6 +1161,31 @@ test('general examination keeps the body map with physical examination and omits
     assert.match(examinationPanel(html, 'pemeriksaan'), /Diagram Anatomi &amp; Lokasi Keluhan Tubuh/);
     assert.doesNotMatch(examinationPanel(html, 'anamnesis'), /Diagram Anatomi|id="pemeriksaan_fisik"/);
     assert.doesNotMatch(html, /data-value="odontogram"|id="dental-tooth"|id="extraoral"/);
+});
+
+test('doctor handover shows only entered nursing answers and measured values', async () => {
+    const props = examinationProps('umum', {
+        canClaim: true,
+        examination: null,
+        patient: { id: 1, name: 'Pasien Uji', medicalRecordNumber: 'RM-001', gender: 'P', age: 35, bloodType: null, allergies: 'Alergi profil pasien' },
+    });
+    props.visit.screening = {
+        summary: { 'Keluhan tambahan': null, 'Status alergi saat ini': null, 'Kebutuhan respons awal': null, 'Risiko jatuh': null, 'Skala nyeri': null, 'Catatan Pengkajian': 'Pasien tampak nyaman' },
+        systolic: 120, diastolic: 80, pulse: null, temperature: null, oxygenSaturation: null, weight: null, height: null,
+        bmi: null, waistCircumference: 82, respiration: null, complaint: 'Batuk sejak dua hari', medicalHistory: null,
+        familyHistory: null, allergyHistory: null, painScale: null, fallRisk: null, triage: null, priority: null,
+        dentalPainLocation: null, dentalPainTriggers: [], dentalPainDuration: null, dentalMedicalRisks: [], dentalInfectionHistory: [], dentalNotes: null,
+    };
+
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    const handover = htmlElementById(html, 'nurse-assessment-summary');
+
+    assert.match(handover, /Keluhan awal[\s\S]*Batuk sejak dua hari/);
+    assert.match(handover, /Tekanan darah[\s\S]*120 \/ 80 mmHg/);
+    assert.match(handover, /Lingkar perut[\s\S]*82 cm/);
+    assert.doesNotMatch(handover, /Alergi profil pasien|Belum diukur|Belum dinilai|Belum dihitung|Belum dicatat/);
+    assert.match(handover, /md:col-span-2[^>]*>[\s\S]*Pengkajian tambahan/);
+    assert.match(html, /aria-label="Tutup informasi pemeriksaan"/);
 });
 
 test('dental claim and integrity failures do not expose editable correction actions', async () => {

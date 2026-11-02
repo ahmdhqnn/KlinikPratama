@@ -29,13 +29,16 @@ class PersuratanController extends Controller
 
     public function index(Request $request): Response
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'kunjungan_id' => ['nullable', 'integer', 'exists:kunjungan,id'],
+        ]);
         $search = $filters['search'] ?? '';
         $user = $request->user();
         $isAdmin = $user->role === 'admin';
         $doctorId = $isAdmin ? null : $this->doctorId($user);
-        $eligibleVisits = $isAdmin ? null : Kunjungan::query()
-            ->where('dokter_id', $doctorId)
+        $eligibleVisits = Kunjungan::query()
+            ->when(! $isAdmin, fn (Builder $query) => $query->where('dokter_id', $doctorId))
             ->whereIn('status', ['tindakan', 'farmasi', 'kasir', 'selesai'])
             ->whereHas('pemeriksaan', fn (Builder $query) => $query->whereNotNull('signed_at'))
             ->with(['pasien', 'poliklinik'])
@@ -45,6 +48,7 @@ class PersuratanController extends Controller
             ->latest('tanggal')->latest('id')->paginate(10, ['*'], 'visits_page')->withQueryString();
 
         $letters = SuratMedis::query()
+            ->when($filters['kunjungan_id'] ?? null, fn (Builder $query, int|string $visitId) => $query->where('kunjungan_id', $visitId))
             ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
                 ->where('nomor_surat', 'like', "%{$search}%")
                 ->orWhereHas('kunjungan.pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
@@ -52,6 +56,7 @@ class PersuratanController extends Controller
             ->when(! $isAdmin, fn (Builder $query) => $query->whereHas('kunjungan', fn (Builder $visit) => $visit->where('dokter_id', $doctorId)))
             ->latest('id')->paginate(10, ['*'], 'letters_page')->withQueryString();
         $referrals = RujukanInternal::query()
+            ->when($filters['kunjungan_id'] ?? null, fn (Builder $query, int|string $visitId) => $query->where('kunjungan_id', $visitId))
             ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
                 ->where('nomor_surat', 'like', "%{$search}%")
                 ->orWhereHas('kunjungan.pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
@@ -67,7 +72,7 @@ class PersuratanController extends Controller
 
         return Inertia::render('persuratan/index', [
             'isAdmin' => $isAdmin,
-            'filters' => ['search' => $search],
+            'filters' => ['search' => $search, 'visitId' => $filters['kunjungan_id'] ?? null],
             'eligibleVisits' => $eligibleVisits ? [
                 'data' => $eligibleVisits->getCollection()->map(fn (Kunjungan $visit): array => [
                     'id' => $visit->id,
@@ -76,7 +81,7 @@ class PersuratanController extends Controller
                     'patient' => $visit->pasien->nama,
                     'medicalRecordNumber' => $visit->pasien->no_rm,
                     'clinic' => $visit->poliklinik->nama,
-                    'letterUrl' => route('persuratan.surat.create', $visit),
+                    'letterUrl' => $isAdmin ? null : route('persuratan.surat.create', $visit),
                 ])->values(),
                 'currentPage' => $eligibleVisits->currentPage(), 'lastPage' => $eligibleVisits->lastPage(),
                 'from' => $eligibleVisits->firstItem(), 'to' => $eligibleVisits->lastItem(), 'total' => $eligibleVisits->total(),
@@ -165,6 +170,7 @@ class PersuratanController extends Controller
 
     public function storeLetter(Request $request, Kunjungan $kunjungan, ClinicalNoteRecorder $notes): RedirectResponse
     {
+        $this->authorizeLetterIssue($request->user(), $kunjungan, $notes);
         $data = $request->validate([
             'jenis' => ['required', 'in:sakit,sehat,rujukan,lainnya'],
             'konten' => ['nullable', 'string', 'max:10000'],
@@ -221,10 +227,7 @@ class PersuratanController extends Controller
     public function printPrescription(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): Response
     {
         if ($request->routeIs('farmasi.resep-luar.cetak')) {
-            if ($request->query('asal') === 'pasien') {
-                return ['backUrl' => route('farmasi.pasien.kunjungan', $visit), 'backLabel' => 'Kembali ke detail pasien'];
-            }
-            abort_unless($request->user()?->role === 'farmasi' && $kunjungan->pemeriksaan?->signed_at !== null, 404);
+            abort_unless(in_array($request->user()?->role, ['admin', 'farmasi'], true) && $kunjungan->pemeriksaan?->signed_at !== null, 404);
         } else {
             $this->authorizeVisitDocument($request->user(), $kunjungan);
         }
@@ -342,6 +345,10 @@ class PersuratanController extends Controller
     private function documentReturn(Request $request, Kunjungan $visit, string $tab, string $label): array
     {
         if ($request->routeIs('farmasi.resep-luar.cetak')) {
+            if ($request->query('asal') === 'pasien') {
+                return ['backUrl' => route('farmasi.pasien.kunjungan', $visit), 'backLabel' => 'Kembali ke detail pasien'];
+            }
+
             if ($request->query('asal') === 'penyerahan') {
                 return ['backUrl' => route('pelayanan.farmasi.show', $visit), 'backLabel' => 'Kembali ke penyerahan obat'];
             }
@@ -351,6 +358,9 @@ class PersuratanController extends Controller
             }
 
             return ['backUrl' => route('farmasi.resep-luar.index'), 'backLabel' => 'Kembali ke resep luar'];
+        }
+        if ($request->query('asal') === 'rme') {
+            return ['backUrl' => route('pelayanan.pasien.rekam-medis', $visit->pasien_id), 'backLabel' => 'Kembali ke rekam medis pasien'];
         }
         if ($request->query('asal') === 'pemeriksaan') {
             return [

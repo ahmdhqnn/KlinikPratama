@@ -101,16 +101,17 @@ class RegistrationRoleTest extends TestCase
             'status' => 'menunggu',
             'jenis_pasien' => 'lama',
         ]);
-        $list = $this->actingAs($user)->get(route('pendaftaran.kunjungan-per-poli'));
+        $listUrl = route('pendaftaran.kunjungan-per-poli', ['status' => 'menunggu']);
+        $list = $this->actingAs($user)->get($listUrl);
         $list->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('visits.data.0.actionUrl', route('pendaftaran.kunjungan.show', $visit))
             ->where('recentVisits.data.0.actionUrl', route('pendaftaran.kunjungan.show', $visit))
         );
-        $detail = $this->get($list->inertiaProps('visits.data.0.actionUrl'));
+        $detail = $this->withHeader('Referer', $listUrl)->get($list->inertiaProps('visits.data.0.actionUrl'));
         $detail->assertOk()->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/kunjungan/show')
             ->where('visit.number', $visit->no_kunjungan)
-            ->where('backUrl', route('pendaftaran.kunjungan-per-poli'))
+            ->where('backUrl', $listUrl)
             ->where('permissions.editVisit', true)
             ->where('permissions.viewRme', false)
             ->where('permissions.processScreening', false)

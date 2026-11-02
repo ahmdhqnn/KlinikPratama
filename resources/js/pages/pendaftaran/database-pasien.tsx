@@ -81,7 +81,7 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                                             <TableCell className="text-neutral-600">{patient.phone || 'Belum diisi'}</TableCell>
                                             <TableCell className="text-neutral-600">{patient.membership}</TableCell>
                                             <TableCell className="whitespace-nowrap text-neutral-500">{patient.registeredAt}</TableCell>
-                                            <TableCell><div className="flex justify-center gap-2"><ActionButton asChild action="detail" label={`Lihat ${patient.name}`}><Link href={patient.viewUrl} /></ActionButton>{patient.editUrl && <ActionButton asChild action="edit" label={`Edit ${patient.name}`}><Link href={patient.editUrl} /></ActionButton>}</div></TableCell>
+                                            <TableCell><div className="flex justify-center gap-2"><ActionButton asChild action="detail" label={`Lihat ${patient.name}`}><Link href={patient.viewUrl} /></ActionButton><ActionButton disabledReason="Data ini belum dapat diubah pada tahap pelayanan saat ini." disabled={!patient.editUrl} asChild action="edit" label={`Edit ${patient.name}`}><Link href={patient.editUrl ?? ''} /></ActionButton></div></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={8}><Empty size="compact" title="Tidak ada data pasien yang cocok." /></TableCell></TableRow>}
                                 </TableBody>

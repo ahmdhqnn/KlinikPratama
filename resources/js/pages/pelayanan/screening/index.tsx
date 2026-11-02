@@ -33,6 +33,9 @@ interface Visit {
     examinationStarted: boolean;
     screeningState: string;
     screeningUrl: string;
+    canUpdateScreening: boolean;
+    visitUrl: string;
+    recordUrl: string | null;
     actionUrl: string;
     actionLabel: string;
     printUrl: string | null;
@@ -121,7 +124,7 @@ function VisitList({ title, description, icon, visits }: { title: string; descri
                 <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                 <TableCell><Badge variant={visit.screeningState === 'Terkirim' ? 'complete' : 'default'}>{visit.screeningState}</Badge></TableCell>
                 <TableCell><StatusBadge context="nurse" examinationStarted={visit.examinationStarted} status={visit.status} /></TableCell>
-                <TableCell><div className="flex justify-center gap-2"><ActionButton asChild action={visit.actionLabel.includes('pengkajian') ? 'screening' : visit.actionLabel === 'Lihat RME' ? 'rme' : 'detail'} label={visit.actionLabel}><Link href={visit.actionUrl} /></ActionButton>{visit.printUrl && <ActionButton asChild action="print" label={`Cetak pengkajian ${visit.number}`}><a href={visit.printUrl} /></ActionButton>}</div></TableCell>
+                <TableCell><div className="flex justify-center gap-2"><ActionButton asChild action="detail" label="Detail kunjungan"><Link href={visit.visitUrl} /></ActionButton><ActionButton asChild action="screening" disabled={!visit.canUpdateScreening} disabledReason={visit.status === 'batal' ? 'Kunjungan telah dibatalkan.' : 'Pengkajian tersedia mulai tanggal kunjungan dan sebelum dokter mulai memeriksa.'} label={visit.actionLabel.includes('pengkajian') ? visit.actionLabel : 'Perbarui pengkajian'}><Link href={visit.screeningUrl} /></ActionButton><ActionButton asChild action="rme" disabled={!visit.recordUrl} disabledReason="Rekam medis pasien tidak tersedia." label="Lihat RME"><Link href={visit.recordUrl ?? ''} /></ActionButton><ActionButton disabledReason="Dokumen belum tersedia untuk dicetak." disabled={!visit.printUrl} asChild action="print" label={`Cetak pengkajian ${visit.number}`}><a href={visit.printUrl ?? ''} /></ActionButton></div></TableCell>
             </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada kunjungan" description="Kunjungan pada poli dan filter ini akan tampil di sini." /></TableCell></TableRow>}
         </TableBody></Table></div></CardContent><Pagination pagination={visits} />
     </Card>;

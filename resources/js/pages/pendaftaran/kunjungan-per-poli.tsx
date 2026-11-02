@@ -158,8 +158,8 @@ function VisitActions({ visit, manageVisits }: { visit: Visit; manageVisits: boo
 
     return <div className="flex justify-center gap-2">
         <ActionButton asChild action={isScreeningAction ? 'screening' : isMedicalRecordAction ? 'rme' : 'detail'} label={visit.actionLabel}><Link href={visit.actionUrl} /></ActionButton>
-        {manageVisits && visit.editUrl && <ActionButton asChild action="edit" label={`Perbarui kunjungan ${visit.number}`}><Link href={visit.editUrl} /></ActionButton>}
-        {manageVisits && visit.cancelUrl && <ActionButton onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} untuk ${visit.patient}?`, () => { router.post(visit.cancelUrl as string, {}, { preserveScroll: true }); }, 'Batalkan')} type="button" action="cancel" label={`Batalkan kunjungan ${visit.number}`} />}
-        {visit.ticketUrl && <ActionButton asChild action="print" label={`Cetak antrean ${visit.number}`}><a href={visit.ticketUrl} /></ActionButton>}
+        <ActionButton disabledReason={!manageVisits ? 'Akun Anda tidak memiliki akses mengubah kunjungan.' : 'Kunjungan yang sudah dilayani tidak dapat diubah.'} disabled={!(manageVisits && visit.editUrl)} asChild action="edit" label={`Perbarui kunjungan ${visit.number}`}><Link href={visit.editUrl ?? ''} /></ActionButton>
+        <ActionButton disabledReason={!manageVisits ? 'Akun Anda tidak memiliki akses membatalkan kunjungan.' : 'Kunjungan yang sudah dilayani tidak dapat dibatalkan.'} disabled={!(manageVisits && visit.cancelUrl)} onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} untuk ${visit.patient}?`, () => { router.post(visit.cancelUrl as string, {}, { preserveScroll: true }); }, 'Batalkan')} type="button" action="cancel" label={`Batalkan kunjungan ${visit.number}`} />
+        <ActionButton disabledReason="Dokumen belum tersedia untuk dicetak." disabled={!visit.ticketUrl} asChild action="print" label={`Cetak antrean ${visit.number}`}><a href={visit.ticketUrl ?? ''} /></ActionButton>
     </div>;
 }

@@ -31,7 +31,7 @@ class RegistrationFlowEnhancementTest extends TestCase
             ->where('patients.data.0.viewUrl', route('pelayanan.pasien.show', $patient))
             ->where('patients.data.0.editUrl', route('pelayanan.pasien.edit', $patient)));
         $this->get(route('pelayanan.pasien.show', $patient))->assertInertia(fn (Assert $page) => $page
-            ->where('permissions.editPatient', true)->where('permissions.viewRme', false)->where('patient.allergies', null));
+            ->where('permissions.editPatient', true)->where('permissions.viewRme', $role === 'admin')->where('patient.allergies', null));
         $this->get(route('pendaftaran.pendaftaran-baru', ['tab' => 'registered', 'pasien_id' => $patient->id]))
             ->assertInertia(fn (Assert $page) => $page->where('initialTab', 'registered')->where('initialPatient.id', $patient->id));
         $this->get(route('pelayanan.pasien.edit', $patient))->assertInertia(fn (Assert $page) => $page

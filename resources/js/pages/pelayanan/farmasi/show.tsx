@@ -1,3 +1,4 @@
+import { AssistanceReasonField } from '@/components/kunjungan/assistance-reason-field';
 import { getAllergyStatus } from '@/lib/allergy-status';
 import { ActionButton } from '@/components/ui/action-button';
 import { Head, Link, router, useForm } from '@inertiajs/react';
@@ -8,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
+import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { confirmAction } from '@/components/ui/confirm-dialog';
@@ -54,14 +56,16 @@ interface DispenseItem {
 }
 
 interface FormData {
+    assistance_reason: string;
     items: DispenseItem[];
     catatan: string;
 }
 
-export default function PharmacyDispensing({ visit, today, appName }: { visit: Visit; today: string; appName: string }) {
+export default function PharmacyDispensing({ adminAssistance = false, visit, today, appName }: { adminAssistance?: boolean; visit: Visit; today: string; appName: string }) {
     const [etiketItem, setEtiketItem] = useState<{ name: string; instructions: string } | null>(null);
     const [allocationsExpanded, setAllocationsExpanded] = useState(false);
     const form = useForm<FormData>({
+        assistance_reason: '',
         items: visit.prescriptionItems.map((item) => ({
             resep_obat_id: item.id,
             obat_id: item.medicineId,
@@ -85,7 +89,7 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
 
     function markExternal(item: PrescriptionItem) {
         confirmAction(`Stok ${item.name} kosong. Catat obat ini untuk ditebus di luar klinik dan siapkan dokumen resep luar?${form.isDirty ? ' Simpan perubahan lain pada formulir terlebih dahulu; perubahan yang belum disimpan akan hilang.' : ''}`, () => {
-            router.post(item.externalActionUrl, {}, { preserveScroll: true, preserveState: false });
+            router.post(item.externalActionUrl, { assistance_reason: form.data.assistance_reason }, { preserveScroll: true, preserveState: false });
         }, 'Catat resep luar');
     }
 
@@ -135,6 +139,7 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
                     </CardContent>
                 </Card>
                 <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Pill className="size-5" /></span><div><CardTitle>Verifikasi dan penyiapan obat</CardTitle><CardDescription className="mt-1">Periksa jumlah dan aturan pakai. Stok keluar saat obat diserahkan. Catat alasan dan tindak lanjut jika resep belum terpenuhi seluruhnya.</CardDescription></div></div></CardHeader>
+                    {adminAssistance && !alreadyComplete && <CardContent className="space-y-4 pt-5 sm:pt-6"><p className="text-sm text-neutral-600">Bantuan farmasi admin. Akun Anda dicatat sebagai pelaku penyerahan; alasan bantuan dipisahkan dari catatan tindak lanjut resep.</p><AssistanceReasonField error={form.errors.assistance_reason} id="pharmacy-assistance" value={form.data.assistance_reason} onChange={(value) => form.setData('assistance_reason', value)} disabled={form.processing} /></CardContent>}
                     <form onSubmit={saveDispensing}><CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[980px]"><TableHeader><tr><TableHead className="text-center">Obat</TableHead><TableHead className="text-center">Permintaan resep</TableHead><TableHead className="text-center">Stok layak pakai</TableHead><TableHead className="text-center">Jumlah diserahkan</TableHead><TableHead className="text-center">Aturan pakai</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>
                         {visit.prescriptionItems.length ? visit.prescriptionItems.map((item, index) => {
                             const current = form.data.items[index];
@@ -146,7 +151,7 @@ export default function PharmacyDispensing({ visit, today, appName }: { visit: V
                                 <TableCell className="whitespace-nowrap text-center">{item.external ? <span className="text-xs text-neutral-500">Ditebus di luar</span> : item.reserved ? <span className="text-xs font-medium text-neutral-700">Sudah direservasi</span> : <span className={item.stock >= quantity ? 'font-medium text-emerald-700' : 'font-medium text-red-700'}>{item.stock} {item.stockUnit}</span>}</TableCell>
                                 <TableCell className="text-center">{item.external ? <div><p className="font-medium text-neutral-700">Tidak diserahkan di klinik</p><input name={`items[${index}][jumlah_diberikan]`} type="hidden" value="0" /></div> : <div className="flex flex-col items-center gap-1"><Input aria-label={`Jumlah ${item.name} diserahkan`} className="w-32 text-center font-mono" disabled={alreadyComplete} min="0" onChange={(event) => form.setData('items', form.data.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, jumlah_diberikan: event.target.value } : entry))} step="1" type="number" value={current?.jumlah_diberikan ?? '0'} />{!sufficient && <p className="text-xs font-medium text-red-700">Jumlah melebihi resep atau stok tersedia.</p>}{form.errors[`items.${index}.jumlah_diberikan` as keyof typeof form.errors] && <p className="text-xs text-red-700">{form.errors[`items.${index}.jumlah_diberikan` as keyof typeof form.errors]}</p>}</div>}</TableCell>
                                 <TableCell><Input aria-label={`Aturan pakai ${item.name}`} className="text-center" disabled={alreadyComplete || item.external} onChange={(event) => form.setData('items', form.data.items.map((entry, itemIndex) => itemIndex === index ? { ...entry, aturan_pakai: event.target.value } : entry))} placeholder="Dosis, frekuensi, dan waktu penggunaan" value={current?.aturan_pakai ?? ''} /></TableCell>
-                                <TableCell className="text-center"><div className="flex items-center justify-center gap-2"><ActionButton disabled={item.external || (!alreadyComplete && item.stock <= 0) || quantity <= 0} onClick={() => setEtiketItem({ name: item.name, instructions: current?.aturan_pakai ?? '' })} type="button" action="print" label="Cetak etiket" />{item.external ? <ActionButton asChild action="print" disabled={!visit.examinationSigned} label="Cetak resep luar"><Link href={item.externalPrintUrl} /></ActionButton> : <ActionButton action="issue" disabled={alreadyComplete || !visit.examinationSigned || item.reserved || item.stock > 0 || item.medicineId === null} label="Resep luar" onClick={() => markExternal(item)} title={!visit.examinationSigned ? 'Pemeriksaan dokter belum ditandatangani' : item.stock > 0 ? 'Stok obat masih tersedia' : 'Catat untuk ditebus di luar klinik'} />}</div></TableCell>
+                                <TableCell className="text-center"><div className="flex items-center justify-center gap-2"><ActionButton disabled={item.external || (!alreadyComplete && item.stock <= 0) || quantity <= 0} onClick={() => setEtiketItem({ name: item.name, instructions: current?.aturan_pakai ?? '' })} type="button" action="print" label="Cetak etiket" /><ActionButton asChild action="print" disabled={!item.external || !visit.examinationSigned || !item.externalPrintUrl} disabledReason="Cetak resep luar tersedia setelah obat ditetapkan sebagai resep luar dan pemeriksaan ditandatangani." label="Cetak resep luar"><Link href={item.externalPrintUrl ?? ''} /></ActionButton><ActionButton action="issue" disabled={item.external || alreadyComplete || !visit.examinationSigned || item.reserved || item.stock > 0 || item.medicineId === null} label="Catat resep luar" onClick={() => markExternal(item)} disabledReason={item.external ? 'Obat sudah dicatat sebagai resep luar.' : alreadyComplete ? 'Penyerahan obat sudah selesai.' : !visit.examinationSigned ? 'Pemeriksaan dokter belum ditandatangani.' : item.reserved ? 'Obat sudah disiapkan untuk penyerahan.' : item.stock > 0 ? 'Stok obat masih tersedia.' : 'Obat tidak memenuhi syarat untuk dicatat sebagai resep luar.'} /></div></TableCell>
                             </TableRow>;
                         }) : <TableRow><TableCell className="text-center" colSpan={6}><Empty size="compact" title="Tidak ada item resep untuk disiapkan." /></TableCell></TableRow>}
                     </TableBody></Table></div></CardContent>

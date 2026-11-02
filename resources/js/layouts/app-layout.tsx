@@ -78,11 +78,11 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         {
             label: 'Operasional',
             items: [
+                { label: 'Antrean', href: '/pelayanan/antrian', activePaths: ['/pelayanan/pemeriksaan', '/pelayanan/tindakan-perawat', '/pelayanan/farmasi'], icon: Activity },
+                { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
+                { label: 'Persuratan', href: '/persuratan', icon: FileText },
                 { label: 'Kunjungan', href: '/pelayanan/kunjungan', activePaths: ['/pendaftaran/kunjungan'], icon: ClipboardList },
                 { label: 'Pasien', href: '/pelayanan/pasien', icon: UsersRound },
-                { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
-                { label: 'Antrean', href: '/pelayanan/antrian', icon: Activity },
-                { label: 'Persuratan', href: '/persuratan', icon: FileText },
             ],
         },
         {

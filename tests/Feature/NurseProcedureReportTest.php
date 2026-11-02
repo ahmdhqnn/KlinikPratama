@@ -98,4 +98,46 @@ class NurseProcedureReportTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'perawat']))
             ->get(route('perawat.laporan-tindakan'))->assertForbidden();
     }
+
+    public function test_admin_action_report_covers_active_clinics_and_keeps_nurse_report_scoped(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $general = Poliklinik::create(['kode' => 'ADMIN-REPORT-UMUM', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $dental = Poliklinik::create(['kode' => 'ADMIN-REPORT-GIGI', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $inactive = Poliklinik::create(['kode' => 'ADMIN-REPORT-OFF', 'nama' => 'Poli Nonaktif', 'jenis' => 'umum', 'is_active' => false]);
+        $patient = Pasien::create(['no_rm' => 'RM-ADMIN-REPORT', 'nama' => 'Pasien Laporan Admin']);
+        foreach ([$general, $dental, $inactive] as $index => $clinic) {
+            $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-ADMIN-REPORT-'.$index, 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => 'selesai']);
+            TindakanKunjungan::create(['kunjungan_id' => $visit->id, 'nama_tindakan' => 'Tindakan '.$clinic->jenis, 'jumlah' => 1, 'execution_role' => 'perawat', 'execution_status' => 'completed']);
+        }
+
+        $this->actingAs($admin)->get(route('admin.laporan.tindakan-perawat'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pelayanan/tindakan/report')
+                ->where('clinicName', 'Semua poli aktif')
+                ->where('baseUrl', route('admin.laporan.tindakan-perawat'))
+                ->where('procedures.total', 2)
+                ->where('stats.completed', 2));
+
+        $this->get(route('admin.laporan.tindakan-perawat', ['search' => 'Tidak cocok']))
+            ->assertInertia(fn (Assert $page) => $page->where('procedures.total', 0));
+
+        Excel::fake();
+        $this->get(route('admin.laporan.tindakan-perawat.export'))->assertOk();
+        Excel::assertDownloaded('laporan-tindakan-perawat-'.today()->format('Y-m-d').'.xlsx', function (NursingProcedureExport $export): bool {
+            $rows = $export->query()->get();
+            $this->assertCount(2, $rows);
+            $clinicNames = $rows->map(fn (TindakanKunjungan $procedure): string => $procedure->kunjungan->poliklinik->nama)->all();
+            sort($clinicNames);
+            $this->assertSame(['Poli Gigi', 'Poli Umum'], $clinicNames);
+
+            return true;
+        });
+
+        $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'action' => 'nursing_procedure.report_view']);
+
+        $this->actingAs(User::factory()->create(['role' => 'perawat', 'is_active' => true]))
+            ->get(route('admin.laporan.tindakan-perawat'))
+            ->assertForbidden();
+    }
 }

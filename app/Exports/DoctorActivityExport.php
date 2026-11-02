@@ -17,7 +17,7 @@ class DoctorActivityExport implements FromQuery, WithHeadings, WithMapping, With
 {
     public function __construct(
         private string $type,
-        private int $doctorId,
+        private ?int $doctorId,
         private DateRangeFilter $period,
         private string $search = '',
     ) {}

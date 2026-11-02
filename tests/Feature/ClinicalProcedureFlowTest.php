@@ -12,6 +12,7 @@ use App\Models\OdontogramFinding;
 use App\Models\Pasien;
 use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
+use App\Models\Screening;
 use App\Models\Tindakan;
 use App\Models\TindakanKunjungan;
 use App\Models\User;
@@ -277,12 +278,17 @@ class ClinicalProcedureFlowTest extends TestCase
     #[TestWith(['farmasi'])]
     #[TestWith(['kasir'])]
     #[TestWith(['manajemen'])]
-    public function test_other_roles_cannot_search_or_record_doctor_procedures(string $role): void
+    public function test_other_roles_cannot_record_doctor_procedures_and_only_admin_can_search(string $role): void
     {
         [, $visit] = $this->clinicalContext('umum');
         $user = User::factory()->create(['role' => $role, 'is_active' => true]);
 
-        $this->actingAs($user)->getJson(route('pelayanan.icd9cm.search', ['q' => '23']))->assertForbidden();
+        $lookup = $this->actingAs($user)->getJson(route('pelayanan.icd9cm.search', ['q' => '23']));
+        if ($role === 'admin') {
+            $lookup->assertOk();
+        } else {
+            $lookup->assertForbidden();
+        }
         $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tidak berwenang', 'jumlah' => 1])->assertForbidden();
 
         $this->assertDatabaseCount('tindakan_kunjungan', 0);
@@ -397,6 +403,7 @@ class ClinicalProcedureFlowTest extends TestCase
         $clinic = Poliklinik::create(['kode' => 'POLI-'.$suffix, 'nama' => 'Poli '.$clinicType, 'jenis' => $clinicType, 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-'.$suffix, 'nama' => 'Pasien '.$suffix]);
         $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-'.$suffix, 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'dokter_id' => $doctor->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
+        Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
         Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id, 'anamnesis' => 'Keluhan pasien', 'pemeriksaan_fisik' => 'Temuan pemeriksaan', 'catatan' => 'Catatan dokter tetap ada']);
 
         return [$user, $visit];

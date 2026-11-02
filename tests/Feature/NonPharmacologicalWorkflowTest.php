@@ -146,7 +146,6 @@ class NonPharmacologicalWorkflowTest extends TestCase
         $this->assertNull($visit->fresh()->tindakan_started_at);
     }
 
-    #[TestWith(['admin'])]
     #[TestWith(['dokter'])]
     #[TestWith(['farmasi'])]
     #[TestWith(['manajemen'])]
@@ -259,6 +258,49 @@ class NonPharmacologicalWorkflowTest extends TestCase
             ->has('visits.0.examination.versions', 2)
             ->where('visits.0.examination.versions.1.nonPharmacological', 'Rencana nonfarmakologis yang diperbarui')
             ->where('visits.0.examination.versions.1.education', 'Anjuran yang diperbarui'));
+    }
+
+    #[TestWith(['umum', false])]
+    #[TestWith(['gigi', true])]
+    public function test_admin_can_execute_nursing_procedures_with_reason_and_consume_supplies_once(string $type, bool $medication): void
+    {
+        [$doctor, , $visit] = $this->context($type);
+        $supply = Obat::create(['kode' => 'HELP-BHP', 'nama' => 'Kasa', 'satuan_kecil' => 'lembar', 'jenis' => 'bhp', 'stok' => 10, 'is_active' => true]);
+        ObatBatch::factory()->create(['obat_id' => $supply->id, 'stok' => 10]);
+        $catalog = Tindakan::create(['kode' => 'HELP-TD', 'nama' => 'Perawatan', 'kategori' => 'medis', 'poliklinik_id' => $visit->poliklinik_id, 'is_active' => true]);
+        $catalog->bhp()->create(['obat_id' => $supply->id, 'jumlah' => 2]);
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['tindakan_id' => $catalog->id, 'jumlah' => 2])->assertSessionHasNoErrors();
+        if ($medication) {
+            $drug = Obat::create(['kode' => 'HELP-OB', 'nama' => 'Obat', 'satuan_kecil' => 'tablet', 'jenis' => 'obat', 'stok' => 10, 'is_active' => true]);
+            $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['obat_id' => $drug->id, 'jumlah' => 1, 'jenis' => 'jadi', 'aturan_pakai' => 'Sesuai dokter'])->assertSessionHasNoErrors();
+        }
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasNoErrors();
+        $procedure = $visit->tindakanKunjungan()->sole();
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $this->actingAs($admin)->get(route('pelayanan.tindakan.index'))->assertInertia(fn (Assert $page) => $page->where('stats.todayPending', 1));
+        $this->get(route('pelayanan.tindakan.show', $visit))->assertInertia(fn (Assert $page) => $page->where('visit.adminAssistance', true)->where('visit.recordUrl', route('pelayanan.pasien.rekam-medis', $visit->pasien_id)));
+        $this->post(route('pelayanan.tindakan.start', $visit))->assertSessionHasErrors('assistance_reason');
+        $reason = 'Akun perawat sedang mengalami gangguan.';
+        $this->post(route('pelayanan.tindakan.start', $visit), ['assistance_reason' => $reason])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.tindakan.complete', [$visit, $procedure]), ['execution_result' => 'Tindakan dilakukan'])->assertSessionHasErrors('assistance_reason');
+        $this->assertSame(10, (int) $supply->fresh()->stok);
+        $payload = ['execution_result' => 'Tindakan telah dilakukan sesuai instruksi', 'assistance_reason' => $reason];
+        $supply->batches()->update(['stok' => 0]);
+        $this->post(route('pelayanan.tindakan.complete', [$visit, $procedure]), $payload)->assertSessionHasErrors('items');
+        $this->assertSame('pending', $procedure->fresh()->execution_status);
+        $this->assertNull($procedure->fresh()->bhp_consumed_at);
+        $this->assertSame('tindakan', $visit->fresh()->status);
+        $this->assertDatabaseMissing('clinical_audit_events', ['action' => 'nursing_procedure.complete']);
+        $supply->batches()->update(['stok' => 10]);
+        $this->post(route('pelayanan.tindakan.complete', [$visit, $procedure]), $payload)->assertSessionHasNoErrors();
+        $this->assertSame($admin->id, $procedure->fresh()->performed_by);
+        $this->assertSame(6, (int) $supply->fresh()->stok);
+        $this->assertSame($medication ? 'farmasi' : 'selesai', $visit->fresh()->status);
+        $this->post(route('pelayanan.tindakan.complete', [$visit, $procedure]), $payload)->assertSessionHasNoErrors();
+        $this->assertSame(6, (int) $supply->fresh()->stok);
+        $event = DB::table('clinical_audit_events')->where('action', 'nursing_procedure.complete')->sole();
+        $this->assertSame($admin->id, $event->actor_id);
+        $this->assertSame($reason, json_decode($event->metadata, true)['assistance_reason']);
     }
 
     /** @return array{User, User, Kunjungan, Pemeriksaan} */

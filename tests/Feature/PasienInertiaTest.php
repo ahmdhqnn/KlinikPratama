@@ -73,7 +73,9 @@ class PasienInertiaTest extends TestCase
             ->has('patient.visits', 0)
         );
 
-        $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertForbidden();
+        $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
+            ->where('canSelectClinic', true)
+            ->has('visits', 0));
 
         $this->get(route('pelayanan.pasien.edit', $patient))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/pasien/form')

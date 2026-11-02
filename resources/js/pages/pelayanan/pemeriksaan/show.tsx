@@ -1,9 +1,10 @@
+import { AssistanceReasonField } from '@/components/kunjungan/assistance-reason-field';
 import { confirmedAbsentHistory, normalizeClinicalAnswer } from '@/lib/clinical-answer';
 import { selectedOdontogramTeeth } from '@/lib/odontogram-selection';
 import { isReportedAllergy } from '@/lib/allergy-status';
 import { ActionButton } from '@/components/ui/action-button';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { AlertTriangle, ArrowLeft, Check, ChevronDown, ClipboardPlus, FileText, HeartPulse, Pill, Plus, Search, Stethoscope, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ClipboardPlus, FileText, HeartPulse, Pill, Plus, Search, Stethoscope, UserRound, X } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -81,7 +82,7 @@ interface Visit {
     clinic: string;
     patient: { id: number; name: string; medicalRecordNumber: string; gender: string | null; age: number | null; bloodType: string | null; allergies: string | null; };
     examinationFormDefaults: { anamnesis: string | null; currentHistory: string | null; pastHistory: string | null; familyHistory: string | null; allergyHistory: string | null; };
-    screening: { summary?: Record<string, string | null>; systolic: number | null; diastolic: number | null; pulse: number | null; temperature: number | null; oxygenSaturation: number | null; weight: number | null; height: number | null; bmi: number | null; respiration: number | null; complaint: string | null; medicalHistory: string | null; familyHistory: string | null; allergyHistory: string | null; painScale: number | null; fallRisk: string | null; triage: string | null; priority: string | null; dentalPainLocation: string | null; dentalPainTriggers: string[]; dentalPainDuration: string | null; dentalMedicalRisks: string[]; dentalInfectionHistory: string[]; dentalNotes: string | null; } | null;
+    screening: { summary?: Record<string, string | null>; systolic: number | null; diastolic: number | null; pulse: number | null; temperature: number | null; oxygenSaturation: number | null; weight: number | null; height: number | null; bmi: number | null; waistCircumference: number | string | null; respiration: number | null; complaint: string | null; medicalHistory: string | null; familyHistory: string | null; allergyHistory: string | null; painScale: number | null; fallRisk: string | null; triage: string | null; priority: string | null; dentalPainLocation: string | null; dentalPainTriggers: string[]; dentalPainDuration: string | null; dentalMedicalRisks: string[]; dentalInfectionHistory: string[]; dentalNotes: string | null; } | null;
     examination: Examination | null;
     diagnoses: Diagnosis[];
     treatments: Treatment[];
@@ -91,6 +92,8 @@ interface Visit {
     referrals: Referral[];
 }
 interface Props {
+    assistanceReview?: { auditId: number; operator: string | null; lastEditedAt: string; draftHash: string | null } | null;
+    assistance?: { isAdmin: boolean; active: boolean };
     visit: Visit;
     initialTab?: string;
     doctors: Option[];
@@ -119,10 +122,12 @@ const commonTabs: { id: Tab; label: string; icon: typeof Stethoscope; optional?:
     { id: 'rujukan', label: 'Rujukan internal', icon: ArrowLeft, optional: true },
 ];
 
-export default function ExaminationDetail({ visit, initialTab, doctors, treatments, medicines, clinics, diagnosisCodeSystems, procedureCatalogAvailable, procedureSearchUrl, dentalOptions, today, correspondenceTemplates }: Props) {
+export default function ExaminationDetail({ assistanceReview, assistance, visit, initialTab, doctors, treatments, medicines, clinics, diagnosisCodeSystems, procedureCatalogAvailable, procedureSearchUrl, dentalOptions, today, correspondenceTemplates }: Props) {
+    const assistanceForm = useForm({ reason: '' });
+    const isAdminAssistance = assistance?.isAdmin === true;
     const isDental = visit.clinicType === 'gigi';
     const physicalTab: Tab = isDental ? 'odontogram' : 'pemeriksaan';
-    const tabs = commonTabs.map((tab) => tab.id === 'pemeriksaan' && isDental
+    const tabs = commonTabs.filter((tab) => !isAdminAssistance || !['surat', 'rujukan'].includes(tab.id)).map((tab) => tab.id === 'pemeriksaan' && isDental
         ? { ...tab, id: 'odontogram' as Tab, label: 'Pemeriksaan & odontogram' }
         : tab);
     const tabLabels = Object.fromEntries(tabs.map((tab) => [tab.id, tab.label]));
@@ -137,6 +142,8 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
     const [icdLoading, setIcdLoading] = useState(false);
     const [icdSearchFailed, setIcdSearchFailed] = useState(false);
     const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+    const [reviewPageStale, setReviewPageStale] = useState(false);
+    const [examinationNoticeDismissed, setExaminationNoticeDismissed] = useState(false);
     const [dentition, setDentition] = useState<'adult' | 'primary'>('adult');
     const [treatmentMode, setTreatmentMode] = useState<'icd9cm' | 'clinic' | 'manual'>('icd9cm');
     const [procedureQuery, setProcedureQuery] = useState('');
@@ -190,7 +197,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
     const externalPrescriptionForm = useForm({ obat_id: '', nama_obat: '', jumlah: '1', satuan: '', aturan_pakai: '', catatan: '', jenis: 'jadi', is_resep_luar: true });
     const letterForm = useForm({ jenis: 'sakit', nomor_surat: '', surat_template_id: '', tanggal: today, konten: '' });
     const referralForm = useForm({ ke_poli_id: '', surat_template_id: '', catatan: '', konten_surat: '' });
-    const signatureForm = useForm({ signature_password: '' });
+    const signatureForm = useForm({ signature_password: '', review_admin_assistance: false, assistance_review_id: assistanceReview?.auditId ?? null, assistance_review_hash: assistanceReview?.draftHash ?? null });
     const addendumDefaults = {
         reason: '',
         anamnesis: normalizeClinicalAnswer(visit.examination?.anamnesis) ?? '',
@@ -460,7 +467,7 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
         return <div className="flex flex-col justify-between gap-3 border-t border-neutral-200 pt-4 sm:flex-row sm:items-center" aria-label="Navigasi pemeriksaan">
             {previousTab ? <Button onClick={() => navigateSection(previousTab)} size="sm" type="button" variant="secondary"><ArrowLeft className="size-4" />Kembali ke {tabLabels[previousTab]}</Button> : <span />}
             <div className="flex flex-wrap justify-end gap-2 sm:ml-auto">
-                {showFinish && <Button disabled={!canEdit || saving} onClick={finishExamination} size="sm" type="button" variant={nextTab ? 'secondary' : 'default'}><Check className="size-4" />Selesai periksa</Button>}
+                {showFinish && <Button disabled={!canEdit || saving || isAdminAssistance} onClick={finishExamination} size="sm" type="button" variant={nextTab ? 'secondary' : 'default'}><Check className="size-4" />Selesai periksa</Button>}
                 {nextTab && <Button onClick={() => navigateSection(nextTab)} size="sm" type="button">{nextLabel ?? `Lanjut ke ${tabLabels[nextTab]}`}<ArrowLeft className="size-4 rotate-180" /></Button>}
             </div>
         </div>;
@@ -517,14 +524,21 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
 
     function signExamination(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        if (!canEdit || !signatureForm.data.signature_password || signatureForm.processing) return;
+        if (!canEdit || reviewPageStale || !signatureForm.data.signature_password || signatureForm.processing) return;
         if (unsavedSections.length > 0 || saving || readiness.some((item) => !item.complete)) {
             setSignatureDialogOpen(false);
             finishExamination();
             return;
         }
+        signatureForm.transform((data) => ({ ...data, assistance_review_id: assistanceReview?.auditId ?? null, assistance_review_hash: assistanceReview?.draftHash ?? null }));
         signatureForm.post(`/pelayanan/pemeriksaan/${visit.id}/selesai`, {
             preserveScroll: true,
+            onError: (errors) => {
+                if (errors.assistance_review_id || errors.assistance_review_hash) {
+                    setReviewPageStale(true);
+                    signatureForm.setData('review_admin_assistance', false);
+                }
+            },
             onSuccess: () => {
                 setSignatureDialogOpen(false);
                 signatureForm.reset();
@@ -532,7 +546,11 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
         });
     }
 
-    const { canStart, canEdit, canCorrect, notice: examinationNotice } = examinationState(visit);
+    const state = examinationState(visit);
+    const canStart = state.canStart && (!isAdminAssistance || assistance?.active === true);
+    const canEdit = state.canEdit && (!isAdminAssistance || assistance?.active === true);
+    const canCorrect = state.canCorrect && !isAdminAssistance;
+    const examinationNotice = state.notice;
     const medicalRecordUrl = visit.recordUrl ?? (!visit.canClaim ? `/pelayanan/pasien/${visit.patient.id}/rekam-medis` : null);
     const startForm = useForm({});
     const deleteForm = useForm({});
@@ -580,8 +598,61 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
         { tab: 'diagnosa', label: 'Satu diagnosis utama', complete: visit.diagnoses.filter((diagnosis) => diagnosis.type === 'utama').length === 1 },
     ];
     const allergyWarning = [examinationForm.data.riwayat_alergi, visit.patient.allergies, visit.screening?.allergyHistory].find(isReportedAllergy);
-    const triageSummary = visit.screening?.triage === 'merah' ? 'Perlu respons segera' : visit.screening?.triage === 'kuning' ? 'Perlu penilaian lanjut' : visit.screening?.triage === 'hijau' ? 'Prioritas rutin' : null;
-    const prioritySummary = visit.screening?.priority === 'darurat' ? 'Respons darurat' : visit.screening?.priority === 'segera' ? 'Perlu penilaian segera' : visit.screening?.priority === 'normal' ? 'Rutin' : null;
+    const screeningMeasures = visit.screening ? [
+        { label: 'Tekanan darah', value: visit.screening.systolic !== null || visit.screening.diastolic !== null ? formatBloodPressure(visit.screening.systolic, visit.screening.diastolic) : null },
+        { label: 'Nadi', value: formatMeasurement(visit.screening.pulse, 'x/menit') },
+        { label: 'Suhu', value: formatMeasurement(visit.screening.temperature, '°C') },
+        { label: 'SpO₂', value: formatMeasurement(visit.screening.oxygenSaturation, '%') },
+        { label: 'Respirasi', value: formatMeasurement(visit.screening.respiration, 'x/menit') },
+        { label: 'Berat badan', value: formatMeasurement(visit.screening.weight, 'kg') },
+        { label: 'Tinggi badan', value: formatMeasurement(visit.screening.height, 'cm') },
+        { label: 'IMT', value: visit.screening.bmi === null ? null : `${visit.screening.bmi} kg/m²` },
+        { label: 'Lingkar perut', value: formatMeasurement(visit.screening.waistCircumference, 'cm') },
+    ].filter((item): item is { label: string; value: string } => item.value !== null) : [];
+    const screeningMedicalHistory = visit.screening ? [
+        visit.screening.medicalHistory,
+        visit.screening.summary?.['Nama penyakit'],
+        visit.screening.summary?.['Keterangan riwayat penyakit'],
+    ].map(normalizeClinicalAnswer).filter((answer): answer is string => answer !== null).join(' — ') || null : null;
+    const screeningSummaryGroups: { title: string; rows: [string, string | null | undefined][] }[] = visit.screening ? [
+        {
+            title: 'Keluhan & riwayat kesehatan',
+            rows: [
+                ['Keluhan awal', visit.screening.complaint], ['Keluhan tambahan', visit.screening.summary?.['Keluhan tambahan']],
+                ['Lama keluhan', visit.screening.summary?.['Lama keluhan']], ['Sumber informasi', visit.screening.summary?.['Sumber informasi']],
+                ['Status riwayat penyakit', visit.screening.summary?.['Status riwayat penyakit']], ['Riwayat penyakit', screeningMedicalHistory],
+                ['Obat yang digunakan', visit.screening.summary?.['Obat yang digunakan']], ['Riwayat penyakit keluarga', visit.screening.familyHistory],
+                ['Status alergi saat ini', visit.screening.summary?.['Status alergi saat ini']], ['Riwayat alergi', visit.screening.allergyHistory],
+                ['Jenis / reaksi alergi', visit.screening.summary?.['Jenis / reaksi alergi']],
+            ] as [string, string | null | undefined][],
+        },
+        {
+            title: 'Kondisi awal & respons',
+            rows: [
+                ['Nyeri dada', visit.screening.summary?.['Nyeri dada']], ['Kejang', visit.screening.summary?.['Kejang']],
+                ['Nadi teraba', visit.screening.summary?.['Nadi teraba']], ['Pola pernapasan', visit.screening.summary?.['Pola pernapasan']],
+                ['Kesadaran', visit.screening.summary?.['Kesadaran']], ['Kondisi psikiatri', visit.screening.summary?.['Kondisi psikiatri']],
+                ['Risiko jatuh', visit.screening.summary?.['Risiko jatuh']], ['Skala nyeri', visit.screening.summary?.['Skala nyeri']],
+                ['Kebutuhan respons awal', visit.screening.summary?.['Kebutuhan respons awal']], ['Catatan penapisan', visit.screening.summary?.['Catatan penapisan']],
+            ] as [string, string | null | undefined][],
+        },
+        {
+            title: 'Pengkajian tambahan',
+            rows: [
+                ['Pengkajian gizi', visit.screening.summary?.['Pengkajian gizi']], ['Observasi awal', visit.screening.summary?.['Observasi awal']],
+                ['Catatan pengkajian', visit.screening.summary?.['Catatan Pengkajian']],
+            ] as [string, string | null | undefined][],
+        },
+        ...(isDental ? [{
+            title: 'Pengkajian gigi dan mulut',
+            rows: [
+                ['Lokasi keluhan / nyeri', visit.screening.dentalPainLocation], ['Pemicu keluhan', displayDentalValues(visit.screening.dentalPainTriggers)],
+                ['Pola / lama keluhan', visit.screening.dentalPainDuration], ['Kondisi kesehatan yang perlu diketahui dokter gigi', displayDentalValues(visit.screening.dentalMedicalRisks)],
+                ['Riwayat infeksi atau bengkak', displayDentalValues(visit.screening.dentalInfectionHistory)], ['Catatan untuk dokter gigi', visit.screening.dentalNotes],
+            ] as [string, string | null | undefined][],
+        }] : []),
+    ].map((group) => ({ ...group, rows: group.rows.filter(([, value]) => normalizeClinicalAnswer(value)) }))
+        .filter((group) => group.rows.length > 0) : [];
     return (
         <>
             <Head title={`Pemeriksaan ${visit.patient.name}`} />
@@ -589,34 +660,32 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                 <Card><CardContent className="space-y-4 p-5 sm:p-6">
                     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                         <div className="flex min-w-0 items-center gap-3"><span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-lg font-bold text-neutral-800">{visit.patient.name.slice(0, 1).toLocaleUpperCase()}</span><div className="min-w-0 text-left"><p className="text-xs font-medium text-neutral-500">{visit.number} · {visit.clinic}</p><h2 className="mt-0.5 text-lg font-semibold text-neutral-950">{visit.patient.name}</h2><p className="mt-1 text-sm text-neutral-600">{visit.patient.medicalRecordNumber} · {visit.patient.gender === 'L' ? 'Laki-laki' : visit.patient.gender === 'P' ? 'Perempuan' : 'Belum diketahui'} · {visit.patient.age === null ? 'umur belum diketahui' : `${visit.patient.age} th`} · Gol. {visit.patient.bloodType ?? 'Belum diketahui'}</p><div className="mt-2"><StatusBadge examinationStarted={Boolean(visit.examination)} reservation={visit.isReservation} status={visit.status} /></div>{visit.examination?.startedAt && <p className="mt-1 text-xs text-neutral-500">Pemeriksaan dimulai {visit.examination.startedAt}</p>}</div></div>
-                        <div className="flex shrink-0 flex-wrap justify-start gap-2 sm:justify-end">{medicalRecordUrl ? <Button asChild size="sm" variant="secondary"><Link href={medicalRecordUrl}><UserRound className="size-4" />Riwayat RME</Link></Button> : <Button size="sm" variant="secondary" disabled title="Mulai pemeriksaan terlebih dahulu untuk membuka rekam medis"><UserRound className="size-4" />Riwayat RME</Button>}{canStart && <Button disabled={startForm.processing} onClick={() => confirmAction('Mulai pemeriksaan pasien ini?', () => startForm.post(`/pelayanan/pemeriksaan/${visit.id}/mulai`, { preserveScroll: true }), 'Mulai pemeriksaan', 'Mulai pemeriksaan')} size="sm"><Stethoscope className="size-4" />Mulai pemeriksaan</Button>}<Button disabled={!canEdit || saving} onClick={finishExamination} size="sm"><Check className="size-4" />Selesai periksa</Button></div>
+                        <div className="flex shrink-0 flex-wrap justify-start gap-2 sm:justify-end">{medicalRecordUrl ? <Button asChild size="sm" variant="secondary"><Link href={medicalRecordUrl}><UserRound className="size-4" />Riwayat RME</Link></Button> : <Button size="sm" variant="secondary" disabled title="Mulai pemeriksaan terlebih dahulu untuk membuka rekam medis"><UserRound className="size-4" />Riwayat RME</Button>}{canStart && <Button disabled={startForm.processing} onClick={() => confirmAction('Mulai pemeriksaan pasien ini?', () => startForm.post(`/pelayanan/pemeriksaan/${visit.id}/mulai`, { preserveScroll: true }), 'Mulai pemeriksaan', 'Mulai pemeriksaan')} size="sm"><Stethoscope className="size-4" />Mulai pemeriksaan</Button>}<Button disabled={!canEdit || saving || isAdminAssistance} onClick={finishExamination} size="sm"><Check className="size-4" />Selesai periksa</Button></div>
                     </div>
                     {allergyWarning && <Alert className="text-left" variant="destructive"><AlertTriangle aria-hidden="true" /><AlertTitle>Peringatan alergi</AlertTitle><AlertDescription>{allergyWarning}</AlertDescription></Alert>}
                 </CardContent></Card>
 
+                {assistanceReview && !isAdminAssistance && <Card><CardHeader><CardTitle>Draf dibantu admin</CardTitle><CardDescription>Input terakhir oleh {assistanceReview.operator ?? 'operator admin'} pada {assistanceReview.lastEditedAt}. Tinjau seluruh catatan, diagnosis, tindakan dan resep sebelum menandatangani.</CardDescription></CardHeader></Card>}
+                {isAdminAssistance && <Card><CardHeader><CardTitle>Bantuan pemeriksaan admin</CardTitle><CardDescription>Anda mencatat sebagai operator bantuan. Dokter penanggung jawab tetap meninjau dan menandatangani hasil pemeriksaan.</CardDescription></CardHeader><CardContent className="space-y-3">
+                    {assistance?.active ? <p className="text-sm text-neutral-600">Bantuan draf aktif untuk kunjungan ini. Masa bantuan dua jam; jika kedaluwarsa, mulai kembali dengan alasan.</p> : <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); assistanceForm.post(`/pelayanan/pemeriksaan/${visit.id}/bantuan`, { preserveScroll: true }); }}>
+                        <AssistanceReasonField error={assistanceForm.errors.reason} id="assistance-reason" value={assistanceForm.data.reason} onChange={(value) => assistanceForm.setData('reason', value)} disabled={assistanceForm.processing} />
+                        <Button disabled={assistanceForm.processing || assistanceForm.data.reason.trim().length < 10} type="submit">Mulai bantuan draf</Button>
+                    </form>}
+                </CardContent></Card>}
                 {canEdit && <Card><CardHeader><CardTitle>Kesiapan finalisasi</CardTitle><CardDescription>Setiap bagian disimpan terpisah. Periksa kelengkapan sebelum menandatangani catatan.</CardDescription></CardHeader><CardContent className="space-y-3">
                     <div className="flex flex-wrap gap-2">{readiness.map((item) => <Button key={item.label} onClick={() => navigateSection(item.tab)} size="sm" type="button" variant="secondary"><Badge variant={item.complete ? 'complete' : 'waiting'}>{item.complete ? 'Lengkap' : 'Belum lengkap'}</Badge>{item.label}</Button>)}</div>
                     {unsavedSections.length > 0 && <Alert><AlertTitle>Isian belum disimpan</AlertTitle><AlertDescription>{unsavedSections.map((item) => item.label).join(', ')}. Simpan atau kosongkan isian tersebut sebelum finalisasi.<div className="mt-2 flex flex-wrap gap-2">{unsavedSections.map((item) => <Button disabled={saving} key={item.label} onClick={() => discardSection(item.tab)} size="sm" type="button" variant="secondary">Batalkan isian {item.label}</Button>)}</div></AlertDescription></Alert>}
                 </CardContent></Card>}
 
-                <Card><CardHeader><div className="flex items-start gap-3"><span className="rounded-xl bg-neutral-100 p-3 text-neutral-600"><Stethoscope className="size-5" /></span><div className="min-w-0 space-y-1"><CardTitle>Ringkasan pengkajian awal perawat</CardTitle><CardDescription>Data pengkajian {isDental ? 'Poli Gigi dan Mulut' : 'Poli Umum'} sebagai konteks pemeriksaan dokter.</CardDescription></div></div></CardHeader><CardContent className="space-y-5">
+                <Card id="nurse-assessment-summary"><CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600"><Stethoscope className="size-5" /></span><div className="min-w-0 space-y-1"><CardTitle>Ringkasan pengkajian awal perawat</CardTitle><CardDescription>Isian tersimpan dari pengkajian {isDental ? 'Poli Gigi dan Mulut' : 'Poli Umum'} untuk konteks pemeriksaan dokter.</CardDescription></div></div></CardHeader><CardContent className="space-y-5">
                     {visit.screening ? <>
-                        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
-                            ['Tekanan darah', formatBloodPressure(visit.screening.systolic, visit.screening.diastolic)], ['Nadi', formatMeasurement(visit.screening.pulse, 'x/menit')], ['Suhu', formatMeasurement(visit.screening.temperature, '°C')], ['SpO₂', formatMeasurement(visit.screening.oxygenSaturation, '%')], ['Respirasi', formatMeasurement(visit.screening.respiration, 'x/menit')], ['Berat / tinggi', formatMeasurement(visit.screening.weight, 'kg') + ' / ' + formatMeasurement(visit.screening.height, 'cm')], ['IMT', visit.screening.bmi == null ? 'Belum dihitung' : visit.screening.bmi + ' kg/m²'], ['Nyeri / jatuh', (visit.screening.painScale == null ? 'Belum dinilai' : visit.screening.painScale + ' / 10') + ' - ' + (visit.screening.fallRisk ?? 'Belum dinilai')],
-                        ].map(([label, value]) => <div className="min-w-0 rounded-xl border border-neutral-200 bg-neutral-50 p-3" key={label}><p className="text-xs text-neutral-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-neutral-900">{value}</p></div>)}</div>
-                        <div className={'grid min-w-0 items-start gap-4 md:grid-cols-2 ' + (isDental ? 'xl:grid-cols-3' : '')}>
-                            <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 p-4"><h3 className="text-sm font-semibold text-neutral-900">Keluhan & riwayat pasien</h3><dl className="space-y-3">{[
-                                ['Keluhan awal', visit.screening.complaint], ['Riwayat penyakit', visit.screening.medicalHistory], ['Riwayat keluarga', visit.screening.familyHistory], ['Riwayat alergi', visit.screening.allergyHistory || visit.patient.allergies],
-                            ].map(([label, value]) => <AssessmentNote key={label} label={label ?? ''} value={value} />)}</dl></section>
-                            <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 p-4"><h3 className="text-sm font-semibold text-neutral-900">Catatan pengkajian</h3><dl className="space-y-3">{Object.entries(visit.screening.summary ?? {}).filter(([, value]) => normalizeClinicalAnswer(value)).map(([label, value]) => <AssessmentNote key={label} label={label} value={value} />)}<AssessmentNote label="Kebutuhan respons awal" value={(triageSummary ?? 'Belum ditentukan') + ' / ' + (prioritySummary ?? 'Belum ditentukan')} /></dl></section>
-                            {isDental && <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 p-4"><h3 className="text-sm font-semibold text-neutral-900">Pengkajian gigi dan mulut</h3><dl className="space-y-3">{[
-                                ['Lokasi nyeri', visit.screening.dentalPainLocation], ['Pemicu', displayDentalValues(visit.screening.dentalPainTriggers, optionalAnswers.notRecorded)], ['Durasi', visit.screening.dentalPainDuration], ['Risiko sistemik', displayDentalValues(visit.screening.dentalMedicalRisks, optionalAnswers.notRecorded)], ['Riwayat infeksi', displayDentalValues(visit.screening.dentalInfectionHistory, optionalAnswers.notRecorded)], ['Catatan perawat', visit.screening.dentalNotes],
-                            ].map(([label, value]) => <AssessmentNote key={label} label={label ?? ''} value={value} />)}</dl></section>}
-                        </div>
+                        {screeningMeasures.length > 0 && <section aria-label="Hasil pengukuran perawat" className="space-y-3"><h3 className="text-sm font-semibold text-neutral-800">Hasil pengukuran</h3><dl className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">{screeningMeasures.map(({ label, value }) => <div className="min-w-0 rounded-xl border border-neutral-200 bg-neutral-50 p-3 sm:p-4" key={label}><dt className="text-xs font-medium text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm font-semibold text-neutral-900">{value}</dd></div>)}</dl></section>}
+                        {screeningSummaryGroups.length > 0 && <div className="grid min-w-0 gap-4 md:grid-cols-2">{screeningSummaryGroups.map((group) => <section className={`min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 sm:p-5 ${group.title === 'Pengkajian tambahan' ? 'md:col-span-2' : ''}`} key={group.title}><h3 className="mb-4 text-sm font-semibold text-neutral-900">{group.title}</h3><dl className="grid min-w-0 gap-x-5 gap-y-4 sm:grid-cols-2">{group.rows.map(([label, value]) => <AssessmentNote key={label} label={label} value={value} />)}</dl></section>)}</div>}
+                        {screeningMeasures.length === 0 && screeningSummaryGroups.length === 0 && <Empty className="min-h-0 py-5" title="Belum ada isian pengkajian untuk ditampilkan" />}
                     </> : <Empty className="min-h-0 py-5" title="Pengkajian awal perawat belum tercatat" />}
                 </CardContent></Card>
 
-                {examinationNotice && <Alert variant={examinationNotice.destructive ? 'destructive' : 'default'}>{examinationNotice.destructive && <AlertTriangle aria-hidden="true" />}<AlertTitle>{examinationNotice.title}</AlertTitle><AlertDescription>{examinationNotice.description}</AlertDescription></Alert>}
+                {examinationNotice && (!examinationNoticeDismissed || examinationNotice.destructive) && <Alert className="relative pr-12" role={examinationNotice.destructive ? 'alert' : 'status'} variant={examinationNotice.destructive ? 'destructive' : 'default'}>{examinationNotice.destructive && <AlertTriangle aria-hidden="true" />}<AlertTitle>{examinationNotice.title}</AlertTitle><AlertDescription>{examinationNotice.description}</AlertDescription>{!examinationNotice.destructive && <Button aria-label="Tutup informasi pemeriksaan" className="absolute right-2 top-2" onClick={() => setExaminationNoticeDismissed(true)} size="icon" type="button" variant="ghost"><X aria-hidden="true" className="size-4" /></Button>}</Alert>}
 
                 <AlertDialog onOpenChange={(open) => { if (!open) { setUndoFinding(null); odontogramUndoForm.reset(); } }} open={undoFinding !== null}>
                     <AlertDialogContent>
@@ -642,7 +711,13 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                         <section className="space-y-4" aria-labelledby="addendum-history-title"><h4 className="font-semibold text-neutral-900" id="addendum-history-title">Anamnesis</h4><div className="grid gap-4 md:grid-cols-2"><Field error={addendumForm.errors.anamnesis} htmlFor="addendum-anamnesis" label="Keluhan utama"><Textarea id="addendum-anamnesis" placeholder="Keluhan utama yang disampaikan pasien" onChange={(event) => addendumForm.setData('anamnesis', event.target.value)} rows={3} value={addendumForm.data.anamnesis} /></Field><Field error={addendumForm.errors.riwayat_penyakit_sekarang} htmlFor="addendum-rps" label="Riwayat penyakit sekarang"><Textarea id="addendum-rps" placeholder="Awal keluhan, durasi, dan perkembangannya" onChange={(event) => addendumForm.setData('riwayat_penyakit_sekarang', event.target.value)} rows={3} value={addendumForm.data.riwayat_penyakit_sekarang} /></Field><ConfirmedHistoryField error={addendumForm.errors.riwayat_penyakit_dahulu} id="addendum-rpd" kind="past" label="Riwayat penyakit dahulu" onChange={(value) => addendumForm.setData('riwayat_penyakit_dahulu', value)} placeholder="Riwayat penyakit, operasi, dan pengobatan rutin" value={addendumForm.data.riwayat_penyakit_dahulu} /><ConfirmedHistoryField error={addendumForm.errors.riwayat_penyakit_keluarga} id="addendum-riwayat-keluarga" kind="family" label="Riwayat penyakit keluarga" onChange={(value) => addendumForm.setData('riwayat_penyakit_keluarga', value)} placeholder="Riwayat penyakit keluarga yang relevan" value={addendumForm.data.riwayat_penyakit_keluarga} /><ConfirmedHistoryField error={addendumForm.errors.riwayat_alergi} id="addendum-alergi" kind="allergy" label="Riwayat alergi" onChange={(value) => addendumForm.setData('riwayat_alergi', value)} placeholder="Obat, makanan, dan reaksi alergi" value={addendumForm.data.riwayat_alergi} /></div></section>
                         <section className="space-y-4 border-t border-neutral-200 pt-5" aria-labelledby="addendum-exam-title"><h4 className="font-semibold text-neutral-900" id="addendum-exam-title">{isDental ? 'Pemeriksaan gigi & mulut' : 'Pemeriksaan fisik'}</h4><div className="grid gap-4 md:grid-cols-2"><Field error={addendumForm.errors.pemeriksaan_fisik} htmlFor="addendum-fisik" label={visit.clinicType === 'gigi' ? 'Ringkasan pemeriksaan intraoral' : 'Ringkasan pemeriksaan fisik'}><Textarea id="addendum-fisik" placeholder="Ringkasan temuan pemeriksaan fisik" onChange={(event) => addendumForm.setData('pemeriksaan_fisik', event.target.value)} rows={3} value={addendumForm.data.pemeriksaan_fisik} /></Field>{isDental && <Field error={addendumForm.errors.pemeriksaan_ekstraoral} htmlFor="addendum-extraoral" label="Pemeriksaan ekstraoral"><Textarea id="addendum-extraoral" placeholder="Catat temuan ekstraoral yang diperiksa" onChange={(event) => addendumForm.setData('pemeriksaan_ekstraoral', event.target.value)} rows={3} value={addendumForm.data.pemeriksaan_ekstraoral} /></Field>}</div>{visit.clinicType === 'umum' && <details className="rounded-xl border border-neutral-200 p-4"><summary className="cursor-pointer text-sm font-semibold text-neutral-900">Koreksi peta tubuh, anotasi & temuan per sistem</summary><div className="mt-4"><PhysicalExaminationWorkspace idPrefix="addendum-" systems={addendumForm.data.pemeriksaan_fisik_terstruktur} onChange={(systems) => addendumForm.setData('pemeriksaan_fisik_terstruktur', systems)} bodyMap={addendumForm.data.body_map} onBodyMapChange={(data) => addendumForm.setData('body_map', data)} draft={addendumBodyDraft} onDraftChange={setAddendumBodyDraft} onPendingChange={setAddendumBodyPending} errors={addendumForm.errors} disabled={saving} gender={visit.patient.gender} /></div></details>}</section>
                         <section className="space-y-4 border-t border-neutral-200 pt-5" aria-labelledby="addendum-diagnosis-title"><h4 className="font-semibold text-neutral-900" id="addendum-diagnosis-title">Diagnosis</h4><Field error={addendumForm.errors.diagnosis_banding} htmlFor="addendum-diagnosis-banding" label="Diagnosis banding"><Textarea id="addendum-diagnosis-banding" placeholder="Diagnosis alternatif yang dipertimbangkan" onChange={(event) => addendumForm.setData('diagnosis_banding', event.target.value)} rows={3} value={addendumForm.data.diagnosis_banding} /></Field></section>
-                        <section className="space-y-4 border-t border-neutral-200 pt-5" aria-labelledby="addendum-plan-title"><h4 className="font-semibold text-neutral-900" id="addendum-plan-title">Nonfarmakologis, edukasi & kontrol</h4><div className="grid gap-4 md:grid-cols-2"><Field error={addendumForm.errors.kontrol_berikutnya} htmlFor="addendum-kontrol" label="Kontrol berikutnya"><DatePicker id="addendum-kontrol" onChange={(event) => addendumForm.setData('kontrol_berikutnya', event.target.value)} value={addendumForm.data.kontrol_berikutnya} /></Field><Field error={addendumForm.errors.catatan} htmlFor="addendum-catatan" label="Catatan dokter"><Textarea id="addendum-catatan" placeholder="Catatan klinis tambahan" onChange={(event) => addendumForm.setData('catatan', event.target.value)} rows={3} value={addendumForm.data.catatan} /></Field></div><Field error={addendumForm.errors.non_farmakologis} htmlFor="addendum-non-farmakologis" label="Koreksi terapi nonfarmakologis"><Textarea id="addendum-non-farmakologis" onChange={(event) => addendumForm.setData('non_farmakologis', event.target.value)} value={addendumForm.data.non_farmakologis} /></Field><Field error={addendumForm.errors.edukasi} htmlFor="addendum-edukasi" label="Edukasi / anjuran pasien"><Textarea id="addendum-edukasi" placeholder="Anjuran atau edukasi yang diberikan" onChange={(event) => addendumForm.setData('edukasi', event.target.value)} rows={3} value={addendumForm.data.edukasi} /></Field></section>
+                        <section className="space-y-4 border-t border-neutral-200 pt-5" aria-labelledby="addendum-plan-title">
+                            <div><h4 className="font-semibold text-neutral-900" id="addendum-plan-title">Perbarui rencana tindak lanjut</h4><p className="mt-1 text-sm text-neutral-500">Koreksi setiap bagian secara terpisah; isian baru disimpan sebagai addendum.</p></div>
+                            <div className="grid items-start gap-4 xl:grid-cols-2">
+                                <section aria-labelledby="addendum-non-pharmacological-title" className="min-w-0 space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4"><h5 className="text-sm font-semibold text-neutral-900" id="addendum-non-pharmacological-title">Nonfarmakologis & edukasi pasien</h5><div className="grid gap-4 md:grid-cols-2"><Field error={addendumForm.errors.non_farmakologis} htmlFor="addendum-non-farmakologis" label="Koreksi terapi nonfarmakologis"><Textarea id="addendum-non-farmakologis" onChange={(event) => addendumForm.setData('non_farmakologis', event.target.value)} rows={4} value={addendumForm.data.non_farmakologis} /></Field><Field error={addendumForm.errors.edukasi} htmlFor="addendum-edukasi" label="Edukasi / anjuran"><Textarea id="addendum-edukasi" placeholder="Anjuran atau edukasi yang diberikan" onChange={(event) => addendumForm.setData('edukasi', event.target.value)} rows={4} value={addendumForm.data.edukasi} /></Field></div></section>
+                                <section aria-labelledby="addendum-follow-up-title" className="min-w-0 space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4"><h5 className="text-sm font-semibold text-neutral-900" id="addendum-follow-up-title">Kontrol & catatan dokter</h5><Field error={addendumForm.errors.kontrol_berikutnya} htmlFor="addendum-kontrol" label="Kontrol berikutnya"><DatePicker id="addendum-kontrol" onChange={(event) => addendumForm.setData('kontrol_berikutnya', event.target.value)} value={addendumForm.data.kontrol_berikutnya} /></Field><Field error={addendumForm.errors.catatan} htmlFor="addendum-catatan" label="Catatan dokter"><Textarea id="addendum-catatan" placeholder="Catatan klinis tambahan" onChange={(event) => addendumForm.setData('catatan', event.target.value)} rows={3} value={addendumForm.data.catatan} /></Field></section>
+                            </div>
+                        </section>
                         <div className="flex justify-end"><Button disabled={!canSaveAddendum} type="submit">Simpan addendum</Button></div>
                     </form></fieldset>}
                 </CardContent></Card>}
@@ -957,13 +1032,24 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                 <Card id="rencana-tindak-lanjut" className="scroll-mt-6">
                     <details className="group" id="rencana-details" open>
                     <summary aria-controls="rencana-content" className="flex cursor-pointer list-none items-start justify-between gap-4 rounded-2xl p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 sm:p-6 [&::-webkit-details-marker]:hidden">
-                        <span className="min-w-0 space-y-1.5"><span className="block text-base font-semibold tracking-tight text-neutral-950">Nonfarmakologis, edukasi & kontrol</span><span className="block text-sm text-neutral-500">Catat terapi tanpa obat, edukasi/anjuran, dan jadwal kontrol sesuai kebutuhan pasien.</span></span>
+                        <span className="min-w-0 space-y-1.5"><span className="block text-base font-semibold tracking-tight text-neutral-950">Rencana tindak lanjut</span><span className="block text-sm text-neutral-500">Isi terapi nonfarmakologis, edukasi pasien, dan kontrol secara terpisah sesuai kebutuhan.</span></span>
                         <ChevronDown aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-neutral-500 transition-transform group-open:rotate-180" />
                     </summary>
                     <CardContent className="border-t border-neutral-100 pt-5 sm:pt-6" id="rencana-content"><fieldset className="min-w-0" disabled={!canEdit || saving}><form className="space-y-5" onSubmit={(event) => submitClinicalSection(event, 'rencana')}>
-                        <div className="grid gap-4 md:grid-cols-2"><Field error={followUpForm.errors.kontrol_berikutnya} htmlFor="kontrol_berikutnya" label="Jadwal kontrol berikutnya"><DatePicker id="kontrol_berikutnya" onChange={(event) => followUpForm.setData('kontrol_berikutnya', event.target.value)}  value={followUpForm.data.kontrol_berikutnya} /></Field><Field error={followUpForm.errors.catatan} htmlFor="catatan" label="Catatan khusus dokter"><Input id="catatan" onChange={(event) => followUpForm.setData('catatan', event.target.value)} placeholder="Catatan internal" value={followUpForm.data.catatan} /></Field></div>
-<Field error={followUpForm.errors.non_farmakologis} htmlFor="non-farmakologis" label="Terapi nonfarmakologis"><Textarea id="non-farmakologis" maxLength={5000} onChange={(event) => followUpForm.setData('non_farmakologis', event.target.value)} placeholder="Rencana terapi tanpa obat sesuai penilaian dokter" rows={3} value={followUpForm.data.non_farmakologis} /></Field>
-<Field error={followUpForm.errors.edukasi} htmlFor="edukasi" label="Edukasi / anjuran pasien"><Textarea id="edukasi" onChange={(event) => followUpForm.setData('edukasi', event.target.value)} placeholder="Anjuran, cara penggunaan obat, larangan, dan jadwal kontrol" rows={3} value={followUpForm.data.edukasi} /></Field>
+                        <div className="grid items-start gap-4 xl:grid-cols-2">
+                            <section aria-labelledby="non-pharmacological-title" className="min-w-0 space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                                <div><h3 className="text-sm font-semibold text-neutral-900" id="non-pharmacological-title">Nonfarmakologis & edukasi pasien</h3><p className="mt-1 text-xs leading-5 text-neutral-500">Catat intervensi tanpa obat serta edukasi yang telah disampaikan.</p></div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <Field error={followUpForm.errors.non_farmakologis} htmlFor="non-farmakologis" label="Terapi nonfarmakologis"><Textarea id="non-farmakologis" maxLength={5000} onChange={(event) => followUpForm.setData('non_farmakologis', event.target.value)} placeholder="Contoh: kompres hangat, istirahat, atau tindakan non-obat lain" rows={4} value={followUpForm.data.non_farmakologis} /></Field>
+                                    <Field error={followUpForm.errors.edukasi} htmlFor="edukasi" label="Edukasi / anjuran"><Textarea id="edukasi" onChange={(event) => followUpForm.setData('edukasi', event.target.value)} placeholder="Catat anjuran, cara penggunaan obat, dan hal yang perlu dihindari" rows={4} value={followUpForm.data.edukasi} /></Field>
+                                </div>
+                            </section>
+                            <section aria-labelledby="follow-up-title" className="min-w-0 space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                                <div><h3 className="text-sm font-semibold text-neutral-900" id="follow-up-title">Kontrol & catatan dokter</h3><p className="mt-1 text-xs leading-5 text-neutral-500">Tentukan jadwal kontrol bila diperlukan dan simpan catatan internal.</p></div>
+                                <Field error={followUpForm.errors.kontrol_berikutnya} htmlFor="kontrol_berikutnya" label="Jadwal kontrol berikutnya"><DatePicker id="kontrol_berikutnya" onChange={(event) => followUpForm.setData('kontrol_berikutnya', event.target.value)} value={followUpForm.data.kontrol_berikutnya} /></Field>
+                                <Field error={followUpForm.errors.catatan} htmlFor="catatan" label="Catatan khusus dokter"><Input id="catatan" onChange={(event) => followUpForm.setData('catatan', event.target.value)} placeholder="Catatan internal" value={followUpForm.data.catatan} /></Field>
+                            </section>
+                        </div>
                         <div className="flex flex-wrap justify-end gap-2"><Button disabled={!sectionSaveAllowed.rencana} type="submit" variant="secondary">Simpan rencana tindak lanjut</Button>{canEdit && <Button disabled={saving} onClick={finishExamination} type="button"><Check className="size-4" />Selesai periksa</Button>}</div>
                     </form></fieldset></CardContent>
                     </details>
@@ -973,8 +1059,9 @@ export default function ExaminationDetail({ visit, initialTab, doctors, treatmen
                 <DialogContent>
                     <DialogHeader><DialogTitle>Tandatangani dan finalisasi</DialogTitle><DialogDescription>Masukkan kata sandi akun dokter untuk mengunci catatan, memberi cap waktu, dan membuat versi final yang tidak dapat ditimpa.</DialogDescription></DialogHeader>
                     <fieldset className="min-w-0" disabled={saving}><form className="space-y-4" onSubmit={signExamination}><p className="rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">{visit.treatments.some((item) => item.executionRole === 'perawat') ? (visit.prescription.items.some((item) => !item.external) ? 'Pasien ke perawat untuk tindakan, kemudian ke farmasi, lalu selesai.' : 'Pasien ke perawat untuk tindakan, kemudian kunjungan selesai tanpa farmasi.') : visit.prescription.items.some((item) => !item.external) ? 'Pasien diteruskan ke farmasi untuk resep klinik.' : visit.prescription.items.some((item) => item.external) ? 'Kunjungan selesai setelah ditandatangani. Resep luar ditebus di luar klinik.' : 'Kunjungan selesai setelah ditandatangani tanpa resep obat.'}</p>
+                        {assistanceReview && <div className="space-y-2"><label className="flex items-start gap-2 text-sm"><Checkbox checked={signatureForm.data.review_admin_assistance} onCheckedChange={(checked) => signatureForm.setData('review_admin_assistance', checked === true)} />Saya telah meninjau draf bantuan admin dan menyetujui isinya sebagai dokter penanggung jawab.</label>{signatureForm.errors.review_admin_assistance && <p className="text-sm text-red-600">{signatureForm.errors.review_admin_assistance}</p>}{signatureForm.errors.assistance_review_hash && <p className="text-sm text-red-600">{signatureForm.errors.assistance_review_hash}</p>}{reviewPageStale && <Button onClick={() => window.location.reload()} type="button" variant="secondary">Muat ulang draf terbaru</Button>}{signatureForm.errors.assistance_review_id && <p className="text-sm text-red-600">{signatureForm.errors.assistance_review_id}</p>}</div>}
                         <Field error={signatureForm.errors.signature_password} htmlFor="signature-password" label="Kata sandi akun" required><Input placeholder="Masukkan kata sandi akun Anda" autoComplete="current-password" id="signature-password" onChange={(event) => signatureForm.setData('signature_password', event.target.value)} required type="password" value={signatureForm.data.signature_password} /></Field>
-                        <div className="flex justify-end gap-2"><Button onClick={() => setSignatureDialogOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={saving || !canEdit || !signatureForm.data.signature_password} type="submit"><Check className="size-4" />Tandatangani pemeriksaan</Button></div>
+                        <div className="flex justify-end gap-2"><Button onClick={() => setSignatureDialogOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={reviewPageStale || saving || !canEdit || !signatureForm.data.signature_password || (Boolean(assistanceReview) && !signatureForm.data.review_admin_assistance)} type="submit"><Check className="size-4" />Tandatangani pemeriksaan</Button></div>
                     </form></fieldset>
                 </DialogContent>
             </Dialog>
@@ -1021,19 +1108,15 @@ function renderPrescriptionItems(items: PrescriptionItem[], editable: boolean, o
     return <div className="overflow-x-auto"><Table><TableHeader><tr><TableHead>Nama obat</TableHead><TableHead>Jenis</TableHead><TableHead>Jumlah</TableHead><TableHead>Aturan pakai</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>{items.length ? items.map((item) => <TableRow key={item.id}><TableCell className="font-medium">{item.name}</TableCell><TableCell>{item.type === 'jadi' ? 'Jadi' : 'Racikan'}</TableCell><TableCell>{item.quantity} {item.unit}</TableCell><TableCell>{item.instructions ?? 'Belum ditetapkan oleh dokter'}</TableCell><TableCell className="text-center"><ActionButton disabled={!editable} onClick={() => onDelete(`/pelayanan/pemeriksaan/resep/${item.id}`, 'Hapus obat dari resep? Stok akan dikembalikan bila sebelumnya dikurangi.')} type="button" action="delete" label="Hapus" /></TableCell></TableRow>) : <TableRow><TableCell colSpan={5}><Empty size="compact" title="Belum ada obat dalam resep." /></TableCell></TableRow>}</TableBody></Table></div>;
 }
 
-function formatMeasurement(value: number | null, unit: string): string {
-    return value === null ? 'Belum diukur' : `${value} ${unit}`;
+function formatMeasurement(value: number | string | null, unit: string): string | null {
+    return value === null || value === '' ? null : `${value} ${unit}`;
 }
 
 function formatBloodPressure(systolic: number | null, diastolic: number | null): string {
-    if (systolic === null && diastolic === null) {
-        return 'Belum diukur';
-    }
-
-    return `${systolic ?? 'Belum diukur'} / ${diastolic ?? 'Belum diukur'} mmHg`;
+    return `${systolic ?? '—'} / ${diastolic ?? '—'} mmHg`;
 }
 
-function displayDentalValues(values: string[], fallback: string): string {
+function displayDentalValues(values: string[]): string | null {
     const labels: Record<string, string> = {
         dingin: 'Dingin',
         manis: 'Manis',
@@ -1054,9 +1137,11 @@ function displayDentalValues(values: string[], fallback: string): string {
         kehamilan: 'Kehamilan',
     };
 
-    return values.length > 0 ? values.map((value) => labels[value] ?? value).join(', ') : fallback;
+    return values.length > 0 ? values.map((value) => labels[value] ?? value).join(', ') : null;
 }
 
 function AssessmentNote({ label, value }: { label: string; value?: string | null }) {
-    return <div className="min-w-0"><dt className="text-xs font-medium text-neutral-500">{label}</dt><dd className="mt-1 whitespace-pre-wrap break-words text-sm text-neutral-800 [overflow-wrap:anywhere]">{normalizeClinicalAnswer(value) ?? optionalAnswers.notRecorded}</dd></div>;
+    const answer = normalizeClinicalAnswer(value);
+
+    return answer ? <div className="min-w-0"><dt className="text-xs font-medium text-neutral-500">{label}</dt><dd className="mt-1 whitespace-pre-wrap break-words text-sm text-neutral-800 [overflow-wrap:anywhere]">{answer}</dd></div> : null;
 }

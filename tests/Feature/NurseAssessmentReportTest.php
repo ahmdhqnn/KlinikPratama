@@ -75,4 +75,38 @@ class NurseAssessmentReportTest extends TestCase
             }
         }
     }
+
+    public function test_admin_assessment_report_and_export_cover_all_active_clinics_and_staff(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        foreach (['umum', 'gigi'] as $type) {
+            $clinic = Poliklinik::create(['kode' => 'ADMIN-SCREEN-'.$type, 'nama' => 'Poli '.ucfirst($type), 'jenis' => $type, 'is_active' => true]);
+            $staff = Nakes::create(['kode' => 'ADMIN-SCREEN-NURSE-'.$type, 'nama' => 'Perawat '.ucfirst($type), 'kategori' => 'medis', 'jabatan' => $type === 'gigi' ? 'terapis_gigi' : 'perawat', 'poliklinik_id' => $clinic->id, 'is_active' => true]);
+            $patient = Pasien::create(['no_rm' => 'RM-ADMIN-SCREEN-'.$type, 'nama' => 'Pasien '.ucfirst($type)]);
+            $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-ADMIN-SCREEN-'.$type, 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
+            Screening::create(['kunjungan_id' => $visit->id, 'petugas_id' => $staff->id, 'keluhan' => 'Keluhan '.ucfirst($type), 'submitted_at' => now()]);
+        }
+
+        $this->actingAs($admin)->get(route('admin.laporan.pengkajian'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('pelayanan/screening/history')
+                ->where('isReport', true)
+                ->where('serviceName', 'Semua poli')
+                ->where('screenings.total', 2)
+                ->where('screenings.data.0.staff', 'Perawat Gigi')
+                ->where('screenings.data.1.staff', 'Perawat Umum'));
+        $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'action' => 'admin.report.screening.view']);
+
+        Excel::fake();
+        $this->get(route('admin.laporan.pengkajian.export'))->assertOk();
+        Excel::assertDownloaded('laporan-pengkajian-semua-poli-'.today()->format('Y-m-d').'.xlsx', function (ScreeningExport $export): bool {
+            $rows = $export->query()->get();
+            $this->assertCount(2, $rows);
+            $this->assertContains('Lokasi Nyeri Gigi', $export->headings());
+
+            return true;
+        });
+
+        $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'action' => 'screening.report_export']);
+    }
 }

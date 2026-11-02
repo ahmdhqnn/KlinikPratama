@@ -67,7 +67,7 @@ class RegistrationController extends Controller
                     'patient' => $visit->pasien?->nama ?? 'Pasien tidak tersedia',
                     'medicalRecordNumber' => $visit->pasien?->no_rm ?? '-',
                     'clinic' => $visit->poliklinik?->nama ?? '-', 'doctor' => $visit->dokter?->nama ?? 'Belum ditentukan',
-                    'status' => $visit->status, 'examinationStarted' => $visit->pemeriksaan !== null,
+                    'status' => $visit->status, 'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
                     'detailUrl' => route('pendaftaran.kunjungan.show', $visit),
                     'ticketUrl' => route('pendaftaran.cetak-antrian', $visit),
                 ])->values(),
@@ -117,7 +117,7 @@ class RegistrationController extends Controller
                     'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
                     'date' => $visit->tanggal?->format('d/m/Y') ?? 'Belum diisi',
                     'status' => $visit->status,
-                    'examinationStarted' => $visit->pemeriksaan !== null,
+                    'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'ticketUrl' => $visit->status !== 'batal' ? route('pendaftaran.cetak-antrian', $visit) : null,
                     'editUrl' => $visit->status === 'menunggu'
@@ -458,7 +458,7 @@ class RegistrationController extends Controller
             'date' => $visit->tanggal->format('d/m/Y'),
             'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
             'status' => $visit->status,
-            'examinationStarted' => $visit->pemeriksaan !== null,
+            'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
             'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
             'actionUrl' => $role === 'perawat' && $visit->status === 'tindakan' ? route('pelayanan.tindakan.show', $visit) : ($role === 'perawat' && ! $visit->tanggal->isFuture()
                 ? (in_array($visit->status, ['menunggu', 'screening'], true)

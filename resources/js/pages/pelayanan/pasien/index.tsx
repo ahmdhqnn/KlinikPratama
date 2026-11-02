@@ -137,17 +137,9 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
             <div className="space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Database pasien</h2><p className="mt-1 text-sm text-neutral-500">Kelola identitas pasien dan verifikasi kepesertaannya.</p></div>
-                    <div className="flex flex-wrap gap-2">
-                        {permissions.managePatients && <>
-
-                            <Button asChild size="sm" variant="secondary"><Link href="/kepesertaan"><FileSpreadsheet className="size-4" />Impor kepesertaan</Link></Button>
-                            <Button asChild size="sm" variant="secondary"><a href="/pelayanan/pasien-export"><Download className="size-4" />Export</a></Button>
-                            <Button onClick={() => setMergeOpen(true)} size="sm" variant="secondary">Gabung RM</Button>
-                            <Button asChild size="sm"><Link href="/pendaftaran/pendaftaran-baru"><Plus className="size-4" />Pendaftaran pasien</Link></Button>
-                        </>}
-                    </div>
+                    {permissions.managePatients && <Button asChild size="sm"><Link href="/pendaftaran/pendaftaran-baru"><Plus className="size-4" />Pendaftaran pasien</Link></Button>}
                 </div>
-                <FilterPanel><form className="grid gap-4 md:grid-cols-2 md:items-end" onSubmit={applyFilters}>
+                <FilterPanel actions={permissions.managePatients && <div className="flex flex-wrap gap-2"><Button asChild size="sm" variant="secondary"><Link href="/kepesertaan"><FileSpreadsheet className="size-4" />Impor kepesertaan</Link></Button><Button asChild size="sm" variant="secondary"><a href="/pelayanan/pasien-export"><Download className="size-4" />Export</a></Button><Button onClick={() => setMergeOpen(true)} size="sm" variant="secondary">Gabung RM</Button></div>}><form className="grid gap-4 md:grid-cols-2 md:items-end" onSubmit={applyFilters}>
                             <Field htmlFor="patient-search" label="Cari pasien"><Input id="patient-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama, No. RM, NIK, NIP, atau telepon" value={filters.search} /></Field>
                             <Field htmlFor="patient-membership-filter" label="Kategori peserta"><Select id="patient-membership-filter" onChange={(event) => setFilters({ ...filters, kategori: event.target.value })} value={filters.kategori}><option value="">Semua kategori</option>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
                             <Button type="submit"><Search className="size-4" />Cari pasien</Button>
@@ -163,7 +155,7 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
                                 <TableCell className="text-neutral-600">{patient.phone ?? 'Belum diisi'}</TableCell>
                                 <TableCell className="max-w-56 truncate text-neutral-500">{patient.address ?? 'Belum diisi'}</TableCell>
                                 <TableCell><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700">{patient.membership}</span></TableCell>
-                                <TableCell><div className="flex justify-center gap-2">{permissions.managePatients && patient.canVerify && <ActionButton onClick={() => openVerification(patient)} action="verify" label="Verifikasi" />}<ActionButton asChild action="detail" label="Detail"><Link href={`/pelayanan/pasien/${patient.id}`} /></ActionButton>{permissions.viewRme && <ActionButton asChild action="rme" label="Lihat RME"><Link href={`/pelayanan/pasien/${patient.id}/rekam-medis`} /></ActionButton>}</div></TableCell>
+                                <TableCell><div className="flex justify-center gap-2"><ActionButton disabledReason={!permissions.managePatients ? 'Akun Anda tidak memiliki akses verifikasi pasien.' : 'Hak layanan pasien ini tidak memerlukan verifikasi tambahan.'} disabled={!(permissions.managePatients && patient.canVerify)} onClick={() => openVerification(patient)} action="verify" label="Verifikasi" /><ActionButton asChild action="detail" label="Detail"><Link href={`/pelayanan/pasien/${patient.id}`} /></ActionButton><ActionButton disabledReason="Aksi ini memerlukan hak akses pengelolaan yang sesuai." disabled={!permissions.viewRme} asChild action="rme" label="Lihat RME"><Link href={`/pelayanan/pasien/${patient.id}/rekam-medis`} /></ActionButton></div></TableCell>
                             </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty description="Ubah kata kunci atau kategori, lalu coba lagi." size="compact" title="Tidak ada pasien yang cocok" /></TableCell></TableRow>}</TableBody>
                         </Table></div>
                         <Pagination pagination={patients} />

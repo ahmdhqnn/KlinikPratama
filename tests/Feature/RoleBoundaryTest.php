@@ -10,6 +10,28 @@ class RoleBoundaryTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_admin_can_open_pharmacy_services_and_reports(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+
+        foreach (['pelayanan.farmasi.index', 'farmasi.pemberian-obat.index', 'farmasi.pemberian-obat.create', 'farmasi.resep-luar.index', 'farmasi.laporan', 'farmasi.laporan.pemberian-langsung', 'farmasi.laporan.resep-luar'] as $routeName) {
+            $this->actingAs($admin)->get(route($routeName))->assertOk();
+        }
+    }
+
+    public function test_admin_registration_entry_points_are_available_but_inactive_admin_is_denied(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        foreach (['pendaftaran.pendaftaran-baru', 'pendaftaran.kunjungan-per-poli', 'pendaftaran.jadwal-praktik'] as $routeName) {
+            $this->actingAs($admin)->get(route($routeName))->assertOk();
+        }
+        $this->get(route('pendaftaran.pendaftaran-lama'))->assertRedirect(route('pendaftaran.pendaftaran-baru', ['tab' => 'registered']));
+        $admin->update(['is_active' => false]);
+        $this->actingAs($admin)->get(route('pendaftaran.pendaftaran-baru'))->assertForbidden();
+        $this->actingAs($admin)->get(route('farmasi.pemberian-obat.create'))->assertForbidden();
+        $this->actingAs($admin)->post(route('farmasi.pemberian-obat.store'), [])->assertForbidden();
+    }
+
     public function test_pharmacy_inventory_is_authorized_and_retired_cashier_role_is_denied(): void
     {
         $pharmacist = User::factory()->create([
