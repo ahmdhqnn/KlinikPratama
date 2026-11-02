@@ -319,6 +319,28 @@ class SpecialtyScreeningTest extends TestCase
     }
 
     /** @return array<string, mixed> */
+    public function test_dental_visual_observations_are_handed_over_and_airway_flags_override_normal_triage(): void
+    {
+        $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        $clinic = Poliklinik::create(['kode' => 'GIGI-VIS', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $this->assignNurse($nurse, $clinic);
+        $patient = Pasien::create(['no_rm' => 'RM-GIGI-VIS', 'nama' => 'Pasien Visual Gigi']);
+        $visit = $this->makeVisit('KNJ-GIGI-VIS', $patient, $clinic);
+        $payload = [...$this->validScreeningPayload(), 'extraoral_symmetry' => 'asymmetric', 'extraoral_swelling' => 'present', 'dental_red_flags' => ['swallowing'], 'extraoral_notes' => 'Bengkak kanan meluas, sulit menelan. Dokter dihubungi segera.'];
+        $this->actingAs($nurse)->post(route('pelayanan.kunjungan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $screening = $visit->fresh()->screening;
+        $this->assertSame('asymmetric', $screening->extraoral_symmetry);
+        $this->assertSame(['swallowing'], $screening->dental_red_flags);
+        $this->assertSame('merah', $screening->kesimpulan_triase);
+        $this->assertSame('darurat', $screening->prioritas_layanan);
+        $this->assertSame('Sulit menelan', $screening->handoverSummary()['Tanda bahaya gigi / mulut']);
+        $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page->where('document.sections.dental.Catatan visual ekstraoral awal perawat', $payload['extraoral_notes']));
+        $this->post(route('pelayanan.kunjungan.screening.store', $visit), [...$payload, 'dental_red_flags' => ['none', 'breathing']])->assertSessionHasErrors('dental_red_flags');
+        $this->post(route('pelayanan.kunjungan.screening.store', $visit), [...$payload, 'extraoral_notes' => ''])->assertSessionHasErrors('extraoral_notes');
+        $this->post(route('pelayanan.kunjungan.screening.store', $visit), [...$payload, 'dental_red_flags' => ['none']])->assertSessionHasNoErrors();
+        $this->assertSame('kuning', $screening->fresh()->kesimpulan_triase);
+    }
+
     private function validScreeningPayload(): array
     {
         return [

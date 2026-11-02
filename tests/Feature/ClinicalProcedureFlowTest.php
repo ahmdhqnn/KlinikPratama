@@ -179,8 +179,8 @@ class ClinicalProcedureFlowTest extends TestCase
         [$user, $visit] = $this->clinicalContext('gigi');
         $code = $this->procedure();
         $treatment = Tindakan::create(['kode' => 'LOCAL', 'nama' => 'Tindakan gigi lokal', 'poliklinik_id' => $visit->poliklinik_id, 'is_active' => true]);
-        OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46']);
-        OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '36']);
+        OdontogramFinding::factory()->create(['surface' => 'O', 'details' => ['icdas' => '5', 'activity' => 'active', 'site' => 'primary', 'depth' => 'dentin', 'pulpal' => 'reversible', 'periapical' => 'normal', 'assessment' => 'Kavitas dentin, dingin singkat, perkusi negatif. Rencana restorasi.'], 'kunjungan_id' => $visit->id, 'tooth_fdi' => '46']);
+        OdontogramFinding::factory()->create(['surface' => 'O', 'details' => ['icdas' => '5', 'activity' => 'active', 'site' => 'primary', 'depth' => 'dentin', 'pulpal' => 'reversible', 'periapical' => 'normal', 'assessment' => 'Kavitas dentin, dingin singkat, perkusi negatif. Rencana restorasi.'], 'kunjungan_id' => $visit->id, 'tooth_fdi' => '36']);
 
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), [
             'terminology_id' => $code->id, 'tindakan_id' => $treatment->id, 'jumlah' => 1, 'tooth_fdis' => ['46', '36'], 'catatan' => 'Catatan per gigi',
@@ -213,12 +213,12 @@ class ClinicalProcedureFlowTest extends TestCase
         $code = $this->procedure();
         $examination = $visit->pemeriksaan;
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'Z00.0', 'nama_diagnosa' => 'Pemeriksaan', 'jenis' => 'utama']);
-        OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46']);
+        OdontogramFinding::factory()->create(['surface' => 'O', 'details' => ['icdas' => '5', 'activity' => 'active', 'site' => 'primary', 'depth' => 'dentin', 'pulpal' => 'reversible', 'periapical' => 'normal', 'assessment' => 'Kavitas dentin, dingin singkat, perkusi negatif. Rencana restorasi.'], 'kunjungan_id' => $visit->id, 'tooth_fdi' => '46']);
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), [
             'terminology_id' => $code->id, 'jumlah' => 1, 'catatan' => 'Catatan asli tindakan',
         ])->assertSessionHasNoErrors();
 
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertRedirect();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
 
         $final = ClinicalNoteVersion::where('pemeriksaan_id', $examination->id)->sole();
         $this->assertSame('23.09', $final->payload['treatments'][0]['code']);
@@ -318,7 +318,7 @@ class ClinicalProcedureFlowTest extends TestCase
         $this->procedure();
         ClinicalTerminology::create(['code_system' => 'icd10_who', 'release' => '2026', 'code' => 'Z00.0', 'display' => 'General examination', 'code_type' => 'diagnosis', 'is_active' => true]);
         if ($clinicType === 'gigi') {
-            OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46']);
+            OdontogramFinding::factory()->create(['surface' => 'O', 'details' => ['icdas' => '5', 'activity' => 'active', 'site' => 'primary', 'depth' => 'dentin', 'pulpal' => 'reversible', 'periapical' => 'normal', 'assessment' => 'Kavitas dentin, dingin singkat, perkusi negatif. Rencana restorasi.'], 'kunjungan_id' => $visit->id, 'tooth_fdi' => '46']);
         }
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), [
             'is_manual' => true, 'kode_icd10' => '', 'code_system' => 'manual', 'code_release' => '',
@@ -337,7 +337,7 @@ class ClinicalProcedureFlowTest extends TestCase
             'nama_tindakan_manual' => 'Tindakan manual dokter', 'jumlah' => 1, 'catatan' => 'Catatan tindakan',
             'tooth_fdis' => $clinicType === 'gigi' ? ['46'] : [],
         ])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $final = ClinicalNoteVersion::sole();
         $this->assertNull($final->payload['diagnoses'][0]['code']);
         $this->assertSame('manual', $final->payload['diagnoses'][0]['code_system']);
@@ -404,7 +404,7 @@ class ClinicalProcedureFlowTest extends TestCase
         $patient = Pasien::create(['no_rm' => 'RM-'.$suffix, 'nama' => 'Pasien '.$suffix]);
         $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-'.$suffix, 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'dokter_id' => $doctor->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
         Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
-        Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id, 'anamnesis' => 'Keluhan pasien', 'pemeriksaan_fisik' => 'Temuan pemeriksaan', 'catatan' => 'Catatan dokter tetap ada']);
+        Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id, 'anamnesis' => 'Keluhan pasien', 'pemeriksaan_ekstraoral' => 'Simetris tanpa pembengkakan', 'pemeriksaan_fisik' => 'Temuan pemeriksaan', 'catatan' => 'Catatan dokter tetap ada']);
 
         return [$user, $visit];
     }

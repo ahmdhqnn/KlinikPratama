@@ -1138,6 +1138,30 @@ function examinationProps(clinicType = 'gigi', overrides = {}) {
     };
 }
 
+test('dental nurse observation exposes explicit unknown answers and an immediate warning for airway symptoms', async () => {
+    const html = await renderPage('pelayanan/screening/show', {
+        visit: { id: 1, number: 'K-DENTAL', status: 'screening', clinic: 'Poli Gigi', clinicType: 'gigi', doctor: 'Dokter Uji', patient: { name: 'Pasien Uji', medicalRecordNumber: 'RM-DENTAL', gender: 'P', age: 35, bloodType: null, allergyHistory: null }, screening: { extraoral_swelling: 'present', dental_red_flags: ['breathing'] }, triage: null, priority: null, printUrl: null, startedAt: null },
+        staff: [], canSelectStaff: false, currentStaff: 'Perawat Uji',
+    });
+    assert.match(html, /Visual ekstraoral cepat/);
+    assert.match(html, /Simetri wajah/);
+    assert.match(html, /Belum dapat dinilai/);
+    assert.match(html, /Pemeriksaan intraoral, diagnosis, serta validasi penuh dilakukan dokter gigi/);
+    assert.match(html, /role="alert"[^>]*>Perlu respons segera/);
+    assert.match(html, /pencatatan tidak boleh menunda pertolongan/);
+});
+
+test('dental lesion details remain visible with the saved findings and in the clinical summary', async () => {
+    const props = examinationProps('gigi', { odontogram: [{ toothFdi: '46', surface: 'O', findingCode: 'caries', notes: 'Kavitas', details: { icdas: '5', activity: 'active' }, detailSummary: 'ICDAS 5 - Aktif - Dentin' }] });
+    props.dentalOptions.detailOptions = { icdas: { 5: '5 - Kavitas dengan dentin terlihat' }, pulpal: { normal: 'Pulpa normal' } };
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    assert.match(html, /id="dental-detail-pulpal"/);
+    assert.match(html, /id="dental-detail-assessment"/);
+    assert.match(html, /ICDAS 5 - Aktif - Dentin/);
+    assert.match(html, /Odontogram dan rincian lesi/);
+    assert.match(html, /Pemeriksaan intraoral dokter \(wajib sebelum finalisasi\)/);
+});
+
 test('dental examination places the FDI entry before the findings table within its workflow tab', async () => {
     const html = await renderPage('pelayanan/pemeriksaan/show', examinationProps());
     const panel = html.match(/<section[^>]*id="[^"]*-panel-odontogram"[\s\S]*?Tabel temuan odontogram[\s\S]*?<\/table>/)?.[0];
@@ -2845,3 +2869,34 @@ test('completed nursing result shows attribution and cannot be resubmitted', asy
     assert.match(html, /Perawat Uji/);
     assert.doesNotMatch(html, /<textarea|Simpan pelaksanaan tindakan/);
 });
+
+
+for (const [type, title] of [
+    ['sakit', 'SURAT ISTIRAHAT'], ['sehat', 'SURAT KETERANGAN KESEHATAN'],
+    ['rujukan', 'SURAT RUJUKAN EKSTERNAL'], ['laboratorium', 'PENGANTAR LABORATORIUM'],
+    ['rontgen_gigi', 'X-RAY DENTAL'], ['ringkasan', 'RINGKASAN PEMERIKSAAN'], ['lainnya', 'SURAT KETERANGAN LAINNYA'],
+]) {
+    test(`clinical letter ${type} prints the clinic format with saved data and no editable controls`, async () => {
+        const html = await renderPage('persuratan/cetak', { document: {
+            kind: 'surat', type, clinic: { name: 'Nama lama Ekonomi Kreatif', address: 'Alamat klinik', phone: '021 3838142' },
+            patient: { name: '<script>Pasien</script>', medicalRecordNumber: 'RM-001', age: 35, gender: 'P' },
+            doctor: { name: 'Dokter pemeriksa', sip: 'SIP-001', signatureDataUrl: null },
+            number: 'SK/0001/KP/11/2026', date: '1 November 2026', backUrl: '/persuratan', backLabel: 'Kembali',
+            details: { rest_start: '2026-11-01', rest_end: '2026-11-03', purpose: 'Keperluan pasien', conclusion: 'Temuan sesuai pemeriksaan.', recipient: 'RS Tujuan', requested_tests: 'Hematologi rutin\nHbA1c', xray_types: ['Dental'], teeth: [46], result_delivery: 'dokter' },
+            clinical: { anamnesis: 'Anamnesis tersimpan', diagnoses: ['Pulpitis (K04.0)'], therapy: 'Terapi tersimpan', height: 160, weight: 55, bloodPressure: '120/80', date: '01/11/2026' },
+        } });
+        const article = html.slice(html.indexOf('<article')).replace(/<!-- -->/g, '');
+        assert.match(article.toUpperCase(), new RegExp(title));
+        assert.match(article, /KEMENTERIAN PARIWISATA/);
+        assert.doesNotMatch(article, /Ekonomi Kreatif|<input|<textarea|<select|<script>/);
+        assert.match(article, /&lt;script&gt;Pasien&lt;\/script&gt;/);
+        assert.match(article, /Nomor: SK\/0001\/KP\/11\/2026/);
+        if (type === 'sakit') assert.match(article, /selama 3 hari/);
+        if (['rujukan', 'laboratorium', 'rontgen_gigi', 'ringkasan'].includes(type)) {
+            assert.match(article, /Anamnesis tersimpan/);
+            assert.match(article, /Pulpitis \(K04\.0\)/);
+        }
+        if (type === 'rontgen_gigi') assert.match(article, /letter-tooth selected[^>]*>46</);
+        if (type === 'sehat') assert.match(article, /Temuan sesuai pemeriksaan/);
+    });
+}

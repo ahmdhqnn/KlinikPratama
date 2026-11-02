@@ -9,7 +9,9 @@ class RujukanInternal extends Model
 {
     protected $table = 'rujukan_internal';
 
-    protected $fillable = ['kunjungan_id', 'dari_poli_id', 'ke_poli_id', 'surat_template_id', 'nomor_surat', 'konten_surat', 'catatan', 'status'];
+    protected $fillable = ['kunjungan_id', 'dari_poli_id', 'ke_poli_id', 'surat_template_id', 'nomor_surat', 'konten_surat', 'catatan', 'status', 'document_data'];
+
+    protected $casts = ['document_data' => 'array'];
 
     public function kunjungan(): BelongsTo
     {

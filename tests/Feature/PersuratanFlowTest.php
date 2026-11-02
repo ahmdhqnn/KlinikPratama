@@ -43,6 +43,7 @@ class PersuratanFlowTest extends TestCase
         $this->get(route('persuratan.surat.create', $visit))->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('persuratan/terbitkan')->where('visit.id', $visit->id));
         $this->post(route('persuratan.surat.store', $visit), [
+            'details' => ['rest_start' => today()->toDateString(), 'rest_end' => today()->toDateString()],
             'jenis' => 'sakit', 'tanggal' => today()->toDateString(), 'konten' => 'Surat pemeriksaan final.',
         ])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('surat_medis', ['kunjungan_id' => $visit->id, 'konten' => 'Surat pemeriksaan final.']);
@@ -51,6 +52,7 @@ class PersuratanFlowTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('eligibleVisits.total', 0));
         $this->get(route('persuratan.surat.create', $visit))->assertNotFound();
         $this->post(route('persuratan.surat.store', $visit), [
+            'details' => ['rest_start' => today()->toDateString(), 'rest_end' => today()->toDateString()],
             'jenis' => 'sakit', 'tanggal' => today()->toDateString(), 'konten' => 'Tidak berwenang.',
         ])->assertNotFound();
     }
@@ -108,6 +110,7 @@ class PersuratanFlowTest extends TestCase
         ]);
 
         $this->actingAs($doctorUser)->post(route('pelayanan.pemeriksaan.surat.store', $visit), [
+            'details' => ['rest_start' => today()->toDateString(), 'rest_end' => today()->toDateString()],
             'jenis' => 'sakit', 'tanggal' => today()->toDateString(), 'surat_template_id' => $letterTemplate->id, 'konten' => '',
         ])->assertSessionHasNoErrors();
         $letter = SuratMedis::sole();
@@ -199,6 +202,144 @@ class PersuratanFlowTest extends TestCase
         $issuer->update(['signature_path' => null]);
         $this->get(route('persuratan.resep.cetak', $visit))->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('document.doctor.signatureDataUrl', null));
+    }
+
+    public function test_standard_letters_have_automatic_numbers_and_keep_the_clinical_data_at_issuance(): void
+    {
+        $this->travelTo('2026-11-01 09:00:00');
+        [$user, $doctor, $visit, , , $patient] = $this->visitFixture();
+        Storage::fake('local');
+        $signaturePath = UploadedFile::fake()->image('arsip.png', 80, 30)->store('signatures', 'local');
+        $user->update(['signature_path' => $signaturePath]);
+        $signature = 'data:image/png;base64,'.base64_encode(Storage::disk('local')->get($signaturePath));
+        $patient->update(['tanggal_lahir' => '1990-11-02', 'alamat' => 'Alamat awal']);
+        $examination = Pemeriksaan::create([
+            'kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id,
+            'anamnesis' => 'Nyeri geraham kanan bawah.', 'non_farmakologis' => 'Kompres dingin',
+            'status' => 'selesai', 'signed_at' => now(), 'signed_by_user_id' => $user->id,
+        ]);
+        $examination->diagnosa()->create(['nama_diagnosa' => 'Pulpitis', 'kode_icd10' => 'K04.0', 'jenis' => 'utama']);
+        app(ClinicalNoteRecorder::class)->recordFinal($examination, ['anamnesis' => $examination->anamnesis], $user->id);
+        $visit->update(['status' => 'selesai']);
+        $cases = [
+            'sakit' => ['rest_start' => '2026-11-01', 'rest_end' => '2026-11-03'],
+            'sehat' => ['purpose' => 'Administrasi', 'conclusion' => 'Kesimpulan dokter sesuai pemeriksaan.'],
+            'rujukan' => ['recipient' => 'drg. Spesialis', 'recipient_address' => 'Rumah sakit tujuan'],
+            'laboratorium' => ['requested_tests' => "Hematologi rutin\nGlukosa puasa", 'result_delivery' => 'dokter'],
+            'rontgen_gigi' => ['xray_types' => ['Dental', 'Panoramic'], 'teeth' => [46], 'result_delivery' => 'pasien'],
+            'ringkasan' => [],
+            'lainnya' => [],
+        ];
+        $this->actingAs($user);
+        foreach ($cases as $type => $details) {
+            $this->post(route('persuratan.surat.store', $visit), [
+                'jenis' => $type, 'tanggal' => '2026-11-01', 'details' => $details,
+                'konten' => $type === 'lainnya' ? 'Keterangan dokter.' : null,
+            ])->assertSessionHasNoErrors()->assertRedirect(route('persuratan.index'));
+            $letter = SuratMedis::query()->where('jenis', $type)->sole();
+            $this->assertNotEmpty($letter->nomor_surat);
+            $this->assertSame('Nyeri geraham kanan bawah.', $letter->document_data['clinical']['anamnesis']);
+            $this->assertSame(['Pulpitis (K04.0)'], $letter->document_data['clinical']['diagnoses']);
+            $this->assertSame($details, $letter->document_data['details']);
+        }
+        $this->assertDatabaseCount('correspondence_numbers', 7);
+        $letter = SuratMedis::query()->where('jenis', 'rontgen_gigi')->sole();
+        $this->assertSame('XRG/0001/KP/11/2026', $letter->nomor_surat);
+        $patient->update(['nama' => 'Nama yang diperbarui', 'alamat' => 'Alamat baru']);
+        $examination->update(['anamnesis' => 'Catatan berikutnya.']);
+        $doctor->update(['nama' => 'Nama dokter baru']);
+        Storage::disk('local')->delete($signaturePath);
+        $this->get(route('persuratan.surat.cetak', $letter))->assertInertia(fn (Assert $page) => $page
+            ->where('document.clinic.name', 'Klinik Pratama Kementerian Pariwisata')
+            ->where('document.patient.name', 'Pasien Surat')->where('document.patient.age', 35)
+            ->where('document.patient.address', 'Alamat awal')
+            ->where('document.doctor.name', 'dr. Uji Persuratan')
+            ->where('document.doctor.signatureDataUrl', $signature)
+            ->where('document.clinical.anamnesis', 'Nyeri geraham kanan bawah.')
+            ->where('document.clinical.diagnoses.0', 'Pulpitis (K04.0)')
+            ->where('document.details.teeth.0', 46));
+    }
+
+    public function test_invalid_letter_details_do_not_consume_numbers_or_create_documents(): void
+    {
+        [$user, , $visit] = $this->visitFixture();
+        $this->actingAs($user);
+        foreach ([
+            ['sakit', ['rest_start' => '2026-11-03', 'rest_end' => '2026-11-01'], 'details.rest_end'],
+            ['sehat', ['purpose' => 'Administrasi'], 'details.conclusion'],
+            ['rujukan', [], 'details.recipient'],
+            ['laboratorium', ['result_delivery' => 'dokter'], 'details.requested_tests'],
+            ['rontgen_gigi', ['xray_types' => ['Dental'], 'teeth' => [99], 'result_delivery' => 'pasien'], 'details.teeth.0'],
+            ['rontgen_gigi', ['xray_types' => ['Tidak valid'], 'result_delivery' => 'pasien'], 'details.xray_types.0'],
+            ['lainnya', [], 'konten'],
+        ] as [$type, $details, $error]) {
+            $this->post(route('pelayanan.pemeriksaan.surat.store', $visit), [
+                'jenis' => $type, 'tanggal' => '2026-11-01', 'details' => $details,
+            ])->assertSessionHasErrors($error);
+        }
+        $this->assertDatabaseCount('surat_medis', 0);
+        $this->assertDatabaseCount('correspondence_numbers', 0);
+    }
+
+    public function test_number_allocation_skips_existing_letters_and_shared_template_collisions(): void
+    {
+        $this->travelTo('2026-11-01');
+        [$user, , $visit] = $this->visitFixture();
+        SuratMedis::create(['kunjungan_id' => $visit->id, 'jenis' => 'ringkasan', 'tanggal' => today(), 'nomor_surat' => 'SHARED/0001/11/2026']);
+        $first = CorrespondenceTemplate::factory()->create(['jenis' => 'ringkasan', 'prefix' => 'SHARED']);
+        $second = CorrespondenceTemplate::factory()->create(['jenis' => 'ringkasan', 'prefix' => 'SHARED']);
+        $this->actingAs($user);
+        foreach ([$first, $second] as $template) {
+            $this->post(route('pelayanan.pemeriksaan.surat.store', $visit), [
+                'jenis' => 'ringkasan', 'tanggal' => '2026-11-01', 'surat_template_id' => $template->id,
+            ])->assertSessionHasNoErrors();
+        }
+        $this->assertDatabaseHas('surat_medis', ['surat_template_id' => $first->id, 'nomor_surat' => 'SHARED/0002/11/2026']);
+        $this->assertDatabaseHas('surat_medis', ['surat_template_id' => $second->id, 'nomor_surat' => 'SHARED/0003/11/2026']);
+        $this->assertDatabaseCount('correspondence_numbers', 2);
+    }
+
+    public function test_mismatched_template_returns_validation_error_and_rolls_back_numbering(): void
+    {
+        [$user, , $visit] = $this->visitFixture();
+        $template = CorrespondenceTemplate::factory()->create(['jenis' => 'sehat']);
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.surat.store', $visit), [
+            'jenis' => 'ringkasan', 'tanggal' => today()->toDateString(), 'surat_template_id' => $template->id,
+        ])->assertSessionHasErrors('surat_template_id');
+        $this->assertDatabaseCount('surat_medis', 0);
+        $this->assertDatabaseCount('correspondence_numbers', 0);
+        $this->assertSame(1, $template->fresh()->nomor_berikutnya);
+    }
+
+    public function test_internal_referral_without_a_template_is_numbered_and_keeps_its_destination(): void
+    {
+        $this->travelTo('2026-11-01');
+        [$user, $doctor, $visit, , $target] = $this->visitFixture();
+        $examination = Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id, 'anamnesis' => 'Nyeri gigi', 'status' => 'proses']);
+        $examination->diagnosa()->create(['nama_diagnosa' => 'Pulpitis', 'kode_icd10' => 'K04.0', 'jenis' => 'utama']);
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.rujukan.store', $visit), [
+            'ke_poli_id' => $target->id, 'catatan' => 'Evaluasi lanjutan',
+        ])->assertSessionHasNoErrors();
+        $referral = RujukanInternal::sole();
+        $this->assertSame('RI/0001/KP/11/2026', $referral->nomor_surat);
+        $target->update(['nama' => 'Nama tujuan yang baru']);
+        $this->get(route('persuratan.rujukan.cetak', $referral))->assertInertia(fn (Assert $page) => $page
+            ->where('document.toClinic', 'Poli Gigi')
+            ->where('document.clinical.anamnesis', 'Nyeri gigi')
+            ->where('document.clinical.diagnoses.0', 'Pulpitis (K04.0)'));
+    }
+
+    public function test_admin_cannot_rewind_number_counter_or_remove_sequence_token(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $template = CorrespondenceTemplate::factory()->create(['nomor_berikutnya' => 8]);
+        $this->actingAs($admin)->put(route('persuratan.template.update', $template), $this->templatePayload([
+            'kode' => $template->kode, 'nomor_berikutnya' => 7,
+        ]))->assertSessionHasErrors('nomor_berikutnya');
+        $this->post(route('persuratan.template.store'), $this->templatePayload([
+            'format_nomor' => '[prefix]/[tahun]',
+        ]))->assertSessionHasErrors('format_nomor');
+        $this->assertSame(8, $template->fresh()->nomor_berikutnya);
     }
 
     /** @return array{User, Nakes, Kunjungan, Poliklinik, Poliklinik, Pasien} */

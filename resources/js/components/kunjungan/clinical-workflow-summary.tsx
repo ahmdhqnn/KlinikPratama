@@ -19,7 +19,7 @@ interface DentalExaminationSummaryProps extends SummaryProps {
     anamnesis: string | null | undefined;
     intraoralExam: string | null | undefined;
     extraoralExam: string | null | undefined;
-    findings: Array<{ toothFdi: string; surface: string; findingCode: string; notes: string | null }>;
+    findings: Array<{ toothFdi: string; surface: string; findingCode: string; detailSummary?: string | null; notes: string | null }>;
     options: { surfaces: Record<string, string>; findings: Record<string, string> };
 }
 
@@ -62,7 +62,7 @@ export function DentalExaminationSummary({ anamnesis, intraoralExam, extraoralEx
                                 <TableCell className="px-4 py-3 text-center align-middle font-mono font-semibold">{finding.toothFdi}</TableCell>
                                 <TableCell className="break-words px-4 py-3 text-center align-middle">{options.surfaces[finding.surface] ?? finding.surface}</TableCell>
                                 <TableCell className="break-words px-4 py-3 text-center align-middle">{options.findings[finding.findingCode] ?? finding.findingCode}</TableCell>
-                                <TableCell className="whitespace-pre-wrap break-words px-4 py-3 text-center align-middle">{normalizeClinicalAnswer(finding.notes) ?? optionalAnswers.notRecorded}</TableCell>
+                                <TableCell className="whitespace-pre-wrap break-words px-4 py-3 text-center align-middle">{[finding.detailSummary, normalizeClinicalAnswer(finding.notes)].filter(Boolean).join('\n') || optionalAnswers.notRecorded}</TableCell>
                             </TableRow>
                         ))}</TableBody>
                     </Table>

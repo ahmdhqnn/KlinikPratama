@@ -290,7 +290,7 @@ class DoctorExaminationFlowTest extends TestCase
             'stok_dikurangi' => false,
         ]);
 
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertRedirect();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'farmasi']);
 
         $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), [
@@ -473,7 +473,7 @@ class DoctorExaminationFlowTest extends TestCase
 
         $this->assertDatabaseHas('pemeriksaan', [
             'id' => $examination->id, 'kontrol_berikutnya' => null, 'catatan' => null, 'edukasi' => null,
-            'anamnesis' => 'Keluhan awal', 'pemeriksaan_fisik' => 'Temuan awal', 'riwayat_alergi' => 'Penisilin',
+            'anamnesis' => 'Keluhan awal', 'pemeriksaan_ekstraoral' => 'Simetris tanpa pembengkakan', 'pemeriksaan_fisik' => 'Temuan awal', 'riwayat_alergi' => 'Penisilin',
         ]);
     }
 
@@ -557,7 +557,7 @@ class DoctorExaminationFlowTest extends TestCase
     {
         [$user, $visit, $examination] = $this->examinationWithSections('gigi');
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'K02.9', 'nama_diagnosa' => 'Karies', 'jenis' => 'utama']);
-        OdontogramFinding::create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'recorded_by_user_id' => $user->id]);
+        OdontogramFinding::create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => ['icdas' => '5', 'activity' => 'active', 'site' => 'primary', 'depth' => 'dentin', 'pulpal' => 'reversible', 'periapical' => 'normal', 'assessment' => 'Kavitas dentin, dingin singkat, perkusi negatif. Rencana restorasi.'], 'recorded_by_user_id' => $user->id]);
 
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.store', $visit), [
             'section' => 'anamnesis', 'anamnesis' => 'Nyeri gigi',
@@ -565,7 +565,7 @@ class DoctorExaminationFlowTest extends TestCase
             'riwayat_penyakit_keluarga' => 'Tidak ada riwayat penyakit keluarga menurut pasien',
             'riwayat_alergi' => 'Tidak ada riwayat alergi menurut pasien',
         ])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertRedirect();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
 
         $payload = ClinicalNoteVersion::sole()->payload;
         $this->assertSame('Tidak ada riwayat penyakit dahulu menurut pasien', $payload['riwayat_penyakit_dahulu']);
@@ -601,7 +601,7 @@ class DoctorExaminationFlowTest extends TestCase
         $examination->update([$field => 'Belum dicatat']);
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'R50.9', 'nama_diagnosa' => 'Demam', 'jenis' => 'utama']);
 
-        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertUnprocessable();
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_dental_assessment' => true])->assertUnprocessable();
 
         $this->assertDatabaseMissing('clinical_note_versions', ['pemeriksaan_id' => $examination->id]);
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'pemeriksaan']);
@@ -617,7 +617,7 @@ class DoctorExaminationFlowTest extends TestCase
         Screening::where('kunjungan_id', $visit->id)->update(['riwayat_penyakit_keluarga' => 'Hipertensi pada ayah']);
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'R50.9', 'nama_diagnosa' => 'Demam', 'jenis' => 'utama']);
 
-        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertRedirect();
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
 
         $payload = ClinicalNoteVersion::sole()->payload;
         $this->assertNull($payload['riwayat_penyakit_sekarang']);
@@ -688,7 +688,7 @@ class DoctorExaminationFlowTest extends TestCase
         Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
         $examination = Pemeriksaan::create([
             'kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id,
-            'anamnesis' => 'Keluhan awal', 'pemeriksaan_fisik' => 'Temuan awal', 'riwayat_alergi' => 'Penisilin',
+            'anamnesis' => 'Keluhan awal', 'pemeriksaan_ekstraoral' => $clinicType === 'gigi' ? 'Simetris tanpa pembengkakan' : null, 'pemeriksaan_fisik' => 'Temuan awal', 'riwayat_alergi' => 'Penisilin',
             'diagnosis_banding' => 'Diagnosis banding awal', 'kontrol_berikutnya' => '2026-11-01',
             'catatan' => 'Catatan awal', 'edukasi' => 'Edukasi awal', 'oral_hygiene_index' => 1.25,
         ]);

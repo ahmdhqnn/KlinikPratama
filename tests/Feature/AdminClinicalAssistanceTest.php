@@ -141,7 +141,7 @@ class AdminClinicalAssistanceTest extends TestCase
         $page = $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertOk();
         $review = $page->inertiaProps('assistanceReview');
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), [
-            'signature_password' => 'password', 'review_admin_assistance' => true,
+            'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
             'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash'],
         ])->assertRedirect()->assertSessionHasNoErrors();
         $this->assertSame($procedure ? 'tindakan' : ($medicine ? 'farmasi' : 'selesai'), $visit->fresh()->status);
@@ -170,13 +170,13 @@ class AdminClinicalAssistanceTest extends TestCase
         $review = $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))->inertiaProps('assistanceReview');
         $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'rencana', 'edukasi' => 'Perubahan edukasi terbaru'])->assertSessionHasNoErrors();
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.selesai', $visit), [
-            'signature_password' => 'password', 'review_admin_assistance' => true,
+            'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
             'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash'],
         ])->assertSessionHasErrors('assistance_review_id');
         $review = $this->get(route('pelayanan.pemeriksaan.show', $visit))->inertiaProps('assistanceReview');
         $visit->pemeriksaan()->update(['edukasi' => 'Isi berubah setelah tinjauan']);
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), [
-            'signature_password' => 'password', 'review_admin_assistance' => true,
+            'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
             'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash'],
         ])->assertSessionHasErrors('assistance_review_hash');
         $this->assertDatabaseCount('clinical_note_versions', 0);
@@ -200,11 +200,11 @@ class AdminClinicalAssistanceTest extends TestCase
         $this->assertDatabaseMissing('tindakan_kunjungan', ['id' => $procedure->id]);
         $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['tooth_fdi' => '46', 'surface' => 'O'])->assertSessionHasNoErrors();
         $this->assertDatabaseMissing('odontogram_findings', ['kunjungan_id' => $visit->id, 'tooth_fdi' => '46']);
-        $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries'])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => ['icdas' => '5', 'activity' => 'active', 'site' => 'primary', 'depth' => 'dentin', 'pulpal' => 'reversible', 'periapical' => 'normal', 'assessment' => 'Kavitas dentin, respons dingin singkat. Rencana restorasi.']])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan dokter', 'jumlah' => 1, 'execution_role' => 'dokter'])->assertSessionHasNoErrors();
         $this->actingAs($doctor);
         $review = $this->get(route('pelayanan.pemeriksaan.show', $visit))->inertiaProps('assistanceReview');
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_admin_assistance' => true, 'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash']])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true, 'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash']])->assertSessionHasNoErrors();
         $this->assertSame('selesai', $visit->fresh()->status);
         $this->assertSame($doctor->id, $visit->tindakanKunjungan()->sole()->performed_by);
         $this->assertSame('completed', ClinicalNoteVersion::sole()->payload['treatments'][0]['execution_status']);
@@ -218,10 +218,10 @@ class AdminClinicalAssistanceTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Bantuan pencatatan sesuai pemeriksaan dokter.'])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.start', $visit))->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.store', $visit), ['anamnesis' => 'Keluhan pasien dua hari', 'pemeriksaan_fisik' => 'Temuan pemeriksaan dokter', 'non_farmakologis' => 'Perawatan sesuai kondisi', 'edukasi' => 'Edukasi sesuai kondisi pasien'])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.store', $visit), ['anamnesis' => 'Keluhan pasien dua hari', 'pemeriksaan_fisik' => 'Temuan pemeriksaan dokter', 'pemeriksaan_ekstraoral' => 'Wajah simetris tanpa pembengkakan', 'non_farmakologis' => 'Perawatan sesuai kondisi', 'edukasi' => 'Edukasi sesuai kondisi pasien'])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), ['is_manual' => true, 'nama_diagnosa' => 'Diagnosis klinis dokter', 'jenis' => 'utama'])->assertSessionHasNoErrors();
         if ($type === 'gigi') {
-            $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'notes' => 'Temuan dokter gigi'])->assertSessionHasNoErrors();
+            $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => ['icdas' => '5', 'activity' => 'active', 'site' => 'primary', 'depth' => 'dentin', 'pulpal' => 'reversible', 'periapical' => 'normal', 'assessment' => 'Kavitas dentin, respons dingin singkat. Rencana restorasi.'], 'notes' => 'Temuan dokter gigi'])->assertSessionHasNoErrors();
         }
 
         return [$doctor, $admin, $visit];

@@ -71,6 +71,7 @@ class ClinicalNoteRecorder
                     'surface' => $finding->surface,
                     'finding_code' => $finding->finding_code,
                     'notes' => $finding->notes,
+                    'details' => $finding->details,
                 ])->values()->all(),
         ];
     }

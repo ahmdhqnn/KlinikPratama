@@ -13,8 +13,10 @@ class OdontogramFinding extends Model
     use HasFactory;
 
     protected $fillable = [
-        'kunjungan_id', 'tooth_fdi', 'surface', 'finding_code', 'notes', 'recorded_by_user_id',
+        'kunjungan_id', 'tooth_fdi', 'surface', 'finding_code', 'notes', 'details', 'recorded_by_user_id',
     ];
+
+    protected $casts = ['details' => 'array'];
 
     public function kunjungan(): BelongsTo
     {

@@ -7,8 +7,10 @@ use App\ClinicalAnswer;
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
 use App\CorrespondenceService;
+use App\DentalAssessment;
 use App\DoctorAccessService;
 use App\Http\Controllers\Controller;
+use App\MedicalLetterData;
 use App\Models\ClinicalTerminology;
 use App\Models\CorrespondenceTemplate;
 use App\Models\Diagnosa;
@@ -193,6 +195,8 @@ class PemeriksaanController extends Controller
                 'surface' => $finding->surface,
                 'finding_code' => $finding->finding_code,
                 'notes' => $finding->notes,
+                'details' => $finding->details,
+                'detailSummary' => DentalAssessment::detailSummary($finding->details),
             ])->all());
 
         $assistedWrite = app(AdminClinicalAssistance::class)->latestWrite($kunjungan);
@@ -261,6 +265,7 @@ class PemeriksaanController extends Controller
                     'physicalExam' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $kunjungan->pemeriksaan->pemeriksaan_fisik),
                     'physicalSystems' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik_terstruktur'] ?? []) : ($kunjungan->pemeriksaan->pemeriksaan_fisik_terstruktur ?? []),
                     'bodyMap' => is_array($effectiveNote) ? ($effectiveNote['body_map'] ?? null) : $kunjungan->pemeriksaan->body_map,
+                    'dentalReview' => is_array($effectiveNote) ? ($effectiveNote['dental_review'] ?? null) : null,
                     'extraoralExam' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_ekstraoral'] ?? null) : $kunjungan->pemeriksaan->pemeriksaan_ekstraoral,
                     'oralHygieneIndex' => is_numeric($oralHygieneIndex) ? (float) $oralHygieneIndex : null,
                     'differentialDiagnosis' => is_array($effectiveNote) ? ($effectiveNote['diagnosis_banding'] ?? null) : $kunjungan->pemeriksaan->diagnosis_banding,
@@ -289,6 +294,8 @@ class PemeriksaanController extends Controller
                             'surface' => $finding['surface'],
                             'findingCode' => $finding['finding_code'],
                             'notes' => $finding['notes'] ?? null,
+                            'details' => $finding['details'] ?? null,
+                            'detailSummary' => DentalAssessment::detailSummary($finding['details'] ?? null),
                         ])->values()->all(),
                     ])->values(),
                 ] : null,
@@ -317,6 +324,8 @@ class PemeriksaanController extends Controller
                     'surface' => $finding['surface'],
                     'findingCode' => $finding['finding_code'],
                     'notes' => $finding['notes'] ?? null,
+                    'details' => $finding['details'] ?? null,
+                    'detailSummary' => DentalAssessment::detailSummary($finding['details'] ?? null),
                 ])->values(),
                 'prescription' => [
                     'status' => $kunjungan->resep?->status,
@@ -372,6 +381,7 @@ class PemeriksaanController extends Controller
                 'name' => $clinic->nama,
             ])->values(),
             'dentalOptions' => [
+                'detailOptions' => DentalAssessment::detailOptions(),
                 'teeth' => OdontogramFinding::toothCodes(),
                 'surfaces' => OdontogramFinding::surfaceLabels(),
                 'findings' => OdontogramFinding::findingLabels(),
@@ -803,14 +813,13 @@ class PemeriksaanController extends Controller
             }
             app(ClinicalAuditRecorder::class)->record($request, 'medical_letter.issue', $kunjungan->pasien_id, $kunjungan->id);
             $data = $request->validate([
-                'jenis' => ['required', 'in:sakit,sehat,rujukan,lainnya'],
+                'jenis' => ['required', Rule::in(MedicalLetterData::TYPES)],
                 'konten' => ['nullable', 'string', 'max:10000'],
                 'catatan' => ['nullable', 'string', 'max:2000'],
-                'nomor_surat' => ['nullable', 'string', 'max:120'],
                 'tanggal' => ['required', 'date'],
                 'surat_template_id' => ['nullable', 'exists:correspondence_templates,id'],
             ]);
-            $data['catatan'] = filled($data['catatan'] ?? null) ? trim($data['catatan']) : null;
+            $details = app(MedicalLetterData::class)->validate($request);
 
             $template = filled($data['surat_template_id'] ?? null)
                 ? CorrespondenceTemplate::query()->where('is_active', true)->lockForUpdate()->findOrFail($data['surat_template_id'])
@@ -821,10 +830,15 @@ class PemeriksaanController extends Controller
 
             $kunjungan->loadMissing(['pasien', 'dokter']);
             $date = Carbon::parse($data['tanggal']);
-            $number = $template ? $correspondence->nextNumber($template, $date) : ($data['nomor_surat'] ?? null);
+            $template ??= $correspondence->defaultTemplate($data['jenis']);
+            $number = $correspondence->nextNumber($template, $date);
+            $snapshot = app(MedicalLetterData::class)->snapshot($kunjungan, $kunjungan->dokter, $date);
             $content = filled($data['konten'] ?? null) ? $data['konten'] : $template?->isi;
             if ($content !== null) {
                 $content = $correspondence->renderText($content, [
+                    '[anamnesis]' => $snapshot['clinical']['anamnesis'] ?? '',
+                    '[diagnosis]' => implode('; ', $snapshot['clinical']['diagnoses']),
+                    '[terapi]' => $snapshot['clinical']['therapy'],
                     '[nomor]' => (string) ($number ?? ''),
                     '[pasien]' => $kunjungan->pasien->nama,
                     '[no_rm]' => $kunjungan->pasien->no_rm,
@@ -841,10 +855,11 @@ class PemeriksaanController extends Controller
                 'konten' => $content,
                 'nomor_surat' => $number,
                 'tanggal' => $date,
+                'document_data' => $snapshot + ['details' => $details],
             ]);
 
             return back()->with('success', 'Surat medis berhasil dibuat.');
-        });
+        }, attempts: 5);
     }
 
     public function storeRujukan(Request $request, Kunjungan $kunjungan, CorrespondenceService $correspondence): RedirectResponse
@@ -874,10 +889,15 @@ class PemeriksaanController extends Controller
 
             $kunjungan->loadMissing(['pasien', 'dokter', 'poliklinik', 'pemeriksaan']);
             $date = Carbon::parse($kunjungan->tanggal);
-            $number = $template ? $correspondence->nextNumber($template, $date) : null;
+            $template ??= $correspondence->defaultTemplate('rujukan_internal');
+            $number = $correspondence->nextNumber($template, $date);
+            $snapshot = app(MedicalLetterData::class)->snapshot($kunjungan, $kunjungan->dokter, $date);
             $content = filled($data['konten_surat'] ?? null) ? $data['konten_surat'] : $template?->isi;
             if ($content !== null) {
                 $content = $correspondence->renderText($content, [
+                    '[anamnesis]' => $snapshot['clinical']['anamnesis'] ?? '',
+                    '[diagnosis]' => implode('; ', $snapshot['clinical']['diagnoses']),
+                    '[terapi]' => $snapshot['clinical']['therapy'],
                     '[nomor]' => (string) ($number ?? ''),
                     '[pasien]' => $kunjungan->pasien->nama,
                     '[no_rm]' => $kunjungan->pasien->no_rm,
@@ -894,12 +914,13 @@ class PemeriksaanController extends Controller
                 'surat_template_id' => $template?->id,
                 'nomor_surat' => $number,
                 'konten_surat' => $content,
+                'document_data' => $snapshot + ['fromClinic' => $kunjungan->poliklinik->nama, 'toClinic' => $targetClinic->nama],
                 'catatan' => $data['catatan'] ?? null,
                 'status' => 'menunggu',
             ]);
 
             return back()->with('success', 'Rujukan internal berhasil dibuat.');
-        });
+        }, attempts: 5);
     }
 
     public function selesai(Request $request, Kunjungan $kunjungan, ClinicalNoteRecorder $noteRecorder, ClinicalAuditRecorder $auditRecorder): RedirectResponse
@@ -940,6 +961,14 @@ class PemeriksaanController extends Controller
             abort_unless($examination->diagnosa()->where('jenis', 'utama')->count() === 1, 422, 'Pastikan tepat satu diagnosis utama sebelum finalisasi.');
             if ($lockedVisit->poliklinik?->jenis === 'gigi') {
                 abort_unless($lockedVisit->odontogramFindings()->exists(), 422, 'Catat temuan odontogram sebelum finalisasi kunjungan gigi.');
+                abort_unless(ClinicalAnswer::normalize($examination->pemeriksaan_fisik) !== null && ClinicalAnswer::normalize($examination->pemeriksaan_ekstraoral) !== null, 422, 'Lengkapi pemeriksaan intraoral dan ekstraoral dokter sebelum finalisasi.');
+                $request->validate(['review_dental_assessment' => ['required', 'accepted']], ['review_dental_assessment.required' => 'Konfirmasi pemeriksaan oral penuh dan tinjauan pengkajian perawat.', 'review_dental_assessment.accepted' => 'Konfirmasi pemeriksaan oral penuh dan tinjauan pengkajian perawat.']);
+                foreach ($lockedVisit->odontogramFindings()->get() as $finding) {
+                    if (! DentalAssessment::hasCompleteCariesDetails($finding->toArray())) {
+                        throw ValidationException::withMessages(['dental_findings' => 'Lengkapi permukaan, ICDAS, aktivitas, jenis, kedalaman, status pulpa / apikal, dan dasar pemeriksaan karies gigi '.$finding->tooth_fdi.'.']);
+                    }
+                }
+
             }
 
             $procedures = $lockedVisit->tindakanKunjungan()->with('tindakan.bhp.obat')->where('execution_role', 'dokter')->orderBy('id')->lockForUpdate()->get();
@@ -951,7 +980,11 @@ class PemeriksaanController extends Controller
             }
 
             $lockedVisit->unsetRelation('tindakanKunjungan');
-            $finalVersion = $noteRecorder->recordFinal($examination, $noteRecorder->snapshot($lockedVisit, $examination), $request->user()->id);
+            $payload = $noteRecorder->snapshot($lockedVisit, $examination);
+            if ($lockedVisit->poliklinik?->jenis === 'gigi') {
+                $payload['dental_review'] = ['reviewed_by' => $request->user()->id, 'reviewed_at' => now()->toIso8601String(), 'nurse_observation' => $lockedVisit->screening?->dentalObservationSummary() ?? []];
+            }
+            $finalVersion = $noteRecorder->recordFinal($examination, $payload, $request->user()->id);
             $examination->update([
                 'status' => 'selesai',
                 'signed_by_user_id' => $request->user()->id,
@@ -1046,6 +1079,11 @@ class PemeriksaanController extends Controller
                 || BodyMapPayload::hasContent($payload['body_map'] ?? null)
                 || ClinicalAnswer::normalize($payload['pemeriksaan_ekstraoral'] ?? null) !== null
                 || $lockedVisit->odontogramFindings()->exists();
+            if ($lockedVisit->poliklinik?->jenis === 'gigi' && (array_key_exists('pemeriksaan_fisik', $fields) || array_key_exists('pemeriksaan_ekstraoral', $fields))) {
+                if (ClinicalAnswer::normalize($payload['pemeriksaan_fisik'] ?? null) === null || ClinicalAnswer::normalize($payload['pemeriksaan_ekstraoral'] ?? null) === null) {
+                    throw ValidationException::withMessages(['pemeriksaan_fisik' => 'Pemeriksaan intraoral dan ekstraoral dokter tidak boleh dikosongkan melalui addendum.']);
+                }
+            }
             if (! $hasPhysicalFinding) {
                 throw ValidationException::withMessages(['pemeriksaan_fisik' => 'Catat setidaknya satu temuan pemeriksaan fisik.']);
             }
@@ -1074,9 +1112,14 @@ class PemeriksaanController extends Controller
             $this->authorizeMutableVisit($lockedVisit);
             abort_unless($lockedVisit->poliklinik?->jenis === 'gigi', 422, 'Odontogram hanya untuk kunjungan Poli Gigi.');
 
+            $otherFindings = $lockedVisit->odontogramFindings()->where('tooth_fdi', $data['tooth_fdi'])->where('surface', '!=', $data['surface'])->get();
+            if ($otherFindings->contains(fn (OdontogramFinding $finding): bool => in_array($finding->finding_code, ['missing', 'unerupted'], true))
+                || (in_array($data['finding_code'], ['missing', 'unerupted'], true) && $otherFindings->isNotEmpty())) {
+                throw ValidationException::withMessages(['finding_code' => 'Gigi hilang / belum erupsi tidak dapat memiliki temuan permukaan lain. Koreksi temuan yang bertentangan dahulu.']);
+            }
             $lockedVisit->odontogramFindings()->updateOrCreate(
                 ['tooth_fdi' => $data['tooth_fdi'], 'surface' => $data['surface']],
-                ['finding_code' => $data['finding_code'], 'notes' => $data['notes'] ?? null, 'recorded_by_user_id' => $request->user()->id]
+                ['finding_code' => $data['finding_code'], 'notes' => $data['notes'] ?? null, 'details' => $data['details'] ?? null, 'recorded_by_user_id' => $request->user()->id]
             );
             $auditRecorder->record($request, 'odontogram.draft_update', $lockedVisit->pasien_id, $lockedVisit->id);
         });
@@ -1141,6 +1184,9 @@ class PemeriksaanController extends Controller
         abort_unless($request->user()->role === 'dokter', 403, 'Finalisasi, koreksi final dan penerbitan dokumen dilakukan dokter penanggung jawab.');
         $this->authorizeVisit($kunjungan);
         $data = $this->validateDentalFinding($request);
+        if (! DentalAssessment::hasCompleteCariesDetails($data)) {
+            throw ValidationException::withMessages(['details' => 'Lengkapi rincian karies dan permukaan spesifik sebelum menyimpan addendum.']);
+        }
         $reason = trim($request->validate(['reason' => ['required', 'string', 'min:10', 'max:2000']])['reason']);
         if (mb_strlen($reason) < 10) {
             throw ValidationException::withMessages(['reason' => 'Alasan koreksi minimal 10 karakter setelah spasi dihapus.']);
@@ -1163,7 +1209,13 @@ class PemeriksaanController extends Controller
                 'surface' => $data['surface'],
                 'finding_code' => $data['finding_code'],
                 'notes' => $data['notes'] ?? null,
+                'details' => $data['details'] ?? null,
             ];
+            $otherFindings = $findings->filter(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] !== $data['surface']);
+            if ($otherFindings->contains(fn (array $finding): bool => in_array($finding['finding_code'], ['missing', 'unerupted'], true))
+                || (in_array($data['finding_code'], ['missing', 'unerupted'], true) && $otherFindings->isNotEmpty())) {
+                throw ValidationException::withMessages(['finding_code' => 'Koreksi temuan permukaan yang bertentangan dengan status seluruh gigi terlebih dahulu.']);
+            }
             $existing = $findings->first(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] === $data['surface']);
             if ($existing === $replacement) {
                 throw ValidationException::withMessages(['finding_code' => 'Temuan sama dengan versi terakhir.']);
@@ -1381,17 +1433,34 @@ class PemeriksaanController extends Controller
     }
 
     /**
-     * @return array{tooth_fdi: string, surface: string, finding_code: string, notes?: string|null}
+     * @return array{tooth_fdi: string, surface: string, finding_code: string, notes?: string|null, details?: array<string, mixed>}
      */
     private function validateDentalFinding(Request $request): array
     {
+        $detailRules = [];
+        foreach (DentalAssessment::detailOptions() as $key => $options) {
+            $detailRules['details.'.$key] = ['nullable', Rule::in(array_keys($options))];
+        }
         $data = $request->validate([
+            ...$detailRules,
+            'details' => ['nullable', 'array:icdas,activity,site,depth,root_severity,black_class,pulpal,periapical,assessment'],
+            'details.assessment' => ['nullable', 'string', 'max:3000'],
             'tooth_fdi' => ['required', Rule::in(OdontogramFinding::toothCodes())],
             'surface' => ['required', Rule::in(array_keys(OdontogramFinding::surfaceLabels()))],
             'finding_code' => ['required', Rule::in(array_keys(OdontogramFinding::findingLabels()))],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
         $data['notes'] = filled($data['notes'] ?? null) ? trim($data['notes']) : null;
+        $data['details'] = array_filter($data['details'] ?? [], fn (mixed $value): bool => filled($value));
+        if ($data['finding_code'] !== 'caries') {
+            $data['details'] = array_intersect_key($data['details'], array_flip(['pulpal', 'periapical', 'assessment']));
+        }
+        if (($data['details']['site'] ?? null) !== 'root') {
+            unset($data['details']['root_severity']);
+        }
+        if (isset($data['details']['assessment'])) {
+            $data['details']['assessment'] = trim($data['details']['assessment']);
+        }
 
         if (in_array($data['finding_code'], ['missing', 'unerupted'], true) && $data['surface'] !== 'W') {
             throw ValidationException::withMessages(['surface' => 'Temuan gigi hilang atau belum erupsi berlaku untuk seluruh gigi.']);

@@ -8,6 +8,7 @@ use App\ClinicalNoteRecorder;
 use App\ClinicDocumentNumber;
 use App\CorrespondenceService;
 use App\DateRangeFilter;
+use App\DentalAssessment;
 use App\DoctorAccessService;
 use App\Exports\PasienExport;
 use App\HakLayananVerifier;
@@ -525,6 +526,8 @@ class PasienController extends Controller
                         'surface' => $finding->surface,
                         'finding_code' => $finding->finding_code,
                         'notes' => $finding->notes,
+                        'details' => $finding->details,
+                        'detailSummary' => DentalAssessment::detailSummary($finding->details),
                     ])->all());
 
                 return [
@@ -612,6 +615,8 @@ class PasienController extends Controller
                                 'surface' => $finding['surface'],
                                 'findingCode' => $finding['finding_code'],
                                 'notes' => $finding['notes'] ?? null,
+                                'details' => $finding['details'] ?? null,
+                                'detailSummary' => DentalAssessment::detailSummary($finding['details'] ?? null),
                             ])->values()->all(),
                         ])->values()->all(),
                         'diagnoses' => collect(is_array($effectiveNote) ? ($effectiveNote['diagnoses'] ?? []) : ($integrityValid === false ? [] : $visit->pemeriksaan->diagnosa))->map(fn ($diagnosis): array => [
@@ -650,6 +655,8 @@ class PasienController extends Controller
                         'surface' => $finding['surface'],
                         'findingCode' => $finding['finding_code'],
                         'notes' => $finding['notes'] ?? null,
+                        'details' => $finding['details'] ?? null,
+                        'detailSummary' => DentalAssessment::detailSummary($finding['details'] ?? null),
                     ])->values()->all(),
                 ];
             })->all(),
