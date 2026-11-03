@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\DentalAssessment;
 use App\Models\Kunjungan;
 use App\PerawatClinicResolver;
 use App\VisitSchedulingService;
@@ -73,6 +74,11 @@ class StoreScreeningRequest extends FormRequest
             'kesadaran' => ['nullable', 'in:sadar,menurun,tidak_sadar'],
             'kondisi_psikiatri' => ['nullable', 'in:normal,terganggu'],
             'risiko_jatuh_visual' => ['nullable', 'in:rendah,sedang,tinggi'],
+            'extraoral_symmetry' => [Rule::excludeIf(! $isDental), 'nullable', 'in:symmetric,asymmetric,unknown'],
+            'extraoral_swelling' => [Rule::excludeIf(! $isDental), 'nullable', 'in:none,present,unknown'],
+            'extraoral_notes' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:2000'],
+            'dental_red_flags' => [Rule::excludeIf(! $isDental), 'nullable', 'array', 'max:7'],
+            'dental_red_flags.*' => ['string', 'distinct', Rule::in(array_keys(DentalAssessment::redFlagLabels()))],
             'lokasi_nyeri_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:255'],
             'durasi_keluhan_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:255'],
             'catatan_medis_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:5000'],
@@ -120,6 +126,13 @@ class StoreScreeningRequest extends FormRequest
             }
             if ($this->route('kunjungan')->poliklinik?->jenis !== 'gigi') {
                 return;
+            }
+            $flags = $this->input('dental_red_flags', []) ?? [];
+            if (array_intersect(['none', 'unknown'], $flags) && count($flags) > 1) {
+                $validator->errors()->add('dental_red_flags', 'Pilihan tidak ditemukan atau belum dapat dinilai harus dipilih sendiri.');
+            }
+            if ($final && ($this->input('extraoral_symmetry') === 'asymmetric' || $this->input('extraoral_swelling') === 'present' || array_diff($flags, ['none']) !== []) && ! $this->filled('extraoral_notes')) {
+                $validator->errors()->add('extraoral_notes', 'Jelaskan lokasi, sisi, temuan / kendala, serta tindak lanjut atau komunikasi kepada dokter.');
             }
             foreach (['pemicu_nyeri_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi'] as $field) {
                 $values = $this->input($field, []) ?? [];

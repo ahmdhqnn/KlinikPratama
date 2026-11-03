@@ -11,10 +11,10 @@ class SuratMedis extends Model
 
     protected $fillable = [
         'kunjungan_id', 'dokter_id', 'surat_template_id', 'jenis',
-        'konten', 'tanggal', 'nomor_surat',
+        'konten', 'tanggal', 'nomor_surat', 'document_data',
     ];
 
-    protected $casts = ['tanggal' => 'date'];
+    protected $casts = ['tanggal' => 'date', 'document_data' => 'array'];
 
     public function kunjungan(): BelongsTo
     {

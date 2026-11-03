@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\DentalAssessment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -11,6 +12,7 @@ class Screening extends Model
 
     protected $fillable = [
         'kunjungan_id', 'petugas_id', 'recorded_by_user_id', 'keluhan',
+        'extraoral_symmetry', 'extraoral_swelling', 'extraoral_notes', 'dental_red_flags',
         'td_sistole', 'td_diastole', 'nadi', 'suhu',
         'berat_badan', 'tinggi_badan', 'spo2', 'respirasi',
         'riwayat_penyakit', 'riwayat_alergi', 'risiko_jatuh',
@@ -29,6 +31,7 @@ class Screening extends Model
     ];
 
     protected $casts = [
+        'dental_red_flags' => 'array',
         'started_at' => 'datetime',
         'submitted_at' => 'datetime',
         'lingkar_perut' => 'decimal:1',
@@ -62,6 +65,19 @@ class Screening extends Model
         }
 
         return null;
+    }
+
+    /** @return array<string, ?string> */
+    public function dentalObservationSummary(): array
+    {
+        $labels = ['symmetric' => 'Tampak simetris', 'asymmetric' => 'Tampak asimetris', 'none' => 'Tidak tampak', 'present' => 'Tampak pembengkakan', 'unknown' => 'Belum dapat dinilai'];
+
+        return [
+            'Visual ekstraoral awal perawat - simetri wajah' => $labels[$this->extraoral_symmetry ?? ''] ?? null,
+            'Visual ekstraoral awal perawat - pembengkakan' => $labels[$this->extraoral_swelling ?? ''] ?? null,
+            'Catatan visual ekstraoral awal perawat' => $this->extraoral_notes,
+            'Tanda bahaya gigi / mulut' => $this->dental_red_flags ? implode(', ', array_map(fn (string $value): string => DentalAssessment::redFlagLabels()[$value] ?? $value, $this->dental_red_flags)) : null,
+        ];
     }
 
     /** @return array<string, ?string> */
@@ -113,6 +129,7 @@ class Screening extends Model
             'Catatan penapisan' => $this->catatan_triase,
             'Pengkajian gizi' => $choice($this->skrining_gizi),
             'Observasi awal' => $this->pemeriksaan_fisik,
+            ...$this->dentalObservationSummary(),
             'Lokasi keluhan / nyeri' => $this->lokasi_nyeri_gigi,
             'Pemicu keluhan' => $choices($this->pemicu_nyeri_gigi),
             'Pola / lama keluhan' => $this->durasi_keluhan_gigi,

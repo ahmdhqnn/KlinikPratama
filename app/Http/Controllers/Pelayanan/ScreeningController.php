@@ -341,6 +341,7 @@ class ScreeningController extends Controller
                     ]),
                     'dental' => $kunjungan->poliklinik?->jenis === 'gigi' ? $presentRows([
                         'Kondisi kesehatan yang perlu diketahui dokter gigi' => $screening->risiko_medis_gigi ? $choices($screening->risiko_medis_gigi) : null,
+                        ...$screening->dentalObservationSummary(),
                         'Lokasi keluhan / nyeri' => $screening->lokasi_nyeri_gigi,
                         'Pemicu keluhan' => $screening->pemicu_nyeri_gigi ? $choices($screening->pemicu_nyeri_gigi) : null,
                         'Pola / lama keluhan' => $screening->durasi_keluhan_gigi,
@@ -370,6 +371,7 @@ class ScreeningController extends Controller
             ->where('poliklinik_id', $kunjungan->poliklinik_id)->orderBy('nama')->get();
 
         $screeningFields = [
+            'extraoral_symmetry', 'extraoral_swelling', 'extraoral_notes', 'dental_red_flags',
             'petugas_id', 'keluhan', 'td_sistole', 'td_diastole', 'nadi', 'suhu', 'berat_badan', 'tinggi_badan',
             'lingkar_perut', 'spo2', 'respirasi', 'riwayat_penyakit', 'riwayat_alergi', 'risiko_jatuh',
             'risiko_nyeri', 'skrining_gizi', 'alergi_jenis', 'alergi_reaksi', 'penyakit_nama',
@@ -444,7 +446,7 @@ class ScreeningController extends Controller
         unset($data['tindakan'], $data['konfirmasi_riwayat'], $data['assistance_reason']);
         $data['recorded_by_user_id'] = $request->user()->id;
 
-        foreach (['pemicu_nyeri_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi'] as $field) {
+        foreach (['pemicu_nyeri_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi', 'dental_red_flags'] as $field) {
             if (in_array('tidak_ada', $data[$field] ?? [], true) && count($data[$field] ?? []) > 1) {
                 return back()->withErrors([$field => 'Pilihan Tidak ada tidak dapat digabung dengan pilihan lain.'])->withInput();
             }
@@ -453,13 +455,13 @@ class ScreeningController extends Controller
         foreach ([
             'keluhan', 'keluhan_tambahan', 'lama_keluhan', 'riwayat_obat', 'riwayat_penyakit', 'penyakit_nama', 'penyakit_keterangan',
             'riwayat_alergi', 'alergi_jenis', 'alergi_reaksi', 'riwayat_penyakit_keluarga',
-            'lokasi_nyeri_gigi', 'durasi_keluhan_gigi', 'catatan_medis_gigi',
+            'lokasi_nyeri_gigi', 'durasi_keluhan_gigi', 'catatan_medis_gigi', 'extraoral_notes',
         ] as $field) {
             if (array_key_exists($field, $data)) {
                 $data[$field] = filled($data[$field]) ? trim($data[$field]) : null;
             }
         }
-        foreach (['pemicu_nyeri_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi'] as $field) {
+        foreach (['pemicu_nyeri_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi', 'dental_red_flags'] as $field) {
             $data[$field] = $isDental && filled($data[$field] ?? null) ? $data[$field] : null;
         }
 
@@ -540,7 +542,8 @@ class ScreeningController extends Controller
      */
     private function determineTriage(array $data): array
     {
-        $emergency = ($data['nyeri_dada'] ?? null) === 'ya'
+        $emergency = (bool) array_intersect($data['dental_red_flags'] ?? [], ['breathing', 'swallowing', 'rapid_swelling'])
+            || ($data['nyeri_dada'] ?? null) === 'ya'
             || ($data['kejang'] ?? null) === 'ya'
             || ($data['nadi_teraba'] ?? null) === 'tidak_teraba'
             || ($data['kesadaran'] ?? null) === 'tidak_sadar'
@@ -550,7 +553,9 @@ class ScreeningController extends Controller
             return ['merah', 'darurat'];
         }
 
-        $priority = ($data['kondisi_psikiatri'] ?? null) === 'terganggu'
+        $priority = (bool) array_intersect($data['dental_red_flags'] ?? [], ['trismus', 'fever'])
+            || ($data['extraoral_swelling'] ?? null) === 'present'
+            || ($data['kondisi_psikiatri'] ?? null) === 'terganggu'
             || ($data['kesadaran'] ?? null) === 'menurun'
             || in_array($data['risiko_jatuh_visual'] ?? null, ['sedang', 'tinggi'], true);
 

@@ -1,3 +1,4 @@
+import { letterTypes } from '@/components/medical-letter-fields';
 import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { Head, Link, router, useForm } from '@inertiajs/react';
@@ -54,13 +55,7 @@ interface Props {
     eligibleVisits: (PaginationData & { data: { id: number; date: string; number: string; patient: string; medicalRecordNumber: string; clinic: string; letterUrl: string | null }[] }) | null;
 }
 
-const documentTypes = [
-    ['sakit', 'Surat keterangan sakit'],
-    ['sehat', 'Surat keterangan sehat'],
-    ['rujukan', 'Surat rujukan eksternal'],
-    ['lainnya', 'Surat lainnya'],
-    ['rujukan_internal', 'Rujukan internal'],
-];
+const documentTypes = [...letterTypes, ['rujukan_internal', 'Rujukan internal']];
 
 const emptyTemplate = {
     kode: '', nama: '', jenis: 'sakit', prefix: 'SK', format_nomor: '[prefix]/[urut]/[bulan]/[tahun]',
@@ -178,8 +173,8 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
                                         <Field error={form.errors.nomor_berikutnya} htmlFor="template-next-number" label="Nomor berikutnya" required><Input id="template-next-number" min="1" onChange={(event) => form.setData('nomor_berikutnya', event.target.value)} required type="number" value={form.data.nomor_berikutnya} /></Field>
                                         <Field error={form.errors.is_active} htmlFor="template-active" label="Status"><Select id="template-active" onChange={(event) => form.setData('is_active', event.target.value === 'true')} value={form.data.is_active ? 'true' : 'false'}><option value="true">Aktif</option><option value="false">Nonaktif</option></Select></Field>
                                     </div>
-                                    <p className="text-xs text-neutral-500">Token nomor: [prefix], [urut], [bulan], [tahun]. Token isi surat mengikuti konteks dokumen seperti [pasien], [no_rm], [dokter], [nomor], [tanggal], [poli], dan [poli_tujuan].</p>
-                                    <Field error={form.errors.isi} htmlFor="template-isi" label="Isi template" required><Textarea placeholder="Tulis isi surat menggunakan token seperti [pasien], [dokter], dan [tanggal]" id="template-isi" onChange={(event) => form.setData('isi', event.target.value)} required rows={8} value={form.data.isi} /></Field>
+                                    <p className="text-xs text-neutral-500">Token nomor: [prefix], [urut], [bulan], [tahun]. Token isi surat mengikuti konteks dokumen seperti [pasien], [no_rm], [anamnesis], [diagnosis], [terapi], [dokter], [nomor], [tanggal], [poli], dan [poli_tujuan].</p>
+                                    <Field error={form.errors.isi} htmlFor="template-isi" label="Keterangan tambahan template"><Textarea placeholder="Tulis isi surat menggunakan token seperti [pasien], [dokter], dan [tanggal]" id="template-isi" onChange={(event) => form.setData('isi', event.target.value)} rows={8} value={form.data.isi} /></Field>
                                     <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{editingId && <Button onClick={resetForm} type="button" variant="secondary">Batal ubah</Button>}<Button disabled={form.processing} type="submit">{editingId ? <Save className="size-4" /> : <Plus className="size-4" />}{editingId ? 'Simpan perubahan' : 'Simpan template'}</Button></div>
                                 </form>
                             </CardContent>

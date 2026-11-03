@@ -6,6 +6,7 @@ use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
 use App\CorrespondenceService;
 use App\DoctorAccessService;
+use App\MedicalLetterData;
 use App\Models\CorrespondenceTemplate;
 use App\Models\KlinikSetting;
 use App\Models\Kunjungan;
@@ -14,12 +15,14 @@ use App\Models\RujukanInternal;
 use App\Models\SuratMedis;
 use App\Models\User;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -172,13 +175,14 @@ class PersuratanController extends Controller
     {
         $this->authorizeLetterIssue($request->user(), $kunjungan, $notes);
         $data = $request->validate([
-            'jenis' => ['required', 'in:sakit,sehat,rujukan,lainnya'],
+            'jenis' => ['required', Rule::in(MedicalLetterData::TYPES)],
             'konten' => ['nullable', 'string', 'max:10000'],
             'tanggal' => ['required', 'date'],
             'surat_template_id' => ['nullable', 'exists:correspondence_templates,id'],
         ]);
 
-        DB::transaction(function () use ($request, $kunjungan, $notes, $data): void {
+        $details = app(MedicalLetterData::class)->validate($request);
+        DB::transaction(function () use ($request, $kunjungan, $notes, $data, $details): void {
             $visit = Kunjungan::query()->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeLetterIssue($request->user(), $visit, $notes);
             $template = filled($data['surat_template_id'] ?? null)
@@ -188,21 +192,27 @@ class PersuratanController extends Controller
                 throw ValidationException::withMessages(['surat_template_id' => 'Template tidak sesuai dengan jenis surat.']);
             }
             $date = Carbon::parse($data['tanggal']);
-            $number = $template ? $this->correspondence->nextNumber($template, $date) : null;
+            $template ??= $this->correspondence->defaultTemplate($data['jenis']);
+            $number = $this->correspondence->nextNumber($template, $date);
+            $snapshot = app(MedicalLetterData::class)->snapshot($visit, $visit->dokter, $date);
             $content = filled($data['konten'] ?? null) ? $data['konten'] : $template?->isi;
             if ($content !== null) {
                 $content = $this->correspondence->renderText($content, [
                     '[nomor]' => (string) ($number ?? ''), '[pasien]' => $visit->pasien->nama,
                     '[no_rm]' => $visit->pasien->no_rm, '[dokter]' => $visit->dokter?->nama ?? 'Dokter klinik',
+                    '[anamnesis]' => $snapshot['clinical']['anamnesis'] ?? '',
+                    '[diagnosis]' => implode('; ', $snapshot['clinical']['diagnoses']),
+                    '[terapi]' => $snapshot['clinical']['therapy'],
                     '[poli]' => $visit->poliklinik?->nama ?? '', '[tanggal]' => $date->locale('id')->isoFormat('D MMMM Y'),
                 ]);
             }
             $visit->suratMedis()->create([
                 'dokter_id' => $visit->dokter_id, 'surat_template_id' => $template?->id,
                 'jenis' => $data['jenis'], 'konten' => $content, 'nomor_surat' => $number, 'tanggal' => $date,
+                'document_data' => $snapshot + ['details' => $details],
             ]);
             app(ClinicalAuditRecorder::class)->record($request, 'medical_letter.issue', $visit->pasien_id, $visit->id);
-        });
+        }, attempts: 5);
 
         return redirect()->route('persuratan.index')->with('success', 'Dokumen berhasil diterbitkan.');
     }
@@ -210,7 +220,10 @@ class PersuratanController extends Controller
     public function updateTemplate(Request $request, CorrespondenceTemplate $template): RedirectResponse
     {
         $this->authorizeTemplateManagement($request->user());
-        $template->update($this->validatedTemplate($request, $template));
+        DB::transaction(function () use ($request, $template): void {
+            $locked = CorrespondenceTemplate::query()->lockForUpdate()->findOrFail($template->id);
+            $locked->update($this->validatedTemplate($request, $locked));
+        });
 
         return back()->with('success', 'Template persuratan berhasil diperbarui.');
     }
@@ -263,7 +276,7 @@ class PersuratanController extends Controller
         $auditRecorder->record($request, 'medical_letter.print', $visit->pasien_id, $visit->id, ['document_id' => $suratMedis->id]);
 
         return Inertia::render('persuratan/cetak', [
-            'document' => $this->baseDocument($visit, 'surat', $suratMedis->dokter_id ? $suratMedis->dokter : $visit->dokter) + [
+            'document' => $this->baseDocument($visit, 'surat', $suratMedis->dokter_id ? $suratMedis->dokter : $visit->dokter, $suratMedis->document_data, $suratMedis->tanggal) + [
                 'number' => $suratMedis->nomor_surat,
                 'type' => $suratMedis->jenis,
                 'date' => $suratMedis->tanggal?->locale('id')->isoFormat('D MMMM Y'),
@@ -281,11 +294,11 @@ class PersuratanController extends Controller
         $auditRecorder->record($request, 'internal_referral.print', $visit->pasien_id, $visit->id, ['document_id' => $rujukanInternal->id]);
 
         return Inertia::render('persuratan/cetak', [
-            'document' => $this->baseDocument($visit, 'rujukan_internal', $visit->dokter) + [
+            'document' => $this->baseDocument($visit, 'rujukan_internal', $visit->dokter, $rujukanInternal->document_data) + [
                 'number' => $rujukanInternal->nomor_surat,
                 'date' => $visit->tanggal?->locale('id')->isoFormat('D MMMM Y'),
-                'fromClinic' => $rujukanInternal->dariPoli?->nama,
-                'toClinic' => $rujukanInternal->kePoli?->nama,
+                'fromClinic' => $rujukanInternal->document_data['fromClinic'] ?? $rujukanInternal->dariPoli?->nama,
+                'toClinic' => $rujukanInternal->document_data['toClinic'] ?? $rujukanInternal->kePoli?->nama,
                 'content' => $rujukanInternal->konten_surat,
                 'notes' => $rujukanInternal->catatan,
             ] + $this->documentReturn($request, $visit, 'rujukan', 'Kembali ke rujukan internal'),
@@ -295,49 +308,42 @@ class PersuratanController extends Controller
     /** @return array<string, mixed> */
     private function validatedTemplate(Request $request, ?CorrespondenceTemplate $template = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'kode' => ['required', 'string', 'max:60', Rule::unique('correspondence_templates', 'kode')->ignore($template?->id)],
             'nama' => ['required', 'string', 'max:180'],
-            'jenis' => ['required', Rule::in(['sakit', 'sehat', 'rujukan', 'lainnya', 'rujukan_internal'])],
+            'jenis' => ['required', Rule::in([...MedicalLetterData::TYPES, 'rujukan_internal'])],
             'prefix' => ['required', 'string', 'max:40'],
-            'format_nomor' => ['required', 'string', 'max:120'],
-            'nomor_berikutnya' => ['required', 'integer', 'min:1'],
-            'isi' => ['required', 'string', 'max:10000'],
+            'format_nomor' => ['required', 'string', 'max:100', 'regex:/\[urut\]/', 'not_regex:/\[(?!(?:prefix|urut|bulan|tahun)\])[^\]]+\]/'],
+            'nomor_berikutnya' => ['required', 'integer', 'min:'.($template?->nomor_berikutnya ?? 1)],
+            'isi' => ['nullable', 'string', 'max:10000'],
             'is_active' => ['required', 'boolean'],
         ]);
+
+        return [...$data, 'isi' => $data['isi'] ?? ''];
     }
 
     /** @return array<string, mixed> */
-    private function baseDocument(Kunjungan $visit, string $kind, ?Nakes $doctor): array
+    private function baseDocument(Kunjungan $visit, string $kind, ?Nakes $doctor, ?array $snapshot = null, ?CarbonInterface $date = null): array
     {
         $visit->loadMissing(['pasien', 'poliklinik', 'dokter.user']);
-        $user = $doctor?->user;
         $settings = KlinikSetting::query()->first();
+        $snapshot ??= app(MedicalLetterData::class)->snapshot($visit, $doctor, $date ?? $visit->tanggal);
 
         return [
             'kind' => $kind,
             'clinic' => [
-                'name' => $settings?->nama_klinik ?? 'Klinik Pratama',
-                'address' => $settings?->alamat,
-                'phone' => $settings?->telepon,
+                'name' => 'Klinik Pratama Kementerian Pariwisata',
+                'address' => $settings?->alamat ?: 'Jl. Medan Merdeka Barat No. 17, Gambir, Jakarta Pusat 10110',
+                'phone' => $settings?->telepon ?: '021 3838142',
                 'email' => $settings?->email,
                 'logoUrl' => $settings?->logo ? Storage::disk('public')->url($settings->logo) : null,
             ],
-            'patient' => [
-                'name' => $visit->pasien->nama,
-                'medicalRecordNumber' => $visit->pasien->no_rm,
-                'gender' => $visit->pasien->jenis_kelamin,
-                'age' => $visit->pasien->umur,
-                'address' => $visit->pasien->alamat,
-            ],
+            'patient' => $snapshot['patient'],
+            'clinical' => $kind === 'resep_luar' ? null : $snapshot['clinical'],
+            'details' => $snapshot['details'] ?? [],
             'visitNumber' => $visit->no_kunjungan,
             'clinicName' => $visit->poliklinik?->nama ?? 'Belum diisi',
-            'doctor' => [
-                'name' => $doctor?->nama ?? 'Dokter klinik',
-                'sip' => $doctor?->no_sip,
-                'str' => $doctor?->no_str,
-                'signatureDataUrl' => $this->correspondence->signatureDataUrl($user),
-            ],
+            'doctor' => $snapshot['doctor'],
         ];
     }
 
