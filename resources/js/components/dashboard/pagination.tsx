@@ -12,7 +12,7 @@ export interface PaginationData {
     nextUrl: string | null;
 }
 
-export function Pagination({ pagination }: { pagination: PaginationData }) {
+export function Pagination({ pagination, onPageChange }: { pagination: PaginationData; onPageChange?: (page: number) => void }) {
     if (pagination.total === 0) {
         return null;
     }
@@ -23,11 +23,11 @@ export function Pagination({ pagination }: { pagination: PaginationData }) {
                 {`${pagination.from ?? 0}–${pagination.to ?? 0} dari ${new Intl.NumberFormat('id-ID').format(pagination.total)} data`}
             </p>
             {pagination.lastPage > 1 && <nav aria-label="Navigasi halaman" className="flex shrink-0 items-center justify-center gap-2">
-                {pagination.previousUrl
+                {onPageChange ? <Button aria-label="Halaman sebelumnya" disabled={pagination.currentPage <= 1} onClick={() => onPageChange(pagination.currentPage - 1)} size="sm" type="button" variant="secondary"><ArrowLeft className="size-4" /><span className="hidden sm:inline">Sebelumnya</span></Button> : pagination.previousUrl
                     ? <Button asChild size="sm" variant="secondary"><Link aria-label="Halaman sebelumnya" href={pagination.previousUrl} preserveScroll><ArrowLeft className="size-4" /><span className="hidden sm:inline">Sebelumnya</span></Link></Button>
                     : <Button aria-label="Halaman sebelumnya" disabled size="sm" variant="secondary"><ArrowLeft className="size-4" /><span className="hidden sm:inline">Sebelumnya</span></Button>}
                 <span aria-current="page" className="min-w-20 whitespace-nowrap px-2 text-center text-sm tabular-nums text-neutral-600">{pagination.currentPage} / {pagination.lastPage}</span>
-                {pagination.nextUrl
+                {onPageChange ? <Button aria-label="Halaman berikutnya" disabled={pagination.currentPage >= pagination.lastPage} onClick={() => onPageChange(pagination.currentPage + 1)} size="sm" type="button" variant="secondary"><span className="hidden sm:inline">Berikutnya</span><ArrowRight className="size-4" /></Button> : pagination.nextUrl
                     ? <Button asChild size="sm" variant="secondary"><Link aria-label="Halaman berikutnya" href={pagination.nextUrl} preserveScroll><span className="hidden sm:inline">Berikutnya</span><ArrowRight className="size-4" /></Link></Button>
                     : <Button aria-label="Halaman berikutnya" disabled size="sm" variant="secondary"><span className="hidden sm:inline">Berikutnya</span><ArrowRight className="size-4" /></Button>}
             </nav>}

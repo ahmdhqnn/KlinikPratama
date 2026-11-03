@@ -3,7 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import type { ButtonHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
-const buttonVariants = cva(
+export const buttonVariants = cva(
     'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
     {
         variants: {
@@ -12,6 +12,7 @@ const buttonVariants = cva(
                 secondary: 'border border-neutral-200 bg-surface text-neutral-700 shadow-sm hover:bg-neutral-50',
                 ghost: 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900',
                 destructive: 'bg-red-600 text-on-inverse shadow-sm hover:bg-red-700 dark:hover:bg-red-600/90',
+                destructiveOutline: 'border border-red-200 bg-surface text-red-700 shadow-sm hover:bg-red-50 focus-visible:ring-red-500',
                 link: 'text-neutral-700 underline-offset-4 hover:underline',
             },
             size: {

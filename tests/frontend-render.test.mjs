@@ -1159,7 +1159,7 @@ test('dental lesion details remain visible with the saved findings and in the cl
     assert.match(html, /id="dental-detail-assessment"/);
     assert.match(html, /ICDAS 5 - Aktif - Dentin/);
     assert.match(html, /Odontogram dan rincian lesi/);
-    assert.match(html, /Pemeriksaan intraoral dokter \(wajib sebelum finalisasi\)/);
+    assert.match(html, /Pemeriksaan intraoral/);
 });
 
 test('dental examination places the FDI entry before the findings table within its workflow tab', async () => {
@@ -1174,7 +1174,7 @@ test('dental examination places the FDI entry before the findings table within i
     assert.match(html, /Pemeriksaan &amp; odontogram/);
     assert.doesNotMatch(html, /Diagram Anatomi &amp; Lokasi Keluhan Tubuh/);
     assert.doesNotMatch(html, /id="riwayat-alergi-dokter"[^>]*class="[^"]*border-red|border-red-300[^>]*id="riwayat-alergi-dokter"/);
-    assert.match(html, /Kesiapan finalisasi/);
+    assert.doesNotMatch(html, /Tinjauan sebelum selesai/);
     assert.doesNotMatch(html, /Isian belum disimpan/);
 });
 
@@ -1207,7 +1207,11 @@ test('doctor handover shows only entered nursing answers and measured values', a
     assert.match(handover, /Keluhan awal[\s\S]*Batuk sejak dua hari/);
     assert.match(handover, /Tekanan darah[\s\S]*120 \/ 80 mmHg/);
     assert.match(handover, /Lingkar perut[\s\S]*82 cm/);
-    assert.doesNotMatch(handover, /Alergi profil pasien|Belum diukur|Belum dinilai|Belum dihitung|Belum dicatat/);
+    assert.doesNotMatch(handover.slice(handover.indexOf('</summary>')), /Alergi profil pasien|Belum diukur|Belum dinilai|Belum dihitung|Belum dicatat/);
+    assert.match(handover, /Buka/);
+    assert.match(handover, /Tutup/);
+    assert.doesNotMatch(handover, /max-h-|overflow-y-auto/);
+    assert.doesNotMatch(handover.match(/<details[^>]*>/)?.[0] ?? '', / open(?:=|>)/);
     assert.match(handover, /md:col-span-2[^>]*>[\s\S]*Pengkajian tambahan/);
     assert.match(html, /aria-label="Tutup informasi pemeriksaan"/);
 });
@@ -1304,11 +1308,11 @@ for (const clinicType of ['gigi', 'umum']) {
         assert.ok(disclosure, 'follow-up section can expand without unmounting its form');
         assert.match(disclosure, /\sopen(?:=|\s|>)/, 'non-drug care is visible without opening a disclosure');
         assert.match(followUp, /id="non-farmakologis"/);
-        assert.match(followUp, /<summary\b[^>]*aria-controls="rencana-content"/);
+        assert.match(followUp, /<details\b[^>]*id="education-details"/);
         assert.match(followUp, /id="kontrol_berikutnya"/);
         assert.match(followUp, /id="edukasi"/);
         assert.match(followUp, /id="catatan"/);
-        assert.match(followUp, /Simpan rencana tindak lanjut/);
+        assert.match(followUp, /Simpan perawatan &amp; tindak lanjut/);
         assert.ok(html.indexOf('id="rencana-tindak-lanjut"') > html.indexOf('-panel-rujukan'));
         assert.doesNotMatch(html, /id="ohis"|Indeks kebersihan mulut|Saran diagnosis dari keluhan|Hasil katalog terminologi/);
         if (clinicType === 'gigi') {
@@ -1659,6 +1663,7 @@ async function clinicalSaveHarness(pendingBodyFinding = false) {
     const formNames = ['examinationForm', 'physicalForm', 'differentialForm', 'followUpForm', 'diagnosisForm', 'treatmentForm', 'prescriptionForm', 'externalPrescriptionForm', 'letterForm', 'referralForm', 'addendumForm', 'dentalForm'];
     const forms = Object.fromEntries(formNames.map((name) => [name, {
         data: { note: 'Isian dokter ' + name }, isDirty: true, processing: false, resets: 0, defaults: null,
+        transform(callback) { this.transformData = callback; return this; },
         post(url, options) { this.processing = true; posts.push({ name, url, options }); },
         setDefaults(data) { this.defaults = data; this.isDirty = false; },
         setData(data) { this.data = data; },
@@ -2153,7 +2158,7 @@ test('manual diagnosis form renders a text diagnosis and type without a hidden m
     const { Plus } = await import('lucide-react');
     const { normalizeClinicalAnswer } = await server.ssrLoadModule('/resources/js/lib/clinical-answer.ts');
     const code = ts.transpileModule('const element = (' + form + ');', { compilerOptions: { target: ts.ScriptTarget.ESNext, jsx: ts.JsxEmit.React } }).outputText;
-    const element = runInNewContext(code + '\nelement', { React: { createElement }, ...components, Plus, normalizeClinicalAnswer, canSubmitEntry: () => true, visit: { id: 1 }, diagnosisForm: { data: { is_manual: true, kode_icd10: '', nama_diagnosa: 'Diagnosis bebas', keterangan: 'Rincian diagnosis dokter', jenis: 'utama' }, errors: {}, processing: false } });
+    const element = runInNewContext(code + '\nelement', { React: { createElement }, ...components, Plus, isDental: false, normalizeClinicalAnswer, canSubmitEntry: () => true, visit: { id: 1 }, diagnosisForm: { data: { is_manual: true, kode_icd10: '', nama_diagnosa: 'Diagnosis bebas', keterangan: 'Rincian diagnosis dokter', jenis: 'utama' }, errors: {}, processing: false } });
     const html = renderToString(element);
     assert.match(html, /Jenis diagnosis/);
     assert.match(html, /Keterangan diagnosis/);
@@ -2900,3 +2905,229 @@ for (const [type, title] of [
         if (type === 'sehat') assert.match(article, /Temuan sesuai pemeriksaan/);
     });
 }
+
+ test('dental quick tests generate only observed results and preserve manual notes when toggled', async () => {
+    const { updateClinicalTest, clinicalTestSummary } = await server.ssrLoadModule('/resources/js/components/odontogram/dental-clinical-controls.tsx');
+    const first = updateClinicalTest({ assessment: 'Catatan manual tetap.' }, 'vitality', 'positive');
+    assert.match(first.assessment, /Termal/);
+    assert.doesNotMatch(first.assessment, /Palpasi|Perkusi/);
+    const next = updateClinicalTest(first, 'percussion', 'negative');
+    assert.match(next.assessment, /Perkusi/);
+    assert.match(next.assessment, /Catatan manual tetap/);
+    const cleared = updateClinicalTest(next, 'vitality', 'positive');
+    assert.doesNotMatch(clinicalTestSummary(cleared), /Termal/);
+    assert.match(cleared.assessment, /Catatan manual tetap/);
+    assert.equal((cleared.assessment.match(/Tes klinis:/g) ?? []).length, 1);
+ });
+
+test('dental workspace offers model switching and keeps the surface diagram above the multi-select without internal scrolling', async () => {
+    const html = await renderPage('pelayanan/pemeriksaan/show', examinationProps());
+    const panel = htmlElementById(html, 'dental-action-panel');
+    assert.match(html, /aria-label="Model peta gigi"/);
+    assert.match(html, /aria-pressed="true"[^>]*>Peta FDI/);
+    assert.match(html, /aria-pressed="false"[^>]*>Gigi &amp; gusi/);
+    assert.match(panel, /aria-label="Gigi terpilih"/);
+    assert.ok(panel.indexOf('aria-label="Permukaan gigi') < panel.indexOf('id="dental-surface"'));
+    assert.doesNotMatch(panel, /overflow-y-auto|max-h-\[/);
+    assert.doesNotMatch(panel, /<summary[^>]*>Pilih permukaan melalui diagram/);
+});
+
+test('dental selection rows align and clinical tests share a compact two-column layout', async () => {
+    const html = await renderPage('pelayanan/pemeriksaan/show', examinationProps());
+    const panel = htmlElementById(html, 'dental-action-panel');
+    assert.match(panel, /grid-rows-subgrid/);
+    assert.match(panel, /aria-label="Gigi terpilih"/);
+    assert.match(panel, /bg-neutral-900 text-neutral-50 font-mono text-xl/);
+    assert.match(panel, /grid min-w-0 items-start gap-4 sm:grid-cols-2/);
+    const handover = htmlElementById(html, 'nurse-assessment-summary');
+    assert.doesNotMatch(handover, /overflow-y-auto|max-h-|sticky/);
+    assert.match(handover, /group-open\/disclosure/);
+});
+
+test('dental nurse extraoral observations reach the physician examination area without becoming physician findings', async () => {
+    const props = examinationProps('gigi');
+    props.visit.screening = { summary: { 'Visual ekstraoral awal perawat - simetri wajah': 'Tampak asimetris', 'Catatan visual ekstraoral awal perawat': 'Bengkak pipi kanan, dokter dihubungi' }, dentalPainTriggers: [], dentalMedicalRisks: [], dentalInfectionHistory: [] };
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    const handover = htmlElementById(html, 'nurse-extraoral-handover');
+    assert.match(handover, /Tampak asimetris/);
+    assert.match(handover, /Bengkak pipi kanan, dokter dihubungi/);
+    assert.doesNotMatch(htmlElementById(html, 'extraoral'), /Bengkak pipi kanan/);
+    assert.match(html, /Lepas pilihan/);
+    assert.doesNotMatch(html, /Tinjauan sebelum selesai/);
+});
+
+for (const clinicType of ['umum', 'gigi']) {
+    test(`${clinicType} uses the shared start action before examination and keeps test dividers at section boundaries`, async () => {
+        const props = examinationProps(clinicType, { examination: null, canClaim: false });
+        const html = await renderPage('pelayanan/pemeriksaan/show', props);
+        assert.match(html, /Mulai pemeriksaan/);
+        assert.match(html, /lucide-play/);
+        assert.match(html, /Klik Mulai pemeriksaan/);
+        assert.doesNotMatch(html, /id="dental-action-panel"/);
+        const started = await renderPage('pelayanan/pemeriksaan/show', examinationProps(clinicType));
+        assert.doesNotMatch(started, /<button[^>]*>[\s\S]{0,250}Mulai pemeriksaan<\/button>/);
+        if (clinicType === 'gigi') assert.match(started, /border-t border-neutral-200 pt-5 shadow-none/);
+    });
+}
+ test('clinical quick tests do not add borders above individual test labels', async () => {
+    const { DentalClinicalControls } = await server.ssrLoadModule('/resources/js/components/odontogram/dental-clinical-controls.tsx');
+    const html = renderToString(createElement(DentalClinicalControls, { tooth: '46', surface: 'O', finding: 'caries', details: {}, disabled: false, mode: 'tests', onSurface() {}, onChange() {} }));
+    assert.doesNotMatch(html, /border-t/);
+    assert.match(html, /Termal/);
+    assert.match(html, /Perkusi/);
+ });
+
+test('physician sections use the dental examination title and shared centered tables', async () => {
+    const dental = await renderPage('pelayanan/pemeriksaan/show', examinationProps());
+    assert.match(dental, /Pemeriksaan Fisik &amp; Intraoral Dokter/);
+    const { DentalExaminationSummary, GeneralExaminationSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
+    const summary = renderToString(createElement(DentalExaminationSummary, { anamnesis: '', findings: [{ toothFdi: '46', surface: 'O', findingCode: 'caries', notes: 'Kavitas' }], options: { surfaces: { O: 'Oklusal' }, findings: { caries: 'Karies' } }, hasUnsavedChanges: false, onReview() {} }));
+    assert.match(summary, /px-5 py-4 text-center align-middle/);
+    const general = renderToString(createElement(GeneralExaminationSummary, { anamnesis: '', physicalExam: '', physicalSystems: { Thorax: 'Vesikuler' }, hasUnsavedChanges: false, onReview() {} }));
+    assert.match(general, /aria-label="Temuan pemeriksaan per sistem"/);
+    assert.match(general, /<table/);
+    assert.match(general, /Vesikuler/);
+});
+
+ test('dental completion explains missing tooth fields and permits optional ICDAS', async () => {
+    const { missingCariesDetails } = await server.ssrLoadModule('/resources/js/lib/dental-assessment.ts');
+    const finding = { findingCode: 'caries', surface: 'O', details: { activity: 'active', site: 'primary', depth: 'dentin', pulpal: 'normal', periapical: 'normal', assessment: 'Kavitas diperiksa, rencana restorasi.' } };
+    assert.deepEqual(missingCariesDetails(finding), []);
+    assert.deepEqual(missingCariesDetails({ ...finding, surface: 'W' }), ['permukaan spesifik (M/O/D/V/L)']);
+    assert.deepEqual(missingCariesDetails({ ...finding, details: { ...finding.details, site: 'root' } }), ['kavitas lesi akar']);
+    assert.deepEqual(missingCariesDetails({ ...finding, details: { ...finding.details, site: 'root', root_severity: 'cavitated' } }), []);
+    const props = examinationProps();
+    props.visit.odontogram = [{ toothFdi: '28', surface: 'W', findingCode: 'caries', notes: null, details: {} }];
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    assert.match(html, /Temuan karies yang perlu dilengkapi/);
+    assert.match(html.replace(/<!--.*?-->/g, ''), /Lengkapi gigi 28/);
+    assert.match(html, /diagnosis pulpa/);
+ });
+
+test('odontogram pagination prioritizes problems, keeps healthy teeth last and clamps pages', async () => {
+    const { paginateOdontogram } = await server.ssrLoadModule('/resources/js/lib/odontogram-selection.ts');
+    const findings = [
+        { toothFdi: '11', surface: 'W', findingCode: 'sound' },
+        { toothFdi: '12', surface: 'W', findingCode: 'sound' },
+        { toothFdi: '46', surface: 'O', findingCode: 'caries', details: { periapical: 'acute_abscess' } },
+        { toothFdi: '36', surface: 'O', findingCode: 'caries' },
+        { toothFdi: '22', surface: 'W', findingCode: 'root_remnant' },
+        { toothFdi: '13', surface: 'W', findingCode: 'restored' },
+    ];
+    const page = paginateOdontogram(findings, 1);
+    assert.equal(page.items.length, 4);
+    assert.deepEqual(page.items.map(f => f.toothFdi), ['46', '22', '36', '13']);
+    assert.deepEqual(paginateOdontogram(findings, 99).items.map(f => f.findingCode), ['sound', 'sound']);
+    assert.equal(paginateOdontogram(findings.slice(0, 1), 2).currentPage, 1);
+    assert.equal(paginateOdontogram([], 3).from, null);
+    assert.equal(findings[0].toothFdi, '11');
+    const props = examinationProps();
+    props.visit.odontogram = findings;
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    const start = html.indexOf('<section aria-labelledby="odontogram-findings-title"');
+    const section = html.slice(start, html.indexOf('</section>', start));
+    assert.equal((section.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/)?.[1].match(/<tr/g) ?? []).length, 4);
+    assert.match(section, /Hapus temuan terpilih/);
+    assert.doesNotMatch(section, /Hapus semua temuan/);
+    assert.match(section, /border-red-200 bg-surface text-red-700/);
+    assert.match(section, /Halaman berikutnya/);
+    assert.match(section, /1–4 dari 6 data/);
+});
+
+test('dental diagnosis bridge groups surfaces per tooth and keeps different conditions and teeth distinct', async () => {
+    const { groupDentalDiagnoses, dentalSurfaceLabel } = await server.ssrLoadModule('/resources/js/lib/dental-diagnosis.ts');
+    const findings = [
+        { toothFdi: '46', surface: 'D', findingCode: 'caries', notes: null, details: { depth: 'dentin', pulpal: 'reversible' } },
+        { toothFdi: '46', surface: 'O', findingCode: 'caries', notes: null, details: { depth: 'dentin', pulpal: 'reversible' } },
+        { toothFdi: '35', surface: 'M', findingCode: 'fractured_crown', notes: null },
+        { toothFdi: '11', surface: 'W', findingCode: 'sound', notes: null },
+    ];
+    const groups = groupDentalDiagnoses(findings);
+    assert.equal(groups.length, 2);
+    assert.equal(groups[0].toothFdi, '35');
+    assert.equal(groups[0].candidates[0].exact, false);
+    assert.equal(groups[1].toothFdi, '46');
+    assert.equal(dentalSurfaceLabel(groups[1].surfaces), 'DO');
+    assert.equal(groups[1].candidates.filter(candidate => candidate.findingCode === 'caries').length, 1);
+    assert.equal(groups[1].candidates[0].code, 'K02.1');
+    const conflicting = groupDentalDiagnoses([findings[0], { ...findings[1], details: { pulpal: 'normal' } }]);
+    assert.equal(conflicting[0].candidates.find(candidate => candidate.label === 'Diagnosis pulpa').exact, false);
+    assert.equal(groupDentalDiagnoses([{ ...findings[0], details: { periapical: 'acute_abscess' } }])[0].candidates.find(c => c.label.includes('apikal')).exact, false);
+    const props = examinationProps();
+    props.visit.odontogram = findings;
+    props.initialTab = 'diagnosa';
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    assert.match(html.replace(/<!--.*?-->/g, ''), /Gigi 46 \(DO\)/);
+    assert.match(html, /Usulan kode berdasarkan temuan/);
+    assert.doesNotMatch(html, /Lokasi diagnosis|id="diagnosis-tooth"|id="diagnosis-surfaces"/);
+    assert.match(html, /Konteks diagnosis dari pemeriksaan/);
+});
+
+test('dental guidance handles noncaries diagnoses and reports changed or inconsistent source findings', async () => {
+    const { dentalTreatmentSearches, diagnosisMatchesFindings, groupDentalDiagnoses, dentalDiagnosisDescription } = await server.ssrLoadModule('/resources/js/lib/dental-diagnosis.ts');
+    const diagnoses = [{ code: 'K02.1', name: 'Caries', toothFdi: '46' }, { code: 'K04.0', name: 'Pulpitis', toothFdi: '35' }, { code: 'K05.1', name: 'Gingivitis', toothFdi: '36' }];
+    assert.deepEqual(dentalTreatmentSearches(diagnoses, ['35']).map(s => s.key), ['endodontik']);
+    assert.deepEqual(dentalTreatmentSearches(diagnoses, ['36']).map(s => s.key), ['periodontal']);
+    assert.equal(dentalTreatmentSearches(diagnoses, []).length, 3);
+    const findings = [{ toothFdi: '46', surface: 'O', findingCode: 'caries', details: { pulpal: 'reversible', vitality: 'negative' } }];
+    assert.equal(diagnosisMatchesFindings({ toothFdi: '46', surfaces: ['D'] }, findings), false);
+    assert.equal(diagnosisMatchesFindings({ toothFdi: '46', surfaces: ['W'] }, findings), true);
+    assert.equal(diagnosisMatchesFindings({ toothFdi: '35' }, findings), false);
+    assert.equal(diagnosisMatchesFindings({}, findings), true);
+    assert.ok(groupDentalDiagnoses(findings)[0].warnings.some(warning => warning.includes('Respons termal')));
+    assert.equal(dentalDiagnosisDescription({ toothFdi: '46', note: 'Gigi 46 (DO) — Dentin terlihat' }), 'Dentin terlihat');
+    const props = examinationProps(); props.initialTab = 'diagnosa';
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    assert.match(html, /Tabel diagnosis tercatat/);
+    assert.doesNotMatch(html, /id="diagnosis-tooth"|id="diagnosis-surfaces"/);
+});
+
+test('suggested procedure searches preserve tooth context and do not treat tooth selection as a procedure draft', async () => {
+    const { default: ts } = await import('typescript');
+    const source = readFileSync(new URL('../resources/js/pages/pelayanan/pemeriksaan/show.tsx', import.meta.url), 'utf8');
+    const ast = ts.createSourceFile('show.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    let fn;
+    function collect(node) { if (ts.isFunctionDeclaration(node) && node.name?.text === 'startSuggestedProcedureSearch') fn = node.getText(ast); ts.forEachChild(node, collect); }
+    collect(ast);
+    const confirmations = []; const queries = [];
+    const form = { isDirty: true, data: { tooth_fdis: ['35'], jumlah: '1', catatan: 'Catatan dokter', terminology_id: '', tindakan_id: '', nama_tindakan_manual: '' }, setData(callback) { this.data = callback(this.data); }, clearErrors() {} };
+    const code = ts.transpileModule(fn + '\nstartSuggestedProcedureSearch', { compilerOptions: { target: ts.ScriptTarget.ESNext } }).outputText;
+    const search = runInNewContext(code, { canEdit: true, saving: false, procedureCatalogAvailable: true, treatmentForm: form, setTreatmentMode() {}, setSelectedProcedure() {}, setProcedureQuery(q) { queries.push(q); }, setProcedureResults() {}, confirmAction(message, action) { confirmations.push(action); } });
+    search('root canal'); assert.equal(confirmations.length, 0); assert.deepEqual(queries, ['root canal']); assert.deepEqual(form.data.tooth_fdis, ['35']); assert.equal(form.data.catatan, 'Catatan dokter');
+    form.data.terminology_id = '7'; search('periodontal'); assert.equal(confirmations.length, 1); assert.equal(queries.length, 1); confirmations[0](); assert.equal(form.data.terminology_id, ''); assert.equal(queries[1], 'periodontal');
+});
+
+test('diagnosis bridge disables only the recorded tooth condition and all its recorded surfaces in both contexts', async () => {
+    const { groupDentalDiagnoses, isDentalDiagnosisRecorded, dentalFindingDetails } = await server.ssrLoadModule('/resources/js/lib/dental-diagnosis.ts');
+    const findings = [{ toothFdi: '46', surface: 'D', findingCode: 'caries', details: { depth: 'dentin' } }, { toothFdi: '46', surface: 'O', findingCode: 'caries', details: { depth: 'dentin' } }];
+    const group = groupDentalDiagnoses(findings)[0];
+    const candidate = group.candidates[0];
+    const diagnosis = { id: 1, code: 'K02.1', codeSystem: 'icd10_cm', name: 'Caries', toothFdi: '46', surfaces: ['D', 'O'], type: 'utama', sourceFindingCode: 'caries' };
+    assert.equal(isDentalDiagnosisRecorded(group, candidate, [diagnosis]), true);
+    assert.equal(isDentalDiagnosisRecorded(group, candidate, [{ ...diagnosis, toothFdi: '35' }]), false);
+    assert.equal(isDentalDiagnosisRecorded(group, candidate, [{ ...diagnosis, surfaces: ['O'] }]), false);
+    const fracture = groupDentalDiagnoses([{ toothFdi: '35', surface: 'M', findingCode: 'fractured_crown' }])[0];
+    assert.equal(isDentalDiagnosisRecorded(fracture, fracture.candidates[0], [{ ...diagnosis, code: 'S02.5', toothFdi: '35', surfaces: ['M'], sourceFindingCode: 'fractured_crown' }]), true);
+    const restored = dentalFindingDetails('caries', { endodontic: 'treated', prosthesis: 'crown', material: 'porcelain' });
+    assert.equal(restored.endodontic, 'treated');
+    const props = examinationProps(); props.visit.odontogram = findings; props.visit.diagnoses = [diagnosis];
+    let html = await renderPage('pelayanan/pemeriksaan/show', props);
+    const start = html.indexOf('<section aria-labelledby="odontogram-findings-title"');
+    const table = html.slice(start, html.indexOf('</section>', start));
+    assert.match(table, /<button[^>]*disabled=""[^>]*>Diagnosis sudah ditambahkan<\/button>/);
+    props.initialTab = 'diagnosa';
+    html = await renderPage('pelayanan/pemeriksaan/show', props);
+    assert.match(html, /<button[^>]*disabled=""[^>]*>Diagnosis sudah ditambahkan<\/button>/);
+    assert.match(html, /sudah ditambahkan/);
+});
+
+test('extended odontogram conditions remain visually recorded and historical treatments are not automatic diagnoses', async () => {
+    const { FINDING_CLASSES } = await server.ssrLoadModule('/resources/js/components/odontogram/odontogram-fdi.tsx');
+    const { groupDentalDiagnoses } = await server.ssrLoadModule('/resources/js/lib/dental-diagnosis.ts');
+    for (const code of ['partial_erupted', 'impacted', 'retained_primary', 'malposition', 'non_vital', 'root_canal', 'crown', 'bridge_pontic', 'bridge_abutment', 'implant', 'removable_denture', 'sealant', 'temporary_restoration', 'anomaly']) {
+        assert.ok(FINDING_CLASSES[code], code);
+        const group = groupDentalDiagnoses([{ toothFdi: '46', surface: 'W', findingCode: code }])[0];
+        assert.ok(group.candidates.length > 0, code);
+        assert.equal(group.candidates[0].exact, false, code + ' requires catalog review');
+    }
+});

@@ -625,6 +625,9 @@ class PasienController extends Controller
                             'name' => is_array($diagnosis) ? $diagnosis['name'] : $diagnosis->nama_diagnosa,
                             'note' => is_array($diagnosis) ? ($diagnosis['note'] ?? null) : $diagnosis->keterangan,
                             'type' => is_array($diagnosis) ? $diagnosis['type'] : $diagnosis->jenis,
+                            'toothFdi' => is_array($diagnosis) ? ($diagnosis['tooth_fdi'] ?? null) : $diagnosis->tooth_fdi,
+                            'sourceFindingCode' => is_array($diagnosis) ? ($diagnosis['source_finding_code'] ?? null) : $diagnosis->source_finding_code,
+                            'surfaces' => is_array($diagnosis) ? ($diagnosis['surfaces'] ?? []) : ($diagnosis->surfaces ?? []),
                         ])->all(),
                     ] : null,
                     'prescriptions' => collect(is_array($effectiveNote) ? ($effectiveNote['prescriptions'] ?? []) : ($integrityValid === false ? [] : ($visit->resep?->resepObat ?? collect())))->values()->map(fn ($item, int $index): array => [

@@ -42,7 +42,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
         ])->assertSessionHasNoErrors();
         if ($procedure) {
             $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), [
-                'nama_tindakan_manual' => 'Perawatan luka', 'jumlah' => 1, 'catatan' => 'Periksa dan rawat lokasi keluhan',
+                'nama_tindakan_manual' => 'Perawatan luka', 'jumlah' => 1, 'execution_role' => 'perawat', 'catatan' => 'Periksa dan rawat lokasi keluhan',
             ])->assertSessionHasNoErrors();
         }
         if ($medication) {
@@ -101,7 +101,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
         ObatBatch::factory()->create(['obat_id' => $supply->id, 'stok' => 10]);
         $catalog = Tindakan::create(['kode' => 'TD-CARE', 'nama' => 'Perawatan luka', 'kategori' => 'medis', 'poliklinik_id' => $visit->poliklinik_id, 'is_active' => true]);
         $catalog->bhp()->create(['obat_id' => $supply->id, 'jumlah' => 2]);
-        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['tindakan_id' => $catalog->id, 'jumlah' => 2])->assertSessionHasNoErrors();
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['tindakan_id' => $catalog->id, 'jumlah' => 2, 'execution_role' => 'perawat'])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Evaluasi luka', 'jumlah' => 1])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $this->assertSame(10, (int) $supply->fresh()->stok);
@@ -269,7 +269,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
         ObatBatch::factory()->create(['obat_id' => $supply->id, 'stok' => 10]);
         $catalog = Tindakan::create(['kode' => 'HELP-TD', 'nama' => 'Perawatan', 'kategori' => 'medis', 'poliklinik_id' => $visit->poliklinik_id, 'is_active' => true]);
         $catalog->bhp()->create(['obat_id' => $supply->id, 'jumlah' => 2]);
-        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['tindakan_id' => $catalog->id, 'jumlah' => 2])->assertSessionHasNoErrors();
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['tindakan_id' => $catalog->id, 'jumlah' => 2, 'execution_role' => 'perawat'])->assertSessionHasNoErrors();
         if ($medication) {
             $drug = Obat::create(['kode' => 'HELP-OB', 'nama' => 'Obat', 'satuan_kecil' => 'tablet', 'jenis' => 'obat', 'stok' => 10, 'is_active' => true]);
             $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['obat_id' => $drug->id, 'jumlah' => 1, 'jenis' => 'jadi', 'aturan_pakai' => 'Sesuai dokter'])->assertSessionHasNoErrors();

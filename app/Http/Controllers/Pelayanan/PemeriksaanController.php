@@ -307,6 +307,9 @@ class PemeriksaanController extends Controller
                     'name' => is_array($diagnosis) ? $diagnosis['name'] : $diagnosis->nama_diagnosa,
                     'note' => is_array($diagnosis) ? ($diagnosis['note'] ?? null) : $diagnosis->keterangan,
                     'type' => is_array($diagnosis) ? $diagnosis['type'] : $diagnosis->jenis,
+                    'toothFdi' => is_array($diagnosis) ? ($diagnosis['tooth_fdi'] ?? null) : $diagnosis->tooth_fdi,
+                    'sourceFindingCode' => is_array($diagnosis) ? ($diagnosis['source_finding_code'] ?? null) : $diagnosis->source_finding_code,
+                    'surfaces' => is_array($diagnosis) ? ($diagnosis['surfaces'] ?? []) : ($diagnosis->surfaces ?? []),
                 ]),
                 'treatments' => collect(is_array($effectiveNote) ? ($effectiveNote['treatments'] ?? []) : ($noteIntegrityValid === false ? [] : $kunjungan->tindakanKunjungan))->values()->map(fn ($item, int $index): array => [
                     'id' => is_array($item) ? ($item['id'] ?? $index + 1) : $item->id,
@@ -385,6 +388,11 @@ class PemeriksaanController extends Controller
                 'teeth' => OdontogramFinding::toothCodes(),
                 'surfaces' => OdontogramFinding::surfaceLabels(),
                 'findings' => OdontogramFinding::findingLabels(),
+                'findingGroups' => OdontogramFinding::findingGroups(),
+                'wholeToothFindings' => OdontogramFinding::wholeToothFindings(),
+                'diagnosisCatalog' => $kunjungan->poliklinik?->jenis === 'gigi' ? ClinicalTerminology::query()->where('is_active', true)->where('code_type', 'diagnosis')
+                    ->whereIn('code', ['K02.0', 'K02.1', 'K02.9', 'K04.0', 'K04.01', 'K04.1', 'K08.3', 'S02.5'])
+                    ->orderByDesc('updated_at')->get()->map(fn (ClinicalTerminology $term): array => ['code' => $term->code, 'name' => $term->display, 'codeSystem' => $term->code_system, 'release' => $term->release])->values()->all() : [],
             ],
             'today' => today()->toDateString(),
             'correspondenceTemplates' => CorrespondenceTemplate::query()->where('is_active', true)->orderBy('nama')->get()
@@ -530,6 +538,10 @@ class PemeriksaanController extends Controller
                 'nama_diagnosa' => ['required', 'string', 'max:255'],
                 'keterangan' => ['nullable', 'string', 'max:2000'],
                 'jenis' => ['required', 'in:utama,tambahan'],
+                'tooth_fdi' => ['nullable', Rule::prohibitedIf($kunjungan->poliklinik?->jenis !== 'gigi'), Rule::in(OdontogramFinding::toothCodes())],
+                'surfaces' => ['sometimes', 'array', 'max:6', Rule::prohibitedIf($kunjungan->poliklinik?->jenis !== 'gigi')],
+                'surfaces.*' => ['required', 'string', 'distinct', Rule::in(array_keys(OdontogramFinding::surfaceLabels()))],
+                'source_finding_code' => ['nullable', Rule::in([...array_keys(OdontogramFinding::findingLabels()), 'pulpal', 'periapical'])],
             ]);
             $data['nama_diagnosa'] = ClinicalAnswer::normalize(preg_replace('/\s+/u', ' ', trim($data['nama_diagnosa'])));
             if ($data['nama_diagnosa'] === null) {
@@ -567,30 +579,90 @@ class PemeriksaanController extends Controller
 
             $pemeriksaan = $kunjungan->pemeriksaan()->firstOrCreate(['kunjungan_id' => $kunjungan->id], ['status' => 'draft', 'dokter_id' => $kunjungan->dokter_id]);
 
-            $duplicate = $pemeriksaan->diagnosa()->where('code_system', $codeSystem);
+            $tooth = $data['tooth_fdi'] ?? null;
+            $surfaces = $data['surfaces'] ?? [];
+            if ((! $tooth && $surfaces !== []) || (in_array('W', $surfaces, true) && count($surfaces) > 1)) {
+                throw ValidationException::withMessages(['surfaces' => 'Pilih gigi terlebih dahulu dan gunakan seluruh gigi atau permukaan spesifik secara terpisah.']);
+            }
+            if ($tooth) {
+                $sourceFindings = $kunjungan->odontogramFindings()->where('tooth_fdi', $tooth)->get();
+                if ($sourceFindings->isEmpty()) {
+                    throw ValidationException::withMessages(['tooth_fdi' => 'Temuan gigi asal belum tersedia. Catat atau tinjau melalui Pemeriksaan & odontogram.']);
+                }
+                if (filled($data['source_finding_code'] ?? null) && ! $sourceFindings->contains(fn (OdontogramFinding $finding): bool => DentalAssessment::matchesDiagnosisSource($finding->toArray(), $data['source_finding_code']))) {
+                    throw ValidationException::withMessages(['source_finding_code' => 'Temuan asal berubah. Tinjau pemeriksaan dan susun kembali diagnosis.']);
+                }
+                $specificSurfaces = array_values(array_diff($surfaces, ['W']));
+                if (array_diff($specificSurfaces, $sourceFindings->pluck('surface')->all()) !== []) {
+                    throw ValidationException::withMessages(['surfaces' => 'Permukaan diagnosis tidak sesuai temuan asal. Tinjau kembali Pemeriksaan & odontogram.']);
+                }
+            }
+            if (! $tooth && filled($data['source_finding_code'] ?? null)) {
+                throw ValidationException::withMessages(['source_finding_code' => 'Sumber temuan gigi memerlukan konteks gigi.']);
+            }
+            $duplicate = $pemeriksaan->diagnosa()->where('code_system', $codeSystem)->where('tooth_fdi', $tooth);
             if ($manual) {
                 $duplicate->whereRaw('LOWER(nama_diagnosa) = ?', [mb_strtolower($data['nama_diagnosa'])]);
             } else {
                 $duplicate->where('kode_icd10', $data['kode_icd10']);
             }
-            if ($duplicate->exists()) {
+            $existing = $duplicate->first();
+            if ($existing && ! $tooth) {
                 throw ValidationException::withMessages([$manual ? 'nama_diagnosa' : 'kode_icd10' => 'Diagnosis ini sudah tercatat. Hapus entri sebelumnya jika perlu dikoreksi.']);
             }
             if ($data['jenis'] === 'utama') {
                 $pemeriksaan->diagnosa()->where('jenis', 'utama')->update(['jenis' => 'tambahan']);
             }
 
-            $pemeriksaan->diagnosa()->create([
+            $surfaces = collect(['M', 'O', 'D', 'V', 'L', 'W'])->filter(fn (string $surface): bool => in_array($surface, [...($existing?->surfaces ?? []), ...$surfaces], true))->values()->all();
+            if (count($surfaces) > 1) {
+                $surfaces = array_values(array_diff($surfaces, ['W']));
+            }
+            $note = ClinicalAnswer::normalize($data['keterangan'] ?? null);
+            if ($tooth) {
+                $stripLocation = fn (?string $text): ?string => ClinicalAnswer::normalize(preg_replace('/^Gigi '.preg_quote($tooth, '/').'(?: \([^)]*\))?(?:[. —:]+)?/u', '', $text ?? ''));
+                $notes = collect([$stripLocation($existing?->keterangan), $stripLocation($note)])
+                    ->flatMap(fn (?string $text): array => explode("\n", $text ?? ''))->map(fn (string $text): string => trim($text))->filter()->unique()->implode("\n");
+                $surfaceLabel = implode('', $surfaces);
+                $surfaceLabel = $surfaceLabel === 'OD' ? 'DO' : $surfaceLabel;
+                $note = 'Gigi '.$tooth.($surfaces ? ' ('.$surfaceLabel.')' : '').($notes ? ' — '.$notes : '');
+                if (mb_strlen($note) > 2000) {
+                    throw ValidationException::withMessages(['keterangan' => 'Gabungan catatan diagnosis melebihi 2000 karakter. Ringkas catatan sebelum disimpan.']);
+                }
+            }
+            $attributes = [
                 'kode_icd10' => $data['kode_icd10'],
                 'code_system' => $codeSystem,
                 'code_release' => $data['code_release'] ?? null,
                 'nama_diagnosa' => $data['nama_diagnosa'],
-                'keterangan' => ClinicalAnswer::normalize($data['keterangan'] ?? null),
-                'jenis' => $data['jenis'],
-            ]);
+                'keterangan' => $note,
+                'jenis' => $data['jenis'] === 'utama' || $existing?->jenis === 'utama' ? 'utama' : 'tambahan',
+                'tooth_fdi' => $tooth,
+                'source_finding_code' => $data['source_finding_code'] ?? $existing?->source_finding_code,
+                'surfaces' => $surfaces,
+            ];
+            if ($existing) {
+                $existing->update($attributes);
+            } else {
+                $pemeriksaan->diagnosa()->create($attributes);
+            }
 
-            return back()->with('success', 'Diagnosa berhasil ditambahkan.');
+            return back()->with('success', $existing ? 'Permukaan dan catatan digabung ke diagnosis gigi yang sudah tercatat.' : 'Diagnosis berhasil ditambahkan.');
         });
+    }
+
+    public function primaryDiagnosa(Request $request, Diagnosa $diagnosa): RedirectResponse
+    {
+        DB::transaction(function () use ($request, $diagnosa): void {
+            $visit = Kunjungan::whereKey($diagnosa->pemeriksaan->kunjungan_id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($visit);
+            $selected = $visit->pemeriksaan->diagnosa()->whereKey($diagnosa->id)->firstOrFail();
+            $visit->pemeriksaan->diagnosa()->where('jenis', 'utama')->update(['jenis' => 'tambahan']);
+            $selected->update(['jenis' => 'utama']);
+            app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.primaryDiagnosa', $visit->pasien_id, $visit->id);
+        });
+
+        return back()->with('success', 'Diagnosis utama kunjungan diperbarui.');
     }
 
     public function destroyDiagnosa(Diagnosa $diagnosa): RedirectResponse
@@ -701,7 +773,7 @@ class PemeriksaanController extends Controller
                 'jumlah' => ['required', 'integer', 'min:1'],
                 'catatan' => ['nullable', 'string', 'max:2000'],
                 'tooth_fdi' => ['nullable', Rule::in(OdontogramFinding::toothCodes())],
-                'tooth_fdis' => ['nullable', 'array', 'max:32'],
+                'tooth_fdis' => ['nullable', 'array', 'max:52'],
                 'tooth_fdis.*' => ['required', 'distinct', Rule::in(OdontogramFinding::toothCodes())],
             ]);
             $data['catatan'] = filled($data['catatan'] ?? null) ? trim($data['catatan']) : null;
@@ -729,12 +801,12 @@ class PemeriksaanController extends Controller
                 ->values();
 
             abort_if($toothFdis->isNotEmpty() && $kunjungan->poliklinik?->jenis !== 'gigi', 422, 'Lokasi gigi hanya untuk kunjungan Poli Gigi.');
-            if (! empty($data['tooth_fdis'])) {
+            if ($toothFdis->isNotEmpty()) {
                 $recordedTeeth = $kunjungan->odontogramFindings()
-                    ->whereIn('tooth_fdi', $data['tooth_fdis'])
+                    ->whereIn('tooth_fdi', $toothFdis)
                     ->distinct()
                     ->pluck('tooth_fdi');
-                $unrecordedTeeth = collect($data['tooth_fdis'])->diff($recordedTeeth);
+                $unrecordedTeeth = $toothFdis->diff($recordedTeeth);
 
                 if ($unrecordedTeeth->isNotEmpty()) {
                     throw ValidationException::withMessages(['tooth_fdis' => 'Tindakan hanya dapat ditautkan ke gigi yang memiliki temuan odontogram.']);
@@ -763,7 +835,7 @@ class PemeriksaanController extends Controller
                 $kunjungan->tindakanKunjungan()->create([
                     'tindakan_id' => $tindakanId,
                     'nama_tindakan_manual' => $manualName,
-                    'execution_role' => $data['execution_role'] ?? 'perawat',
+                    'execution_role' => $data['execution_role'] ?? ($kunjungan->poliklinik?->jenis === 'gigi' ? 'dokter' : 'perawat'),
                     'execution_status' => 'pending',
                     'nama_tindakan' => $treatmentName ?? $manualName,
                     'kode_icd9cm' => $terminology?->code,
@@ -963,9 +1035,19 @@ class PemeriksaanController extends Controller
                 abort_unless($lockedVisit->odontogramFindings()->exists(), 422, 'Catat temuan odontogram sebelum finalisasi kunjungan gigi.');
                 abort_unless(ClinicalAnswer::normalize($examination->pemeriksaan_fisik) !== null && ClinicalAnswer::normalize($examination->pemeriksaan_ekstraoral) !== null, 422, 'Lengkapi pemeriksaan intraoral dan ekstraoral dokter sebelum finalisasi.');
                 $request->validate(['review_dental_assessment' => ['required', 'accepted']], ['review_dental_assessment.required' => 'Konfirmasi pemeriksaan oral penuh dan tinjauan pengkajian perawat.', 'review_dental_assessment.accepted' => 'Konfirmasi pemeriksaan oral penuh dan tinjauan pengkajian perawat.']);
-                foreach ($lockedVisit->odontogramFindings()->get() as $finding) {
-                    if (! DentalAssessment::hasCompleteCariesDetails($finding->toArray())) {
-                        throw ValidationException::withMessages(['dental_findings' => 'Lengkapi permukaan, ICDAS, aktivitas, jenis, kedalaman, status pulpa / apikal, dan dasar pemeriksaan karies gigi '.$finding->tooth_fdi.'.']);
+                $dentalFindings = $lockedVisit->odontogramFindings()->get();
+                foreach ($examination->diagnosa()->whereNotNull('tooth_fdi')->get() as $diagnosis) {
+                    $source = $dentalFindings->where('tooth_fdi', $diagnosis->tooth_fdi);
+                    $specificSurfaces = array_diff($diagnosis->surfaces ?? [], ['W']);
+                    if ($source->isEmpty() || array_diff($specificSurfaces, $source->pluck('surface')->all()) !== []
+                        || (filled($diagnosis->source_finding_code) && ! $source->contains(fn (OdontogramFinding $finding): bool => DentalAssessment::matchesDiagnosisSource($finding->toArray(), $diagnosis->source_finding_code)))) {
+                        throw ValidationException::withMessages(['dental_diagnoses' => 'Temuan asal diagnosis gigi '.$diagnosis->tooth_fdi.' sudah berubah. Tinjau pemeriksaan dan susun ulang diagnosis yang terkait.']);
+                    }
+                }
+                foreach ($dentalFindings as $finding) {
+                    $missing = DentalAssessment::missingCariesDetails($finding->toArray());
+                    if ($missing !== []) {
+                        throw ValidationException::withMessages(['dental_findings' => 'Gigi '.$finding->tooth_fdi.': lengkapi '.implode(', ', $missing).'.']);
                     }
                 }
 
@@ -1102,6 +1184,29 @@ class PemeriksaanController extends Controller
         return back()->with('success', 'Addendum tersimpan tanpa mengubah catatan final sebelumnya.');
     }
 
+    public function storeSoundTeeth(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): RedirectResponse
+    {
+        $this->authorizeMutableVisit($kunjungan);
+        $data = $request->validate([
+            'teeth' => ['required', 'array', 'min:1', 'max:52'],
+            'teeth.*' => ['required', 'string', 'distinct', Rule::in(OdontogramFinding::toothCodes())],
+            'confirmed' => ['required', 'accepted'],
+        ]);
+        DB::transaction(function () use ($request, $kunjungan, $auditRecorder, $data): void {
+            $visit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($visit);
+            abort_unless($visit->poliklinik?->jenis === 'gigi', 422);
+            $recorded = $visit->odontogramFindings()->pluck('tooth_fdi')->all();
+            $teeth = array_diff($data['teeth'], $recorded);
+            foreach ($teeth as $tooth) {
+                $visit->odontogramFindings()->create(['tooth_fdi' => $tooth, 'surface' => 'W', 'finding_code' => 'sound', 'notes' => 'Sehat setelah diperiksa dokter.', 'recorded_by_user_id' => $request->user()->id]);
+            }
+            $auditRecorder->record($request, 'odontogram.sound_batch', $visit->pasien_id, $visit->id, ['teeth' => array_values($teeth)]);
+        });
+
+        return back()->with('success', 'Gigi yang telah diperiksa ditandai sehat. Temuan sebelumnya tetap dipertahankan.');
+    }
+
     public function storeOdontogram(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): RedirectResponse
     {
         $this->authorizeMutableVisit($kunjungan);
@@ -1112,15 +1217,26 @@ class PemeriksaanController extends Controller
             $this->authorizeMutableVisit($lockedVisit);
             abort_unless($lockedVisit->poliklinik?->jenis === 'gigi', 422, 'Odontogram hanya untuk kunjungan Poli Gigi.');
 
-            $otherFindings = $lockedVisit->odontogramFindings()->where('tooth_fdi', $data['tooth_fdi'])->where('surface', '!=', $data['surface'])->get();
-            if ($otherFindings->contains(fn (OdontogramFinding $finding): bool => in_array($finding->finding_code, ['missing', 'unerupted'], true))
-                || (in_array($data['finding_code'], ['missing', 'unerupted'], true) && $otherFindings->isNotEmpty())) {
-                throw ValidationException::withMessages(['finding_code' => 'Gigi hilang / belum erupsi tidak dapat memiliki temuan permukaan lain. Koreksi temuan yang bertentangan dahulu.']);
+            if ($data['finding_code'] === 'caries' && ! in_array('W', $data['surfaces'], true)) {
+                $lockedVisit->odontogramFindings()->where('tooth_fdi', $data['tooth_fdi'])
+                    ->where('surface', 'W')->where('finding_code', 'caries')->delete();
             }
-            $lockedVisit->odontogramFindings()->updateOrCreate(
-                ['tooth_fdi' => $data['tooth_fdi'], 'surface' => $data['surface']],
-                ['finding_code' => $data['finding_code'], 'notes' => $data['notes'] ?? null, 'details' => $data['details'] ?? null, 'recorded_by_user_id' => $request->user()->id]
-            );
+            if ($data['finding_code'] !== 'sound' && ! in_array('W', $data['surfaces'], true)) {
+                $lockedVisit->odontogramFindings()->where('tooth_fdi', $data['tooth_fdi'])
+                    ->where('surface', 'W')->where('finding_code', 'sound')->delete();
+            }
+            foreach ($data['surfaces'] as $surface) {
+                $data['surface'] = $surface;
+                $otherFindings = $lockedVisit->odontogramFindings()->where('tooth_fdi', $data['tooth_fdi'])->where('surface', '!=', $data['surface'])->get();
+                if ($otherFindings->contains(fn (OdontogramFinding $finding): bool => in_array($finding->finding_code, ['missing', 'unerupted'], true))
+                    || (in_array($data['finding_code'], ['missing', 'unerupted'], true) && $otherFindings->isNotEmpty())) {
+                    throw ValidationException::withMessages(['finding_code' => 'Gigi hilang / belum erupsi tidak dapat memiliki temuan permukaan lain. Koreksi temuan yang bertentangan dahulu.']);
+                }
+                $lockedVisit->odontogramFindings()->updateOrCreate(
+                    ['tooth_fdi' => $data['tooth_fdi'], 'surface' => $data['surface']],
+                    ['finding_code' => $data['finding_code'], 'notes' => $data['notes'] ?? null, 'details' => $data['details'] ?? null, 'recorded_by_user_id' => $request->user()->id]
+                );
+            }
             $auditRecorder->record($request, 'odontogram.draft_update', $lockedVisit->pasien_id, $lockedVisit->id);
         });
 
@@ -1131,12 +1247,24 @@ class PemeriksaanController extends Controller
     {
         $this->authorizeVisit($kunjungan);
         $data = $request->validate([
-            'tooth_fdi' => ['required', Rule::in(OdontogramFinding::toothCodes())],
-            'surface' => ['required', Rule::in(array_keys(OdontogramFinding::surfaceLabels()))],
+            'all' => ['prohibited'],
+            'findings' => ['sometimes', 'required', 'array', 'min:1', 'max:312'],
+            'findings.*' => ['required', 'array:tooth_fdi,surface'],
+            'findings.*.tooth_fdi' => ['required', Rule::in(OdontogramFinding::toothCodes())],
+            'findings.*.surface' => ['required', Rule::in(array_keys(OdontogramFinding::surfaceLabels()))],
+            'confirmed' => $request->has('findings') ? ['required', 'accepted'] : ['sometimes', 'boolean'],
+            'tooth_fdi' => [Rule::requiredIf(! $request->has('findings')), 'nullable', Rule::in(OdontogramFinding::toothCodes())],
+            'surface' => [Rule::requiredIf(! $request->has('findings')), 'nullable', Rule::in(array_keys(OdontogramFinding::surfaceLabels()))],
             'reason' => ['nullable', 'string', 'min:10', 'max:2000'],
         ]);
 
-        DB::transaction(function () use ($request, $kunjungan, $noteRecorder, $auditRecorder, $data): void {
+        $targets = $data['findings'] ?? [['tooth_fdi' => $data['tooth_fdi'], 'surface' => $data['surface']]];
+        $keys = collect($targets)->map(fn (array $finding): string => $finding['tooth_fdi'].'-'.$finding['surface'])->unique();
+        if ($keys->count() !== count($targets)) {
+            throw ValidationException::withMessages(['findings' => 'Temuan yang dipilih tidak boleh berulang.']);
+        }
+
+        DB::transaction(function () use ($request, $kunjungan, $noteRecorder, $auditRecorder, $data, $keys): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeVisit($lockedVisit);
             abort_unless($lockedVisit->poliklinik?->jenis === 'gigi', 422, 'Odontogram hanya untuk kunjungan Poli Gigi.');
@@ -1144,12 +1272,12 @@ class PemeriksaanController extends Controller
             $examination = $lockedVisit->pemeriksaan()->lockForUpdate()->first();
             if (! $examination?->signed_at) {
                 $this->authorizeMutableVisit($lockedVisit);
-                $finding = $lockedVisit->odontogramFindings()
-                    ->where('tooth_fdi', $data['tooth_fdi'])
-                    ->where('surface', $data['surface'])
-                    ->firstOrFail();
-                $finding->delete();
-                $auditRecorder->record($request, 'odontogram.draft_undo', $lockedVisit->pasien_id, $lockedVisit->id);
+                $findings = $lockedVisit->odontogramFindings()->get()->filter(fn (OdontogramFinding $finding): bool => $keys->contains($finding->tooth_fdi.'-'.$finding->surface));
+                if ($findings->count() !== $keys->count()) {
+                    throw ValidationException::withMessages(['findings' => 'Sebagian temuan sudah berubah atau tidak ditemukan. Muat ulang pemeriksaan dan pilih kembali.']);
+                }
+                $lockedVisit->odontogramFindings()->whereIn('id', $findings->modelKeys())->delete();
+                $auditRecorder->record($request, isset($data['findings']) ? 'odontogram.draft_undo_selected' : 'odontogram.draft_undo', $lockedVisit->pasien_id, $lockedVisit->id);
 
                 return;
             }
@@ -1166,14 +1294,15 @@ class PemeriksaanController extends Controller
             $latestVersion = $examination->clinicalNoteVersions()->latest('version')->firstOrFail();
             $payload = $latestVersion->payload;
             $findings = collect($payload['odontogram'] ?? []);
-            $matchingFinding = $findings->contains(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] === $data['surface']);
-            abort_unless($matchingFinding, 404, 'Temuan tidak ditemukan pada versi RME terbaru.');
-
+            $matchingFindings = $findings->filter(fn (array $finding): bool => $keys->contains($finding['tooth_fdi'].'-'.$finding['surface']));
+            if ($matchingFindings->count() !== $keys->count()) {
+                throw ValidationException::withMessages(['findings' => 'Sebagian temuan sudah berubah atau tidak ditemukan. Muat ulang pemeriksaan dan pilih kembali.']);
+            }
             $payload['odontogram'] = $findings
-                ->reject(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] === $data['surface'])
+                ->reject(fn (array $finding): bool => $keys->contains($finding['tooth_fdi'].'-'.$finding['surface']))
                 ->values()->all();
             $noteRecorder->recordAddendum($examination, $payload, $request->user()->id, $reason);
-            $auditRecorder->record($request, 'odontogram.addendum_undo', $lockedVisit->pasien_id, $lockedVisit->id);
+            $auditRecorder->record($request, isset($data['findings']) ? 'odontogram.addendum_undo_selected' : 'odontogram.addendum_undo', $lockedVisit->pasien_id, $lockedVisit->id);
         });
 
         return back()->with('success', 'Temuan dibatalkan; riwayat versi sebelumnya tetap tersimpan.');
@@ -1204,28 +1333,38 @@ class PemeriksaanController extends Controller
             $latestVersion = $examination->clinicalNoteVersions()->latest('version')->firstOrFail();
             $payload = $latestVersion->payload;
             $findings = collect($payload['odontogram'] ?? []);
-            $replacement = [
-                'tooth_fdi' => $data['tooth_fdi'],
-                'surface' => $data['surface'],
-                'finding_code' => $data['finding_code'],
-                'notes' => $data['notes'] ?? null,
-                'details' => $data['details'] ?? null,
-            ];
-            $otherFindings = $findings->filter(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] !== $data['surface']);
-            if ($otherFindings->contains(fn (array $finding): bool => in_array($finding['finding_code'], ['missing', 'unerupted'], true))
-                || (in_array($data['finding_code'], ['missing', 'unerupted'], true) && $otherFindings->isNotEmpty())) {
-                throw ValidationException::withMessages(['finding_code' => 'Koreksi temuan permukaan yang bertentangan dengan status seluruh gigi terlebih dahulu.']);
+            foreach ($data['surfaces'] as $surface) {
+                if ($data['finding_code'] !== 'sound' && $surface !== 'W') {
+                    $findings = $findings->reject(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] === 'W' && $finding['finding_code'] === 'sound');
+                }
+                $data['surface'] = $surface;
+                $replacement = [
+                    'tooth_fdi' => $data['tooth_fdi'],
+                    'surface' => $data['surface'],
+                    'finding_code' => $data['finding_code'],
+                    'notes' => $data['notes'] ?? null,
+                    'details' => $data['details'] ?? null,
+                ];
+                $otherFindings = $findings->filter(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] !== $data['surface']);
+                if ($otherFindings->contains(fn (array $finding): bool => in_array($finding['finding_code'], ['missing', 'unerupted'], true))
+                    || (in_array($data['finding_code'], ['missing', 'unerupted'], true) && $otherFindings->isNotEmpty())) {
+                    throw ValidationException::withMessages(['finding_code' => 'Koreksi temuan permukaan yang bertentangan dengan status seluruh gigi terlebih dahulu.']);
+                }
+                $existing = $findings->first(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] === $data['surface']);
+                if ($existing === $replacement) {
+                    continue;
+                }
+
+                $findings = $findings
+                    ->reject(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] === $data['surface'])
+                    ->push($replacement)
+                    ->sortBy(fn (array $finding): string => $finding['tooth_fdi'].$finding['surface'])
+                    ->values();
             }
-            $existing = $findings->first(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] === $data['surface']);
-            if ($existing === $replacement) {
+            $payload['odontogram'] = $findings->all();
+            if ($payload === $latestVersion->payload) {
                 throw ValidationException::withMessages(['finding_code' => 'Temuan sama dengan versi terakhir.']);
             }
-
-            $payload['odontogram'] = $findings
-                ->reject(fn (array $finding): bool => $finding['tooth_fdi'] === $data['tooth_fdi'] && $finding['surface'] === $data['surface'])
-                ->push($replacement)
-                ->sortBy(fn (array $finding): string => $finding['tooth_fdi'].$finding['surface'])
-                ->values()->all();
             $noteRecorder->recordAddendum($examination, $payload, $request->user()->id, $reason);
             $auditRecorder->record($request, 'odontogram.addendum', $lockedVisit->pasien_id, $lockedVisit->id);
         });
@@ -1438,25 +1577,90 @@ class PemeriksaanController extends Controller
     private function validateDentalFinding(Request $request): array
     {
         $detailRules = [];
+        foreach (['vitality', 'percussion', 'palpation'] as $test) {
+            $detailRules['details.'.$test] = ['nullable', Rule::in(['positive', 'negative', 'unknown'])];
+        }
+        $detailRules['details.mobility'] = ['nullable', Rule::in(['M0', 'M1', 'M2', 'M3', 'unknown'])];
         foreach (DentalAssessment::detailOptions() as $key => $options) {
             $detailRules['details.'.$key] = ['nullable', Rule::in(array_keys($options))];
         }
         $data = $request->validate([
             ...$detailRules,
-            'details' => ['nullable', 'array:icdas,activity,site,depth,root_severity,black_class,pulpal,periapical,assessment'],
+            'details' => ['nullable', 'array:icdas,activity,site,depth,root_severity,black_class,pulpal,periapical,assessment,vitality,percussion,palpation,mobility,eruption,position,morphology,endodontic,prosthesis,material,restoration_state,prosthesis_region,prosthesis_span'],
+            'details.prosthesis_span' => ['nullable', 'string', 'max:200'],
             'details.assessment' => ['nullable', 'string', 'max:3000'],
             'tooth_fdi' => ['required', Rule::in(OdontogramFinding::toothCodes())],
             'surface' => ['required', Rule::in(array_keys(OdontogramFinding::surfaceLabels()))],
+            'surfaces' => ['sometimes', 'required', 'array', 'min:1', 'max:5'],
+            'surfaces.*' => ['required', 'string', 'distinct', Rule::in(array_keys(OdontogramFinding::surfaceLabels()))],
             'finding_code' => ['required', Rule::in(array_keys(OdontogramFinding::findingLabels()))],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
+        $data['surfaces'] = $data['surfaces'] ?? [$data['surface']];
+        if (! in_array($data['surface'], $data['surfaces'], true) || (in_array('W', $data['surfaces'], true) && count($data['surfaces']) > 1)) {
+            throw ValidationException::withMessages(['surface' => 'Pilih permukaan spesifik atau seluruh gigi secara terpisah.']);
+        }
+        if (in_array($data['finding_code'], ['missing', 'unerupted'], true) && $data['surfaces'] !== ['W']) {
+            throw ValidationException::withMessages(['surface' => 'Gigi hilang atau belum erupsi berlaku untuk seluruh gigi.']);
+        }
+        if (in_array($data['finding_code'], OdontogramFinding::wholeToothFindings(), true) && $data['surfaces'] !== ['W']) {
+            throw ValidationException::withMessages(['surface' => 'Kondisi ini dicatat untuk seluruh gigi. Gunakan rincian penyerta bila terdapat lesi pada permukaan tertentu.']);
+        }
+        if ($data['finding_code'] === 'retained_primary' && (int) $data['tooth_fdi'][0] < 5) {
+            throw ValidationException::withMessages(['tooth_fdi' => 'Persistensi dicatat pada nomor FDI gigi sulung (kuadran 5–8).']);
+        }
         $data['notes'] = filled($data['notes'] ?? null) ? trim($data['notes']) : null;
         $data['details'] = array_filter($data['details'] ?? [], fn (mixed $value): bool => filled($value));
         if ($data['finding_code'] !== 'caries') {
-            $data['details'] = array_intersect_key($data['details'], array_flip(['pulpal', 'periapical', 'assessment']));
+            $data['details'] = array_intersect_key($data['details'], array_flip(['pulpal', 'periapical', 'assessment', 'vitality', 'percussion', 'palpation', 'mobility', 'eruption', 'position', 'morphology', 'endodontic', 'prosthesis', 'material', 'restoration_state', 'prosthesis_region', 'prosthesis_span']));
         }
         if (($data['details']['site'] ?? null) !== 'root') {
             unset($data['details']['root_severity']);
+        }
+        $defaults = [
+            'partial_erupted' => ['eruption' => 'partial'], 'impacted' => ['eruption' => 'impacted'], 'retained_primary' => ['eruption' => 'retained_primary'],
+            'non_vital' => ['endodontic' => 'non_vital'], 'root_canal' => ['endodontic' => 'treated'], 'crown' => ['prosthesis' => 'crown'],
+            'bridge_pontic' => ['prosthesis' => 'pontic'], 'bridge_abutment' => ['prosthesis' => 'abutment'], 'implant' => ['prosthesis' => 'implant'],
+            'sealant' => ['restoration_state' => 'sealant'], 'temporary_restoration' => ['restoration_state' => 'temporary'],
+        ];
+        foreach ($defaults[$data['finding_code']] ?? [] as $key => $value) {
+            if (isset($data['details'][$key]) && $data['details'][$key] !== $value && ! ($data['finding_code'] === 'root_canal' && $data['details'][$key] === 'in_progress')) {
+                throw ValidationException::withMessages(['details.'.$key => 'Rincian penyerta tidak sesuai dengan kondisi utama yang dipilih.']);
+            }
+            $data['details'][$key] ??= $value;
+        }
+        foreach (['malposition' => 'position', 'anomaly' => 'morphology', 'removable_denture' => 'prosthesis'] as $finding => $key) {
+            if ($data['finding_code'] === $finding && ! isset($data['details'][$key])) {
+                throw ValidationException::withMessages(['details.'.$key => 'Pilih rincian kondisi yang ditemukan sebelum menyimpan.']);
+            }
+        }
+        if ($data['finding_code'] === 'removable_denture' && ! in_array($data['details']['prosthesis'] ?? '', ['partial_denture', 'complete_denture'], true)) {
+            throw ValidationException::withMessages(['details.prosthesis' => 'Pilih gigi tiruan sebagian atau lengkap.']);
+        }
+        if (in_array($data['details']['prosthesis'] ?? '', ['implant', 'pontic', 'partial_denture', 'complete_denture'], true)
+            && (in_array($data['finding_code'], ['caries', 'non_vital', 'root_canal'], true) || filled($data['details']['endodontic'] ?? null) || filled($data['details']['pulpal'] ?? null) || filled($data['details']['vitality'] ?? null))) {
+            throw ValidationException::withMessages(['details.prosthesis' => 'Karies, pulpa, sensibilitas, dan PSA dicatat pada gigi alami, bukan implan, pontik, atau gigi tiruan lepasan. Pisahkan konteks gigi yang diperiksa.']);
+        }
+        if (($data['details']['endodontic'] ?? null) === 'non_vital' && isset($data['details']['pulpal']) && ! in_array($data['details']['pulpal'], ['necrosis', 'uncertain'], true)) {
+            throw ValidationException::withMessages(['details.pulpal' => 'Tinjau diagnosis pulpa yang bertentangan dengan kondisi non-vital.']);
+        }
+        if (in_array($data['details']['endodontic'] ?? '', ['treated', 'in_progress'], true) && isset($data['details']['pulpal']) && ! in_array($data['details']['pulpal'], ['previously_treated', 'uncertain'], true)) {
+            throw ValidationException::withMessages(['details.pulpal' => 'Tinjau status pulpa pada gigi yang memiliki riwayat PSA.']);
+        }
+        if (($data['details']['eruption'] ?? null) === 'retained_primary' && (int) $data['tooth_fdi'][0] < 5) {
+            throw ValidationException::withMessages(['details.eruption' => 'Persistensi berlaku untuk gigi sulung.']);
+        }
+        $isUpper = in_array((int) $data['tooth_fdi'][0], [1, 2, 5, 6], true);
+        if (isset($data['details']['prosthesis_region']) && $data['details']['prosthesis_region'] !== ($isUpper ? 'upper' : 'lower')) {
+            throw ValidationException::withMessages(['details.prosthesis_region' => 'Regio prostesis harus sesuai rahang gigi yang dicatat.']);
+        }
+        if (filled($data['details']['prosthesis_span'] ?? null)) {
+            $span = array_values(array_unique(preg_split('/[\s,;]+/', trim($data['details']['prosthesis_span']), -1, PREG_SPLIT_NO_EMPTY)));
+            if (array_diff($span, OdontogramFinding::toothCodes()) !== [] || ! in_array($data['tooth_fdi'], $span, true)
+                || collect($span)->contains(fn (string $tooth): bool => in_array((int) $tooth[0], [1, 2, 5, 6], true) !== $isUpper)) {
+                throw ValidationException::withMessages(['details.prosthesis_span' => 'Gunakan nomor FDI dipisahkan koma pada rahang yang sama dan sertakan gigi aktif. Contoh: 14, 15, 16.']);
+            }
+            $data['details']['prosthesis_span'] = implode(', ', $span);
         }
         if (isset($data['details']['assessment'])) {
             $data['details']['assessment'] = trim($data['details']['assessment']);
