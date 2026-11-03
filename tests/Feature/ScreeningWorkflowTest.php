@@ -96,6 +96,20 @@ class ScreeningWorkflowTest extends TestCase
         $this->assertSame('merah', $visit->fresh()->screening->kesimpulan_triase);
     }
 
+    public function test_dental_handover_without_vitals_requires_reason_and_fast_observations(): void
+    {
+        [$nurse, $visit] = $this->context('gigi', 'terapis_gigi');
+        $payload = [...$this->payload(), 'dental_vitals_unmeasurable' => true, 'risiko_medis_gigi' => ['tidak_ada']];
+        unset($payload['td_sistole'], $payload['td_diastole'], $payload['nadi'], $payload['suhu'], $payload['respirasi'], $payload['kesadaran'], $payload['pola_pernapasan']);
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)
+            ->assertSessionHasErrors(['alasan_pengukuran_tidak_lengkap', 'kesadaran', 'pola_pernapasan']);
+        $this->post(route('pelayanan.screening.store', $visit), [
+            ...$payload, 'kesadaran' => 'sadar', 'pola_pernapasan' => 'normal',
+            'alasan_pengukuran_tidak_lengkap' => 'Pasien belum kooperatif. Dokter menerima serah terima verbal.',
+        ])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'td_sistole' => null, 'dental_vitals_unmeasurable' => true, 'prioritas_layanan' => 'segera']);
+    }
+
     public function test_dental_therapist_can_submit_and_print_a_complete_assessment_with_unknowns_preserved(): void
     {
         [$nurse, $visit] = $this->context('gigi', 'terapis_gigi');
@@ -312,6 +326,48 @@ class ScreeningWorkflowTest extends TestCase
         $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-SKR', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => 'menunggu', 'jenis_pasien' => 'lama']);
 
         return [$nurse, $visit, $staff];
+    }
+
+    public function test_disease_status_changes_reach_the_doctor_without_stale_details(): void
+    {
+        [$nurse, $visit] = $this->context('gigi');
+        $doctorUser = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $doctor = Nakes::create([
+            'kode' => 'BRIDGE-DOCTOR', 'nama' => 'Dokter Handover', 'kategori' => 'medis',
+            'jabatan' => 'dokter', 'poliklinik_id' => $visit->poliklinik_id,
+            'user_id' => $doctorUser->id, 'is_active' => true,
+        ]);
+        $visit->update(['dokter_id' => $doctor->id]);
+        $payload = [
+            ...$this->payload(), 'status_riwayat_penyakit' => 'ada', 'riwayat_penyakit' => 'Hipertensi',
+            'penyakit_nama' => 'Hipertensi lama', 'penyakit_keterangan' => 'Catatan lama',
+            'risiko_medis_gigi' => ['lainnya'], 'extraoral_symmetry' => 'asymmetric',
+            'extraoral_notes' => 'Asimetri pipi kanan, disampaikan kepada dokter.',
+        ];
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $this->actingAs($doctorUser)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.screening.medicalHistory', 'Hipertensi'));
+
+        foreach (['belum_diketahui' => null, 'tidak_ada' => 'Pasien menyangkal riwayat penyakit'] as $status => $expected) {
+            $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [
+                ...$payload, 'status_riwayat_penyakit' => $status,
+            ])->assertSessionHasNoErrors();
+            $this->assertDatabaseHas('screening', [
+                'kunjungan_id' => $visit->id, 'riwayat_penyakit' => $expected,
+                'penyakit_nama' => null, 'penyakit_keterangan' => null,
+            ]);
+            $this->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
+                ->where('visit.screening.status_riwayat_penyakit', $status)
+                ->where('visit.screening.riwayat_penyakit', $expected));
+            $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
+                ->where('document.sections.dental.Catatan visual ekstraoral awal perawat', $payload['extraoral_notes']));
+            $this->actingAs($doctorUser)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+                ->where('visit.screening.medicalHistory', $expected)
+                ->where('visit.screening.summary.Nama penyakit', null)
+                ->where('visit.screening.summary.Keterangan riwayat penyakit', null)
+                ->where('visit.screening.summary.Catatan visual ekstraoral awal perawat', $payload['extraoral_notes'])
+                ->where('visit.examination', null));
+        }
     }
 
     /** @return array<string, mixed> */

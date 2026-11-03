@@ -24,6 +24,7 @@ interface Visit {
     clinic: string;
     doctor: string | null;
     status: string;
+    priority?: string | null;
     examinationStarted: boolean;
     canExamine: boolean;
     diagnosisCount: number;
@@ -136,7 +137,10 @@ function VisitList({ title, description, icon, visits, emptyTitle, emptyDescript
                                     <TableCell className="text-center"><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 font-mono text-xs text-neutral-500">{visit.medicalRecordNumber} · {visit.gender ?? 'Belum diisi'}</p></TableCell>
                                     <TableCell className="text-center text-neutral-600">{visit.clinic}</TableCell>
                                     <TableCell className="text-center text-neutral-600">{visit.doctor ?? 'Belum ditentukan'}</TableCell>
-                                    <TableCell className="text-center"><StatusBadge examinationStarted={visit.examinationStarted} status={visit.status} /></TableCell>
+                                    <TableCell className="text-center"><StatusBadge examinationStarted={visit.examinationStarted} status={visit.status} />
+                                        {visit.status === 'pemeriksaan' && visit.priority === 'darurat' && <p className="mt-1 text-xs font-semibold text-red-700">Darurat</p>}
+                                        {visit.status === 'pemeriksaan' && visit.priority === 'segera' && <p className="mt-1 text-xs font-semibold text-amber-800">Perlu penilaian segera</p>}
+                                    </TableCell>
                                     <TableCell className="text-center tabular-nums">{visit.diagnosisCount}</TableCell>
                                     <TableCell className="text-center"><VisitActionButtons letterUrl={visit.letterUrl} patient={visit.patient} primary={{ href: `/pelayanan/pemeriksaan/${visit.id}`, label: visit.canExamine ? (visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan') : 'Menunggu pengkajian perawat', disabled: !visit.canExamine, title: visit.canExamine ? undefined : 'Pemeriksaan dokter dapat dimulai setelah pengkajian perawat dikirim.', type: 'examination' }} recordLabel="Rekam medis" recordUrl={visit.recordUrl} showLetterAction={canIssueLetters} /></TableCell>
                                 </TableRow>

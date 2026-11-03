@@ -326,7 +326,7 @@ class SpecialtyScreeningTest extends TestCase
         $this->assignNurse($nurse, $clinic);
         $patient = Pasien::create(['no_rm' => 'RM-GIGI-VIS', 'nama' => 'Pasien Visual Gigi']);
         $visit = $this->makeVisit('KNJ-GIGI-VIS', $patient, $clinic);
-        $payload = [...$this->validScreeningPayload(), 'extraoral_symmetry' => 'asymmetric', 'extraoral_swelling' => 'present', 'dental_red_flags' => ['swallowing'], 'extraoral_notes' => 'Bengkak kanan meluas, sulit menelan. Dokter dihubungi segera.'];
+        $payload = [...$this->validScreeningPayload(), 'extraoral_symmetry' => 'asymmetric', 'extraoral_swelling' => 'present', 'dental_red_flags' => ['swallowing'], 'extraoral_notes' => 'Bengkak kanan meluas, sulit menelan. Dokter dihubungi segera.', 'dental_medication_categories' => ['antiplatelet', 'antihypertensive'], 'riwayat_obat' => 'Obat rutin menurut pasien', 'riwayat_perawatan_gigi' => 'Pernah cabut gigi', 'kebiasaan_gigi' => 'Mengunyah satu sisi'];
         $this->actingAs($nurse)->post(route('pelayanan.kunjungan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
         $screening = $visit->fresh()->screening;
         $this->assertSame('asymmetric', $screening->extraoral_symmetry);
@@ -337,7 +337,12 @@ class SpecialtyScreeningTest extends TestCase
         $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page->where('document.sections.dental.Catatan visual ekstraoral awal perawat', $payload['extraoral_notes']));
         $this->post(route('pelayanan.kunjungan.screening.store', $visit), [...$payload, 'dental_red_flags' => ['none', 'breathing']])->assertSessionHasErrors('dental_red_flags');
         $this->post(route('pelayanan.kunjungan.screening.store', $visit), [...$payload, 'extraoral_notes' => ''])->assertSessionHasErrors('extraoral_notes');
-        $this->post(route('pelayanan.kunjungan.screening.store', $visit), [...$payload, 'dental_red_flags' => ['none']])->assertSessionHasNoErrors();
+        $revision = $screening->revisionToken();
+        $this->post(route('pelayanan.kunjungan.screening.store', $visit), [...$payload, 'dental_medication_categories' => ['none', 'antiplatelet']])
+            ->assertSessionHasErrors('dental_medication_categories');
+        $this->post(route('pelayanan.kunjungan.screening.store', $visit), [...$payload, 'dental_red_flags' => ['none'], 'screening_revision' => $revision])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.kunjungan.screening.store', $visit), [...$payload, 'screening_revision' => $revision])
+            ->assertSessionHasErrors('screening_revision');
         $this->assertSame('kuning', $screening->fresh()->kesimpulan_triase);
         $doctorUser = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
         $doctor = Nakes::create(['kode' => 'DRG-HANDOVER', 'nama' => 'Dokter Gigi Handover', 'kategori' => 'medis', 'jabatan' => 'dokter', 'poliklinik_id' => $clinic->id, 'user_id' => $doctorUser->id, 'is_active' => true]);
@@ -345,7 +350,18 @@ class SpecialtyScreeningTest extends TestCase
         $this->actingAs($doctorUser)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('visit.screening.summary.Visual ekstraoral awal perawat - simetri wajah', 'Tampak asimetris')
             ->where('visit.screening.summary.Visual ekstraoral awal perawat - pembengkakan', 'Tampak pembengkakan')
+            ->where('visit.screening.medicalHistory', null)
+            ->where('visit.examination', null)
             ->where('visit.screening.summary.Catatan visual ekstraoral awal perawat', $payload['extraoral_notes'])
+            ->where('visit.screening.summary.Obat yang digunakan', $payload['riwayat_obat'])
+            ->where('visit.screening.summary.Riwayat perawatan gigi', $payload['riwayat_perawatan_gigi'])
+            ->where('visit.screening.summary.Kebiasaan terkait gigi dan mulut', $payload['kebiasaan_gigi'])
+            ->where('visit.screening.summary.Kategori obat yang dilaporkan', 'Antiplatelet, Antihipertensi')
+            ->where('visit.examinationFormDefaults.riwayat_obat', "Antiplatelet, Antihipertensi\nObat rutin menurut pasien")
+            ->where('visit.examinationFormDefaults.riwayat_perawatan_gigi', $payload['riwayat_perawatan_gigi'])
+            ->where('visit.examinationFormDefaults.kebiasaan_gigi', $payload['kebiasaan_gigi'])
+            ->where('visit.examinationFormDefaults.pemeriksaan_ekstraoral', "Simetri wajah: Tampak asimetris\nPembengkakan: Tampak pembengkakan\nObservasi awal: ".$payload['extraoral_notes'])
+            ->where('examinerName', $doctor->nama)
         );
     }
 

@@ -557,7 +557,9 @@ class OdontogramFlowTest extends TestCase
     {
         [$user, $visit] = $this->dentalExamination();
         $payload = ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'implant'];
-        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), $payload)->assertSessionHasErrors('surface');
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), [...$payload, 'surface' => 'W', 'details' => ['percussion' => 'positive']])
+            ->assertSessionHasErrors('details');
+        $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), $payload)->assertSessionHasErrors('surface');
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), [...$payload, 'surface' => 'W', 'finding_code' => 'retained_primary'])->assertSessionHasErrors('tooth_fdi');
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), [...$payload, 'surface' => 'W', 'finding_code' => 'non_vital', 'details' => ['pulpal' => 'reversible']])->assertSessionHasErrors('details.pulpal');
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), [...$payload, 'surface' => 'W', 'finding_code' => 'anomaly'])->assertSessionHasErrors('details.morphology');
@@ -598,6 +600,28 @@ class OdontogramFlowTest extends TestCase
     private function cariesDetails(): array
     {
         return ['icdas' => '5', 'activity' => 'active', 'site' => 'primary', 'depth' => 'dentin', 'pulpal' => 'reversible', 'periapical' => 'normal', 'assessment' => 'Dentin terlihat, respons dingin singkat, perkusi negatif. Rencana restorasi dan evaluasi.'];
+    }
+
+    public function test_focused_dental_visit_records_scope_and_escalation_without_full_chart(): void
+    {
+        [$doctor, $visit, $exam] = $this->dentalExamination();
+        $visit->screening()->update(['dental_vitals_unmeasurable' => true]);
+        $exam->update(['riwayat_penyakit_sekarang' => 'Nyeri akut sejak pagi']);
+        $exam->diagnosa()->create(['kode_icd10' => 'K04.0', 'code_system' => 'icd10_who', 'nama_diagnosa' => 'Pulpitis', 'jenis' => 'utama']);
+        $payload = [
+            'signature_password' => 'password', 'review_dental_assessment' => true,
+            'dental_scope' => 'emergency', 'dental_scope_reason' => 'Prioritas penilaian keluhan akut',
+            'dental_focus' => 'Gigi 46: kavitas dan nyeri akut', 'dental_follow_up_plan' => 'Lengkapi odontogram saat kontrol',
+        ];
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.selesai', $visit), $payload)
+            ->assertSessionHasErrors('dental_escalation_decision');
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), [
+            ...$payload, 'dental_escalation_decision' => 'reassessed', 'dental_escalation_note' => 'Penilaian ulang dilakukan oleh DPJP.',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('selesai', $visit->fresh()->status);
+        $review = $exam->clinicalNoteVersions()->firstOrFail()->payload['dental_review'];
+        $this->assertSame('emergency', $review['scope']['dental_scope']);
+        $this->assertSame('reassessed', $review['escalation']['dental_escalation_decision']);
     }
 
     private function dentalExamination(): array

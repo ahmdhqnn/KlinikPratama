@@ -46,6 +46,9 @@ export function dentalFindingDetails(findingCode: string, previous: Record<strin
     };
     const details = { ...previous, ...defaults[findingCode] };
     if (findingCode !== 'caries') for (const key of ['icdas', 'activity', 'site', 'depth', 'root_severity', 'black_class']) delete details[key];
+    if (['implant', 'bridge_pontic', 'removable_denture', 'missing', 'unerupted'].includes(findingCode)) {
+        for (const key of ['pulpal', 'periapical', 'endodontic', 'vitality', 'percussion', 'palpation', 'mobility']) delete details[key];
+    }
     return details;
 }
 

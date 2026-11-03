@@ -54,7 +54,7 @@ class PatientClinicalHistory
 
         return [
             'riwayat_penyakit' => ClinicalAnswer::normalize($payload['riwayat_penyakit_dahulu'] ?? null)
-                ?? ClinicalAnswer::normalize($screening?->riwayat_penyakit),
+                ?? ClinicalAnswer::normalize($screening?->reportedMedicalHistory()),
             'riwayat_penyakit_keluarga' => ClinicalAnswer::normalize($payload['riwayat_penyakit_keluarga'] ?? null)
                 ?? ClinicalAnswer::normalize($screening?->riwayat_penyakit_keluarga),
             'riwayat_obat' => ClinicalAnswer::normalize($screening?->riwayat_obat),

@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\DentalAssessment;
 use App\Models\Kunjungan;
+use App\Models\Screening;
 use App\PerawatClinicResolver;
 use App\VisitSchedulingService;
 use Illuminate\Foundation\Http\FormRequest;
@@ -48,6 +49,9 @@ class StoreScreeningRequest extends FormRequest
             'keluhan_tambahan' => ['nullable', 'string', 'max:5000'],
             'lama_keluhan' => [$required, 'string', 'max:255'],
             'sumber_informasi' => [$required, 'in:pasien,keluarga,pendamping,tidak_dapat_diperoleh'],
+            'screening_revision' => ['sometimes', 'required', 'regex:/^(new|[a-f0-9]{64})$/D'],
+            'dental_medication_categories' => [Rule::excludeIf(! $isDental), 'nullable', 'array', 'max:5'],
+            'dental_medication_categories.*' => ['required', 'string', 'distinct', Rule::in(array_keys(Screening::dentalMedicationCategories()))],
             'riwayat_obat' => ['nullable', 'string', 'max:5000'],
             'status_alergi' => [$required, 'in:ada,tidak_ada,belum_diketahui'],
             'status_riwayat_penyakit' => [$required, 'in:ada,tidak_ada,belum_diketahui'],
@@ -64,6 +68,7 @@ class StoreScreeningRequest extends FormRequest
             'risiko_nyeri' => ['nullable', 'string', 'max:255'],
             'skrining_gizi' => ['nullable', 'in:normal,kurang,lebih'],
             'pemeriksaan_fisik' => ['nullable', 'string', 'max:5000'],
+            'dental_vitals_unmeasurable' => [Rule::excludeIf(! $isDental), 'sometimes', 'boolean'],
             'alasan_pengukuran_tidak_lengkap' => ['nullable', 'string', 'min:5', 'max:2000'],
             'triase_perawat' => ['nullable', 'in:merah,kuning,hijau'],
             'catatan_triase' => ['nullable', 'string', 'max:2000'],
@@ -77,8 +82,10 @@ class StoreScreeningRequest extends FormRequest
             'extraoral_symmetry' => [Rule::excludeIf(! $isDental), 'nullable', 'in:symmetric,asymmetric,unknown'],
             'extraoral_swelling' => [Rule::excludeIf(! $isDental), 'nullable', 'in:none,present,unknown'],
             'extraoral_notes' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:2000'],
-            'dental_red_flags' => [Rule::excludeIf(! $isDental), 'nullable', 'array', 'max:7'],
+            'dental_red_flags' => [Rule::excludeIf(! $isDental), 'nullable', 'array', 'max:10'],
             'dental_red_flags.*' => ['string', 'distinct', Rule::in(array_keys(DentalAssessment::redFlagLabels()))],
+            'riwayat_perawatan_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:5000'],
+            'kebiasaan_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:5000'],
             'lokasi_nyeri_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:255'],
             'durasi_keluhan_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:255'],
             'catatan_medis_gigi' => [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:5000'],
@@ -115,9 +122,13 @@ class StoreScreeningRequest extends FormRequest
                         $validator->errors()->add($detail, 'Jelaskan riwayat yang ditemukan sebelum meneruskan pasien.');
                     }
                 }
-                foreach (['td_sistole', 'td_diastole', 'nadi', 'suhu', 'respirasi'] as $field) {
+                $unmeasurable = $this->route('kunjungan')->poliklinik?->jenis === 'gigi' && $this->boolean('dental_vitals_unmeasurable');
+                if ($unmeasurable && ! $this->filled('alasan_pengukuran_tidak_lengkap')) {
+                    $validator->errors()->add('alasan_pengukuran_tidak_lengkap', 'Catat alasan TTV tidak dapat diukur, observasi cepat, dan serah terima ke dokter.');
+                }
+                foreach ($unmeasurable ? ['kesadaran', 'pola_pernapasan'] : ['td_sistole', 'td_diastole', 'nadi', 'suhu', 'respirasi'] as $field) {
                     if (! $this->filled($field)) {
-                        $validator->errors()->add($field, 'Isi hasil pengukuran sebelum meneruskan pasien.');
+                        $validator->errors()->add($field, $unmeasurable ? 'Catat hasil penilaian sebelum meneruskan pasien.' : 'Isi hasil pengukuran sebelum meneruskan pasien.');
                     }
                 }
             }
@@ -126,6 +137,13 @@ class StoreScreeningRequest extends FormRequest
             }
             if ($this->route('kunjungan')->poliklinik?->jenis !== 'gigi') {
                 return;
+            }
+            $medications = $this->input('dental_medication_categories', []) ?? [];
+            if (array_intersect(['none', 'unknown'], $medications) && count($medications) > 1) {
+                $validator->errors()->add('dental_medication_categories', 'Pilih satu status atau kategori obat yang diketahui.');
+            }
+            if (in_array('none', $medications, true) && $this->filled('riwayat_obat')) {
+                $validator->errors()->add('riwayat_obat', 'Hapus rincian obat atau ubah status obat yang dipilih.');
             }
             $flags = $this->input('dental_red_flags', []) ?? [];
             if (array_intersect(['none', 'unknown'], $flags) && count($flags) > 1) {
