@@ -557,7 +557,7 @@ class PasienController extends Controller
                         'bmi' => $visit->screening->imt,
                         'respiration' => $visit->screening->respirasi,
                         'complaint' => $clinicalAnswer($visit->screening->keluhan, 'Belum dicatat'),
-                        'medicalHistory' => $clinicalAnswer($visit->screening->riwayat_penyakit, 'Belum dicatat'),
+                        'medicalHistory' => $clinicalAnswer($visit->screening->reportedMedicalHistory(), 'Belum dicatat'),
                         'familyHistory' => $clinicalAnswer($visit->screening->riwayat_penyakit_keluarga, 'Belum dicatat'),
                         'allergyHistory' => $clinicalAnswer($visit->screening->riwayat_alergi ?: $visit->pasien?->riwayat_alergi, 'Belum dicatat'),
                         'fallRisk' => $visit->screening->risiko_jatuh,
@@ -571,6 +571,9 @@ class PasienController extends Controller
                     ] : null,
                     'examination' => $visit->pemeriksaan ? [
                         'anamnesis' => is_array($effectiveNote) ? ($effectiveNote['anamnesis'] ?? null) : $visit->pemeriksaan->anamnesis,
+                        'riwayat_obat' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_obat'] ?? null) : $visit->pemeriksaan->riwayat_obat),
+                        'riwayat_perawatan_gigi' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_perawatan_gigi'] ?? null) : $visit->pemeriksaan->riwayat_perawatan_gigi),
+                        'kebiasaan_gigi' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['kebiasaan_gigi'] ?? null) : $visit->pemeriksaan->kebiasaan_gigi),
                         'currentHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_sekarang'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_sekarang, 'Belum dicatat'),
                         'pastHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_dahulu'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_dahulu, 'Belum dicatat'),
                         'familyHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_keluarga, 'Belum dicatat'),
@@ -587,6 +590,8 @@ class PasienController extends Controller
                         'nextControl' => is_array($effectiveNote)
                             ? (isset($effectiveNote['kontrol_berikutnya']) ? Carbon::parse($effectiveNote['kontrol_berikutnya'])->format('d/m/Y') : null)
                             : $visit->pemeriksaan->kontrol_berikutnya?->format('d/m/Y'),
+                        'dentalScope' => $effectiveNote['dental_review']['scope'] ?? null,
+                        'dentalEscalation' => $effectiveNote['dental_review']['escalation'] ?? null,
                         'signedAt' => $visit->pemeriksaan->signed_at?->locale('id')->isoFormat('D MMMM Y HH:mm'),
                         'signedBy' => $visit->pemeriksaan->signedBy?->name,
                         'signatureDataUrl' => $integrityValid === true ? $correspondence->signatureDataUrl($visit->pemeriksaan->signedBy) : null,

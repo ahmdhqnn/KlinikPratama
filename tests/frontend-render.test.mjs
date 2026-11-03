@@ -171,12 +171,13 @@ test('compact screening retains saved answers and requires clarification of unkn
         visit: {
             id: 1, number: 'K-001', status: 'screening', clinic: 'Poli Gigi', clinicType: 'gigi', doctor: 'Dokter Uji',
             patient: { name: 'Pasien <Uji>', medicalRecordNumber: 'RM-001', gender: 'P', age: 0, bloodType: 'O', allergyHistory: null },
-            screening: { keluhan_tambahan: 'Nyeri saat mengunyah', skala_nyeri: 0, spo2: 98, risiko_medis_gigi: ['belum_diketahui'], lokasi_nyeri_gigi: 'Geraham kiri bawah', durasi_keluhan_gigi: 'Saat mengunyah', pemicu_nyeri_gigi: ['dingin'], riwayat_infeksi_gigi: ['tidak_ada'], catatan_medis_gigi: 'Konfirmasi obat rutin' },
+            screening: { status_riwayat_penyakit: 'belum_diketahui', riwayat_penyakit: 'Catatan sebelumnya', penyakit_nama: 'Riwayat lama', keluhan_tambahan: 'Nyeri saat mengunyah', skala_nyeri: 0, spo2: 98, risiko_medis_gigi: ['belum_diketahui'], lokasi_nyeri_gigi: 'Geraham kiri bawah', durasi_keluhan_gigi: 'Saat mengunyah', pemicu_nyeri_gigi: ['dingin'], riwayat_infeksi_gigi: ['tidak_ada'], catatan_medis_gigi: 'Konfirmasi obat rutin' },
             triage: null, priority: null, printUrl: '/pelayanan/screening/1/cetak', startedAt: '21/10/2026 09:00',
         },
         staff: [], canSelectStaff: false, currentStaff: 'Perawat Uji',
     });
 
+    assert.doesNotMatch(html, /id="riwayat_penyakit"|id="penyakit_nama"|id="penyakit_keterangan"/);
     assert.match(html, /Pasien &lt;Uji&gt;/);
     assert.match(html, /0 tahun/);
     assert.match(html, /id="keluhan_tambahan"[^>]*>Nyeri saat mengunyah</);
@@ -982,7 +983,8 @@ test('dental nurse schedule management locks assigned clinic and keeps shared ho
         assert.match(select, /disabled=""/);
 
     }
-    assert.doesNotMatch(html, /id="holiday-date"|Simpan hari libur|Hapus libur|id="schedule-clinic-filter"/);
+    assert.doesNotMatch(html, /id="holiday-date"|Simpan hari libur|id="schedule-clinic-filter"/);
+    assert.match(html, /<button[^>]*aria-label="Hapus libur[^"]*"[^>]*disabled=""/);
 });
 
 for (const [history, expectedState] of [
@@ -1148,7 +1150,8 @@ test('dental nurse observation exposes explicit unknown answers and an immediate
     assert.match(html, /Belum dapat dinilai/);
     assert.match(html, /Pemeriksaan intraoral, diagnosis, serta validasi penuh dilakukan dokter gigi/);
     assert.match(html, /role="alert"[^>]*>Perlu respons segera/);
-    assert.match(html, /pencatatan tidak boleh menunda pertolongan/);
+    assert.match(html, /Dahulukan pertolongan awal sesuai SOP dan kemampuan klinik/);
+    assert.match(html, /rujukan ke fasilitas kesehatan eksternal/);
 });
 
 test('dental lesion details remain visible with the saved findings and in the clinical summary', async () => {
@@ -1158,7 +1161,7 @@ test('dental lesion details remain visible with the saved findings and in the cl
     assert.match(html, /id="dental-detail-pulpal"/);
     assert.match(html, /id="dental-detail-assessment"/);
     assert.match(html, /ICDAS 5 - Aktif - Dentin/);
-    assert.match(html, /Odontogram dan rincian lesi/);
+    assert.match(html, /Odontogram Kunjungan \(Peta Gigi FDI\)/);
     assert.match(html, /Pemeriksaan intraoral/);
 });
 
@@ -1688,7 +1691,7 @@ async function clinicalSaveHarness(pendingBodyFinding = false) {
         setSelectedProcedure() {}, setProcedureQuery() {}, setProcedureResults() {}, setSelectedDentalFindingKeys() {},
     };
     Object.defineProperty(scope, 'saving', { get: () => Object.values(forms).some((form) => form.processing) });
-    attachDerivedState(ts, ast, scope, ['savedAnamnesis', 'anamnesisChanged', 'sectionSaveAllowed', 'addendumChanged', 'canSaveAddendum', 'selectedDentalRecord', 'dentalFindingChanged', 'canSaveDentalFinding']);
+    attachDerivedState(ts, ast, scope, ['savedAnamnesis', 'anamnesisChanged', 'physicalChanged', 'sectionSaveAllowed', 'addendumChanged', 'canSaveAddendum', 'dentalFindingUsesNaturalTooth', 'selectedDentalRecord', 'dentalFindingChanged', 'canSaveDentalFinding']);
     const handlers = runInNewContext(code + '\n({ submitClinicalSection, submitForm, canSubmitEntry, submitAddendum, submitDentalFinding })', scope);
     return { handlers, forms, requests, posts, scope, event: { preventDefault() {} } };
 }
@@ -2944,14 +2947,14 @@ test('dental selection rows align and clinical tests share a compact two-column 
     assert.match(handover, /group-open\/disclosure/);
 });
 
-test('dental nurse extraoral observations reach the physician examination area without becoming physician findings', async () => {
+test('dental nurse extraoral observations prefill the examination for physician verification', async () => {
     const props = examinationProps('gigi');
     props.visit.screening = { summary: { 'Visual ekstraoral awal perawat - simetri wajah': 'Tampak asimetris', 'Catatan visual ekstraoral awal perawat': 'Bengkak pipi kanan, dokter dihubungi' }, dentalPainTriggers: [], dentalMedicalRisks: [], dentalInfectionHistory: [] };
+    props.visit.examinationFormDefaults.pemeriksaan_ekstraoral = 'Simetri wajah: Tampak asimetris\nObservasi awal: Bengkak pipi kanan, dokter dihubungi';
     const html = await renderPage('pelayanan/pemeriksaan/show', props);
-    const handover = htmlElementById(html, 'nurse-extraoral-handover');
-    assert.match(handover, /Tampak asimetris/);
-    assert.match(handover, /Bengkak pipi kanan, dokter dihubungi/);
-    assert.doesNotMatch(htmlElementById(html, 'extraoral'), /Bengkak pipi kanan/);
+    const extraoral = htmlElementById(html, 'extraoral');
+    assert.match(extraoral, /Bengkak pipi kanan/);
+    assert.doesNotMatch(html, /Gunakan pada pemeriksaan|Tambahkan observasi awal|Gunakan pengkajian pada isian kosong/);
     assert.match(html, /Lepas pilihan/);
     assert.doesNotMatch(html, /Tinjauan sebelum selesai/);
 });

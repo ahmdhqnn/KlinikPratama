@@ -53,6 +53,9 @@ interface CorrespondenceOption { id: number; name: string; type: string; content
 interface Examination {
     doctorId: number | null;
     canClaim: boolean;
+    riwayat_obat?: string | null;
+    riwayat_perawatan_gigi?: string | null;
+    kebiasaan_gigi?: string | null;
     startedAt: string | null;
     anamnesis: string | null;
     currentHistory: string | null;
@@ -83,12 +86,14 @@ interface Visit {
     status: string;
     canClaim: boolean;
     screeningSubmitted: boolean;
+    screeningRevision?: string | null;
+    dentalEscalationRequired?: boolean;
     doctorId: number | null;
     clinicId: number;
     clinicType: string | null;
     clinic: string;
     patient: { id: number; name: string; medicalRecordNumber: string; gender: string | null; age: number | null; bloodType: string | null; allergies: string | null; };
-    examinationFormDefaults: { anamnesis: string | null; currentHistory: string | null; pastHistory: string | null; familyHistory: string | null; allergyHistory: string | null; };
+    examinationFormDefaults: { riwayat_obat?: string | null; riwayat_perawatan_gigi?: string | null; kebiasaan_gigi?: string | null; pemeriksaan_ekstraoral?: string | null; anamnesis: string | null; currentHistory: string | null; pastHistory: string | null; familyHistory: string | null; allergyHistory: string | null; };
     screening: { summary?: Record<string, string | null>; systolic: number | null; diastolic: number | null; pulse: number | null; temperature: number | null; oxygenSaturation: number | null; weight: number | null; height: number | null; bmi: number | null; waistCircumference: number | string | null; respiration: number | null; complaint: string | null; medicalHistory: string | null; familyHistory: string | null; allergyHistory: string | null; painScale: number | null; fallRisk: string | null; triage: string | null; priority: string | null; dentalPainLocation: string | null; dentalPainTriggers: string[]; dentalPainDuration: string | null; dentalMedicalRisks: string[]; dentalInfectionHistory: string[]; dentalNotes: string | null; } | null;
     examination: Examination | null;
     diagnoses: Diagnosis[];
@@ -103,7 +108,7 @@ interface Props {
     assistance?: { isAdmin: boolean; active: boolean };
     visit: Visit;
     initialTab?: string;
-    doctors: Option[];
+    examinerName?: string | null;
     treatments: Option[];
     medicines: (Option & { stock: number; unit: string | null })[];
     clinics: Option[];
@@ -129,7 +134,7 @@ const commonTabs: { id: Tab; label: string; icon: typeof Stethoscope; optional?:
     { id: 'rujukan', label: 'Rujukan internal', icon: ArrowLeft, optional: true },
 ];
 
-export default function ExaminationDetail({ assistanceReview, assistance, visit, initialTab, doctors, treatments, medicines, clinics, diagnosisCodeSystems, procedureCatalogAvailable, procedureSearchUrl, dentalOptions, today, correspondenceTemplates }: Props) {
+export default function ExaminationDetail({ assistanceReview, assistance, visit, initialTab, examinerName, treatments, medicines, clinics, diagnosisCodeSystems, procedureCatalogAvailable, procedureSearchUrl, dentalOptions, today, correspondenceTemplates }: Props) {
     const assistanceForm = useForm({ reason: '' });
     const isAdminAssistance = assistance?.isAdmin === true;
     const isDental = visit.clinicType === 'gigi';
@@ -176,7 +181,9 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
     };
     const examinationForm = useForm({
         section: 'anamnesis',
-        dokter_id: (visit.examination?.doctorId ?? visit.doctorId ?? '').toString(),
+        riwayat_obat: visit.examinationFormDefaults.riwayat_obat ?? visit.examination?.riwayat_obat ?? '',
+        riwayat_perawatan_gigi: visit.examinationFormDefaults.riwayat_perawatan_gigi ?? visit.examination?.riwayat_perawatan_gigi ?? '',
+        kebiasaan_gigi: visit.examinationFormDefaults.kebiasaan_gigi ?? visit.examination?.kebiasaan_gigi ?? '',
         anamnesis: normalizeClinicalAnswer(visit.examinationFormDefaults.anamnesis) ?? '',
         riwayat_penyakit_sekarang: normalizeClinicalAnswer(visit.examinationFormDefaults.currentHistory) ?? '',
         riwayat_penyakit_dahulu: normalizeClinicalAnswer(visit.examinationFormDefaults.pastHistory) ?? '',
@@ -188,7 +195,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
         pemeriksaan_fisik: normalizeClinicalAnswer(visit.examination?.physicalExam) ?? '',
         pemeriksaan_fisik_terstruktur: { ...defaultPhysicalSystems },
         body_map: visit.examination?.bodyMap ?? emptyBodyMap(),
-        pemeriksaan_ekstraoral: normalizeClinicalAnswer(visit.examination?.extraoralExam) ?? '',
+        pemeriksaan_ekstraoral: normalizeClinicalAnswer(visit.examinationFormDefaults.pemeriksaan_ekstraoral ?? visit.examination?.extraoralExam) ?? '',
     });
     const differentialForm = useForm({ section: 'diagnosis', diagnosis_banding: normalizeClinicalAnswer(visit.examination?.differentialDiagnosis) ?? '' });
     const followUpForm = useForm({
@@ -209,9 +216,12 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
     const externalPrescriptionForm = useForm({ obat_id: '', nama_obat: '', jumlah: '1', satuan: '', aturan_pakai: '', catatan: '', jenis: 'jadi', is_resep_luar: true });
     const letterForm = useForm({ jenis: 'sakit', surat_template_id: '', tanggal: today, konten: '', details: { ...emptyLetterDetails } });
     const referralForm = useForm({ ke_poli_id: '', surat_template_id: '', catatan: '', konten_surat: '' });
-    const signatureForm = useForm({ signature_password: '', review_dental_assessment: false, review_admin_assistance: false, assistance_review_id: assistanceReview?.auditId ?? null, assistance_review_hash: assistanceReview?.draftHash ?? null });
+    const signatureForm = useForm({ signature_password: '', dental_scope: '', dental_scope_reason: '', dental_focus: '', dental_follow_up_plan: '', dental_prior_chart: '', dental_escalation_decision: '', dental_escalation_note: '', screening_revision: undefined as string | undefined, review_dental_assessment: false, review_admin_assistance: false, assistance_review_id: assistanceReview?.auditId ?? null, assistance_review_hash: assistanceReview?.draftHash ?? null });
     const addendumDefaults = {
         reason: '',
+        riwayat_obat: visit.examination?.riwayat_obat ?? '',
+        riwayat_perawatan_gigi: visit.examination?.riwayat_perawatan_gigi ?? '',
+        kebiasaan_gigi: visit.examination?.kebiasaan_gigi ?? '',
         anamnesis: normalizeClinicalAnswer(visit.examination?.anamnesis) ?? '',
         riwayat_penyakit_sekarang: normalizeClinicalAnswer(visit.examination?.currentHistory) ?? '',
         riwayat_penyakit_dahulu: normalizeClinicalAnswer(visit.examination?.pastHistory) ?? '',
@@ -391,12 +401,15 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
     function submitDentalFinding(event: FormEvent<HTMLFormElement>): void {
         event.preventDefault();
         if (!canSaveDentalFinding) return;
-        dentalForm.transform((data) => ({ ...data, surfaces: data.surfaces.length ? data.surfaces : [data.surface] }));
+        const details = dentalFindingUsesNaturalTooth
+            ? dentalForm.data.details
+            : dentalFindingDetails(dentalForm.data.finding_code, dentalForm.data.details);
+        dentalForm.transform((data) => ({ ...data, details, surfaces: data.surfaces.length ? data.surfaces : [data.surface] }));
         confirmSave(canEdit ? 'Simpan temuan odontogram' : 'Simpan addendum odontogram', () => dentalForm.post(`/pelayanan/pemeriksaan/${visit.id}/odontogram${canEdit ? '' : '/addendum'}`, {
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => {
-                const saved = { ...dentalForm.data, reason: '' };
+                const saved = { ...dentalForm.data, details, reason: '' };
                 dentalForm.setData(saved);
                 dentalForm.setDefaults(saved);
             },
@@ -514,7 +527,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
     }
 
     function prepareOralDiagnosis(): void {
-        if (!canEdit || saving || physicalForm.isDirty || dentalForm.isDirty) return;
+        if (!canEdit || saving || physicalChanged || dentalForm.isDirty) return;
         const apply = () => {
             const note = [visit.examination?.physicalExam ? `Intraoral: ${visit.examination.physicalExam}` : '', visit.examination?.extraoralExam ? `Ekstraoral: ${visit.examination.extraoralExam}` : ''].filter(Boolean).join('\n');
             diagnosisForm.setData({ tooth_fdi: '', source_finding_code: '', surfaces: [], is_manual: false, kode_icd10: '', nama_diagnosa: '', code_system: diagnosisCodeSystem, code_release: '', jenis: visit.diagnoses.some(diagnosis => diagnosis.type === 'utama') ? 'tambahan' : 'utama', keterangan: note });
@@ -546,7 +559,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
 
     function importDentalDiagnosis(group: DentalDiagnosisGroup, candidate: DentalDiagnosisCandidate): void {
         if (!canEdit || saving || isDentalDiagnosisRecorded(group, candidate, visit.diagnoses)) return;
-        if (physicalForm.isDirty || dentalForm.isDirty) {
+        if (physicalChanged || dentalForm.isDirty) {
             toast.error('Simpan pemeriksaan dan temuan gigi sebelum mengimpornya ke diagnosis.');
             return;
         }
@@ -617,13 +630,13 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
             finishExamination();
             return;
         }
-        signatureForm.transform((data) => ({ ...data, assistance_review_id: assistanceReview?.auditId ?? null, assistance_review_hash: assistanceReview?.draftHash ?? null }));
+        signatureForm.transform((data) => ({ ...data, assistance_review_id: assistanceReview?.auditId ?? null, assistance_review_hash: assistanceReview?.draftHash ?? null, screening_revision: isDental ? visit.screeningRevision ?? undefined : undefined }));
         signatureForm.post(`/pelayanan/pemeriksaan/${visit.id}/selesai`, {
             preserveScroll: true,
             onError: (errors) => {
-                if (errors.assistance_review_id || errors.assistance_review_hash) {
+                if (errors.assistance_review_id || errors.assistance_review_hash || errors.screening_revision) {
                     setReviewPageStale(true);
-                    signatureForm.setData('review_admin_assistance', false);
+                    signatureForm.setData((data) => ({ ...data, review_admin_assistance: false, review_dental_assessment: false }));
                 }
             },
             onSuccess: () => {
@@ -644,6 +657,9 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
     const prescriptionEditable = canEdit && (!visit.prescription.status || visit.prescription.status === 'menunggu');
     const saving = [examinationForm, physicalForm, differentialForm, followUpForm, diagnosisForm, treatmentForm, dentalForm, prescriptionForm, externalPrescriptionForm, letterForm, referralForm, odontogramUndoForm, signatureForm, addendumForm, startForm, deleteForm, primaryDiagnosisForm].some((form) => form.processing);
     const savedAnamnesis = {
+        riwayat_obat: visit.examination?.riwayat_obat ?? '',
+        riwayat_perawatan_gigi: visit.examination?.riwayat_perawatan_gigi ?? '',
+        kebiasaan_gigi: visit.examination?.kebiasaan_gigi ?? '',
         anamnesis: normalizeClinicalAnswer(visit.examination?.anamnesis) ?? '',
         riwayat_penyakit_sekarang: normalizeClinicalAnswer(visit.examination?.currentHistory) ?? '',
         riwayat_penyakit_dahulu: normalizeClinicalAnswer(visit.examination?.pastHistory) ?? '',
@@ -651,14 +667,17 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
         riwayat_alergi: normalizeClinicalAnswer(visit.examination?.allergyHistory) ?? '',
     };
     const anamnesisChanged = examinationForm.isDirty || Object.entries(savedAnamnesis).some(([key, value]) => (normalizeClinicalAnswer(examinationForm.data[key as keyof typeof savedAnamnesis]) ?? '') !== value);
+    const physicalChanged = physicalForm.isDirty
+        || (normalizeClinicalAnswer(physicalForm.data.pemeriksaan_ekstraoral) ?? '') !== (normalizeClinicalAnswer(visit.examination?.extraoralExam) ?? '');
     const sectionSaveAllowed = {
         anamnesis: canEdit && !saving && anamnesisChanged,
-        pemeriksaan: canEdit && !saving && physicalForm.isDirty && !bodyFindingPending,
+        pemeriksaan: canEdit && !saving && physicalChanged && !bodyFindingPending,
         diagnosis: canEdit && !saving && differentialForm.isDirty,
         rencana: canEdit && !saving && followUpForm.isDirty,
     };
     const addendumChanged = Object.entries(addendumForm.data).some(([key, value]) => key !== 'reason' && JSON.stringify(value) !== JSON.stringify(addendumDefaults[key as keyof typeof addendumDefaults]));
     const canSaveAddendum = canCorrect && !saving && addendumForm.isDirty && addendumChanged && addendumForm.data.reason.trim().length >= 10 && !addendumBodyPending;
+    const dentalFindingUsesNaturalTooth = !['implant', 'bridge_pontic', 'removable_denture', 'missing', 'unerupted'].includes(dentalForm.data.finding_code);
     const selectedDentalRecord = visit.odontogram.find((finding) => finding.toothFdi === dentalForm.data.tooth_fdi && finding.surface === dentalForm.data.surface);
     const dentalFindingChanged = !selectedDentalRecord || selectedDentalRecord.findingCode !== dentalForm.data.finding_code || (selectedDentalRecord.notes ?? '').trim() !== dentalForm.data.notes.trim() || JSON.stringify(selectedDentalRecord?.details ?? {}) !== JSON.stringify(dentalForm.data.details ?? {}) || (dentalForm.data.surfaces?.length ?? 0) > 1;
     const canSaveDentalFinding = (canEdit || canCorrect) && !saving && dentalForm.isDirty && dentalFindingChanged && Boolean(dentalForm.data.tooth_fdi && dentalForm.data.finding_code) && (!canCorrect || dentalForm.data.reason.trim().length >= 10);
@@ -666,7 +685,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
     const unsavedSections: { tab: Tab | 'rencana'; label: string }[] = [
         ...(anamnesisChanged ? [{ tab: 'anamnesis' as Tab, label: 'Anamnesis' }] : []),
         ...(!isDental && bodyFindingPending ? [{ tab: physicalTab, label: 'Temuan lokasi tubuh' }] : []),
-        ...(physicalForm.isDirty ? [{ tab: physicalTab, label: isDental ? 'Pemeriksaan Fisik & Intraoral Dokter' : 'Pemeriksaan fisik' }] : []),
+        ...(physicalChanged ? [{ tab: physicalTab, label: isDental ? 'Pemeriksaan Fisik & Intraoral Dokter' : 'Pemeriksaan fisik' }] : []),
         ...(followUpForm.isDirty ? [{ tab: 'rencana' as const, label: 'Nonfarmakologis, edukasi & kontrol' }] : []),
         ...(isDental && dentalForm.isDirty ? [{ tab: 'odontogram' as Tab, label: 'Odontogram' }] : []),
         ...((hasDiagnosisDraft || differentialForm.isDirty) ? [{ tab: 'diagnosa' as Tab, label: 'Diagnosis' }] : []),
@@ -682,7 +701,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
         { tab: physicalTab, label: isDental ? 'Pemeriksaan intraoral' : 'Pemeriksaan fisik', complete: isDental
             ? Boolean(normalizeClinicalAnswer(visit.examination?.physicalExam) && normalizeClinicalAnswer(visit.examination?.extraoralExam))
             : Boolean(normalizeClinicalAnswer(visit.examination?.physicalExam) || hasBodyMapContent(visit.examination?.bodyMap) || Object.values(visit.examination?.physicalSystems ?? {}).some(normalizeClinicalAnswer)) },
-        ...(isDental ? [{ tab: 'odontogram' as Tab, label: 'Odontogram dan rincian lesi', complete: visit.odontogram.length > 0 && incompleteDentalFindings.length === 0 }] : []),
+        ...(isDental ? [{ tab: 'odontogram' as Tab, label: 'Odontogram dan rincian lesi', complete: (Boolean(signatureForm.data.dental_scope) || visit.odontogram.length > 0) && incompleteDentalFindings.length === 0 }] : []),
         ...(isDental ? [{ tab: 'diagnosa' as Tab, label: 'Konteks gigi pada diagnosis', complete: visit.diagnoses.every(diagnosis => diagnosisMatchesFindings(diagnosis, visit.odontogram)) }] : []),
         { tab: 'diagnosa', label: 'Satu diagnosis utama', complete: visit.diagnoses.filter((diagnosis) => diagnosis.type === 'utama').length === 1 },
     ];
@@ -729,6 +748,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
             title: 'Pengkajian tambahan',
             rows: [
                 ['Pengkajian gizi', visit.screening.summary?.['Pengkajian gizi']], ['Observasi awal', visit.screening.summary?.['Observasi awal']],
+                ['Status pengukuran TTV', visit.screening.summary?.['Status pengukuran TTV']],
                 ['Catatan pengkajian', visit.screening.summary?.['Catatan Pengkajian']],
             ] as [string, string | null | undefined][],
         },
@@ -736,6 +756,9 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
             title: 'Pengkajian gigi dan mulut',
             rows: [
                 ...['Visual ekstraoral awal perawat - simetri wajah', 'Visual ekstraoral awal perawat - pembengkakan', 'Catatan visual ekstraoral awal perawat', 'Tanda bahaya gigi / mulut'].map((label) => [label, visit.screening?.summary?.[label]] as [string, string | null | undefined]),
+                ['Kategori obat yang dilaporkan', visit.screening.summary?.['Kategori obat yang dilaporkan']],
+                ['Riwayat perawatan gigi', visit.screening.summary?.['Riwayat perawatan gigi']],
+                ['Kebiasaan terkait gigi dan mulut', visit.screening.summary?.['Kebiasaan terkait gigi dan mulut']],
                 ['Lokasi keluhan / nyeri', visit.screening.dentalPainLocation], ['Pemicu keluhan', displayDentalValues(visit.screening.dentalPainTriggers)],
                 ['Pola / lama keluhan', visit.screening.dentalPainDuration], ['Kondisi kesehatan yang perlu diketahui dokter gigi', displayDentalValues(visit.screening.dentalMedicalRisks)],
                 ['Riwayat infeksi atau bengkak', displayDentalValues(visit.screening.dentalInfectionHistory)], ['Catatan untuk dokter gigi', visit.screening.dentalNotes],
@@ -743,7 +766,6 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
         }] : []),
     ].map((group) => ({ ...group, rows: group.rows.filter(([, value]) => normalizeClinicalAnswer(value)) }))
         .filter((group) => group.rows.length > 0) : [];
-    const nurseExtraoral = Object.entries(visit.screening?.summary ?? {}).filter(([label, value]) => ['Visual ekstraoral awal perawat - simetri wajah', 'Visual ekstraoral awal perawat - pembengkakan', 'Catatan visual ekstraoral awal perawat', 'Tanda bahaya gigi / mulut'].includes(label) && Boolean(value?.trim()));
     const disclosureToggle = <span className={buttonVariants({ variant: 'secondary', size: 'sm', className: 'shrink-0' })}><span className="group-open/disclosure:hidden">Buka</span><span className="hidden group-open/disclosure:inline">Tutup</span><ChevronDown aria-hidden="true" className="size-4 transition-transform group-open/disclosure:rotate-180" /></span>;
     return (
         <>
@@ -766,6 +788,15 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                 </CardContent></Card>}
 
 
+                {visit.screeningSubmitted && ['darurat', 'segera'].includes(visit.screening?.priority ?? '') && <Alert variant={visit.screening?.priority === 'darurat' ? 'destructive' : 'default'}>
+                    <AlertTriangle aria-hidden="true" /><AlertTitle>Prioritas pengkajian perawat · {visit.screening?.priority}</AlertTitle>
+                    <AlertDescription>{visit.screening?.summary?.['Tanda bahaya gigi / mulut'] ?? 'Tinjau hasil pengkajian sebelum melanjutkan.'}</AlertDescription>
+                </Alert>}
+                {isDental && canEdit && <Field htmlFor="dental-exam-scope" label="Cakupan pemeriksaan gigi">
+                    <Select id="dental-exam-scope" value={signatureForm.data.dental_scope} onChange={(event) => signatureForm.setData((data) => ({ ...data, dental_scope: event.target.value, review_dental_assessment: false }))}>
+                        <option value="">Komprehensif</option><option value="follow_up">Terbatas · kontrol lanjutan</option><option value="emergency">Terbatas · kegawatdaruratan</option><option value="single_focus">Terbatas · fokus tunggal</option><option value="special_condition">Terbatas · kondisi khusus</option>
+                    </Select>
+                </Field>}
                 <details id="nurse-assessment-summary" className="group/disclosure rounded-xl border border-neutral-200 bg-surface shadow-sm"><summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden"><div className="min-w-0 text-sm leading-6"><p className="font-semibold">Ringkasan pengkajian awal perawat</p><p className="line-clamp-2 text-neutral-600">TD: {visit.screening ? formatBloodPressure(visit.screening.systolic, visit.screening.diastolic) : 'Belum diukur'} | Nadi: {visit.screening?.pulse ?? 'Belum diukur'} | Alergi: {visit.screening?.allergyHistory || 'Belum diketahui'} | Keluhan: {visit.screening?.complaint || 'Belum dicatat'}</p></div>{disclosureToggle}</summary><Card className="rounded-t-none border-0 border-t shadow-none"><CardHeader><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600"><Stethoscope className="size-5" /></span><div className="min-w-0 space-y-1"><CardTitle>Ringkasan pengkajian awal perawat</CardTitle><CardDescription>Isian tersimpan dari pengkajian {isDental ? 'Poli Gigi dan Mulut' : 'Poli Umum'} untuk konteks pemeriksaan dokter.</CardDescription></div></div></CardHeader><CardContent className="space-y-5">
                     {visit.screening ? <>
                         {screeningMeasures.length > 0 && <section aria-label="Hasil pengukuran perawat" className="space-y-3"><h3 className="text-sm font-semibold text-neutral-800">Hasil pengukuran</h3><dl className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">{screeningMeasures.map(({ label, value }) => <div className="min-w-0 rounded-xl border border-neutral-200 bg-neutral-50 p-3 sm:p-4" key={label}><dt className="text-xs font-medium text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm font-semibold text-neutral-900">{value}</dd></div>)}</dl></section>}
@@ -799,6 +830,11 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                         <div><h3 className="text-sm font-semibold text-neutral-950">Buat addendum</h3><p className="mt-1 text-sm text-neutral-600">Ubah bagian yang perlu dikoreksi. Nilai versi sebelumnya tetap tersimpan.</p></div>
                         <Field error={addendumForm.errors.reason} htmlFor="addendum-reason" label="Alasan koreksi" required><Textarea id="addendum-reason" placeholder="Contoh: koreksi setelah verifikasi ulang" minLength={10} onChange={(event) => addendumForm.setData('reason', event.target.value)} required rows={2} value={addendumForm.data.reason} /></Field>
                         <section className="space-y-4" aria-labelledby="addendum-history-title"><h4 className="font-semibold text-neutral-900" id="addendum-history-title">Anamnesis</h4><div className="grid gap-4 md:grid-cols-2"><Field error={addendumForm.errors.anamnesis} htmlFor="addendum-anamnesis" label="Keluhan utama"><Textarea id="addendum-anamnesis" placeholder="Keluhan utama yang disampaikan pasien" onChange={(event) => addendumForm.setData('anamnesis', event.target.value)} rows={3} value={addendumForm.data.anamnesis} /></Field><Field error={addendumForm.errors.riwayat_penyakit_sekarang} htmlFor="addendum-rps" label="Riwayat penyakit sekarang"><Textarea id="addendum-rps" placeholder="Awal keluhan, durasi, dan perkembangannya" onChange={(event) => addendumForm.setData('riwayat_penyakit_sekarang', event.target.value)} rows={3} value={addendumForm.data.riwayat_penyakit_sekarang} /></Field><ConfirmedHistoryField error={addendumForm.errors.riwayat_penyakit_dahulu} id="addendum-rpd" kind="past" label="Riwayat penyakit dahulu" onChange={(value) => addendumForm.setData('riwayat_penyakit_dahulu', value)} placeholder="Riwayat penyakit, operasi, dan pengobatan rutin" value={addendumForm.data.riwayat_penyakit_dahulu} /><ConfirmedHistoryField error={addendumForm.errors.riwayat_penyakit_keluarga} id="addendum-riwayat-keluarga" kind="family" label="Riwayat penyakit keluarga" onChange={(value) => addendumForm.setData('riwayat_penyakit_keluarga', value)} placeholder="Riwayat penyakit keluarga yang relevan" value={addendumForm.data.riwayat_penyakit_keluarga} /><ConfirmedHistoryField error={addendumForm.errors.riwayat_alergi} id="addendum-alergi" kind="allergy" label="Riwayat alergi" onChange={(value) => addendumForm.setData('riwayat_alergi', value)} placeholder="Obat, makanan, dan reaksi alergi" value={addendumForm.data.riwayat_alergi} /></div></section>
+                        {isDental && <div className="grid gap-4 md:grid-cols-2">
+                            {([['riwayat_obat', 'Obat yang sedang digunakan'],['riwayat_perawatan_gigi', 'Riwayat perawatan gigi'],['kebiasaan_gigi', 'Kebiasaan terkait gigi dan mulut'],] as const).map(([name, label]) => <Field key={name} error={addendumForm.errors[name]} htmlFor={`addendum-${name}`} label={label}>
+                                <Textarea id={`addendum-${name}`} maxLength={5000} rows={3} value={addendumForm.data[name]} onChange={(event) => addendumForm.setData(name, event.target.value)} />
+                            </Field>)}
+                        </div>}
                         <section className="space-y-4 border-t border-neutral-200 pt-5" aria-labelledby="addendum-exam-title"><h4 className="font-semibold text-neutral-900" id="addendum-exam-title">{isDental ? 'Pemeriksaan Fisik & Intraoral Dokter' : 'Pemeriksaan fisik'}</h4><div className="grid gap-4 md:grid-cols-2"><Field error={addendumForm.errors.pemeriksaan_fisik} htmlFor="addendum-fisik" label={visit.clinicType === 'gigi' ? 'Ringkasan pemeriksaan intraoral' : 'Ringkasan pemeriksaan fisik'}><Textarea id="addendum-fisik" placeholder="Ringkasan temuan pemeriksaan fisik" onChange={(event) => addendumForm.setData('pemeriksaan_fisik', event.target.value)} rows={3} value={addendumForm.data.pemeriksaan_fisik} /></Field>{isDental && <Field error={addendumForm.errors.pemeriksaan_ekstraoral} htmlFor="addendum-extraoral" label="Pemeriksaan ekstraoral"><Textarea id="addendum-extraoral" placeholder="Catat temuan ekstraoral yang diperiksa" onChange={(event) => addendumForm.setData('pemeriksaan_ekstraoral', event.target.value)} rows={3} value={addendumForm.data.pemeriksaan_ekstraoral} /></Field>}</div>{visit.clinicType === 'umum' && <details className="rounded-xl border border-neutral-200 p-4"><summary className="cursor-pointer text-sm font-semibold text-neutral-900">Koreksi peta tubuh, anotasi & temuan per sistem</summary><div className="mt-4"><PhysicalExaminationWorkspace idPrefix="addendum-" systems={addendumForm.data.pemeriksaan_fisik_terstruktur} onChange={(systems) => addendumForm.setData('pemeriksaan_fisik_terstruktur', systems)} bodyMap={addendumForm.data.body_map} onBodyMapChange={(data) => addendumForm.setData('body_map', data)} draft={addendumBodyDraft} onDraftChange={setAddendumBodyDraft} onPendingChange={setAddendumBodyPending} errors={addendumForm.errors} disabled={saving} gender={visit.patient.gender} /></div></details>}</section>
                         <section className="space-y-4 border-t border-neutral-200 pt-5" aria-labelledby="addendum-diagnosis-title"><h4 className="font-semibold text-neutral-900" id="addendum-diagnosis-title">Diagnosis</h4><Field error={addendumForm.errors.diagnosis_banding} htmlFor="addendum-diagnosis-banding" label="Diagnosis banding"><Textarea id="addendum-diagnosis-banding" placeholder="Diagnosis alternatif yang dipertimbangkan" onChange={(event) => addendumForm.setData('diagnosis_banding', event.target.value)} rows={3} value={addendumForm.data.diagnosis_banding} /></Field></section>
                         <section className="space-y-4 border-t border-neutral-200 pt-5" aria-labelledby="addendum-plan-title">
@@ -833,9 +869,9 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                             gender={visit.patient.gender}
                         />}
                         <Field error={physicalForm.errors.pemeriksaan_fisik} htmlFor="pemeriksaan_fisik" label={isDental ? 'Pemeriksaan intraoral' : 'Ringkasan pemeriksaan fisik (opsional)'}><Textarea disabled={!canEdit} id="pemeriksaan_fisik" onChange={(event) => physicalForm.setData('pemeriksaan_fisik', event.target.value)} placeholder={visit.clinicType === 'gigi' ? 'Temuan mukosa, gingiva, jaringan lunak, dan oklusi. Temuan per gigi dicatat pada odontogram.' : 'Ringkasan temuan pemeriksaan fisik.'} rows={4} value={physicalForm.data.pemeriksaan_fisik} /></Field>
-{isDental && nurseExtraoral.length > 0 && <section id="nurse-extraoral-handover" className="space-y-3 border-t border-neutral-200 pt-4" aria-label="Observasi ekstraoral perawat"><div><h3 className="text-sm font-semibold">Observasi ekstraoral perawat</h3><p className="mt-1 text-xs text-neutral-500">Tinjau observasi awal berikut, lalu catat hasil pemeriksaan dokter di bawah.</p></div><dl className="grid gap-3 sm:grid-cols-2">{nurseExtraoral.map(([label, value]) => <AssessmentNote key={label} label={label} value={value} />)}</dl></section>}
-{isDental && <Field error={physicalForm.errors.pemeriksaan_ekstraoral} htmlFor="extraoral" label="Pemeriksaan ekstraoral dokter"><Textarea disabled={!canEdit} id="extraoral" onChange={(event) => physicalForm.setData('pemeriksaan_ekstraoral', event.target.value)} placeholder="Asimetri/pembengkakan wajah, bibir, kelenjar getah bening, bukaan mulut" rows={3} value={physicalForm.data.pemeriksaan_ekstraoral} /></Field>}
-                        <div className="flex flex-wrap justify-end gap-2">{isDental && <Button type="button" variant="secondary" disabled={!canEdit || saving || physicalForm.isDirty || !visit.examination?.physicalExam} onClick={prepareOralDiagnosis}>Susun diagnosis dari pemeriksaan mulut</Button>}<Button disabled={!sectionSaveAllowed.pemeriksaan} type="submit">Simpan pemeriksaan fisik</Button></div>
+
+{isDental && <Field error={physicalForm.errors.pemeriksaan_ekstraoral} htmlFor="extraoral" label="Hasil pemeriksaan ekstraoral"><Textarea disabled={!canEdit} id="extraoral" onChange={(event) => physicalForm.setData('pemeriksaan_ekstraoral', event.target.value)} placeholder="Asimetri/pembengkakan wajah, bibir, kelenjar getah bening, bukaan mulut" rows={3} value={physicalForm.data.pemeriksaan_ekstraoral} /></Field>}
+                        <div className="flex flex-wrap justify-end gap-2">{isDental && <Button type="button" variant="secondary" disabled={!canEdit || saving || physicalChanged || !visit.examination?.physicalExam} onClick={prepareOralDiagnosis}>Susun diagnosis dari pemeriksaan mulut</Button>}<Button disabled={!sectionSaveAllowed.pemeriksaan} type="submit">Simpan pemeriksaan fisik</Button></div>
                     </form></fieldset>
                     {isDental && (
                 <Card className="space-y-5 rounded-none border-0 border-t border-neutral-200 pt-5 shadow-none">
@@ -894,13 +930,13 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                                     </Field>
                                     </div>
                                 </div>
-                                <section className="space-y-3 border-t border-neutral-200 pt-4" aria-label="Kondisi dan riwayat perawatan penyerta"><h4 className="text-sm font-semibold">Kondisi & riwayat perawatan penyerta</h4><p className="text-xs leading-5 text-neutral-600">Catat kondisi yang dapat menyertai temuan utama, misalnya karies pada gigi yang memakai crown atau sudah PSA. Riwayat perawatan bukan tindakan yang dilakukan pada kunjungan ini. Gunakan regio dan daftar gigi terkait untuk prostesis; tambahkan temuan khusus pada catatan.</p><div className="grid gap-3 sm:grid-cols-2">{['eruption', 'position', 'morphology', 'endodontic', 'prosthesis', 'prosthesis_region', 'material', 'restoration_state'].filter(key => dentalOptions.detailOptions?.[key]).map(key => <Field key={key} htmlFor={`dental-context-${key}`} error={(dentalForm.errors as Record<string, string>)[`details.${key}`]} label={({ eruption: 'Erupsi', position: 'Posisi gigi', morphology: 'Bentuk / ukuran', endodontic: 'Pulpa / riwayat PSA', prosthesis: 'Prostesis / implan', prosthesis_region: 'Regio prostesis (bila relevan)', material: 'Material restorasi / prostesis', restoration_state: 'Jenis restorasi' } as Record<string, string>)[key]}><Select id={`dental-context-${key}`} value={dentalForm.data.details[key] ?? ''} disabled={!dentalForm.data.tooth_fdi} onChange={event => dentalForm.setData('details', { ...dentalForm.data.details, [key]: event.target.value })}><option value="">Belum dicatat / tidak diterapkan</option>{Object.entries(dentalOptions.detailOptions?.[key] ?? {}).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>)}</div>{Boolean(dentalForm.data.details.prosthesis || ['crown', 'bridge_pontic', 'bridge_abutment', 'implant', 'removable_denture'].includes(dentalForm.data.finding_code)) && <Field htmlFor="dental-prosthesis-span" label="Gigi terkait prostesis (opsional)" error={(dentalForm.errors as Record<string, string>)['details.prosthesis_span']}><Input id="dental-prosthesis-span" placeholder="Nomor FDI dipisahkan koma, misalnya 14, 15, 16" maxLength={200} value={dentalForm.data.details.prosthesis_span ?? ''} onChange={event => dentalForm.setData('details', { ...dentalForm.data.details, prosthesis_span: event.target.value })} /></Field>}</section>
-                                <DentalClinicalControls mode="tests" tooth={dentalForm.data.tooth_fdi} surface={dentalForm.data.surface} selectedSurfaces={dentalForm.data.surfaces} finding={dentalForm.data.finding_code} details={dentalForm.data.details} disabled={!dentalForm.data.tooth_fdi || saving} onSurface={toggleDentalSurface} onChange={(details) => dentalForm.setData('details', details)} />
+                                <details className="group/disclosure rounded-lg border border-neutral-200 p-3" open={Boolean(Object.keys(dentalForm.data.details).some(key => ['eruption', 'position', 'morphology', 'endodontic', 'prosthesis', 'material', 'restoration_state'].includes(key)) || ['malposition', 'anomaly', 'removable_denture'].includes(dentalForm.data.finding_code))} aria-label="Kondisi dan riwayat perawatan penyerta"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>Kondisi & riwayat perawatan penyerta</span>{disclosureToggle}</summary><p className="my-3 text-sm text-neutral-600">Catat kondisi yang dapat menyertai temuan utama, misalnya karies pada gigi yang memakai crown atau sudah PSA. Riwayat perawatan bukan tindakan yang dilakukan pada kunjungan ini. Gunakan regio dan daftar gigi terkait untuk prostesis; tambahkan temuan khusus pada catatan.</p><div className="grid gap-4 sm:grid-cols-2">{['eruption', 'position', 'morphology', 'endodontic', 'prosthesis', 'prosthesis_region', 'material', 'restoration_state'].filter(key => dentalOptions.detailOptions?.[key]).map(key => <Field key={key} htmlFor={`dental-context-${key}`} error={(dentalForm.errors as Record<string, string>)[`details.${key}`]} label={({ eruption: 'Erupsi', position: 'Posisi gigi', morphology: 'Bentuk / ukuran', endodontic: 'Pulpa / riwayat PSA', prosthesis: 'Prostesis / implan', prosthesis_region: 'Regio prostesis (bila relevan)', material: 'Material restorasi / prostesis', restoration_state: 'Jenis restorasi' } as Record<string, string>)[key]}><Select id={`dental-context-${key}`} value={dentalForm.data.details[key] ?? ''} disabled={!dentalForm.data.tooth_fdi} onChange={event => dentalForm.setData('details', { ...dentalForm.data.details, [key]: event.target.value })}><option value="">Belum dicatat / tidak diterapkan</option>{Object.entries(dentalOptions.detailOptions?.[key] ?? {}).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>)}</div>{Boolean(dentalForm.data.details.prosthesis || ['crown', 'bridge_pontic', 'bridge_abutment', 'implant', 'removable_denture'].includes(dentalForm.data.finding_code)) && <Field className="mt-4" htmlFor="dental-prosthesis-span" label="Gigi terkait prostesis (opsional)" error={(dentalForm.errors as Record<string, string>)['details.prosthesis_span']}><Input id="dental-prosthesis-span" placeholder="Nomor FDI dipisahkan koma, misalnya 14, 15, 16" maxLength={200} value={dentalForm.data.details.prosthesis_span ?? ''} onChange={event => dentalForm.setData('details', { ...dentalForm.data.details, prosthesis_span: event.target.value })} /></Field>}</details>
+                                {dentalFindingUsesNaturalTooth && <DentalClinicalControls mode="tests" tooth={dentalForm.data.tooth_fdi} surface={dentalForm.data.surface} selectedSurfaces={dentalForm.data.surfaces} finding={dentalForm.data.finding_code} details={dentalForm.data.details} disabled={!dentalForm.data.tooth_fdi || saving} onSurface={toggleDentalSurface} onChange={(details) => dentalForm.setData('details', details)} />}
                                 <section className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50/50 p-4" aria-label="Rincian klinis temuan gigi">
                                     <div><h4 className="text-sm font-semibold text-neutral-900">Rincian klinis {dentalForm.data.finding_code === 'caries' ? 'karies' : 'temuan gigi'}</h4><p className="mt-1 text-sm text-neutral-600">Catat temuan dan hasil tes pada gigi yang dipilih. Bila hasilnya belum jelas, pilih belum dapat ditentukan dan tambahkan keterangan.</p></div>
                                     {dentalForm.errors.details && <p role="alert" className="text-sm text-red-600">{dentalForm.errors.details}</p>}
                                     <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                        {Object.entries(dentalOptions.detailOptions ?? {}).filter(([key]) => ['pulpal', 'periapical'].includes(key) || (dentalForm.data.finding_code === 'caries' && ['activity', 'site', 'depth', 'root_severity'].includes(key))).filter(([key]) => key !== 'root_severity' || dentalForm.data.details.site === 'root').map(([key, options]) => <Field key={key} className={['pulpal', 'periapical'].includes(key) ? 'md:col-span-2 xl:col-span-3' : undefined} error={(dentalForm.errors as Record<string, string>)[`details.${key}`]} htmlFor={`dental-detail-${key}`} label={({ icdas: 'Stadium visual ICDAS', activity: 'Aktivitas lesi', site: 'Jenis / lokasi lesi', depth: 'Kedalaman hasil evaluasi', root_severity: 'Kavitas lesi akar', black_class: 'Klasifikasi Black (opsional)', pulpal: 'Diagnosis pulpa', periapical: 'Diagnosis apikal' } as Record<string, string>)[key] ?? key}>
+                                        {Object.entries(dentalOptions.detailOptions ?? {}).filter(([key]) => (dentalFindingUsesNaturalTooth && ['pulpal', 'periapical'].includes(key)) || (dentalForm.data.finding_code === 'caries' && ['activity', 'site', 'depth', 'root_severity'].includes(key))).filter(([key]) => key !== 'root_severity' || dentalForm.data.details.site === 'root').map(([key, options]) => <Field key={key} className={['pulpal', 'periapical'].includes(key) ? 'md:col-span-2 xl:col-span-3' : undefined} error={(dentalForm.errors as Record<string, string>)[`details.${key}`]} htmlFor={`dental-detail-${key}`} label={({ icdas: 'Stadium visual ICDAS', activity: 'Aktivitas lesi', site: 'Jenis / lokasi lesi', depth: 'Kedalaman hasil evaluasi', root_severity: 'Kavitas lesi akar', black_class: 'Klasifikasi Black (opsional)', pulpal: 'Diagnosis pulpa', periapical: 'Diagnosis apikal' } as Record<string, string>)[key] ?? key}>
                                             {['pulpal', 'periapical'].includes(key) ? <div id={`dental-detail-${key}`} className="flex flex-wrap gap-2">{Object.entries(options).map(([value, label]) => <Button type="button" key={value} size="sm" className="h-auto min-h-9 whitespace-normal text-left" variant={dentalForm.data.details[key] === value ? 'default' : 'secondary'} aria-pressed={dentalForm.data.details[key] === value} onClick={() => dentalForm.setData('details', { ...dentalForm.data.details, [key]: dentalForm.data.details[key] === value ? '' : value })}>{label}</Button>)}</div> : <Select id={`dental-detail-${key}`} onChange={(event) => dentalForm.setData('details', { ...dentalForm.data.details, [key]: event.target.value })} value={dentalForm.data.details[key] ?? ''}><option value="">Belum dicatat</option>{Object.entries(options).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>}
                                         </Field>)}
                                     </div>
@@ -969,9 +1005,20 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                     <TabsContent className="space-y-5 p-5 sm:p-6" value="anamnesis">
                         <div><h3 className="flex items-center gap-2 text-base font-semibold text-neutral-950" id="tab-anamnesis"><Stethoscope aria-hidden="true" className="size-5 shrink-0 text-neutral-600" />Anamnesis</h3><p className="mt-1 text-sm text-neutral-500">Catat keluhan dan riwayat pasien. Riwayat yang belum diketahui boleh dikosongkan; pilih tidak ada riwayat hanya setelah dikonfirmasi.</p></div>
                         <fieldset className="min-w-0" disabled={saving}><form className="space-y-5" onSubmit={(event) => submitClinicalSection(event, 'anamnesis')}>
-                            <Field error={examinationForm.errors.dokter_id} htmlFor="dokter_id" label="Dokter pemeriksa"><Select id="dokter_id" onChange={(event) => examinationForm.setData('dokter_id', event.target.value)} value={examinationForm.data.dokter_id}><option value="">Pilih dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}</Select></Field>
+                            <dl className="rounded-lg border border-neutral-200 p-3"><dt className="text-sm text-neutral-600">Dokter pemeriksa</dt><dd className="mt-1 font-semibold">{examinerName ?? 'Belum ditugaskan'}</dd></dl>
                             <div className="grid gap-4 md:grid-cols-2"><Field error={examinationForm.errors.anamnesis} htmlFor="anamnesis" label="Keluhan utama" required><Textarea id="anamnesis" onChange={(event) => examinationForm.setData('anamnesis', event.target.value)} placeholder="Catat keluhan utama yang disampaikan pasien" required rows={3} value={examinationForm.data.anamnesis} /></Field><Field error={examinationForm.errors.riwayat_penyakit_sekarang} htmlFor="rps" label="Riwayat penyakit sekarang"><Textarea id="rps" onChange={(event) => examinationForm.setData('riwayat_penyakit_sekarang', event.target.value)} placeholder="Awal keluhan, durasi, perkembangan, tingkat keparahan, faktor pemicu/pereda" rows={3} value={examinationForm.data.riwayat_penyakit_sekarang} /></Field></div>
                             <div className="grid gap-4 md:grid-cols-3"><ConfirmedHistoryField error={examinationForm.errors.riwayat_penyakit_dahulu} id="rpd" kind="past" label="Riwayat penyakit dahulu" onChange={(value) => examinationForm.setData('riwayat_penyakit_dahulu', value)} placeholder="Riwayat penyakit, operasi, dan pengobatan rutin" value={examinationForm.data.riwayat_penyakit_dahulu} /><ConfirmedHistoryField error={examinationForm.errors.riwayat_penyakit_keluarga} id="riwayat-keluarga" kind="family" label="Riwayat penyakit keluarga" onChange={(value) => examinationForm.setData('riwayat_penyakit_keluarga', value)} placeholder="Riwayat penyakit keluarga yang relevan" value={examinationForm.data.riwayat_penyakit_keluarga} /><ConfirmedHistoryField error={examinationForm.errors.riwayat_alergi} id="riwayat-alergi-dokter" kind="allergy" label="Riwayat alergi" onChange={(value) => examinationForm.setData('riwayat_alergi', value)} placeholder="Obat, makanan, dan reaksi alergi" value={examinationForm.data.riwayat_alergi} /></div>
+                            {isDental && <section className="grid gap-4 border-t border-neutral-200 pt-4 md:grid-cols-2" aria-label="Riwayat khusus gigi">
+                                {([
+                                    ['riwayat_obat', 'Obat yang sedang digunakan'],
+                                    ['riwayat_perawatan_gigi', 'Riwayat perawatan gigi'],
+                                    ['kebiasaan_gigi', 'Kebiasaan terkait gigi dan mulut'],
+                                ] as const).map(([name, label]) => <div className={name === 'riwayat_obat' ? 'md:col-span-2' : undefined} key={name}>
+                                    <Field error={examinationForm.errors[name]} htmlFor={name} label={label}>
+                                        <Textarea id={name} maxLength={5000} rows={3} onChange={(event) => examinationForm.setData(name, event.target.value)} value={examinationForm.data[name]} />
+                                    </Field>
+                                </div>)}
+                            </section>}
                             <div className="flex justify-end"><Button disabled={!sectionSaveAllowed.anamnesis} type="submit">Simpan anamnesis</Button></div>
                         </form></fieldset>
                         {renderTabNavigation('anamnesis', physicalTab)}
@@ -984,14 +1031,14 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                             extraoralExam={visit.examination?.extraoralExam}
                             findings={visit.odontogram}
                             options={dentalOptions}
-                            hasUnsavedChanges={examinationForm.isDirty || physicalForm.isDirty || dentalForm.isDirty}
+                            hasUnsavedChanges={examinationForm.isDirty || physicalChanged || dentalForm.isDirty}
                             onReview={() => navigateSection('odontogram')}
                         /> : <GeneralExaminationSummary
                             anamnesis={visit.examination?.anamnesis}
                             physicalExam={visit.examination?.physicalExam}
                             physicalSystems={visit.examination?.physicalSystems ?? {}}
                             bodyMap={visit.examination?.bodyMap}
-                            hasUnsavedChanges={anamnesisChanged || physicalForm.isDirty || bodyFindingPending}
+                            hasUnsavedChanges={anamnesisChanged || physicalChanged || bodyFindingPending}
                             onReview={() => navigateSection('pemeriksaan')}
                         />}
                         <div><h3 className="flex items-center gap-2 text-base font-semibold text-neutral-950" id="tab-diagnosa"><Stethoscope aria-hidden="true" className="size-5 shrink-0 text-neutral-600" />Diagnosis</h3><p className="mt-1 text-sm text-neutral-500">Tetapkan diagnosis berdasarkan seluruh hasil pemeriksaan. Gunakan usulan kode sebagai bantuan, lalu tinjau uraian dan pilih kategori kunjungan.</p></div>
@@ -1150,7 +1197,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                     </TabsContent>
 
                     <TabsContent className="space-y-6 p-5 sm:p-6" value="rujukan">
-                        <div><h3 className="flex items-center gap-2 text-base font-semibold text-neutral-950" id="tab-rujukan"><Stethoscope aria-hidden="true" className="size-5 shrink-0 text-neutral-600" />Rujukan internal</h3><p className="mt-1 text-sm text-neutral-500">Arahkan pasien untuk konsultasi ke poliklinik lain.</p></div>
+                        <div><h3 className="flex items-center gap-2 text-base font-semibold text-neutral-950" id="tab-rujukan"><Stethoscope aria-hidden="true" className="size-5 shrink-0 text-neutral-600" />Rujukan internal</h3><p className="mt-1 text-sm text-neutral-500">Gunakan untuk koordinasi dengan poli yang aktif di klinik. Bila layanan yang dibutuhkan berada di luar kapasitas klinik, koordinasikan rujukan eksternal sesuai SOP dan catat hasilnya di RME.</p></div>
                         <fieldset className="min-w-0" disabled={saving}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, referralForm, `/pelayanan/pemeriksaan/${visit.id}/rujukan`)}><div className="grid items-end gap-4 md:grid-cols-2"><Field error={referralForm.errors.ke_poli_id} htmlFor="ke_poli_id" label="Poliklinik tujuan" required><Select id="ke_poli_id" onChange={(event) => referralForm.setData('ke_poli_id', event.target.value)} required value={referralForm.data.ke_poli_id}><option value="">Pilih poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field><Field error={referralForm.errors.surat_template_id} htmlFor="referral-template" label="Template rujukan"><Select id="referral-template" onChange={(event) => referralForm.setData('surat_template_id', event.target.value)} value={referralForm.data.surat_template_id}><option value="">Format standar klinik</option>{correspondenceTemplates.filter((template) => template.type === 'rujukan_internal').map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</Select></Field></div><Field error={referralForm.errors.konten_surat} htmlFor="referral-content" label="Isi surat rujukan"><Textarea id="referral-content" onChange={(event) => referralForm.setData('konten_surat', event.target.value)} placeholder="Kosongkan untuk menggunakan isi template" rows={4} value={referralForm.data.konten_surat} /></Field><Field error={referralForm.errors.catatan} htmlFor="catatan-rujukan" label="Catatan konsultasi"><Textarea id="catatan-rujukan" placeholder="Keterangan tambahan untuk konsultasi" onChange={(event) => referralForm.setData('catatan', event.target.value)} rows={3} value={referralForm.data.catatan} /></Field><div className="flex justify-end"><Button disabled={!canSubmitEntry(referralForm)} type="submit"><Plus className="size-4" />Kirim rujukan</Button></div></form></fieldset>
                         <div className="space-y-3"><h4 className="text-sm font-semibold text-neutral-900">Riwayat rujukan</h4>{visit.referrals.length ? visit.referrals.map((referral) => <article className="flex flex-col justify-between gap-2 rounded-xl border border-neutral-200 p-4 sm:flex-row sm:items-center" key={referral.id}><div><p className="text-sm font-medium text-neutral-900">{referral.fromClinic ?? 'Belum diisi'} → {referral.toClinic ?? 'Belum diisi'}</p><p className="mt-1 text-xs text-neutral-500">No: {referral.number ?? 'Belum diisi'}</p><p className="mt-1 text-sm text-neutral-600">{referral.notes ?? 'Belum diisi'}</p></div><div className="flex items-center justify-between gap-3"><Badge variant={referral.status === 'selesai' ? 'complete' : 'waiting'}>{referral.status}</Badge><ActionButton asChild action="print" label="Cetak"><a href={referral.printUrl} /></ActionButton></div></article>) : <Empty className="min-h-0 py-6" description="Rujukan internal untuk kunjungan ini akan muncul di sini." title="Belum ada rujukan" />}</div>
                         {renderTabNavigation('rujukan')}
@@ -1179,12 +1226,34 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                 </form>
             </div>
             <Dialog onOpenChange={setSignatureDialogOpen} open={signatureDialogOpen}>
-                <DialogContent>
+                <DialogContent className="max-h-[90dvh] overflow-y-auto">
                     <DialogHeader><DialogTitle>Selesaikan pemeriksaan</DialogTitle><DialogDescription>Tinjau kembali hasil pemeriksaan, lalu masukkan kata sandi untuk menandatangani. Perubahan setelah ditandatangani dicatat melalui addendum.</DialogDescription></DialogHeader>
                     <fieldset className="min-w-0" disabled={saving}><form className="space-y-4" onSubmit={signExamination}><p className="rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">{visit.treatments.some((item) => item.executionRole === 'perawat') ? (visit.prescription.items.some((item) => !item.external) ? 'Pasien ke perawat untuk tindakan, kemudian ke farmasi, lalu selesai.' : 'Pasien ke perawat untuk tindakan, kemudian kunjungan selesai tanpa farmasi.') : visit.prescription.items.some((item) => !item.external) ? 'Pasien diteruskan ke farmasi untuk resep klinik.' : visit.prescription.items.some((item) => item.external) ? 'Kunjungan selesai setelah ditandatangani. Resep luar ditebus di luar klinik.' : 'Kunjungan selesai setelah ditandatangani tanpa resep obat.'}</p>
                         {assistanceReview && <div className="space-y-2"><label className="flex items-start gap-2 text-sm"><Checkbox checked={signatureForm.data.review_admin_assistance} onCheckedChange={(checked) => signatureForm.setData('review_admin_assistance', checked === true)} />Saya telah meninjau draf bantuan admin dan menyetujui isinya sebagai dokter penanggung jawab.</label>{signatureForm.errors.review_admin_assistance && <p className="text-sm text-red-600">{signatureForm.errors.review_admin_assistance}</p>}{signatureForm.errors.assistance_review_hash && <p className="text-sm text-red-600">{signatureForm.errors.assistance_review_hash}</p>}{reviewPageStale && <Button onClick={() => window.location.reload()} type="button" variant="secondary">Muat ulang draf terbaru</Button>}{signatureForm.errors.assistance_review_id && <p className="text-sm text-red-600">{signatureForm.errors.assistance_review_id}</p>}</div>}
                         {isDental && dentalDiagnosisGroups.some(group => group.warnings.length > 0) && <Alert variant="warning"><AlertTitle>Tinjau kembali temuan berikut</AlertTitle><div className="space-y-2 text-sm leading-5">{dentalDiagnosisGroups.flatMap(group => group.warnings.map(warning => <p key={`${group.toothFdi}-${warning}`}>Gigi {group.toothFdi}: {warning}</p>))}</div><p className="mt-2 text-xs">Lanjutkan setelah hasil pemeriksaan dan penetapan diagnosis Anda sudah sesuai.</p></Alert>}
-                        {isDental && <div className="space-y-2"><label className="flex items-start gap-2 text-sm leading-6"><Checkbox checked={signatureForm.data.review_dental_assessment} onCheckedChange={(checked) => signatureForm.setData('review_dental_assessment', checked === true)} /><span>Saya telah meninjau pengkajian / observasi awal perawat, melakukan pemeriksaan ekstraoral dan intraoral penuh, serta memvalidasi odontogram, diagnosis dan rencana perawatan.</span></label>{signatureForm.errors.review_dental_assessment && <p role="alert" className="text-sm text-red-600">{signatureForm.errors.review_dental_assessment}</p>}{(signatureForm.errors as Record<string, string>).dental_diagnoses && <p role="alert" className="text-sm text-red-700">{(signatureForm.errors as Record<string, string>).dental_diagnoses}</p>}{(signatureForm.errors as Record<string, string>).dental_findings && <p role="alert" className="text-sm text-red-600">{(signatureForm.errors as Record<string, string>).dental_findings}</p>}</div>}
+                        {isDental && <div className="space-y-2"><label className="flex items-start gap-2 text-sm leading-6"><Checkbox checked={signatureForm.data.review_dental_assessment} onCheckedChange={(checked) => signatureForm.setData('review_dental_assessment', checked === true)} /><span>Saya telah meninjau pengkajian / observasi awal perawat, melakukan pemeriksaan ekstraoral dan intraoral sesuai cakupan, serta memvalidasi temuan, diagnosis dan rencana perawatan.</span></label>{signatureForm.errors.review_dental_assessment && <p role="alert" className="text-sm text-red-600">{signatureForm.errors.review_dental_assessment}</p>}{(signatureForm.errors as Record<string, string>).dental_diagnoses && <p role="alert" className="text-sm text-red-700">{(signatureForm.errors as Record<string, string>).dental_diagnoses}</p>}{(signatureForm.errors as Record<string, string>).dental_findings && <p role="alert" className="text-sm text-red-600">{(signatureForm.errors as Record<string, string>).dental_findings}</p>}</div>}
+                        {signatureForm.errors.screening_revision && <Alert variant="destructive"><AlertDescription>{signatureForm.errors.screening_revision}</AlertDescription></Alert>}
+                        {isDental && signatureForm.data.dental_scope && <div className="grid gap-3">
+                            {signatureForm.errors.dental_scope && <p role="alert" className="text-sm text-red-700">{signatureForm.errors.dental_scope}</p>}
+                            {([
+                                ['dental_scope_reason', 'Alasan pembatasan'],
+                                ['dental_focus', 'Fokus gigi atau area dan temuan klinis'],
+                                ['dental_follow_up_plan', 'Rencana tindak lanjut atau odontogram lengkap'],
+                                ...(signatureForm.data.dental_scope === 'follow_up' ? [['dental_prior_chart', 'Rujukan odontogram awal lengkap']] as const : []),
+                            ] as const).map(([name, label]) => <Field key={name} label={label} htmlFor={name} error={signatureForm.errors[name]} required>
+                                <Textarea id={name} rows={2} required maxLength={name === 'dental_prior_chart' ? 1000 : 2000} value={signatureForm.data[name]} onChange={(event) => signatureForm.setData(name, event.target.value)} />
+                            </Field>)}
+                        </div>}
+                        {isDental && visit.dentalEscalationRequired && <div className="grid gap-3">
+                            <Field htmlFor="dental-escalation-decision" label="Keputusan dokter gigi penanggung jawab" error={signatureForm.errors.dental_escalation_decision} required>
+                                <Select id="dental-escalation-decision" required value={signatureForm.data.dental_escalation_decision} onChange={(event) => signatureForm.setData('dental_escalation_decision', event.target.value)}>
+                                    <option value="">Pilih keputusan</option><option value="deferred">Tindakan ditunda</option><option value="stabilized">Penanganan awal sesuai kemampuan klinik</option><option value="referred">Koordinasi penilaian lanjutan atau rujukan</option><option value="reassessed">Dinilai ulang dan dapat melanjutkan</option>
+                                </Select>
+                            </Field>
+                            <Field htmlFor="dental-escalation-note" label="Temuan, tindakan awal, dan tindak lanjut" error={signatureForm.errors.dental_escalation_note} required>
+                                <Textarea id="dental-escalation-note" required rows={2} maxLength={2000} placeholder="Catat hasil penilaian ulang, pengukuran yang dapat dilakukan, dan tujuan serta hasil koordinasi bila dirujuk." value={signatureForm.data.dental_escalation_note} onChange={(event) => signatureForm.setData('dental_escalation_note', event.target.value)} />
+                            </Field>
+                        </div>}
                         <Field error={signatureForm.errors.signature_password} htmlFor="signature-password" label="Kata sandi akun" required><Input placeholder="Masukkan kata sandi akun Anda" autoComplete="current-password" id="signature-password" onChange={(event) => signatureForm.setData('signature_password', event.target.value)} required type="password" value={signatureForm.data.signature_password} /></Field>
                         <div className="flex justify-end gap-2"><Button onClick={() => setSignatureDialogOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={reviewPageStale || saving || !canEdit || !signatureForm.data.signature_password || (isDental && !signatureForm.data.review_dental_assessment) || (Boolean(assistanceReview) && !signatureForm.data.review_admin_assistance)} type="submit"><Check className="size-4" />Tandatangani pemeriksaan</Button></div>
                     </form></fieldset>

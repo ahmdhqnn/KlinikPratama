@@ -11,6 +11,9 @@ class Screening extends Model
     protected $table = 'screening';
 
     protected $fillable = [
+        'dental_vitals_unmeasurable',
+        'dental_medication_categories',
+        'riwayat_perawatan_gigi', 'kebiasaan_gigi',
         'kunjungan_id', 'petugas_id', 'recorded_by_user_id', 'keluhan',
         'extraoral_symmetry', 'extraoral_swelling', 'extraoral_notes', 'dental_red_flags',
         'td_sistole', 'td_diastole', 'nadi', 'suhu',
@@ -31,6 +34,8 @@ class Screening extends Model
     ];
 
     protected $casts = [
+        'dental_vitals_unmeasurable' => 'boolean',
+        'dental_medication_categories' => 'array',
         'dental_red_flags' => 'array',
         'started_at' => 'datetime',
         'submitted_at' => 'datetime',
@@ -40,6 +45,25 @@ class Screening extends Model
         'risiko_medis_gigi' => 'array',
         'riwayat_infeksi_gigi' => 'array',
     ];
+
+    /** @return array<string, string> */
+    public static function dentalMedicationCategories(): array
+    {
+        return [
+            'anticoagulant' => 'Antikoagulan',
+            'antiplatelet' => 'Antiplatelet',
+            'antidiabetic' => 'Obat diabetes',
+            'antihypertensive' => 'Antihipertensi',
+            'other' => 'Obat lain',
+            'none' => 'Tidak ada menurut pasien',
+            'unknown' => 'Belum diketahui',
+        ];
+    }
+
+    public function revisionToken(): string
+    {
+        return hash('sha256', serialize($this->getRawOriginal()));
+    }
 
     public function kunjungan(): BelongsTo
     {
@@ -80,6 +104,20 @@ class Screening extends Model
         ];
     }
 
+    public function reportedMedicalHistory(): ?string
+    {
+        return match ($this->status_riwayat_penyakit) {
+            'belum_diketahui' => null,
+            'tidak_ada' => 'Pasien menyangkal riwayat penyakit',
+            default => $this->riwayat_penyakit,
+        };
+    }
+
+    private function hasReportedDiseaseDetails(): bool
+    {
+        return ! in_array($this->status_riwayat_penyakit, ['tidak_ada', 'belum_diketahui'], true);
+    }
+
     /** @return array<string, ?string> */
     public function handoverSummary(): array
     {
@@ -111,11 +149,15 @@ class Screening extends Model
             'Lama keluhan' => $this->lama_keluhan,
             'Sumber informasi' => $choice($this->sumber_informasi),
             'Status riwayat penyakit' => $choice($this->status_riwayat_penyakit),
-            'Nama penyakit' => $this->penyakit_nama,
-            'Keterangan riwayat penyakit' => $this->penyakit_keterangan,
+            'Nama penyakit' => $this->hasReportedDiseaseDetails() ? $this->penyakit_nama : null,
+            'Keterangan riwayat penyakit' => $this->hasReportedDiseaseDetails() ? $this->penyakit_keterangan : null,
             'Obat yang digunakan' => $this->riwayat_obat,
+            'Kategori obat yang dilaporkan' => $this->dental_medication_categories
+                ? implode(', ', array_intersect_key(self::dentalMedicationCategories(), array_flip($this->dental_medication_categories)))
+                : null,
             'Status alergi saat ini' => $choice($this->status_alergi),
             'Jenis / reaksi alergi' => $join($this->alergi_jenis, $this->alergi_reaksi),
+            'Status pengukuran TTV' => $this->dental_vitals_unmeasurable ? 'Tidak dapat diukur seluruhnya' : null,
             'Catatan Pengkajian' => $this->alasan_pengukuran_tidak_lengkap,
             'Nyeri dada' => $choice($this->nyeri_dada),
             'Kejang' => $choice($this->kejang),
@@ -130,6 +172,8 @@ class Screening extends Model
             'Pengkajian gizi' => $choice($this->skrining_gizi),
             'Observasi awal' => $this->pemeriksaan_fisik,
             ...$this->dentalObservationSummary(),
+            'Riwayat perawatan gigi' => $this->riwayat_perawatan_gigi,
+            'Kebiasaan terkait gigi dan mulut' => $this->kebiasaan_gigi,
             'Lokasi keluhan / nyeri' => $this->lokasi_nyeri_gigi,
             'Pemicu keluhan' => $choices($this->pemicu_nyeri_gigi),
             'Pola / lama keluhan' => $this->durasi_keluhan_gigi,

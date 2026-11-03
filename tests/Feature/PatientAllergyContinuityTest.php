@@ -127,7 +127,7 @@ class PatientAllergyContinuityTest extends TestCase
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $previous->id, 'riwayat_penyakit' => 'Hipertensi']);
     }
 
-    public function test_blank_history_submission_preserves_known_history_until_explicitly_revalidated(): void
+    public function test_unknown_disease_status_does_not_turn_previous_history_into_current_screening(): void
     {
         [$nurse, $doctor, $patient, $visit, $previous] = $this->context();
         Screening::create(['kunjungan_id' => $previous->id, 'riwayat_penyakit' => 'Hipertensi',
@@ -135,7 +135,7 @@ class PatientAllergyContinuityTest extends TestCase
         $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [...$this->triage(),
             'riwayat_penyakit' => '', 'riwayat_penyakit_keluarga' => '', 'riwayat_obat' => ''])
             ->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'riwayat_penyakit' => 'Hipertensi',
+        $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'riwayat_penyakit' => null,
             'riwayat_penyakit_keluarga' => 'Diabetes pada ibu', 'riwayat_obat' => 'Obat rutin']);
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'anamnesis',
             'riwayat_penyakit_dahulu' => '', 'riwayat_penyakit_keluarga' => '', 'riwayat_alergi' => ''])

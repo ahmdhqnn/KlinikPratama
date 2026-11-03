@@ -20,6 +20,7 @@ class Pemeriksaan extends Model
     ];
 
     protected $fillable = [
+        'riwayat_perawatan_gigi', 'kebiasaan_gigi', 'riwayat_obat',
         'kunjungan_id', 'dokter_id', 'anamnesis',
         'pemeriksaan_fisik', 'catatan', 'edukasi', 'non_farmakologis', 'kontrol_berikutnya',
         'status', 'signed_by_user_id', 'signed_at', 'latest_note_hash',
