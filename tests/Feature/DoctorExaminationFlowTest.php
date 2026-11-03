@@ -393,6 +393,7 @@ class DoctorExaminationFlowTest extends TestCase
             ->where('visit.doctorId', $doctor->id)
         );
 
+        OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'W', 'finding_code' => 'sound', 'notes' => 'Kalkulus supragingiva pada gigi yang diperiksa']);
         $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), [
             'nama_tindakan_manual' => 'Pembersihan karang gigi',
             'jumlah' => 1,
@@ -667,6 +668,23 @@ class DoctorExaminationFlowTest extends TestCase
             ->where('visit.status', 'menunggu')
             ->where('visit.recordUrl', route('pelayanan.pasien.rekam-medis', $visit->pasien_id))
         );
+    }
+
+    #[TestWith(['umum'])]
+    #[TestWith(['gigi'])]
+    public function test_shared_start_records_time_once_and_opens_the_doctor_examination(string $clinicType): void
+    {
+        [$user, $visit, $examination] = $this->examinationWithSections($clinicType);
+        $examination->delete();
+        $visit->unsetRelation('pemeriksaan');
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.start', $visit))->assertSessionHasNoErrors();
+        $started = $visit->pemeriksaan()->sole();
+        $this->assertNotNull($started->started_at);
+        $this->assertSame($visit->dokter_id, $started->dokter_id);
+        $this->travel(2)->minutes();
+        $this->post(route('pelayanan.pemeriksaan.start', $visit))->assertSessionHasNoErrors();
+        $this->assertTrue($started->started_at->equalTo($started->fresh()->started_at));
+        $this->assertSame(1, $visit->pemeriksaan()->count());
     }
 
     /**

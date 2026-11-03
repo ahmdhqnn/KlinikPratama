@@ -1,3 +1,4 @@
+import { dentalDiagnosisDescription, dentalSurfaceLabel } from '@/lib/dental-diagnosis';
 import type { ReactNode } from 'react';
 import { BodyExaminationRecord } from '@/components/anatomy/body-examination-record';
 import { hasBodyMapContent, type BodyMapData } from '@/lib/body-map';
@@ -25,7 +26,7 @@ interface DentalExaminationSummaryProps extends SummaryProps {
 
 interface DiagnosisSummaryProps extends SummaryProps {
     id?: string;
-    diagnoses: Array<{ id: number; code: string | null; codeSystem?: string; name: string; note?: string | null; type: string }>;
+    diagnoses: Array<{ toothFdi?: string | null; surfaces?: string[]; id: number; code: string | null; codeSystem?: string; name: string; note?: string | null; type: string }>;
     differentialDiagnosis: string | null | undefined;
     codeSystems: Array<{ value: string; label: string }>;
 }
@@ -52,17 +53,17 @@ export function DentalExaminationSummary({ anamnesis, intraoralExam, extraoralEx
                 <div className="overflow-x-auto rounded-xl border border-neutral-200">
                     <Table aria-label="Ringkasan temuan odontogram" className="min-w-[36rem] table-fixed">
                         <TableHeader><TableRow>
-                            <TableHead className="w-20 px-4 py-3 text-center">Gigi FDI</TableHead>
-                            <TableHead className="w-36 px-4 py-3 text-center">Permukaan</TableHead>
-                            <TableHead className="w-40 px-4 py-3 text-center">Temuan</TableHead>
-                            <TableHead className="px-4 py-3 text-center">Catatan</TableHead>
+                            <TableHead className="w-24 px-5 py-4 text-center">Gigi FDI</TableHead>
+                            <TableHead className="w-36 px-5 py-4 text-center">Permukaan</TableHead>
+                            <TableHead className="w-40 px-5 py-4 text-center">Temuan</TableHead>
+                            <TableHead className="px-5 py-4 text-center">Catatan</TableHead>
                         </TableRow></TableHeader>
                         <TableBody>{findings.map((finding) => (
                             <TableRow key={finding.toothFdi + '-' + finding.surface}>
-                                <TableCell className="px-4 py-3 text-center align-middle font-mono font-semibold">{finding.toothFdi}</TableCell>
-                                <TableCell className="break-words px-4 py-3 text-center align-middle">{options.surfaces[finding.surface] ?? finding.surface}</TableCell>
-                                <TableCell className="break-words px-4 py-3 text-center align-middle">{options.findings[finding.findingCode] ?? finding.findingCode}</TableCell>
-                                <TableCell className="whitespace-pre-wrap break-words px-4 py-3 text-center align-middle">{[finding.detailSummary, normalizeClinicalAnswer(finding.notes)].filter(Boolean).join('\n') || optionalAnswers.notRecorded}</TableCell>
+                                <TableCell className="px-5 py-4 text-center align-middle font-mono font-semibold">{finding.toothFdi}</TableCell>
+                                <TableCell className="break-words px-5 py-4 text-center align-middle">{options.surfaces[finding.surface] ?? finding.surface}</TableCell>
+                                <TableCell className="break-words px-5 py-4 text-center align-middle">{options.findings[finding.findingCode] ?? finding.findingCode}</TableCell>
+                                <TableCell className="whitespace-pre-wrap break-words px-5 py-4 text-center align-middle">{[finding.detailSummary, normalizeClinicalAnswer(finding.notes)].filter(Boolean).join('\n') || optionalAnswers.notRecorded}</TableCell>
                             </TableRow>
                         ))}</TableBody>
                     </Table>
@@ -105,9 +106,7 @@ export function GeneralExaminationSummary({ anamnesis, physicalExam, physicalSys
             {hasBodyMapContent(bodyMap) && <BodyExaminationRecord data={bodyMap} />}
             {recordedSystems.length > 0 && <div className="space-y-3 border-t border-neutral-200 pt-4">
                 <h3 className="text-sm font-semibold text-neutral-900">Temuan per sistem</h3>
-                <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {recordedSystems.map(({ system, value }) => <SummaryValue key={system} label={system} value={value} />)}
-                </dl>
+                <div className="overflow-x-auto rounded-xl border border-neutral-200"><Table aria-label="Temuan pemeriksaan per sistem" className="min-w-[32rem]"><TableHeader><TableRow><TableHead>Sistem</TableHead><TableHead>Temuan</TableHead></TableRow></TableHeader><TableBody>{recordedSystems.map(({ system, value }) => <TableRow key={system}><TableCell className="font-medium">{system}</TableCell><TableCell className="whitespace-pre-wrap break-words">{value}</TableCell></TableRow>)}</TableBody></Table></div>
             </div>}
             {!normalizeClinicalAnswer(physicalExam) && !hasBodyMapContent(bodyMap) && recordedSystems.length === 0 && <Empty size="compact" title="Belum ada temuan fisik tersimpan" description="Catat temuan pada tab Pemeriksaan fisik." />}
         </WorkflowSummary>
@@ -134,17 +133,17 @@ export function DiagnosisSummary({ id = 'diagnosis-summary', diagnoses, differen
                 <div className="overflow-x-auto rounded-xl border border-neutral-200">
                     <Table aria-label="Ringkasan diagnosis tercatat" className="min-w-[36rem] table-fixed">
                         <TableHeader><TableRow>
-                            <TableHead className="w-24 px-4 py-3 text-center">Kode</TableHead>
-                            <TableHead className="w-36 px-4 py-3 text-center">Sistem kode</TableHead>
-                            <TableHead className="px-4 py-3 text-center">Diagnosis</TableHead>
-                            <TableHead className="w-28 px-4 py-3 text-center">Jenis</TableHead>
+                            <TableHead className="w-24 px-5 py-4 text-center">Kode</TableHead>
+                            <TableHead className="w-36 px-5 py-4 text-center">Sistem kode</TableHead>
+                            <TableHead className="px-5 py-4 text-center">Diagnosis</TableHead>
+                            <TableHead className="w-28 px-5 py-4 text-center">Jenis</TableHead>
                         </TableRow></TableHeader>
                         <TableBody>{orderedDiagnoses.map((diagnosis) => (
                             <TableRow key={diagnosis.id}>
-                                <TableCell className="break-words px-4 py-3 text-center align-middle font-mono font-semibold">{diagnosis.code || 'Manual'}</TableCell>
-                                <TableCell className="break-words px-4 py-3 text-center align-middle">{diagnosis.codeSystem === 'manual' || !diagnosis.code ? 'Manual' : codeSystems.find((system) => system.value === diagnosis.codeSystem)?.label ?? diagnosis.codeSystem ?? optionalAnswers.notRecorded}</TableCell>
-                                <TableCell className="whitespace-pre-wrap break-words px-4 py-3 text-center align-middle font-medium"><p>{diagnosis.name}</p>{diagnosis.note && <p className="mt-1 font-normal text-neutral-600">{diagnosis.note}</p>}</TableCell>
-                                <TableCell className="px-4 py-3 text-center align-middle"><Badge variant={diagnosis.type === 'utama' ? 'examination' : 'default'}>{diagnosis.type === 'utama' ? 'Utama' : 'Tambahan'}</Badge></TableCell>
+                                <TableCell className="break-words px-5 py-4 text-center align-middle font-mono font-semibold">{diagnosis.code || 'Manual'}</TableCell>
+                                <TableCell className="break-words px-5 py-4 text-center align-middle">{diagnosis.codeSystem === 'manual' || !diagnosis.code ? 'Manual' : codeSystems.find((system) => system.value === diagnosis.codeSystem)?.label ?? diagnosis.codeSystem ?? optionalAnswers.notRecorded}</TableCell>
+                                <TableCell className="whitespace-pre-wrap break-words px-5 py-4 text-center align-middle font-medium"><p>{diagnosis.name}</p>{diagnosis.toothFdi && <p className="mt-1 text-sm">Gigi {diagnosis.toothFdi} · {dentalSurfaceLabel(diagnosis.surfaces ?? []) || 'Tanpa permukaan spesifik'}</p>}{dentalDiagnosisDescription(diagnosis) && <p className="mt-1 font-normal text-neutral-600">{dentalDiagnosisDescription(diagnosis)}</p>}</TableCell>
+                                <TableCell className="px-5 py-4 text-center align-middle"><Badge variant={diagnosis.type === 'utama' ? 'examination' : 'default'}>{diagnosis.type === 'utama' ? 'Utama' : 'Tambahan'}</Badge></TableCell>
                             </TableRow>
                         ))}</TableBody>
                     </Table>

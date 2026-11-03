@@ -154,6 +154,20 @@ export const FINDING_CLASSES: Record<string, string> = {
     fractured_crown: 'tooth-fractured_crown',
     root_remnant: 'tooth-root_remnant',
     restored: 'tooth-restored',
+    partial_erupted: 'tooth-unerupted',
+    impacted: 'tooth-unerupted',
+    retained_primary: 'tooth-fractured_crown',
+    malposition: 'tooth-fractured_crown',
+    anomaly: 'tooth-fractured_crown',
+    non_vital: 'tooth-root_remnant',
+    root_canal: 'tooth-restored',
+    crown: 'tooth-restored',
+    bridge_pontic: 'tooth-restored',
+    bridge_abutment: 'tooth-restored',
+    implant: 'tooth-restored',
+    removable_denture: 'tooth-restored',
+    sealant: 'tooth-restored',
+    temporary_restoration: 'tooth-restored',
 };
 
 export function OdontogramFdi({
@@ -165,6 +179,7 @@ export function OdontogramFdi({
     findingLabels = {},
     surfaceLabels = {},
 }: OdontogramProps) {
+    const [model, setModel] = useState<'arch' | 'front'>('arch');
     const [hoveredTooth, setHoveredTooth] = useState<string | null>(null);
     const [activeTypeFilter, setActiveTypeFilter] = useState<ToothType | null>(null);
     const teethList = dentition === 'adult' ? ADULT_TEETH : PRIMARY_TEETH;
@@ -176,7 +191,7 @@ export function OdontogramFdi({
     const activeFindings = activeMeta ? findings.filter((finding) => finding.toothFdi === activeMeta.fdi) : [];
 
     function getToothFinding(fdi: string): DentalFinding | undefined {
-        const priority: Record<string, number> = { missing: 6, root_remnant: 5, fractured_crown: 4, caries: 3, restored: 2, unerupted: 1, sound: 0 };
+        const priority: Record<string, number> = { missing: 6, non_vital: 5, root_remnant: 5, impacted: 4, fractured_crown: 4, caries: 3, restored: 2, unerupted: 1, sound: 0 };
 
         return findings
             .filter((item) => item.toothFdi === fdi)
@@ -203,14 +218,15 @@ export function OdontogramFdi({
     return (
         <div className="odontogram-fdi min-w-0 space-y-5">
             {/* Layout Utama: 2 Kolom Seimbang (Lengkung Gigi di Kiri, Visualisasi Tipe & Oklusi di Kanan) */}
-            <div className="grid min-w-0 items-start gap-5 xl:grid-cols-12">
+            <div role="group" aria-label="Model peta gigi" className="flex flex-wrap gap-2"><Button type="button" size="sm" variant={model === 'arch' ? 'default' : 'secondary'} aria-pressed={model === 'arch'} onClick={() => setModel('arch')}>Peta FDI</Button><Button type="button" size="sm" variant={model === 'front' ? 'default' : 'secondary'} aria-pressed={model === 'front'} onClick={() => setModel('front')}>Gigi & gusi</Button><Button type="button" size="sm" variant="ghost" disabled={disabled || !selectedTooth} onClick={() => onSelect('')}>Lepas pilihan</Button></div>
+            <div className="min-w-0">
                 {/* Panel Kiri: Peta Lengkung Gigi FDI (Dental Arch) - 7 Kolom */}
-                <div className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 transition-colors sm:p-5 xl:col-span-7">
+                <div hidden={model !== 'arch'} className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 transition-colors sm:p-5">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-3">
                         <div>
                             <div className="flex items-center gap-2">
                                 <h4 className="text-base font-bold tracking-tight text-neutral-900">
-                                    Peta gigi FDI ({dentition === 'adult' ? '32 gigi permanen' : '20 gigi susu'})
+                                    Peta FDI ({dentition === 'adult' ? '32 gigi permanen' : '20 gigi susu'})
                                 </h4>
 
                             </div>
@@ -324,15 +340,16 @@ export function OdontogramFdi({
                         </svg>
                     </div>
 
+                    <div className="flex flex-wrap gap-2" aria-label="Kondisi khusus pada peta">{findings.filter(finding => !['sound', 'caries', 'missing', 'unerupted', 'fractured_crown', 'root_remnant', 'restored'].includes(finding.findingCode)).map(finding => <span key={`${finding.toothFdi}-${finding.surface}`} className="rounded-md border border-neutral-200 bg-surface px-2 py-1 text-xs text-neutral-700">{finding.toothFdi} · {findingLabels[finding.findingCode] ?? finding.findingCode}</span>)}</div>
                     {/* Catatan Kaki Lengkung */}
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 pt-3 text-sm leading-5 text-neutral-600">
-                        <span>Nomor FDI menunjukkan gigi yang dipilih.</span>
-                        <span>Pilih jenis gigi untuk menyorot kelompoknya.</span>
+                        <span>Klik kembali gigi terpilih untuk melepas pilihan.</span>
+                        <span>Sorot kelompok gigi melalui pilihan jenis gigi.</span>
                     </div>
                 </div>
 
                 {/* Panel Kanan: Visualisasi Tipe Gigi (Atas) & Oklusi Rahang Mulut (Bawah) - 5 Kolom */}
-                <div className="flex min-w-0 flex-col gap-5 xl:col-span-5">
+                <div hidden={model !== 'front'} className={model === 'front' ? 'flex min-w-0 flex-col gap-5' : 'hidden'}>
                     {/* Bagian Kanan Atas: 4 Tipe Anatomi Gigi (Akar & Mahkota) Sesuai Referensi Gambar */}
                     <div className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 sm:p-5">
                         <div className="mb-3 flex items-center justify-between border-b border-neutral-100 pb-2.5">
@@ -388,16 +405,16 @@ export function OdontogramFdi({
 
                     {/* Bagian Kanan Bawah: Tampilan Senyum / Oklusi Rahang & Gigi Sesuai Referensi Gambar */}
                     <div className="flex-1 min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 sm:p-5">
-                        <div className="mb-2 flex items-center justify-between border-b border-neutral-100 pb-2.5">
+                        <div className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 pb-3">
                             <div>
                                 <h4 className="text-sm font-bold tracking-tight text-neutral-900">
                                     Tampilan gigi & gusi
                                 </h4>
                                 <p className="text-xs text-neutral-500">
-                                    Pilihan gigi dan temuan sama dengan peta FDI.
+                                    Klik gigi untuk memilih.
                                 </p>
                             </div>
-                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-700">
+                            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium leading-4 text-neutral-700">
                                 Tampak depan
                             </span>
                         </div>
@@ -511,7 +528,7 @@ export function OdontogramFdi({
             {/* Panel Ringkasan Gigi Terpilih (Active Tooth Detail Banner) */}
             <div className="flex flex-col justify-between gap-3 rounded-xl border border-neutral-200/90 bg-neutral-50/70 p-3.5 transition-colors sm:flex-row sm:items-center">
                 <div className="flex min-w-0 items-center gap-3">
-                    <div aria-label={activeMeta ? `Gigi FDI ${activeMeta.fdi}` : 'Belum ada gigi dipilih'} className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900 font-mono text-base font-black text-neutral-50" role="img">
+                    <div aria-label={activeMeta ? `Gigi FDI ${activeMeta.fdi}` : 'Belum ada gigi dipilih'} className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900 font-mono text-base font-black text-neutral-50 dark:bg-neutral-100 dark:text-neutral-950" role="img">
                         {activeMeta ? activeMeta.fdi : <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 5C9.5 3 6 3 4.5 5.5 2.5 9 5 13 5.5 16c.3 2 1.2 5 2.5 5 1.5 0 1-7 4-7s2.5 7 4 7c1.3 0 2.2-3 2.5-5 .5-3 3-7 1-10.5C18 3 14.5 3 12 5Z" /></svg>}
                     </div>
                     <div>

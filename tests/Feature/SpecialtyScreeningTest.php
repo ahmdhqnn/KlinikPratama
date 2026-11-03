@@ -339,6 +339,14 @@ class SpecialtyScreeningTest extends TestCase
         $this->post(route('pelayanan.kunjungan.screening.store', $visit), [...$payload, 'extraoral_notes' => ''])->assertSessionHasErrors('extraoral_notes');
         $this->post(route('pelayanan.kunjungan.screening.store', $visit), [...$payload, 'dental_red_flags' => ['none']])->assertSessionHasNoErrors();
         $this->assertSame('kuning', $screening->fresh()->kesimpulan_triase);
+        $doctorUser = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $doctor = Nakes::create(['kode' => 'DRG-HANDOVER', 'nama' => 'Dokter Gigi Handover', 'kategori' => 'medis', 'jabatan' => 'dokter', 'poliklinik_id' => $clinic->id, 'user_id' => $doctorUser->id, 'is_active' => true]);
+        $visit->update(['dokter_id' => $doctor->id]);
+        $this->actingAs($doctorUser)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.screening.summary.Visual ekstraoral awal perawat - simetri wajah', 'Tampak asimetris')
+            ->where('visit.screening.summary.Visual ekstraoral awal perawat - pembengkakan', 'Tampak pembengkakan')
+            ->where('visit.screening.summary.Catatan visual ekstraoral awal perawat', $payload['extraoral_notes'])
+        );
     }
 
     private function validScreeningPayload(): array

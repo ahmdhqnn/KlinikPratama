@@ -256,6 +256,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::post('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'store'])->name('pemeriksaan.store');
             Route::put('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'update'])->name('pemeriksaan.update');
             Route::post('pemeriksaan/{kunjungan}/diagnosa', [PemeriksaanController::class, 'storeDiagnosa'])->name('pemeriksaan.diagnosa.store');
+            Route::patch('pemeriksaan/diagnosa/{diagnosa}/utama', [PemeriksaanController::class, 'primaryDiagnosa'])->name('pemeriksaan.diagnosa.primary');
             Route::delete('pemeriksaan/diagnosa/{diagnosa}', [PemeriksaanController::class, 'destroyDiagnosa'])->name('pemeriksaan.diagnosa.destroy');
             Route::post('pemeriksaan/{kunjungan}/resep', [PemeriksaanController::class, 'storeResep'])->name('pemeriksaan.resep.store');
             Route::delete('pemeriksaan/resep/{resepObat}', [PemeriksaanController::class, 'destroyResep'])->name('pemeriksaan.resep.destroy');
@@ -266,6 +267,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::post('pemeriksaan/{kunjungan}/selesai', [PemeriksaanController::class, 'selesai'])->name('pemeriksaan.selesai');
             Route::post('pemeriksaan/{kunjungan}/addendum', [PemeriksaanController::class, 'addendum'])->name('pemeriksaan.addendum');
             Route::post('pemeriksaan/{kunjungan}/odontogram', [PemeriksaanController::class, 'storeOdontogram'])->name('pemeriksaan.odontogram.store');
+            Route::post('pemeriksaan/{kunjungan}/odontogram/sound', [PemeriksaanController::class, 'storeSoundTeeth'])->name('pemeriksaan.odontogram.sound');
             Route::delete('pemeriksaan/{kunjungan}/odontogram', [PemeriksaanController::class, 'destroyOdontogram'])->name('pemeriksaan.odontogram.destroy');
             Route::post('pemeriksaan/{kunjungan}/odontogram/addendum', [PemeriksaanController::class, 'addendumOdontogram'])->name('pemeriksaan.odontogram.addendum');
             Route::get('icd10/search', [PemeriksaanController::class, 'searchIcd10'])->name('icd10.search');

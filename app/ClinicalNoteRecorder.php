@@ -40,6 +40,9 @@ class ClinicalNoteRecorder
                 'name' => $diagnosis->nama_diagnosa,
                 'note' => $diagnosis->keterangan,
                 'type' => $diagnosis->jenis,
+                'tooth_fdi' => $diagnosis->tooth_fdi,
+                'surfaces' => $diagnosis->surfaces ?? [],
+                'source_finding_code' => $diagnosis->source_finding_code,
             ])->values()->all(),
             'treatments' => $visit->tindakanKunjungan->sortBy('id')->map(fn ($treatment): array => [
                 'id' => $treatment->id,

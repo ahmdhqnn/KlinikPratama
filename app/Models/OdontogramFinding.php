@@ -77,6 +77,36 @@ class OdontogramFinding extends Model
             'fractured_crown' => 'Fraktur mahkota',
             'root_remnant' => 'Sisa akar',
             'restored' => 'Restorasi',
+            'partial_erupted' => 'Erupsi sebagian (PRE)',
+            'impacted' => 'Impaksi',
+            'retained_primary' => 'Persistensi gigi sulung',
+            'malposition' => 'Kelainan posisi / rotasi / migrasi',
+            'non_vital' => 'Gigi non-vital (NVT)',
+            'root_canal' => 'Riwayat perawatan saluran akar (RCT)',
+            'crown' => 'Mahkota tiruan / crown',
+            'bridge_pontic' => 'Bridge — pontik',
+            'bridge_abutment' => 'Bridge — gigi penyangga',
+            'implant' => 'Implan gigi (IPX)',
+            'removable_denture' => 'Gigi tiruan lepasan',
+            'sealant' => 'Pit & fissure sealant (FIS)',
+            'temporary_restoration' => 'Tambalan sementara',
+            'anomaly' => 'Anomali bentuk / ukuran gigi (ANO)',
         ];
+    }
+
+    /** @return array<string, list<string>> */
+    public static function findingGroups(): array
+    {
+        return [
+            'Kondisi fisik, erupsi & posisi' => ['sound', 'missing', 'unerupted', 'partial_erupted', 'impacted', 'retained_primary', 'malposition', 'anomaly'],
+            'Kerusakan & kondisi pulpa' => ['caries', 'fractured_crown', 'root_remnant', 'non_vital'],
+            'Restorasi & riwayat perawatan' => ['restored', 'temporary_restoration', 'sealant', 'root_canal', 'crown', 'bridge_pontic', 'bridge_abutment', 'implant', 'removable_denture'],
+        ];
+    }
+
+    /** @return list<string> */
+    public static function wholeToothFindings(): array
+    {
+        return ['missing', 'unerupted', 'partial_erupted', 'impacted', 'retained_primary', 'malposition', 'anomaly', 'non_vital', 'root_canal', 'crown', 'bridge_pontic', 'bridge_abutment', 'implant', 'removable_denture'];
     }
 }
