@@ -1,11 +1,10 @@
+import { Button } from '@/components/ui/button';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { Field } from '@/components/ui/field';
 import { FilterPanel } from '@/components/ui/filter-panel';
 import { router } from '@inertiajs/react';
 import { Download, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Field } from '@/components/ui/field';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
 
 interface Props {
     from: string;

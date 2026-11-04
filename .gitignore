@@ -45,7 +45,7 @@ _ide_helper.php
 /storage/framework/views/
 
 # Test files
-.phpunit.result.cache
+/storage/framework/testing/
 coverage/
 .coverage/
 
@@ -55,10 +55,7 @@ coverage/
 AGENTS.md
 CLAUDE.md
 
-# Database & Seeders
-/database/seeders/
-!/database/seeders/
-!/database/seeders/*.php
+# Local databases
 database.sqlite
 *.db
 
@@ -72,16 +69,18 @@ Homestead.yaml
 .vscode_local/
 
 # OS files
-.DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db
 
 # Local development
 /.env.local
 /.env.*.local
 /local/
 /temp/
+
+# Generated audit and document artifacts
+/tmp/
+/output/

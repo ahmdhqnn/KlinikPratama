@@ -1,14 +1,10 @@
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, ClipboardList } from 'lucide-react';
-import type { FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
-import { Field } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
+import { Head, Link } from '@inertiajs/react';
+import { ArrowLeft, ClipboardList } from 'lucide-react';
 
 interface Movement { id: number; date: string | null; type: string; quantity: number; stockBefore: number; stockAfter: number; description: string | null }
 interface Props { medicine: { id: number; code: string; name: string; stock: number; minimumStock: number; unit: string | null }; movements: PaginationData & { data: Movement[] } }

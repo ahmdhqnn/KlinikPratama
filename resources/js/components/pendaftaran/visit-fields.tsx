@@ -1,8 +1,8 @@
 import { DatePicker } from '@/components/ui/date-picker';
-import { useEffect, useRef, useState } from 'react';
 import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useEffect, useRef, useState } from 'react';
 
 interface Option {
     id: number;
@@ -68,7 +68,7 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
             .then((availableDoctors) => {
                 if (!abortController.signal.aborted) setDoctors(availableDoctors);
             })
-            .catch((error: unknown) => {
+            .catch(() => {
                 if (abortController.signal.aborted) {
                     return;
                 }

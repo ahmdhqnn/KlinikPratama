@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { DatePicker } from '@/components/ui/date-picker';
+import { useEffect, useRef, useState } from 'react';
 
 export interface VisitFormData {
     pasien_id: string;
@@ -70,7 +70,7 @@ export function VisitFields({ today, data, errors, clinics, doctorsUrl, patients
                     return response.json() as Promise<(Option & { medicalRecordNumber: string })[]>;
                 })
                 .then((options) => { if (!controller.signal.aborted) setPatientOptions(options); })
-                .catch((error: unknown) => {
+                .catch(() => {
                     if (controller.signal.aborted) return;
                     setPatientOptions([]);
                     setPatientSearchFailed(true);
@@ -107,7 +107,7 @@ export function VisitFields({ today, data, errors, clinics, doctorsUrl, patients
                 if (options.length === 1 && !data.dokter_id) onChangeRef.current('dokter_id', String(options[0].id));
                 else if (data.dokter_id && !options.some((doctor) => String(doctor.id) === data.dokter_id)) onChangeRef.current('dokter_id', '');
             })
-            .catch((error: unknown) => {
+            .catch(() => {
                 if (controller.signal.aborted) return;
                 setDoctorLoadError(true);
                 setDoctors([]);

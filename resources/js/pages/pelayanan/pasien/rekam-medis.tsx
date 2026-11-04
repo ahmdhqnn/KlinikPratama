@@ -1,24 +1,24 @@
-import { dentalDiagnosisDescription, dentalSurfaceLabel } from '@/lib/dental-diagnosis';
 import { BodyExaminationRecord } from '@/components/anatomy/body-examination-record';
-import type { BodyMapData } from '@/lib/body-map';
-import { AllergyHistory } from '@/components/kunjungan/allergy-history';
-import { StatusBadge } from '@/components/dashboard/status-badge';
-import { FilterPanel } from '@/components/ui/filter-panel';
-import { Head, router } from '@inertiajs/react';
-import { useState, type FormEvent } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Printer, Search } from 'lucide-react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { StatusBadge } from '@/components/dashboard/status-badge';
+import { AllergyHistory } from '@/components/kunjungan/allergy-history';
+import { VisitAttachments, type ClinicalAttachment } from '@/components/kunjungan/visit-attachments';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Empty } from '@/components/ui/empty';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
+import { FilterPanel } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import type { BodyMapData } from '@/lib/body-map';
+import { dentalDiagnosisDescription, dentalSurfaceLabel } from '@/lib/dental-diagnosis';
 import { formatNumber } from '@/lib/format';
 import { displayOptionalValue } from '@/lib/optional-answers';
-import { VisitAttachments, type ClinicalAttachment } from '@/components/kunjungan/visit-attachments';
+import { Head, router } from '@inertiajs/react';
+import { ArrowDown, ArrowLeft, ArrowUp, Printer, Search } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 
 interface Diagnosis { toothFdi?: string | null; surfaces?: string[]; code: string | null; codeSystem?: string | null; name: string; note?: string | null; type: string }
 interface Screening { summary?: Record<string, string | null>; systolic: number | null; diastolic: number | null; pulse: number | null; temperature: number | null; oxygenSaturation: number | null; weight: number | null; height: number | null; bmi: number | null; respiration: number | null; complaint: string | null; medicalHistory: string | null; familyHistory: string | null; allergyHistory: string | null; fallRisk: string | null; painScale: number | null; dentalPainLocation: string | null; dentalPainTriggers: string[]; dentalPainDuration: string | null; dentalMedicalRisks: string[]; dentalInfectionHistory: string[]; dentalNotes: string | null }

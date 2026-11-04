@@ -23,6 +23,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('clinical_audit_events', function (Blueprint $table): void {
+            $table->dropIndex(['membership_id']);
             $table->dropColumn(['membership_id', 'metadata']);
         });
     }
