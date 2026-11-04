@@ -1,18 +1,17 @@
-import { FilterPanel } from '@/components/ui/filter-panel';
-import { Head, router } from '@inertiajs/react';
-import { Activity, Download, UsersRound } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
+import { FilterPanel } from '@/components/ui/filter-panel';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { Head, router } from '@inertiajs/react';
+import { Activity, Download, UsersRound } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 
 interface Visit {
     id: number;

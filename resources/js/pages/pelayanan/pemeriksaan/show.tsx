@@ -1,44 +1,44 @@
-import { DentalClinicalControls } from '@/components/odontogram/dental-clinical-controls';
-import { MedicalLetterFields, emptyLetterDetails, letterTypes } from '@/components/medical-letter-fields';
+import { BodyExaminationRecord } from '@/components/anatomy/body-examination-record';
+import { PhysicalExaminationWorkspace } from '@/components/anatomy/physical-examination-workspace';
+import { Pagination } from '@/components/dashboard/pagination';
+import { StatusBadge } from '@/components/dashboard/status-badge';
 import { AssistanceReasonField } from '@/components/kunjungan/assistance-reason-field';
-import { confirmedAbsentHistory, normalizeClinicalAnswer } from '@/lib/clinical-answer';
-import { paginateOdontogram, selectedOdontogramTeeth } from '@/lib/odontogram-selection';
+import { DentalExaminationSummary, DiagnosisSummary, GeneralExaminationSummary } from '@/components/kunjungan/clinical-workflow-summary';
+import { VisitAttachments, type ClinicalAttachment } from '@/components/kunjungan/visit-attachments';
+import { MedicalLetterFields, emptyLetterDetails, letterTypes } from '@/components/medical-letter-fields';
+import { DentalClinicalControls } from '@/components/odontogram/dental-clinical-controls';
 import { DentalDiagnosisBridge } from '@/components/odontogram/dental-diagnosis-bridge';
-import { candidateFindings, wholeToothFindingCodes, dentalFindingDetails, dentalDiagnosisDescription, isDentalDiagnosisRecorded, diagnosisMatchesFindings, dentalSurfaceLabel, dentalTreatmentSearches, groupDentalDiagnoses, type DentalDiagnosisCandidate, type DentalDiagnosisGroup } from '@/lib/dental-diagnosis';
-import { missingCariesDetails } from '@/lib/dental-assessment';
-import { isReportedAllergy } from '@/lib/allergy-status';
+import { OdontogramFdi } from '@/components/odontogram/odontogram-fdi';
 import { ActionButton } from '@/components/ui/action-button';
-import { Head, Link, useForm } from '@inertiajs/react';
-import { AlertTriangle, ArrowLeft, Check, ChevronDown, ClipboardPlus, FileText, HeartPulse, Pill, Play, Plus, Search, Stethoscope, UserRound, X } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { confirmAction } from '@/components/ui/confirm-dialog';
+import { DatePicker } from '@/components/ui/date-picker';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
-import { confirmAction } from '@/components/ui/confirm-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DatePicker } from '@/components/ui/date-picker';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { toast } from 'sonner';
-import { OdontogramFdi } from '@/components/odontogram/odontogram-fdi';
-import { DentalExaminationSummary, DiagnosisSummary, GeneralExaminationSummary } from '@/components/kunjungan/clinical-workflow-summary';
-import { PhysicalExaminationWorkspace } from '@/components/anatomy/physical-examination-workspace';
+import { Textarea } from '@/components/ui/textarea';
+import { isReportedAllergy } from '@/lib/allergy-status';
 import { emptyBodyFinding } from '@/lib/body-examination';
 import { emptyBodyMap, hasBodyMapContent, type BodyMapData } from '@/lib/body-map';
-import { BodyExaminationRecord } from '@/components/anatomy/body-examination-record';
+import { confirmedAbsentHistory, normalizeClinicalAnswer } from '@/lib/clinical-answer';
+import { missingCariesDetails } from '@/lib/dental-assessment';
+import { candidateFindings, dentalDiagnosisDescription, dentalFindingDetails, dentalSurfaceLabel, dentalTreatmentSearches, diagnosisMatchesFindings, groupDentalDiagnoses, isDentalDiagnosisRecorded, wholeToothFindingCodes, type DentalDiagnosisCandidate, type DentalDiagnosisGroup } from '@/lib/dental-diagnosis';
 import { examinationState } from '@/lib/examination-state';
-import { Pagination } from '@/components/dashboard/pagination';
-import { StatusBadge } from '@/components/dashboard/status-badge';
+import { paginateOdontogram, selectedOdontogramTeeth } from '@/lib/odontogram-selection';
 import { optionalAnswers } from '@/lib/optional-answers';
-import { VisitAttachments, type ClinicalAttachment } from '@/components/kunjungan/visit-attachments';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ClipboardPlus, FileText, HeartPulse, Pill, Play, Plus, Search, Stethoscope, UserRound, X } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { toast } from 'sonner';
 
 interface Option { id: number; name: string; }
 interface Diagnosis { sourceFindingCode?: string | null; codeRelease?: string | null; toothFdi?: string | null; surfaces?: string[]; id: number; code: string | null; codeSystem?: string; name: string; note?: string | null; type: string; }
@@ -585,20 +585,6 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
     function deleteItem(url: string, confirmation: string) {
         if (!canEdit || saving) return;
         confirmAction(confirmation, () => { deleteForm.delete(url, { preserveScroll: true }); }, 'Hapus');
-    }
-
-    function discardSection(tab: Tab | 'rencana'): void {
-        confirmAction('Batalkan isian yang belum disimpan pada bagian ini? Data yang sudah tersimpan tetap tersedia.', () => {
-            if (tab === 'anamnesis') examinationForm.resetAndClearErrors();
-            if (tab === physicalTab) { physicalForm.resetAndClearErrors(); dentalForm.resetAndClearErrors(); setBodyFindingDraft({ ...emptyBodyFinding }); }
-            if (tab === 'diagnosa') { diagnosisForm.resetAndClearErrors(); differentialForm.resetAndClearErrors(); }
-            if (tab === 'rencana') followUpForm.resetAndClearErrors();
-            if (tab === 'tindakan') { treatmentForm.resetAndClearErrors(); setSelectedProcedure(null); setProcedureQuery(''); setSelectedDentalFindingKeys([]); }
-            if (tab === 'resep') prescriptionForm.resetAndClearErrors();
-            if (tab === 'resep-luar') externalPrescriptionForm.resetAndClearErrors();
-            if (tab === 'surat') letterForm.resetAndClearErrors();
-            if (tab === 'rujukan') referralForm.resetAndClearErrors();
-        }, 'Batalkan isian');
     }
 
     function finishExamination() {

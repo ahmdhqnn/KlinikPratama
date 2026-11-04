@@ -1,7 +1,3 @@
-import { identityPlaceholders } from '@/lib/form-placeholders';
-import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeft, Save, UserRoundPlus } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
 import { ManualPatientFields, type ManualPatientIdentity } from '@/components/pasien/manual-patient-fields';
 import { PatientFields, type PatientFormData } from '@/components/pasien/patient-fields';
 import { Button } from '@/components/ui/button';
@@ -10,6 +6,10 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { identityPlaceholders } from '@/lib/form-placeholders';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { ArrowLeft, Save, UserRoundPlus } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 
 interface Patient {
     id: number;
@@ -40,7 +40,7 @@ interface Props {
     today: string;
 }
 
-export default function PatientForm({ patient, today }: Props) {
+export default function PatientForm({ patient }: Props) {
     const [registrationType, setRegistrationType] = useState<'directory' | 'manual'>('directory');
     const form = useForm<FormData>({
         registration_type: patient ? 'manual' : 'directory', kepesertaan_id: patient?.membershipId?.toString() ?? '',

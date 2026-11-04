@@ -80,7 +80,10 @@ test('membership directory exposes management actions only to admin', async () =
 
     const registration = await renderPage('kepesertaan/index', { ...props, canManage: false });
     assert.match(registration, /aria-label="Detail"/);
-    assert.doesNotMatch(registration, /Tambah peserta|Impor &amp; verifikasi|aria-label="Edit Pegawai Internal"|aria-label="Hapus Pegawai Internal"/);
+    assert.doesNotMatch(registration, /Tambah peserta|Impor &amp; verifikasi/);
+    for (const label of ['Edit Pegawai Internal', 'Hapus Pegawai Internal']) {
+        assert.match(registration.match(new RegExp('<button[^>]*aria-label="' + label + '"[^>]*>'))?.[0] ?? '', /disabled=""/);
+    }
 });
 
 for (const clinicType of ['umum', 'gigi']) {
@@ -308,7 +311,9 @@ test('started examination appears in nurse treatment queue without an actionable
     });
     assert.match(html, /Menunggu instruksi dokter/);
     assert.match(html, /Sedang diperiksa/);
-    assert.equal((html.match(/aria-label="Tindakan belum tersedia"[^>]*disabled=""/g) ?? []).length, 1);
+    for (const label of ['Lihat pelaksanaan', 'Mulai tindakan']) {
+        assert.match(html.match(new RegExp('<button[^>]*aria-label="' + label + '"[^>]*>'))?.[0] ?? '', /disabled=""/);
+    }
     assert.doesNotMatch(html, /href="\/pelayanan\/tindakan-perawat\/3"/);
 });
 
@@ -514,10 +519,10 @@ test('pharmacy item actions enable external prescription only when usable stock 
     const visit = { id: 1, number: 'KNJ-1', status: 'farmasi', examinationSigned: true, prescriptionNumber: 'RSP-1', doctor: 'Dokter Uji', patient: { id: 1, name: 'Pasien Uji', medicalRecordNumber: 'RM-1', allergies: null, screeningAllergies: null, examinationAllergies: null }, pharmacy: null, prescriptionItems: [item], allocations: [] };
     const empty = await renderPage('pelayanan/farmasi/show', { visit, today: '2026-10-31', appName: 'Klinik Uji' });
     assert.match(empty, /<th[^>]*>Aksi<\/th>/);
-    assert.match(empty.match(/<button[^>]*aria-label="Resep luar"[^>]*>/)?.[0] ?? '', /aria-label="Resep luar"/);
-    assert.doesNotMatch(empty.match(/<button[^>]*aria-label="Resep luar"[^>]*>/)?.[0] ?? '', /\sdisabled(?:=|\s|>)/);
+    assert.match(empty.match(/<button[^>]*aria-label="Catat resep luar"[^>]*>/)?.[0] ?? '', /aria-label="Catat resep luar"/);
+    assert.doesNotMatch(empty.match(/<button[^>]*aria-label="Catat resep luar"[^>]*>/)?.[0] ?? '', /\sdisabled(?:=|\s|>)/);
     const stocked = await renderPage('pelayanan/farmasi/show', { visit: { ...visit, prescriptionItems: [{ ...item, stock: 4 }] }, today: '2026-10-31', appName: 'Klinik Uji' });
-    assert.match(stocked.match(/<button[^>]*aria-label="Resep luar"[^>]*>/)?.[0] ?? '', /\sdisabled(?:=|\s|>)/);
+    assert.match(stocked.match(/<button[^>]*aria-label="Catat resep luar"[^>]*>/)?.[0] ?? '', /\sdisabled(?:=|\s|>)/);
 });
 
 test('pharmacy direct dispensing captures patient, medicine, reason, and safe-use instructions', async () => {
@@ -527,12 +532,13 @@ test('pharmacy direct dispensing captures patient, medicine, reason, and safe-us
         medicines: [{ id: 1, name: 'Parasetamol', unit: 'tablet', stock: 10 }],
     });
     assert.match(html, /Catat pemberian obat langsung/);
-    assert.match(html, /Dasar pemberian dan catatan/);
+    assert.match(html, /Alasan pemberian langsung/);
+    assert.match(html, /Catatan tambahan/);
     assert.match(html, /Catat dan serahkan obat/);
     assert.match(html, /Pilih dari daftar/);
     assert.match(html, /Cari pasien/);
     assert.match(html, /role="tablist"/);
-    assert.match(html, /2\. Obat dan penyerahan/);
+    assert.match(html, /Obat dan aturan pakai/);
 });
 
 test('pharmacy operational pages show today before the full history', async () => {
@@ -773,10 +779,10 @@ test('visit queue keeps all four stages in a balanced responsive grid', async ()
         id: index + 1, number: `KNJ-${index + 1}`, patient: `Pasien ${index + 1}`,
         clinic: 'Poli Umum', doctor: 'Dokter Uji', status,
     })));
-    const html = await renderPage('pelayanan/kunjungan/antrian', { visits, today: '29 Oktober 2026' });
-    assert.match(html, /aria-label="Antrean menurut tahap pelayanan"[^>]*md:grid-cols-2 2xl:grid-cols-4/);
+    const html = await renderPage('pelayanan/kunjungan/antrian', { visits: pageOf([]), todayVisits: pageOf([]), today: '29 Oktober 2026', queueUrl: '/pelayanan/antrian', clinics: [], filters: { search: '', date: '', status: '', clinicId: '' }, serviceQueues: Object.fromEntries(['assessment', 'examination', 'procedures', 'pharmacy'].map((stage, index) => [stage, pageOf([{ ...visits.data[index], actions: [{ action: 'detail', label: 'Detail', href: '/pelayanan/kunjungan/' + (index + 1), disabled: false }], date: '29/10/2026', medicalRecordNumber: 'RM-1' }])])) });
+    assert.match(html, /aria-label="Antrean aktif hari ini menurut tahap pelayanan"[^>]*md:grid-cols-2 2xl:grid-cols-4/);
     assert.equal((html.match(/max-h-96 min-h-56 flex-1/g) ?? []).length, 4);
-    for (const label of ['Antrean pengkajian awal perawat', 'Pemeriksaan dokter', 'Tindakan perawat', 'Farmasi']) {
+    for (const label of ['Antrean pengkajian awal perawat', 'Pemeriksaan dokter', 'Tindakan perawat', 'Penyerahan obat']) {
         assert.match(html, new RegExp(label));
     }
     for (let id = 1; id <= 4; id++) {
@@ -833,7 +839,7 @@ for (const canManage of [true, false]) {
             schedules: { ...emptyPage, data: [schedule], total: 1 }, holidays: emptyPage, exceptions: emptyPage,
         });
         assert.match(html, /Detail jadwal Dokter Uji senin/);
-        assertIconActions(html.match(/<table\b[\s\S]*?<\/table>/)?.[0], canManage ? 3 : 1);
+        assertIconActions(html.match(/<table\b[\s\S]*?<\/table>/)?.[0], 3);
         const disclosures = [...html.matchAll(/<button[^>]*aria-expanded="(true|false)"[^>]*>(Tutup|Buka)<svg/g)]
             .map((match) => [match[1], match[2]]);
         assert.deepEqual(disclosures, canManage ? [['false', 'Buka'], ['true', 'Tutup']] : []);
@@ -849,7 +855,9 @@ for (const canManage of [true, false]) {
             assert.match(html, /Hapus jadwal Dokter Uji senin/);
         } else {
             assert.doesNotMatch(html, /id="asn-doctor"|Terapkan jadwal ASN|Simpan pengecualian/);
-            assert.doesNotMatch(html, /Perbarui jadwal Dokter Uji senin|Hapus jadwal Dokter Uji senin/);
+            for (const label of ['Perbarui jadwal Dokter Uji senin', 'Hapus jadwal Dokter Uji senin']) {
+                assert.match(html.match(new RegExp('<button[^>]*aria-label="' + label + '"[^>]*>'))?.[0] ?? '', /disabled=""/);
+            }
         }
     });
 }
@@ -895,7 +903,8 @@ test('icon actions preserve accessible labels, disabled states and native form b
     assertIconActions(button, 1);
     assert.match(button, /type="button"/);
     assert.match(button, /disabled=""/);
-    assert.match(button, /title="Hapus lampiran &lt;uji&gt;"/);
+    assert.match(button, /aria-label="Hapus lampiran &lt;uji&gt;"/);
+    assert.match(button, /aria-description="Aksi belum tersedia/);
     assert.match(button, /text-red-600/);
     assert.doesNotMatch(button, /<script/);
 
@@ -941,7 +950,7 @@ for (const [page, props, expectedCount] of [
     });
 }
 
-test('user action icons reflect active status and omit protected self-account actions', async () => {
+test('user action icons reflect active status and disable protected self-account actions', async () => {
     const html = await renderPage('users/index', {
         users: pageOf([
             { id: 1, name: 'Saya', email: 'saya@example.test', role: 'admin', roleLabel: 'Admin', active: true, nakes: null, isCurrentUser: true },
@@ -950,9 +959,11 @@ test('user action icons reflect active status and omit protected self-account ac
         ]), filters: { search: '', role: '' }, roles: [], doctors: [], clinics: [],
     });
     const table = html.match(/<table\b[\s\S]*?<\/table>/)?.[0];
-    assertIconActions(table, 10);
-    assert.equal((table.match(/aria-label="Hapus"/g) ?? []).length, 2);
-    assert.equal((table.match(/aria-label="Nonaktifkan pengguna"/g) ?? []).length, 1);
+    assertIconActions(table, 12);
+    assert.equal((table.match(/aria-label="Hapus"/g) ?? []).length, 3);
+    assert.match(table.match(/<button[^>]*aria-label="Hapus"[^>]*>/)?.[0] ?? '', /disabled=""/);
+    assert.equal((table.match(/aria-label="Nonaktifkan pengguna"/g) ?? []).length, 2);
+    assert.match(table.match(/<button[^>]*aria-label="Nonaktifkan pengguna"[^>]*>/)?.[0] ?? '', /disabled=""/);
     assert.equal((table.match(/aria-label="Aktifkan pengguna"/g) ?? []).length, 1);
 });
 
@@ -1357,7 +1368,7 @@ async function renderRoleNavigation(role, url, clinicType = null) {
 }
 
 for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
-    ['admin', null, '/', '/pelayanan/kunjungan', ['Ringkasan', 'Operasional', 'Data Master', 'Pengelolaan', 'Laporan', 'Akun'], 18],
+    ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Operasional', 'Data Master', 'Pengelolaan', 'Laporan', 'Akun'], 18],
     ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 9],
     ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 10],
     ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 10],
@@ -1930,7 +1941,7 @@ test('finalizing an examination returns to a pending body finding before opening
         const scope = {
             ...Object.fromEntries(names.map((name) => [name, { isDirty: false }])),
             treatmentForm: { data: { terminology_id: '', tindakan_id: '', nama_tindakan_manual: '', catatan: '' } },
-            hasDiagnosisDraft: false, anamnesisChanged: false, bodyFindingPending: pending, isDental: false, physicalTab: 'pemeriksaan', saving: false, readiness: [{ complete: true }],
+            hasDiagnosisDraft: false, anamnesisChanged: false, physicalChanged: false, bodyFindingPending: pending, isDental: false, physicalTab: 'pemeriksaan', saving: false, readiness: [{ complete: true }],
             bodyFindingDraft: { ...emptyBodyFinding, finding: pending ? 'Nyeri tekan siku kanan' : '' }, hasBodyFindingDraft,
             navigateSection: (tab) => navigation.push(tab), setSignatureDialogOpen: (open) => signatures.push(open), toast: { error: (message) => errors.push(message) },
         };
@@ -2158,7 +2169,7 @@ test('manual diagnosis form renders a text diagnosis and type without a hidden m
     collect(ast);
     const components = {};
     for (const [file, names] of [['field', ['Field']], ['input', ['Input']], ['select', ['Select']], ['checkbox', ['Checkbox']], ['button', ['Button']], ['textarea', ['Textarea']]]) Object.assign(components, await server.ssrLoadModule('/resources/js/components/ui/' + file + '.tsx'));
-    const { Plus } = await import('lucide-react');
+    const { Plus, ClipboardPlus } = await import('lucide-react');
     const { normalizeClinicalAnswer } = await server.ssrLoadModule('/resources/js/lib/clinical-answer.ts');
     const code = ts.transpileModule('const element = (' + form + ');', { compilerOptions: { target: ts.ScriptTarget.ESNext, jsx: ts.JsxEmit.React } }).outputText;
     const element = runInNewContext(code + '\nelement', { React: { createElement }, ...components, Plus, isDental: false, normalizeClinicalAnswer, canSubmitEntry: () => true, visit: { id: 1 }, diagnosisForm: { data: { is_manual: true, kode_icd10: '', nama_diagnosa: 'Diagnosis bebas', keterangan: 'Rincian diagnosis dokter', jenis: 'utama' }, errors: {}, processing: false } });
@@ -2296,10 +2307,11 @@ for (const clinicType of ['umum', 'gigi']) {
         collect(ast);
         const components = {};
         for (const file of ['field', 'input', 'select', 'checkbox', 'button', 'textarea']) Object.assign(components, await server.ssrLoadModule('/resources/js/components/ui/' + file + '.tsx'));
-        const { Plus } = await import('lucide-react');
+        const { Plus, ClipboardPlus } = await import('lucide-react');
         const { normalizeClinicalAnswer } = await server.ssrLoadModule('/resources/js/lib/clinical-answer.ts');
+        const { dentalTreatmentSearches } = await server.ssrLoadModule('/resources/js/lib/dental-diagnosis.ts');
         const code = ts.transpileModule('const element = (' + form + ');', { compilerOptions: { target: ts.ScriptTarget.ESNext, jsx: ts.JsxEmit.React } }).outputText;
-        const element = runInNewContext(code + '\n element', { React: { createElement }, ...components, Plus, normalizeClinicalAnswer, canSubmitEntry: () => true, visit: { id: 1, clinicType }, isDental: clinicType === 'gigi', treatmentMode: 'manual', selectedProcedure: null, treatmentForm: { data: { nama_tindakan_manual: 'Jenis tindakan dokter', jumlah: '1', catatan: 'Rincian tindakan dokter', tooth_fdis: [] }, errors: {}, processing: false } });
+        const element = runInNewContext(code + '\n element', { React: { createElement }, ...components, Plus, ClipboardPlus, normalizeClinicalAnswer, dentalTreatmentSearches, canSubmitEntry: () => true, visit: { id: 1, clinicType, diagnoses: [] }, isDental: clinicType === 'gigi', treatmentMode: 'manual', selectedProcedure: null, treatmentForm: { data: { nama_tindakan_manual: 'Jenis tindakan dokter', jumlah: '1', catatan: 'Rincian tindakan dokter', tooth_fdis: [] }, errors: {}, processing: false } });
         const html = renderToString(element);
         assert.match(html, /Jenis tindakan/);
         assert.match(html, /Keterangan tindakan/);
@@ -2571,7 +2583,8 @@ test('clinic inventory keeps receipt and reconciliation actions without depot co
     assert.match(html, /Catat penerimaan/);
     assert.match(html, /aria-label="Verifikasi"/);
     assert.match(html, /aria-label="Opname \/ kondisi"/);
-    assert.doesNotMatch(html.match(/<table\b[\s\S]*?<\/table>/)?.[0] ?? '', /Depo|depo|aria-label="Mutasi"/);
+    assert.doesNotMatch(html.match(/<table\b[\s\S]*?<\/table>/)?.[0] ?? '', /<th[^>]*>Depo|Depo lama/);
+    assert.match(html.match(/<button[^>]*aria-label="Mutasi"[^>]*>/)?.[0] ?? '', /disabled=""/);
     assert.match(html, /Karantina/);
 });
 
@@ -2639,7 +2652,7 @@ test('examination queue separates today\'s patients from all filtered visits and
 
 
 function submitButtonMarkup(html, label) {
-    const button = [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].find((match) => match[2].replace(/<[^>]*>/g, '') === label);
+    const button = [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].find((match) => match[2].replace(/<[^>]*>/g, '').replaceAll('&amp;', '&') === label);
     assert.ok(button, label + ' must be present');
     return button[0];
 }
@@ -2647,7 +2660,7 @@ function submitButtonMarkup(html, label) {
 for (const clinicType of ['umum', 'gigi']) {
     test(clinicType + ' examination save buttons start disabled for already saved or empty forms', async () => {
         const html = await renderPage('pelayanan/pemeriksaan/show', examinationProps(clinicType));
-        for (const label of ['Simpan anamnesis', 'Simpan pemeriksaan fisik', 'Simpan diagnosis banding', 'Simpan rencana tindak lanjut', 'Tambah diagnosis', 'Tambah tindakan', 'Tambahkan resep klinik', 'Simpan resep luar', 'Buat surat medis', 'Kirim rujukan']) {
+        for (const label of ['Simpan anamnesis', 'Simpan pemeriksaan fisik', 'Simpan diagnosis banding', 'Simpan perawatan & tindak lanjut', 'Tambah diagnosis', 'Tambah tindakan', 'Tambahkan resep klinik', 'Simpan resep luar', 'Buat surat medis', 'Kirim rujukan']) {
             assert.match(submitButtonMarkup(html, label), /disabled=""/, label);
         }
     });

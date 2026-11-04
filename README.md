@@ -1,58 +1,148 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Klinik Pratama — Rekam Medis Elektronik
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi operasional Klinik Pratama dengan backend Laravel dan antarmuka React melalui Inertia. Implementasi berfokus pada pelayanan Poli Umum dan Poli Gigi: pendaftaran, pengkajian awal, pemeriksaan dokter, tindakan perawat, pelayanan farmasi, persuratan, dan pelaporan.
 
-## About Laravel
+Dokumen ini merangkum implementasi dan cara pemeliharaan proyek. Kode, konfigurasi, migration, dan test merupakan sumber kebenaran teknis. Hasil test otomatis tidak menggantikan UAT browser atau persetujuan operasional klinis.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Teknologi dan persyaratan
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Komponen | Implementasi |
+| --- | --- |
+| PHP | Lingkungan audit PHP 8.4; batas paket mengikuti `composer.json` |
+| Backend | Laravel 13, Eloquent, PHPUnit 12 |
+| Antarmuka | React 19, TypeScript 5, Inertia 3 |
+| Tampilan | Tailwind CSS 4, komponen Radix UI, Lucide |
+| Build | Vite 8.3.5 pada lockfile hasil audit |
+| Database lokal dan test | SQLite; test backend memakai database `:memory:` |
+| Impor/ekspor | Laravel Excel 4 |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Versi yang dapat direproduksi tersimpan dalam `composer.lock` dan `package-lock.json`. Gunakan versi PHP, Node.js, dan ekstensi yang memenuhi persyaratan paket terkunci. SQLite memerlukan ekstensi PDO SQLite.
 
-## Learning Laravel
+## Cakupan aplikasi
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- Admin: pengelolaan operasional, pasien, antrean, pengkajian, persuratan, data master, pengguna, audit bantuan, dan laporan sesuai hak akses.
+- Pendaftaran: identitas pasien, kepesertaan internal, reservasi/kunjungan, jadwal praktik, serta monitoring pelayanan.
+- Perawat: pengkajian awal, pelaksanaan tindakan, pencatatan BHP, dan laporan sesuai poli penugasan.
+- Dokter: pemeriksaan, diagnosis berkode/manual, odontogram, tindakan, resep, edukasi, rencana kontrol, serta dokumen klinis sesuai otorisasi.
+- Farmasi: penyiapan dan penyerahan obat, penyerahan parsial, resep luar, pemberian langsung sesuai eligibility, serta laporan dan jejak stok batch.
+- Manajemen: ringkasan dan laporan sesuai pembatasan akses.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Alur utama: pendaftaran → pengkajian awal → pemeriksaan dokter → tindakan perawat jika diperlukan → farmasi jika diperlukan → selesai. Kunjungan dapat selesai tanpa resep; tindak lanjut mengikuti data pelayanan yang benar-benar dicatat. Reservasi mendatang mengikuti pembatasan tanggal pelayanan.
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+Modul laboratorium, depo obat, alat kesehatan, dan master tindakan dinonaktifkan secara bawaan melalui `config/clinic.php`. Kode, tabel, dan test modul tersebut tetap dipertahankan karena masih terhubung melalui konfigurasi, relasi, route, dan cakupan regresi.
 
-## Agentic Development
+## Struktur proyek
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```text
+app/
+  Console/Commands/      Perintah pemeliharaan klinik
+  Http/Controllers/     Endpoint per area dan peran
+  Http/Middleware/      Autentikasi, otorisasi, audit, dan modul
+  Http/Requests/        Validasi request yang telah dipisahkan
+  Models/               Model dan relasi domain
+  Exports/, Imports/    Impor dan ekspor data
+  Rules/                Validasi domain khusus
+  Providers/            Registrasi layanan aplikasi
+  *.php                 Layanan, query, dan aturan domain yang digunakan bersama
+bootstrap/              Bootstrap Laravel
+config/                 Konfigurasi aplikasi dan modul
+database/              Migration berurutan, factory, dan seeder
+public/                 Entrypoint HTTP dan aset publik sumber
+resources/
+  css/                  Tema dan stylesheet aplikasi
+  js/components/        Komponen UI dan komponen klinis
+  js/layouts/           Layout dan navigasi berbasis peran
+  js/lib/               Fungsi domain dan utilitas frontend
+  js/pages/             Halaman Inertia per area
+  js/types/             Kontrak TypeScript bersama
+  views/app.blade.php   Shell Inertia
+routes/                 Route web dan jadwal console
+storage/                Berkas runtime, log, dan lampiran sesuai disk
+tests/                 Feature test backend dan test render frontend
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+`vendor/`, `node_modules/`, hasil build, cache, log, dan hasil generasi bukan kode sumber aplikasi. `output/`, `tmp/`, dan compiled view khusus test diabaikan Git. PDF referensi lokal yang disediakan pengguna dipertahankan. Instruksi/skill alat pengembangan di direktori tersembunyi bukan dokumentasi aplikasi.
 
-## Contributing
+## Instalasi lokal
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Jalankan dari direktori proyek menggunakan PowerShell. Langkah pembuatan `.env` dan application key hanya untuk instalasi baru; pertahankan konfigurasi dan key instalasi yang sudah berisi data.
 
-## Code of Conduct
+```powershell
+composer install
+npm ci --ignore-scripts
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+php artisan key:generate --no-interaction
+php artisan migrate --no-interaction
+php artisan storage:link --no-interaction
+npm run build
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Atur koneksi database, URL aplikasi, zona waktu, dan kebutuhan layanan di `.env`. Contoh konfigurasi memakai SQLite dan `Asia/Jakarta`. Buat `database/database.sqlite` bila belum tersedia sebelum migration pertama. Jalankan `composer run dev` untuk server aplikasi, queue listener, dan Vite melalui perintah development proyek.
 
-## Security Vulnerabilities
+Setelah memperbarui dependensi frontend, jalankan ulang proses `composer run dev` yang sudah aktif agar memuat paket baru.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+`php artisan db:seed --no-interaction` bersifat opsional untuk database pengembangan kosong. `DatabaseSeeder` berisi akun dan data contoh, serta dibatasi ke lingkungan `local`/`testing`. Jangan gunakan akun contoh untuk instalasi operasional. Jangan menjalankan `migrate:fresh` atau seeding contoh terhadap data klinis yang harus dipertahankan.
 
-## License
+## Database dan integritas
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Kelompok tabel utama mencakup identitas/kepesertaan, kunjungan/pengkajian/pemeriksaan, diagnosis/odontogram/tindakan, resep/farmasi, obat/batch/mutasi, persuratan, jadwal praktik, dan audit/versioning catatan klinis.
+
+- Pertahankan urutan dan identitas migration yang sudah diterapkan. Perubahan schema berikutnya dibuat melalui migration baru; migration lama penghapusan modul pensiun tetap diperlukan untuk instalasi dari awal.
+- Pencatatan stok mengikuti batch, kedaluwarsa, kondisi, dan jejak mutasi. Nilai stok agregat saja tidak cukup untuk memastikan obat layak diserahkan.
+- Snapshot dokumen dan nomor surat dipertahankan sesuai waktu penerbitan. Jangan menghitung ulang dokumen historis dari data pasien yang sudah berubah.
+- Pembatasan poli/peran dan pemisahan operator dengan penandatangan klinis harus dijaga pada endpoint maupun UI.
+- Empat indeks lookup ditambahkan untuk `diagnosa.pemeriksaan_id`, `tindakan_kunjungan.kunjungan_id`, `resep_obat.resep_id`, dan `farmasi_item.farmasi_id`. Migration melewati indeks yang sudah ada dan rollback hanya menghapus indeks bernama milik migration tersebut.
+
+Audit relasi database tanpa menulis atau menghapus data:
+
+```powershell
+php artisan clinic:audit-database --no-interaction
+```
+
+Perintah mengembalikan exit code `0` jika relasi yang dideklarasikan tidak bermasalah, atau `1` jika menemukan pelanggaran. Pemeriksaan ini tidak memvalidasi seluruh aturan klinis, konsistensi stok, atau relasi logis yang tidak dideklarasikan sebagai foreign key.
+
+Pada audit lokal 3 November 2026, integritas fisik SQLite berstatus `ok`, tetapi ditemukan **8 pelanggaran foreign key** terhadap tabel `kunjungan`: screening (1), pemeriksaan (1), resep (1), farmasi (1), odontogram_findings (2), dan tindakan_kunjungan (2). Data tersebut dipertahankan dan memerlukan rekonsiliasi berdasarkan sumber klinis yang sah. Jangan menghapus atau mengaitkan ulang baris tersebut hanya untuk membuat audit berstatus hijau.
+
+Backup sebelum perubahan indeks dan salinan berkas yang dibersihkan tersimpan di luar repositori pada `C:\Project\LARAVEL\klinik-pratama-cleanup-backup-20261103`. Backup database dapat berisi data klinis; perlakukan sesuai akses data sumber.
+
+## Pemeriksaan kualitas
+
+```powershell
+php artisan test --compact
+npm run test:frontend
+npm run types:check
+npm run build
+php vendor/bin/pint --dirty --format agent
+git diff --check
+composer validate --no-check-publish
+composer audit
+npm audit
+```
+
+Test backend menggunakan SQLite in-memory dan compiled view di `storage/framework/testing/views`, terpisah dari server lokal. Test frontend memakai Node.js test runner, Vite, dan React server rendering; test tersebut tidak menjalankan interaksi browser. TypeScript menolak deklarasi lokal dan parameter yang tidak digunakan.
+
+Saat melakukan perubahan, mulai dari test paling sempit yang mencakup perilaku terkait, lalu jalankan pemeriksaan menyeluruh sesuai cakupan. Pertahankan test yang dapat menangkap cacat berbeda; jangan menghapus regresi hanya karena modul sedang tidak aktif.
+
+## Ringkasan pemeliharaan 3 November 2026
+
+- Mengganti README bawaan framework dan mengonsolidasikan Markdown proyek lama menjadi dokumen ini.
+- Menghapus entrypoint JavaScript lama, tiga komponen tanpa jalur penggunaan aplikasi, CSS anatomi lama, dua test contoh bawaan, perintah console inspirasi bawaan, dan PDF contoh hasil generasi.
+- Membersihkan import/deklarasi yang tidak dipakai dan mengaktifkan pemeriksaan TypeScript agar masalah tersebut terdeteksi kembali.
+- Memperbarui fixture dan ekspektasi test render agar mengikuti kontrak antrean, menu, label, dan aksi nonaktif saat ini, termasuk memeriksa bahwa aksi terlindungi tetap tidak dapat digunakan.
+- Memperbarui Vite dari 8.3.2 ke 8.3.5 dengan persetujuan pengguna; audit npm setelah pembaruan melaporkan 0 kerentanan.
+- Menambahkan audit foreign key yang tidak mengubah data dan empat indeks lookup dengan bukti perubahan query plan dari `SCAN` menjadi `SEARCH ... USING INDEX` pada SQLite lokal.
+- Memperbaiki rollback konteks audit kepesertaan: hapus indeks sebelum menghapus kolom pada SQLite, dengan test rollback dan penerapan ulang.
+
+| Pemeriksaan akhir | Hasil |
+| --- | --- |
+| Backend PHPUnit | 444 test lolos, 8.506 assertion |
+| Frontend render | 236 test lolos, tanpa test dilewati |
+| TypeScript | Lolos, termasuk deklarasi dan parameter tidak terpakai |
+| Build produksi | Lolos pada Vite 8.3.5 |
+| Pint dan git diff --check | Lolos |
+| Validasi Composer | Valid; peringatan constraint Inertia yang dikunci tepat tetap dipertahankan |
+| Audit npm | 0 kerentanan pada hasil registry saat audit |
+| Audit keamanan Composer | Belum terverifikasi: Packagist gagal diakses karena reset koneksi/timeout |
+| Database lokal | Integritas fisik ok; 8 pelanggaran foreign key yang telah ada tetap dipertahankan |
+
+Build menampilkan peringatan fitur font fallback optimal yang membutuhkan paket opsional fontaine; build tetap berhasil dan tidak ada dependensi tambahan dipasang untuk peringatan tersebut. UAT browser langsung, penerimaan pengguna, rekonsiliasi delapan pelanggaran relasi lokal, keputusan kewenangan klinis bantuan Admin, dan kesiapan produksi tetap memerlukan bukti terpisah.

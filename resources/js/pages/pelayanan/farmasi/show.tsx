@@ -1,19 +1,18 @@
-import { AssistanceReasonField } from '@/components/kunjungan/assistance-reason-field';
-import { getAllergyStatus } from '@/lib/allergy-status';
-import { ActionButton } from '@/components/ui/action-button';
-import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ArrowLeft, Check, ChevronDown, ChevronUp, CircleCheck, CircleHelp, Printer, Save, TriangleAlert, Pill } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
 import { StatusBadge } from '@/components/dashboard/status-badge';
+import { AssistanceReasonField } from '@/components/kunjungan/assistance-reason-field';
+import { ActionButton } from '@/components/ui/action-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Empty } from '@/components/ui/empty';
-import { Field } from '@/components/ui/field';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Empty } from '@/components/ui/empty';
+import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { getAllergyStatus } from '@/lib/allergy-status';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { ArrowLeft, Check, ChevronDown, ChevronUp, CircleCheck, CircleHelp, Pill, Printer, Save, TriangleAlert } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 
 interface PrescriptionItem {

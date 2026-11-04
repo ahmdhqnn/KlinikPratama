@@ -1,16 +1,15 @@
+import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { FilterPanel } from '@/components/ui/filter-panel';
-import { Head, router } from '@inertiajs/react';
-import { Activity, ClipboardList, Search, Download } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
+import { FilterPanel } from '@/components/ui/filter-panel';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
-import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { Head, router } from '@inertiajs/react';
+import { Activity, ClipboardList, Download, Search } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 
 interface Diagnosis {
     rank: number;

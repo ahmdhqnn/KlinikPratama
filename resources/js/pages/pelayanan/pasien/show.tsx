@@ -1,12 +1,11 @@
-import { AllergyHistory } from '@/components/kunjungan/allergy-history';
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, CalendarPlus, HeartPulse, Pencil, UserRound } from 'lucide-react';
-import { Pagination } from '@/components/dashboard/pagination';
 import { StatusBadge } from '@/components/dashboard/status-badge';
+import { AllergyHistory } from '@/components/kunjungan/allergy-history';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Head, Link } from '@inertiajs/react';
+import { ArrowLeft, CalendarPlus, HeartPulse, Pencil, UserRound } from 'lucide-react';
 
 interface Visit {
     id: number;

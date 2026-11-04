@@ -1,8 +1,8 @@
 import { fieldControlInvalidClassName, useFieldControl } from '@/components/ui/field';
 import { calendarNavigationDate, clampDate, fromDateKey, isDateWithinBounds, isMonthWithinBounds, toDateKey } from '@/lib/calendar';
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 export interface DateRange {
     from: string;
@@ -46,7 +46,6 @@ export function DateRangePicker({
 }) {
     const accessibility = useFieldControl({ 'aria-describedby': ariaDescribedBy, 'aria-invalid': ariaInvalid, 'aria-required': required || undefined });
     const [open, setOpen] = useState(false);
-    const [inlineCalendar, setInlineCalendar] = useState(false);
     const calendarId = useId();
     const containerRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
@@ -158,7 +157,7 @@ export function DateRangePicker({
 
     return (
         <div className="relative min-w-0 w-full" ref={containerRef}>
-            <input disabled={disabled || readOnly} aria-hidden="true" className="pointer-events-none absolute size-px opacity-0" max={max} min={min} onChange={() => undefined} onInvalid={(event) => { event.preventDefault(); setInlineCalendar(Boolean(containerRef.current?.closest('[role="dialog"]'))); setOpen(true); triggerRef.current?.focus(); }} required={required} tabIndex={-1} type="date" value={from} />
+            <input disabled={disabled || readOnly} aria-hidden="true" className="pointer-events-none absolute size-px opacity-0" max={max} min={min} onChange={() => undefined} onInvalid={(event) => { event.preventDefault(); setOpen(true); triggerRef.current?.focus(); }} required={required} tabIndex={-1} type="date" value={from} />
             <input disabled={disabled || readOnly} aria-hidden="true" className="pointer-events-none absolute size-px opacity-0" max={max} min={from || min} onChange={() => undefined} onInvalid={(event) => { event.preventDefault(); setOpen(true); triggerRef.current?.focus(); }} required={required} tabIndex={-1} type="date" value={to} />
             <button
                 {...accessibility}
@@ -170,7 +169,6 @@ export function DateRangePicker({
                 disabled={disabled || readOnly}
                 id={id}
                 onClick={() => {
-                    setInlineCalendar(Boolean(containerRef.current?.closest('[role="dialog"]')));
                     if (!open) {
                         const selectedDate = clampDate(fromDateKey(from) ?? fromDateKey(to) ?? new Date(), min, max);
                         if (selectedDate) {

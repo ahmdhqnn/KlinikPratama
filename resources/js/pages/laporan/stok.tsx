@@ -1,18 +1,18 @@
-import { FilterPanel } from '@/components/ui/filter-panel';
-import { Head, router } from '@inertiajs/react';
-import { AlertTriangle, Boxes, Search } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Empty } from '@/components/ui/empty';
+import { FilterPanel } from '@/components/ui/filter-panel';
+import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatNumber } from '@/lib/format';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
+import { Head, router } from '@inertiajs/react';
+import { AlertTriangle, Boxes, Search } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 
 interface Medicine {
     id: number;
