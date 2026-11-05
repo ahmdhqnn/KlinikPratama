@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Pelayanan;
 
 use App\ClinicalAuditRecorder;
+use App\ClinicDocumentProfile;
 use App\CorrespondenceService;
 use App\Exports\ScreeningExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreScreeningRequest;
-use App\Models\KlinikSetting;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Poliklinik;
@@ -20,7 +20,6 @@ use App\VisitSchedulingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -267,17 +266,10 @@ class ScreeningController extends Controller
         $choices = static fn (?array $values): string => $values ? implode(', ', array_map($choice, $values)) : 'Belum dikaji';
         $presentRows = static fn (array $rows): array => array_filter($rows, static fn (mixed $value): bool => filled($value));
         $joinValues = static fn (?string ...$values): ?string => ($joined = implode(' — ', array_filter($values, static fn (?string $value): bool => filled($value)))) !== '' ? $joined : null;
-        $clinic = KlinikSetting::first();
 
         return Inertia::render('pelayanan/screening/print', [
             'document' => [
-                'clinic' => [
-                    'name' => $clinic?->nama_klinik ?? config('app.name'),
-                    'address' => $clinic?->alamat,
-                    'phone' => $clinic?->telepon,
-                    'email' => $clinic?->email,
-                    'logoUrl' => $clinic?->logo ? Storage::disk('public')->url($clinic->logo) : null,
-                ],
+                'clinic' => app(ClinicDocumentProfile::class)->data(),
                 'patient' => [
                     'name' => $kunjungan->pasien?->nama,
                     'medicalRecordNumber' => $kunjungan->pasien?->no_rm,

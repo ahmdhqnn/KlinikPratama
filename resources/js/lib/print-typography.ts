@@ -17,12 +17,15 @@ export async function printWithFonts(target: Window = window): Promise<void> {
             throw new Error('The print font is unavailable.');
         }
         await target.document.fonts.ready;
+        await Promise.all(Array.from(target.document.images ?? []).map(async (image) => {
+            if (typeof image.decode === 'function') await image.decode();
+        }));
 
         if (!target.closed) {
             target.focus();
             target.print();
         }
     } catch {
-        toast.error('Font cetak belum dapat dimuat. Muat ulang halaman, lalu coba cetak kembali.');
+        toast.error('Font atau gambar dokumen belum dapat dimuat. Muat ulang halaman, lalu coba cetak kembali.');
     }
 }

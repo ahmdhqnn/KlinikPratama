@@ -149,6 +149,21 @@ class Screening extends Model
         return ! in_array($this->status_riwayat_penyakit, ['tidak_ada', 'belum_diketahui'], true);
     }
 
+    public function vitalMeasurementSummary(): ?string
+    {
+        // Describe recorded measurements only; this is not a claim of clinical normality.
+        $fields = ['td_sistole', 'td_diastole', 'nadi', 'suhu', 'respirasi'];
+        $recorded = count(array_filter($fields, fn (string $field): bool => $this->getAttribute($field) !== null));
+        if ($recorded === count($fields)) {
+            return 'Tekanan darah, nadi, suhu, dan frekuensi napas tercatat';
+        }
+        if ($this->dental_vitals_unmeasurable) {
+            return $recorded > 0 ? 'Sebagian TTV tidak dapat diukur' : 'TTV tidak dapat diukur';
+        }
+
+        return $recorded > 0 ? 'Pengukuran TTV belum lengkap' : null;
+    }
+
     /** @return array<string, ?string> */
     public function handoverSummary(): array
     {
@@ -179,6 +194,11 @@ class Screening extends Model
         foreach (self::SAFETY_FIELDS as $field) {
             $details[$field] = $this->getAttribute($field);
         }
+        foreach (self::OTHER_DETAILS as $source => [$option, $detail]) {
+            if (! in_array($option, $this->getAttribute($source) ?? [], true)) {
+                $details[$detail] = null;
+            }
+        }
 
         return [
             ...array_combine(['Keterangan tanda bahaya lainnya', 'Keterangan kondisi sistemik lainnya', 'Keterangan pemicu lainnya', 'Keterangan infeksi lainnya', 'Keterangan obat lainnya', 'Tingkat keparahan alergi jika diketahui', 'Catatan verifikasi alergi', 'Karakter dan penjalaran nyeri', 'Hal yang mengurangi nyeri', 'Dampak nyeri pada aktivitas atau tidur', 'Kondisi khusus, operasi, atau rawat inap yang relevan', 'Observasi awal mulut dan rahang', 'Perawatan mulut dan kebiasaan sehari-hari'], array_values($details)),
@@ -194,13 +214,17 @@ class Screening extends Model
             'Status riwayat penyakit' => $choice($this->status_riwayat_penyakit),
             'Nama penyakit' => $this->hasReportedDiseaseDetails() ? $this->penyakit_nama : null,
             'Keterangan riwayat penyakit' => $this->hasReportedDiseaseDetails() ? $this->penyakit_keterangan : null,
-            'Obat yang digunakan' => $this->riwayat_obat,
+            'Obat yang digunakan' => match ($this->status_riwayat_obat) {
+                'tidak_ada' => 'Tidak menggunakan obat menurut pasien',
+                'belum_diketahui' => 'Belum dapat dikonfirmasi',
+                default => $this->riwayat_obat,
+            },
             'Kategori obat yang dilaporkan' => $this->dental_medication_categories
                 ? implode(', ', array_intersect_key(self::dentalMedicationCategories(), array_flip($this->dental_medication_categories)))
                 : null,
             'Status alergi saat ini' => $choice($this->status_alergi),
             'Jenis / reaksi alergi' => $join($this->alergi_jenis, $this->alergi_reaksi),
-            'Status pengukuran TTV' => $this->dental_vitals_unmeasurable ? 'Tidak dapat diukur seluruhnya' : null,
+            'Status pengukuran TTV' => $this->vitalMeasurementSummary(),
             'Catatan Pengkajian' => $this->alasan_pengukuran_tidak_lengkap,
             'Nyeri dada' => $choice($this->nyeri_dada),
             'Kejang' => $choice($this->kejang),

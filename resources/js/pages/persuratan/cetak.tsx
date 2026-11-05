@@ -1,3 +1,4 @@
+import { ClinicalDocumentHeader } from '@/components/clinical-document-header';
 import { printWithFonts } from '@/lib/print-typography';
 import { Head } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
@@ -60,9 +61,9 @@ export function LetterSheet({ document: doc }: { document: DocumentData }) {
         <style>{`
             .medical-letter { color:#000; background:#fff; font-family:var(--font-sans); font-size:11pt; line-height:1.5; max-width:210mm; min-height:250mm; margin:0 auto; padding:18mm; box-shadow:0 1px 8px #0002; overflow-wrap:anywhere; }
             .medical-letter * { color:inherit; }
-            .letter-head { text-align:center; border-bottom:3px solid #000; padding-bottom:10px; margin-bottom:22px; line-height:1.25; break-inside:avoid; }
-            .letter-head strong { display:block; font-size:18pt; }
-            .letter-head p { margin:4px 0 0; font-size:11pt; }
+            .letter-head { text-align:center; padding:0; margin-bottom:5mm; break-inside:avoid; }
+            .letter-head > strong { display:block; font-size:18pt; }
+            .letter-head > p { margin:4px 0 0; font-size:11pt; }
             .letter-title { text-align:center; margin-bottom:24px; break-inside:avoid; }
             .letter-title h1 { font-size:14pt; font-weight:bold; text-transform:uppercase; text-decoration:underline; text-underline-offset:3px; margin:0 0 5px; }
             .medical-letter p { margin-top:0; margin-bottom:12px; }
@@ -91,7 +92,7 @@ export function LetterSheet({ document: doc }: { document: DocumentData }) {
             .letter-rx strong { font-size:14pt; }
             .letter-rx p { white-space:pre-line; }
             .letter-supporting { font-size:11pt; line-height:1.3; }
-            .letter-supporting .letter-head { margin-bottom:14px; }
+            .letter-supporting .letter-head { margin-bottom:5mm; }
             .letter-supporting .letter-title { margin-bottom:14px; }
             .letter-supporting .letter-data { margin:8px 0 12px; }
             .letter-supporting .letter-data th,.letter-supporting .letter-data td { padding-top:1px; padding-bottom:1px; }
@@ -101,13 +102,10 @@ export function LetterSheet({ document: doc }: { document: DocumentData }) {
             .letter-supporting .signature-space,.letter-supporting .letter-signature img { height:50px; }
             .letter-supporting .letter-tooth { padding:5px 0; }
             .letter-small { font-size:10pt; }
-            @media screen and (max-width:640px) { .medical-letter { padding:7mm; font-size:11pt; } .letter-head strong {font-size:15pt;} .letter-data th {width:35%;} .letter-signature{width:65%;} }
+            @media screen and (max-width:640px) { .medical-letter { padding:7mm; font-size:11pt; } .letter-head > strong {font-size:15pt;} .letter-data th {width:35%;} .letter-signature{width:65%;} }
             @media print { @page { size:A4 portrait; margin:15mm 17mm; @bottom-left { content: "${footerRecord}"; font-family:var(--font-sans); font-size:9pt; } @bottom-right { content: "Halaman " counter(page) " dari " counter(pages); font-family:var(--font-sans); font-size:9pt; } } html,body { background:#fff!important; } .medical-letter { width:100%; max-width:none; min-height:0; padding:0; box-shadow:none; font-size:11pt; } .medical-letter.letter-supporting {font-size:11pt;} .letter-toolbar {display:none!important;} .letter-print-main{padding:0!important;margin:0!important;max-width:none!important;} }
         `}</style>
-        <header className="letter-head">
-            <strong>KLINIK PRATAMA</strong><strong>KEMENTERIAN PARIWISATA</strong>
-            <p>{doc.clinic.address || 'Jl. Medan Merdeka Barat No. 17, Gambir, Jakarta Pusat 10110'}<br />Telp. {doc.clinic.phone || '021 3838142'}</p>
-        </header>
+        <div className="letter-head"><ClinicalDocumentHeader clinic={{ ...doc.clinic, name: 'Klinik Pratama' }} /></div>
         <div className="letter-title"><h1>{titleOf(doc)}</h1>{doc.number && <p>Nomor: {doc.number}</p>}</div>
         {referral && <><p>Kepada TS Yth.<br />{doc.kind === 'rujukan_internal' ? doc.toClinic : details.recipient || '-'}<br />di {doc.kind === 'rujukan_internal' ? 'Klinik Pratama Kementerian Pariwisata' : details.recipient_address || '-'}</p><p>Mohon pemeriksaan dan penanganan lebih lanjut atas pasien:</p></>}
         {doc.type === 'sakit' && <p>Yang bertanda tangan di bawah ini menerangkan bahwa:</p>}

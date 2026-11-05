@@ -1093,7 +1093,7 @@ test('medical record fills available width, displays dental anthropometry and pr
         visits: [visit, { ...visit, id: 2, number: 'K-002', status: 'batal' }, { ...visit, id: 3, number: 'K-003', status: 'menunggu', isReservation: true }], backUrl: '/pelayanan/pasien/7', canSelectClinic: false,
         filters: { search: '', poliklinik_id: '', status: '', dari: '', sampai: '' }, clinics: [], pagination: { ...singlePage, total: 2 },
     });
-    for (const expected of ['xl:grid-cols-4', 'Tempat, tanggal lahir', 'Alamat', 'Unit kerja', 'Berat / tinggi', '60 kg', '160 cm', 'Pengkajian awal berlangsung', 'Kunjungan dibatalkan', 'Reservasi', 'Belum dapat diketahui', 'aria-controls="medical-record-visit-1"', 'id="medical-record-visit-2"']) {
+    for (const expected of ['xl:grid-cols-4', 'Tempat, tanggal lahir', 'Alamat', 'Unit kerja', 'Berat / tinggi', '60 kg', '160 cm', 'Pengkajian awal berlangsung', 'Kunjungan dibatalkan', 'Reservasi', 'Belum dapat diketahui', 'aria-controls="medical-record-visit-1"', 'id="medical-record-visit-2"', 'Cetak rekam medis kunjungan K-001', 'Cetak kunjungan ini']) {
         assert.ok(html.includes(expected), expected);
     }
     assert.equal((html.match(/print:block hidden/g) ?? []).length, 3, 'collapsed visits remain available for printing');
@@ -1965,6 +1965,8 @@ test('body record shows selected anatomy, laterality, zero pain and stored annot
     assert.match(html, /Model perempuan/);
     assert.match(html, /aria-label="Kepala dan wajah \(depan\)" aria-pressed="true"/);
     assert.match(html, /Dahi kanan/);
+    assert.match(html, /Penanda temuan 1/);
+    assert.match(html.replace(/<!--.*?-->/g, ''), /Temuan 1/);
     assert.match(html.replace(/<!--.*?-->/g, ''), /Nyeri: 0\/10/);
     assert.match(html, /data-annotation-id="draw-1"/);
     assert.match(html, /points="30,40 50,60"/);
@@ -3267,4 +3269,87 @@ test('printing leaves an already closed label window alone', async () => {
     await printWithFonts(target);
 
     assert.deepEqual(events, []);
+});
+
+
+test('dental handover highlights non-normal mucosa and shows dismissible nurse notes only when present', async () => {
+    const props = examinationProps('gigi');
+    props.visit.screening = { dentalPainTriggers: [], dentalMedicalRisks: [], dentalInfectionHistory: [], ...props.visit.screening, dentalNotes: 'Konfirmasi pembengkakan gusi', summary: {
+        'Observasi mukosa - Gusi': 'Abnormal', 'Observasi mukosa - Lidah': 'Normal',
+        'Kelainan mukosa yang ditemukan': 'Gusi bengkak',
+    } };
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    const panel = html.match(/<section aria-label="Observasi mukosa dari perawat"[\s\S]*?<\/section>/)?.[0];
+    assert.ok(panel);
+    assert.match(panel, /Observasi mukosa - Gusi/);
+    assert.match(panel, /Abnormal/);
+    assert.match(panel, /Gusi bengkak/);
+    assert.doesNotMatch(panel, /Observasi mukosa - Lidah/);
+    assert.match(html, /Tutup catatan penting dari perawat/);
+    props.visit.screening = { ...props.visit.screening, dentalNotes: '', summary: {} };
+    const empty = await renderPage('pelayanan/pemeriksaan/show', props);
+    assert.doesNotMatch(empty, /aria-label="Catatan penting dari perawat"/);
+    assert.doesNotMatch(empty, /aria-label="Observasi mukosa dari perawat"/);
+});
+
+
+test('RME handover omits empty optional rows while retaining confirmed and uncertain answers', async () => {
+    const screening = { systolic: 120, diastolic: 80, pulse: 80, temperature: 36.5, oxygenSaturation: null, weight: null, height: null, bmi: null, respiration: 18, complaint: 'Nyeri gusi', medicalHistory: 'Tidak ada, telah dikaji', familyHistory: null, allergyHistory: 'Belum dapat dikonfirmasi', fallRisk: null, painScale: 0, dentalPainLocation: '', dentalPainTriggers: [], dentalPainDuration: '', dentalMedicalRisks: ['tidak_ada'], dentalInfectionHistory: [], dentalNotes: null, summary: {
+        'Catatan visual ekstraoral awal perawat': null, 'Keterangan pemicu lainnya': '', 'Observasi awal': 'Belum dicatat',
+        'Status alergi saat ini': 'Belum dapat dikonfirmasi', 'Kondisi kesehatan yang perlu diketahui dokter gigi': 'Tidak ada, telah dikaji',
+        'Observasi mukosa - Gusi': 'Abnormal', 'Skala nyeri': '0 / 10',
+    } };
+    const html = await renderPage('pelayanan/pasien/rekam-medis', {
+        patient: { id: 7, name: 'Pasien Uji', medicalRecordNumber: 'RM-007', gender: 'P', age: 30 },
+        visits: [{ id: 1, number: 'K-001', clinic: 'Poli Gigi', clinicType: 'gigi', doctor: 'Dokter Gigi', date: '24/10/2026', status: 'screening', screening, examination: null, prescriptions: [], treatments: [], odontogram: [], attachments: [] }],
+        backUrl: '/pelayanan/pasien/7', canSelectClinic: false, filters: { search: '', poliklinik_id: '', status: '', dari: '', sampai: '' }, clinics: [], pagination: singlePage,
+    });
+    assert.doesNotMatch(html.replace(/<script[\s\S]*?<\/script>/g, ''), /Catatan visual ekstraoral awal perawat|Keterangan pemicu lainnya/);
+    assert.match(html, /Tidak ada, telah dikaji/);
+    assert.match(html, /Belum dapat dikonfirmasi/);
+    assert.match(html, /Abnormal/);
+    assert.match(html, /0 \/ 10/);
+});
+
+
+test('clinical document header places Kemenpar on the left and Wonderful on the right', async () => {
+    const { ClinicalDocumentHeader } = await server.ssrLoadModule('/resources/js/components/clinical-document-header.tsx');
+    const html = renderToString(createElement(ClinicalDocumentHeader, { clinic: { address: 'Alamat pengaturan klinik', phone: '021123' } }));
+    assert.ok(html.indexOf('/logo_kemenpar.webp') < html.indexOf('/logo_wonderful.png'));
+    assert.match(html, /Alamat pengaturan klinik/);
+    assert.match(html, /021123/);
+});
+
+test('printing waits for logo and signature images to decode', async () => {
+    const { printWithFonts } = await server.ssrLoadModule('/resources/js/lib/print-typography.ts');
+    let printed = false;
+    let resolveImage;
+    const imageReady = new Promise((resolve) => { resolveImage = resolve; });
+    const target = { closed: false, document: { fonts: { load: async () => [{}], ready: Promise.resolve() }, images: [{ decode: () => imageReady }] }, focus: () => {}, print: () => { printed = true; } };
+    const pending = printWithFonts(target);
+    await Promise.resolve();
+    assert.equal(printed, false);
+    resolveImage();
+    await pending;
+    assert.equal(printed, true);
+});
+
+
+test('printing one RME visit retains selection during preparation and restores the full view afterward', async () => {
+    const source = readFileSync(new URL('../resources/js/pages/pelayanan/pasien/rekam-medis.tsx', import.meta.url), 'utf8');
+    const functionBody = source.slice(source.indexOf('    async function printVisits'), source.indexOf('    function applyFilters'))
+        .replace('visitId: number | null = null', 'visitId = null').replace(': Promise<void>', '');
+    const states = [];
+    let finish;
+    const preparation = new Promise((resolve) => { finish = resolve; });
+    const scope = { flushSync: (fn) => fn(), setPrintVisitId: (id) => states.push(id), printWithFonts: () => preparation };
+    runInNewContext(functionBody + '; this.run = printVisits;', scope);
+    const printing = scope.run(42);
+    assert.deepEqual(states, [42]);
+    finish();
+    await printing;
+    assert.deepEqual(states, [42, null]);
+    scope.printWithFonts = async () => { throw new Error('Print interrupted'); };
+    await assert.rejects(scope.run(84), /Print interrupted/);
+    assert.deepEqual(states, [42, null, 84, null]);
 });
