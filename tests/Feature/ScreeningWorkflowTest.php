@@ -391,6 +391,44 @@ class ScreeningWorkflowTest extends TestCase
         }
     }
 
+    public function test_handover_describes_recorded_measurements_and_confirmed_absence_without_inventing_optional_notes(): void
+    {
+        [$nurse, $visit] = $this->context('gigi');
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [...$this->payload(),
+            'td_sistole' => 120, 'td_diastole' => 80, 'nadi' => 80, 'suhu' => 36.5, 'respirasi' => 18,
+            'status_riwayat_obat' => 'tidak_ada', 'risiko_medis_gigi' => ['tidak_ada'],
+            'risiko_medis_gigi_lainnya' => 'Rincian lama yang tidak dipilih',
+            'extraoral_symmetry' => 'symmetric', 'extraoral_swelling' => 'none',
+            'mukosa_mulut' => ['lidah' => 'normal', 'gusi' => 'abnormal'],
+            'kelainan_mukosa' => 'Gusi kemerahan',
+        ])->assertSessionHasNoErrors();
+        $screening = $visit->fresh()->screening;
+        $summary = $screening->handoverSummary();
+        $this->assertSame('Tekanan darah, nadi, suhu, dan frekuensi napas tercatat', $summary['Status pengukuran TTV']);
+        $this->assertSame('Tidak menggunakan obat menurut pasien', $summary['Obat yang digunakan']);
+        $this->assertSame('Tidak ada, telah dikaji', $summary['Kondisi kesehatan yang perlu diketahui dokter gigi']);
+        $this->assertNull($summary['Keterangan kondisi sistemik lainnya']);
+        $this->assertNull($summary['Catatan visual ekstraoral awal perawat']);
+        $this->assertSame('Normal', $summary['Observasi mukosa - Lidah']);
+        $this->assertSame('Abnormal', $summary['Observasi mukosa - Gusi']);
+        $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.0.screening.summary.Obat yang digunakan', 'Tidak menggunakan obat menurut pasien')
+            ->where('visits.0.screening.summary.Observasi mukosa - Gusi', 'Abnormal')
+            ->where('visits.0.screening.summary.Catatan visual ekstraoral awal perawat', null));
+        $this->get(route('pelayanan.pasien.rekam-medis', [$visit->pasien, 'kunjungan_id' => $visit->id]))
+            ->assertInertia(fn (Assert $page) => $page->has('visits', 1)->where('visits.0.id', $visit->id));
+        $this->get(route('pelayanan.pasien.rekam-medis', [$visit->pasien, 'kunjungan_id' => 999999]))
+            ->assertInertia(fn (Assert $page) => $page->has('visits', 0));
+        $screening->respirasi = null;
+        $screening->dental_vitals_unmeasurable = true;
+        $this->assertSame('Sebagian TTV tidak dapat diukur', $screening->vitalMeasurementSummary());
+        $screening->status_riwayat_obat = 'belum_diketahui';
+        $this->assertSame('Belum dapat dikonfirmasi', $screening->handoverSummary()['Obat yang digunakan']);
+        $empty = new Screening;
+        $this->assertNull($empty->vitalMeasurementSummary());
+        $this->assertNull($empty->handoverSummary()['Obat yang digunakan']);
+    }
+
     public function test_unconfirmed_allergy_is_distinct_from_no_allergy_and_reaches_handover(): void
     {
         [$nurse, $visit] = $this->context('gigi');

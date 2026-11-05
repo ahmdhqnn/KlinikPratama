@@ -3,9 +3,9 @@ import { bodyLocations, organLocations, type BodyView, type BodyLocation } from 
 
 export { organLocations } from '@/lib/body-examination';
 
-interface Props { mode: 'organs' | 'body'; view: BodyView; model: 'male' | 'female'; selectedId: string; highlightedIds?: string[]; disabled?: boolean; onSelect: (location: BodyLocation) => void; }
+interface Props { mode: 'organs' | 'body'; view: BodyView; model: 'male' | 'female'; selectedId: string; highlightedIds?: string[]; markers?: Array<{ locationId: string; label: string }>; disabled?: boolean; onSelect: (location: BodyLocation) => void; }
 
-export function HumanBodyModel({ mode, view, model, selectedId, highlightedIds = [], disabled = false, onSelect }: Props) {
+export function HumanBodyModel({ mode, view, model, selectedId, highlightedIds = [], markers = [], disabled = false, onSelect }: Props) {
     const id = useId().replace(/:/g, '');
     const back = view === 'back';
     const female = model === 'female';
@@ -43,6 +43,16 @@ export function HumanBodyModel({ mode, view, model, selectedId, highlightedIds =
                 <title>{location.label}</title><path d={location.path}/>
             </g>) : <g clipPath={'url(#' + id + '-shape)'}>{bodyLocations(view).map((location) => <rect key={location.id} x={location.x} y={location.y} width={location.width} height={location.height} rx="5" fill="currentColor" fillOpacity={selectedId === location.id ? 0.4 : highlightedIds.includes(location.id) ? 0.2 : 0} stroke={selectedId === location.id ? 'currentColor' : 'none'} className="cursor-pointer text-blue-600 outline-none hover:fill-blue-500 hover:fill-opacity-20 focus-visible:fill-blue-500 focus-visible:fill-opacity-25 focus-visible:stroke-blue-600" aria-label={location.label + ' (' + (back ? 'belakang' : 'depan') + ')'} aria-pressed={selectedId === location.id} aria-disabled={disabled} role="button" tabIndex={disabled ? -1 : 0} onClick={() => !disabled && onSelect(location)} onKeyDown={(event) => { if (!disabled && ['Enter', ' '].includes(event.key)) { event.preventDefault(); onSelect(location); } }}><title>{location.label}</title></rect>)}</g>}
             <text x="200" y="741" textAnchor="middle" fill="currentColor" fontSize="12">{back ? 'Tampak belakang' : 'Tampak depan'} · {female ? 'Model perempuan' : 'Model laki-laki'}</text>
+        {markers.map((marker) => {
+                const location = (mode === 'organs' ? organLocations : bodyLocations(view)).find((item) => item.id === marker.locationId);
+                if (!location) return null;
+                const x = location.x + location.width / 2;
+                const y = location.y + location.height / 2;
+                return <g key={marker.locationId} pointerEvents="none" aria-label={`Penanda temuan ${marker.label}`}>
+                    <rect x={x - Math.max(13, marker.label.length * 5)} y={y - 13} width={Math.max(26, marker.label.length * 10)} height={26} rx={13} fill="white" stroke="black" strokeWidth={2} />
+                    <text x={x} y={y + 5} textAnchor="middle" fill="black" fontSize={15} fontWeight="bold">{marker.label}</text>
+                </g>;
+            })}
         </svg>
     );
 }

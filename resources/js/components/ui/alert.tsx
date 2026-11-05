@@ -6,8 +6,8 @@ const alertVariants = cva('relative w-full rounded-xl border px-4 py-3 text-sm [
     variants: {
         variant: {
             default: 'border-neutral-200 bg-neutral-50 text-neutral-900 [&>svg]:text-neutral-600',
-            destructive: 'border-red-200 bg-red-50 text-red-950 [&>svg]:text-red-700',
-            warning: 'border-amber-200 bg-amber-50 text-amber-950 [&>svg]:text-amber-700',
+            destructive: 'border-red-200 bg-red-50 text-red-950 [&>svg]:text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200 dark:[&>svg]:text-red-400',
+            warning: 'border-amber-200 bg-amber-50 text-amber-950 [&>svg]:text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200 dark:[&>svg]:text-amber-400',
             success: 'border-neutral-200 bg-neutral-50 text-neutral-900 [&>svg]:text-neutral-600',
         },
     },

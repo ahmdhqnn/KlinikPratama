@@ -233,7 +233,11 @@ class PersuratanFlowTest extends TestCase
         $this->actingAs($user);
         foreach ($cases as $type => $details) {
             $this->post(route('persuratan.surat.store', $visit), [
-                'jenis' => $type, 'tanggal' => '2026-11-01', 'details' => $details,
+                'jenis' => $type, 'tanggal' => '2026-11-01', 'details' => array_replace([
+                    'rest_start' => '', 'rest_end' => '', 'purpose' => '', 'conclusion' => '',
+                    'recipient' => '', 'recipient_address' => '', 'requested_tests' => '',
+                    'xray_types' => [], 'teeth' => [], 'result_delivery' => 'pasien',
+                ], $details),
                 'konten' => $type === 'lainnya' ? 'Keterangan dokter.' : null,
             ])->assertSessionHasNoErrors()->assertRedirect(route('persuratan.index'));
             $letter = SuratMedis::query()->where('jenis', $type)->sole();
@@ -260,6 +264,29 @@ class PersuratanFlowTest extends TestCase
             ->where('document.details.teeth.0', 46));
     }
 
+    public function test_rest_letter_from_examination_accepts_full_form_and_uses_saved_clinical_data(): void
+    {
+        [$user, $doctor, $visit] = $this->visitFixture();
+        $exam = Pemeriksaan::create([
+            'kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id,
+            'status' => 'draft', 'anamnesis' => 'Nyeri gusi', 'pemeriksaan_fisik' => 'Gingiva bengkak',
+        ]);
+        $exam->diagnosa()->create(['nama_diagnosa' => 'Gingivitis', 'kode_icd10' => 'K05.0', 'jenis' => 'utama']);
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.surat.store', $visit), [
+            'jenis' => 'sakit', 'tanggal' => today()->toDateString(),
+            'details' => [
+                'rest_start' => today()->toDateString(), 'rest_end' => today()->toDateString(),
+                'purpose' => '', 'conclusion' => '', 'recipient' => '', 'recipient_address' => '',
+                'requested_tests' => '', 'xray_types' => [], 'teeth' => [], 'result_delivery' => 'pasien',
+            ],
+        ])->assertSessionHasNoErrors();
+        $letter = SuratMedis::query()->sole();
+        $this->assertSame('Nyeri gusi', $letter->document_data['clinical']['anamnesis']);
+        $this->assertSame('Gingiva bengkak', $letter->document_data['clinical']['physicalExamination']);
+        $this->assertSame(['Gingivitis (K05.0)'], $letter->document_data['clinical']['diagnoses']);
+        $this->assertArrayNotHasKey('xray_types', $letter->document_data['details']);
+    }
+
     public function test_invalid_letter_details_do_not_consume_numbers_or_create_documents(): void
     {
         [$user, , $visit] = $this->visitFixture();
@@ -270,11 +297,16 @@ class PersuratanFlowTest extends TestCase
             ['rujukan', [], 'details.recipient'],
             ['laboratorium', ['result_delivery' => 'dokter'], 'details.requested_tests'],
             ['rontgen_gigi', ['xray_types' => ['Dental'], 'teeth' => [99], 'result_delivery' => 'pasien'], 'details.teeth.0'],
+            ['rontgen_gigi', ['xray_types' => [], 'result_delivery' => 'pasien'], 'details.xray_types'],
             ['rontgen_gigi', ['xray_types' => ['Tidak valid'], 'result_delivery' => 'pasien'], 'details.xray_types.0'],
             ['lainnya', [], 'konten'],
         ] as [$type, $details, $error]) {
             $this->post(route('pelayanan.pemeriksaan.surat.store', $visit), [
-                'jenis' => $type, 'tanggal' => '2026-11-01', 'details' => $details,
+                'jenis' => $type, 'tanggal' => '2026-11-01', 'details' => array_replace([
+                    'rest_start' => '', 'rest_end' => '', 'purpose' => '', 'conclusion' => '',
+                    'recipient' => '', 'recipient_address' => '', 'requested_tests' => '',
+                    'xray_types' => [], 'teeth' => [], 'result_delivery' => 'pasien',
+                ], $details),
             ])->assertSessionHasErrors($error);
         }
         $this->assertDatabaseCount('surat_medis', 0);

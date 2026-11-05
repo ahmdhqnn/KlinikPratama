@@ -6,6 +6,7 @@ use App\ClinicalAnswer;
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
 use App\ClinicDocumentNumber;
+use App\ClinicDocumentProfile;
 use App\CorrespondenceService;
 use App\DateRangeFilter;
 use App\DentalAssessment;
@@ -410,6 +411,7 @@ class PasienController extends Controller
         abort_if($clinicId && ! $pasien->kunjungan()->where('poliklinik_id', $clinicId)->exists(), 404);
         $auditRecorder->record($request, 'medical_record.view', $pasien->id);
         $filters = $request->validate([
+            'kunjungan_id' => ['nullable', 'integer', 'min:1'],
             'search' => ['nullable', 'string', 'max:100'],
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
             'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,tindakan,farmasi,kasir,selesai,batal'],
@@ -422,6 +424,7 @@ class PasienController extends Controller
             ->when(auth()->user()->role === 'dokter', fn ($visits) => $visits->where('dokter_id', $this->doctorId()))
             ->when($clinicId, fn ($visits) => $visits->where('poliklinik_id', $clinicId));
         $visitQuery = (clone $authorizedVisits)
+            ->when($filters['kunjungan_id'] ?? null, fn ($visits, $id) => $visits->where('kunjungan.id', $id))
             ->when($filters['poliklinik_id'] ?? null, fn ($visits, $clinicId) => $visits->where('poliklinik_id', $clinicId))
             ->when($filters['status'] ?? null, fn ($visits, $status) => $visits->where('status', $status))
             ->when($filters['dari'] ?? null, fn ($visits, $date) => $visits->whereDate('tanggal', '>=', $date))
@@ -450,7 +453,7 @@ class PasienController extends Controller
         $visits = $visitQuery->with([
             'poliklinik:id,nama,jenis',
             'dokter:id,nama',
-            'screening',
+            'screening.recordedBy', 'screening.petugas',
             'pemeriksaan.diagnosa',
             'pemeriksaan.signedBy',
             'pemeriksaan.clinicalNoteVersions.actor',
@@ -476,6 +479,7 @@ class PasienController extends Controller
         }
 
         return Inertia::render('pelayanan/pasien/rekam-medis', [
+            'clinicProfile' => app(ClinicDocumentProfile::class)->data(),
             'patient' => [
                 'id' => $pasien->id,
                 'name' => $pasien->nama,
@@ -547,6 +551,8 @@ class PasienController extends Controller
                     'attachments' => $visit->attachmentSummaries(),
                     'screening' => $visit->screening ? [
                         'summary' => $visit->screening->handoverSummary(),
+                        'submittedAt' => $visit->screening->submitted_at?->format('d/m/Y H:i'),
+                        'recordedBy' => $visit->screening->petugas?->nama ?? $visit->screening->recordedBy?->name,
                         'systolic' => $visit->screening->td_sistole,
                         'diastolic' => $visit->screening->td_diastole,
                         'pulse' => $visit->screening->nadi,

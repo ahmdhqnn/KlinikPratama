@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
+use App\ClinicDocumentProfile;
 use App\CorrespondenceService;
 use App\DoctorAccessService;
 use App\MedicalLetterData;
 use App\Models\CorrespondenceTemplate;
-use App\Models\KlinikSetting;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\RujukanInternal;
@@ -20,7 +20,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -326,18 +325,11 @@ class PersuratanController extends Controller
     private function baseDocument(Kunjungan $visit, string $kind, ?Nakes $doctor, ?array $snapshot = null, ?CarbonInterface $date = null): array
     {
         $visit->loadMissing(['pasien', 'poliklinik', 'dokter.user']);
-        $settings = KlinikSetting::query()->first();
         $snapshot ??= app(MedicalLetterData::class)->snapshot($visit, $doctor, $date ?? $visit->tanggal);
 
         return [
             'kind' => $kind,
-            'clinic' => [
-                'name' => 'Klinik Pratama Kementerian Pariwisata',
-                'address' => $settings?->alamat ?: 'Jl. Medan Merdeka Barat No. 17, Gambir, Jakarta Pusat 10110',
-                'phone' => $settings?->telepon ?: '021 3838142',
-                'email' => $settings?->email,
-                'logoUrl' => $settings?->logo ? Storage::disk('public')->url($settings->logo) : null,
-            ],
+            'clinic' => app(ClinicDocumentProfile::class)->data(),
             'patient' => $snapshot['patient'],
             'clinical' => $kind === 'resep_luar' ? null : $snapshot['clinical'],
             'details' => $snapshot['details'] ?? [],

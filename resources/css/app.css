@@ -352,3 +352,75 @@ body {
     .medical-record-print p, .medical-record-print dd { orphans: 3; widows: 3; }
     .medical-record-print { color: #171717; background: white; }
 }
+
+/* Shared document identity; letter bodies and clinical forms keep separate layouts. */
+.clinical-document-head { display:grid; grid-template-columns:25mm minmax(0,1fr) 25mm; align-items:center; gap:4mm; border-bottom:2px solid currentColor; padding-block:3mm; text-align:center; break-inside:avoid; }
+.clinical-document-head strong { display:block; font-size:15pt; line-height:1.15; text-transform:uppercase; }
+.clinical-document-head p { font-size:10pt; line-height:1.2; overflow-wrap:anywhere; }
+.clinical-document-head .clinical-logo { width:25mm; height:20mm; object-fit:contain; background:white; }
+@media screen and (max-width:640px) {
+    .clinical-document-head { grid-template-columns:15mm minmax(0,1fr) 15mm; gap:2mm; }
+    .clinical-document-head .clinical-logo { width:15mm; height:16mm; }
+    .clinical-document-head strong { font-size:11pt; }
+}
+@media print {
+    @page clinical-record { size:A4 portrait; margin:14mm 13mm; @bottom-right { content:"Halaman " counter(page) " / " counter(pages); font-family:var(--font-sans); font-size:8pt; } }
+    .rme-document, .clinical-sheet { page:clinical-record; }
+    .rme-print-excluded { display:none!important; }
+    .rme-document { font-size:10pt; line-height:1.4; color:#000; }
+    .rme-document > *, .rme-document .space-y-6 > * { margin-top:0; }
+    .rme-document .medical-record-print { margin-bottom:4mm; border:1px solid #777; }
+    .rme-document .rme-identity { break-inside:avoid; }
+    .rme-document .rme-identity > div { padding:3mm; }
+    .rme-document .rme-identity h3 { font-size:12pt; }
+    .rme-document .rme-identity .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:2mm 4mm; }
+    .rme-document .rme-identity .grid > div { padding:1mm 0; border-radius:0; }
+    .rme-document .rme-visit { break-before:auto; }
+    .rme-document .rme-visit > button { padding:3mm; background:#f4f4f4; border-bottom:1px solid #777; }
+    .rme-document .rme-visit > button p { margin-top:1mm; }
+    .rme-document .rme-visit > button p.line-clamp-2 { display:none; }
+    .rme-document .rme-visit > div[id] { padding:3mm; }
+    .rme-document section { margin-bottom:3mm; }
+    .rme-document section > h3 { border-bottom:1px solid #777; padding-bottom:1.5mm; color:#000; font-size:10pt; letter-spacing:0; }
+    .rme-document dl { grid-template-columns:repeat(3,minmax(0,1fr)); gap:2mm 4mm; }
+    .rme-document dl > div { break-inside:avoid; }
+    .rme-document dt, .rme-document .text-xs { font-size:8.5pt; }
+    .rme-document dd, .rme-document .text-sm { font-size:9.5pt; }
+    .rme-document .rounded-xl, .rme-document .rounded-lg { border-radius:0; }
+    .rme-document table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    .rme-document th, .rme-document td { border:1px solid #999; padding:2mm; overflow-wrap:anywhere; white-space:normal; }
+    .rme-document thead { display:table-header-group; }
+    .clinical-sheet { font-size:10pt; line-height:1.4; }
+    .clinical-sheet h2 { font-size:12pt; }
+    .clinical-sheet .clinical-section { margin-top:4mm; }
+    .clinical-sheet tr { break-inside:avoid; }
+    .clinical-sheet table { table-layout:fixed; border-collapse:collapse; }
+    .clinical-sheet .overflow-hidden { overflow:visible!important; }
+    .clinical-sheet th, .clinical-sheet td { padding:2mm; overflow-wrap:anywhere; }
+    .clinical-sheet h3 { break-after:avoid; }
+}
+
+@media print {
+    .rme-document .body-record-group { grid-template-columns:48mm minmax(0,1fr); align-items:start; gap:4mm; }
+    .rme-document .body-record-group > div:first-child { break-inside:avoid; padding:2mm; }
+    .rme-document .body-record-group article { padding:2mm; }
+    .rme-document .body-record-group svg { width:100%; height:auto; max-height:110mm; print-color-adjust:exact; }
+}
+
+@media print {
+    /* Repeat each box's top/bottom border and padding at physical page breaks. */
+    .rme-document :is(.medical-record-print, section.border, article.border, div.border, .overflow-x-auto),
+    .rme-document .rme-visit > div[id] {
+        -webkit-box-decoration-break: clone;
+        box-decoration-break: clone;
+    }
+    .rme-document :is(section.border, article.border, div.border, .overflow-x-auto) {
+        overflow: visible !important;
+    }
+}
+
+.clinical-document-head .clinical-license { font-size:8.5pt; }
+
+/* Keep letter-body paragraph spacing out of every shared letterhead. */
+.clinical-document-head .clinical-head-copy { display:flex; min-width:0; flex-direction:column; align-items:center; gap:0.6mm; }
+.clinical-document-head .clinical-head-copy > :is(strong, p) { margin:0; padding:0; width:100%; }
