@@ -114,7 +114,7 @@ class UserController extends Controller
             $this->syncNakesProfile($user, $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null);
         });
 
-        return back()->with('success', 'User berhasil ditambahkan.');
+        return back()->with('success', 'Pengguna berhasil ditambahkan.');
     }
 
     public function update(Request $request, User $user): RedirectResponse
@@ -143,7 +143,7 @@ class UserController extends Controller
             $this->syncNakesProfile($user->fresh(), $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null);
         });
 
-        return back()->with('success', 'User berhasil diperbarui.');
+        return back()->with('success', 'Pengguna berhasil diperbarui.');
     }
 
     public function destroy(User $user): RedirectResponse
@@ -154,7 +154,7 @@ class UserController extends Controller
 
         $user->delete();
 
-        return back()->with('success', 'User berhasil dihapus.');
+        return back()->with('success', 'Pengguna berhasil dihapus.');
     }
 
     public function toggleActive(User $user): RedirectResponse
@@ -165,7 +165,7 @@ class UserController extends Controller
 
         $user->update(['is_active' => ! $user->is_active]);
 
-        return back()->with('success', 'Status user berhasil diubah.');
+        return back()->with('success', 'Status pengguna berhasil diperbarui.');
     }
 
     public function resetPassword(Request $request, User $user): RedirectResponse
@@ -174,7 +174,7 @@ class UserController extends Controller
 
         $user->update(['password' => Hash::make($request->password)]);
 
-        return back()->with('success', 'Password user berhasil direset.');
+        return back()->with('success', 'Kata sandi pengguna berhasil diatur ulang.');
     }
 
     private function syncNakesProfile(User $user, ?int $nakesId = null, ?int $clinicId = null): void

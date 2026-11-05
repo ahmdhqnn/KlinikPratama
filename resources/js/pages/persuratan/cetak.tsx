@@ -1,3 +1,4 @@
+import { printWithFonts } from '@/lib/print-typography';
 import { Head } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -57,7 +58,7 @@ export function LetterSheet({ document: doc }: { document: DocumentData }) {
     const restDays = details.rest_start && details.rest_end ? Math.round((Date.parse(details.rest_end) - Date.parse(details.rest_start)) / 86400000) + 1 : null;
     return <article className={`medical-letter${supporting ? ' letter-supporting' : ''}`}>
         <style>{`
-            .medical-letter { color:#000; background:#fff; font-family:'Times New Roman',serif; font-size:12pt; line-height:1.45; max-width:210mm; min-height:250mm; margin:0 auto; padding:18mm; box-shadow:0 1px 8px #0002; overflow-wrap:anywhere; }
+            .medical-letter { color:#000; background:#fff; font-family:var(--font-sans); font-size:11pt; line-height:1.5; max-width:210mm; min-height:250mm; margin:0 auto; padding:18mm; box-shadow:0 1px 8px #0002; overflow-wrap:anywhere; }
             .medical-letter * { color:inherit; }
             .letter-head { text-align:center; border-bottom:3px solid #000; padding-bottom:10px; margin-bottom:22px; line-height:1.25; break-inside:avoid; }
             .letter-head strong { display:block; font-size:18pt; }
@@ -101,7 +102,7 @@ export function LetterSheet({ document: doc }: { document: DocumentData }) {
             .letter-supporting .letter-tooth { padding:5px 0; }
             .letter-small { font-size:10pt; }
             @media screen and (max-width:640px) { .medical-letter { padding:7mm; font-size:11pt; } .letter-head strong {font-size:15pt;} .letter-data th {width:35%;} .letter-signature{width:65%;} }
-            @media print { @page { size:A4 portrait; margin:15mm 17mm; @bottom-left { content: "${footerRecord}"; font:9pt 'Times New Roman'; } @bottom-right { content: "Halaman " counter(page) " dari " counter(pages); font:9pt 'Times New Roman'; } } html,body { background:#fff!important; } .medical-letter { width:100%; max-width:none; min-height:0; padding:0; box-shadow:none; font-size:12pt; } .medical-letter.letter-supporting {font-size:11pt;} .letter-toolbar {display:none!important;} .letter-print-main{padding:0!important;margin:0!important;max-width:none!important;} }
+            @media print { @page { size:A4 portrait; margin:15mm 17mm; @bottom-left { content: "${footerRecord}"; font-family:var(--font-sans); font-size:9pt; } @bottom-right { content: "Halaman " counter(page) " dari " counter(pages); font-family:var(--font-sans); font-size:9pt; } } html,body { background:#fff!important; } .medical-letter { width:100%; max-width:none; min-height:0; padding:0; box-shadow:none; font-size:11pt; } .medical-letter.letter-supporting {font-size:11pt;} .letter-toolbar {display:none!important;} .letter-print-main{padding:0!important;margin:0!important;max-width:none!important;} }
         `}</style>
         <header className="letter-head">
             <strong>KLINIK PRATAMA</strong><strong>KEMENTERIAN PARIWISATA</strong>
@@ -158,7 +159,7 @@ export function LetterSheet({ document: doc }: { document: DocumentData }) {
 export default function Cetak({ document }: { document: DocumentData }) {
     return <><Head title={`${titleOf(document)} · ${document.patient.name}`} />
         <main className="letter-print-main mx-auto max-w-4xl space-y-4 p-4 sm:p-8">
-            <div className="letter-toolbar flex flex-wrap items-center justify-between gap-3 print:hidden"><Button onClick={() => returnToPreviousScreen(document.backUrl)} type="button" variant="secondary"><ArrowLeft className="size-4" />{document.backLabel}</Button><Button onClick={() => window.print()}><Printer className="size-4" />Cetak / simpan PDF</Button></div>
+            <div className="letter-toolbar flex flex-wrap items-center justify-between gap-3 print:hidden"><Button onClick={() => returnToPreviousScreen(document.backUrl)} type="button" variant="secondary"><ArrowLeft className="size-4" />{document.backLabel}</Button><Button onClick={() => void printWithFonts()}><Printer className="size-4" />Cetak / simpan PDF</Button></div>
             <LetterSheet document={document} />
         </main></>;
 }

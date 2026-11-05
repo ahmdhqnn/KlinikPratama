@@ -52,7 +52,7 @@ export default function ExaminationsIndex({ visits, todayVisits, date: initialDa
 
     return (
         <>
-            <Head title="Pemeriksaan Dokter" />
+            <Head title="Pemeriksaan dokter" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Layanan klinis</p>
@@ -132,9 +132,9 @@ function VisitList({ title, description, icon, visits, emptyTitle, emptyDescript
                         <TableBody>
                             {visits.data.length ? visits.data.map((visit) => (
                                 <TableRow key={visit.id}>
-                                    <TableCell className="text-center whitespace-nowrap font-mono text-xs font-semibold text-neutral-700">{visit.number}</TableCell>
+                                    <TableCell className="text-center whitespace-nowrap font-sans tabular-nums text-xs font-semibold text-neutral-700">{visit.number}</TableCell>
                                     <TableCell className="text-center whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
-                                    <TableCell className="text-center"><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 font-mono text-xs text-neutral-500">{visit.medicalRecordNumber} · {visit.gender ?? 'Belum diisi'}</p></TableCell>
+                                    <TableCell className="text-center"><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 font-sans tabular-nums text-xs text-neutral-500">{visit.medicalRecordNumber} · {visit.gender ?? 'Belum diisi'}</p></TableCell>
                                     <TableCell className="text-center text-neutral-600">{visit.clinic}</TableCell>
                                     <TableCell className="text-center text-neutral-600">{visit.doctor ?? 'Belum ditentukan'}</TableCell>
                                     <TableCell className="text-center"><StatusBadge examinationStarted={visit.examinationStarted} status={visit.status} />

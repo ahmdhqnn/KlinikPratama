@@ -17,8 +17,8 @@ export function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
                     const current = index === items.length - 1;
 
                     return (
-                        <li className="flex min-w-0 items-center gap-2" key={`${item.href ?? item.label}-${index}`}>
-                            {index > 0 && <span aria-hidden="true" className="shrink-0 text-neutral-300">/</span>}
+                        <li className={`${current ? 'flex' : 'hidden sm:flex'} min-w-0 items-center gap-2`} key={`${item.href ?? item.label}-${index}`}>
+                            {index > 0 && <span aria-hidden="true" className="hidden shrink-0 text-neutral-300 sm:inline">/</span>}
                             {item.href && !current ? (
                                 <Link className="truncate rounded-sm transition-colors hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" href={item.href}>{item.label}</Link>
                             ) : (

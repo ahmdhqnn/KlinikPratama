@@ -59,7 +59,7 @@ export default function NursingProcedureDetail({ visit }: Props) {
     }
 
     return <>
-        <Head title="Pelaksanaan Tindakan" />
+        <Head title="Pelaksanaan tindakan" />
         <div className="mx-auto max-w-5xl space-y-6">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div><p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pelaksanaan tindakan</h2><p className="mt-1 text-sm text-neutral-500">Tinjau instruksi dokter, mulai tindakan, lalu catat hasil setiap tindakan.</p></div>

@@ -27,7 +27,7 @@ function formatStock(value: number): string {
 export default function DoctorStock({ medicines }: Props) {
     return (
         <>
-            <Head title="Stok Obat" />
+            <Head title="Stok obat" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Informasi farmasi</p>
@@ -48,7 +48,7 @@ export default function DoctorStock({ medicines }: Props) {
                                 <TableBody>
                                     {medicines.data.length > 0 ? medicines.data.map((medicine) => (
                                         <TableRow key={medicine.id}>
-                                            <TableCell className="font-mono text-xs text-neutral-500">{medicine.code}</TableCell>
+                                            <TableCell className="font-sans tabular-nums text-xs text-neutral-500">{medicine.code}</TableCell>
                                             <TableCell className="font-medium text-neutral-900">{medicine.name}</TableCell>
                                             <TableCell className="text-neutral-600">{medicine.unit}</TableCell>
                                             <TableCell className="text-center"><Badge variant={medicine.isLow ? 'warning' : 'default'}>{formatStock(medicine.stock)}</Badge></TableCell>

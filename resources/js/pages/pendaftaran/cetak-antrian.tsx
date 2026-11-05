@@ -1,3 +1,4 @@
+import { printWithFonts } from '@/lib/print-typography';
 import { Head } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,7 @@ export default function QueueTicket({ ticket, clinic, backUrl }: { ticket: Ticke
         <main className="mx-auto max-w-xl space-y-4 p-4 sm:p-6 print:max-w-none print:p-0">
             <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
                 <Button onClick={() => returnToPreviousScreen(backUrl)} type="button" variant="secondary"><ArrowLeft className="size-4" />Kembali</Button>
-                <div className="flex items-center gap-2"><ThemeToggle /><Button onClick={() => window.print()} type="button"><Printer className="size-4" />Cetak tiket</Button></div>
+                <div className="flex items-center gap-2"><ThemeToggle /><Button onClick={() => void printWithFonts()} type="button"><Printer className="size-4" />Cetak tiket</Button></div>
             </div>
             <article className="queue-ticket rounded-xl border border-neutral-200 bg-surface p-6 text-neutral-950 shadow-sm sm:p-8 print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black print:shadow-none">
                 <header className="border-b-2 border-neutral-900 pb-4 text-center">
@@ -25,8 +26,8 @@ export default function QueueTicket({ ticket, clinic, backUrl }: { ticket: Ticke
                 <section className="py-5 text-center">
                     <h2 className="text-sm font-semibold uppercase tracking-wide">{ticket.isReservation ? 'Bukti reservasi kunjungan' : 'Tiket antrean kunjungan'}</h2>
                     <p className="mt-4 text-xs text-neutral-500">Nomor antrean · {ticket.clinic}</p>
-                    <p className="mt-1 font-mono text-6xl font-bold leading-none tracking-tight">{String(ticket.queueNumber).padStart(3, '0')}</p>
-                    <p className="mt-4 font-mono text-xs text-neutral-600">{ticket.visitNumber}</p>
+                    <p className="mt-1 font-sans tabular-nums text-6xl font-bold leading-none tracking-tight">{String(ticket.queueNumber).padStart(3, '0')}</p>
+                    <p className="mt-4 font-sans tabular-nums text-xs text-neutral-600">{ticket.visitNumber}</p>
                 </section>
                 <dl className="divide-y divide-neutral-200 border-y border-neutral-200">
                     <TicketField label="Tanggal kunjungan" value={ticket.date} />

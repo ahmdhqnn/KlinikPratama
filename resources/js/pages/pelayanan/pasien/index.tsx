@@ -133,10 +133,10 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
 
     return (
         <>
-            <Head title="Database Pasien" />
+            <Head title="Data pasien" />
             <div className="space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                    <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Database pasien</h2><p className="mt-1 text-sm text-neutral-500">Kelola identitas pasien dan verifikasi kepesertaannya.</p></div>
+                    <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Data pasien</h2><p className="mt-1 text-sm text-neutral-500">Kelola identitas pasien dan verifikasi kepesertaannya.</p></div>
                     {permissions.managePatients && <Button asChild size="sm"><Link href="/pendaftaran/pendaftaran-baru"><Plus className="size-4" />Pendaftaran pasien</Link></Button>}
                 </div>
                 <FilterPanel actions={permissions.managePatients && <div className="flex flex-wrap gap-2"><Button asChild size="sm" variant="secondary"><Link href="/kepesertaan"><FileSpreadsheet className="size-4" />Impor kepesertaan</Link></Button><Button asChild size="sm" variant="secondary"><a href="/pelayanan/pasien-export"><Download className="size-4" />Export</a></Button><Button onClick={() => setMergeOpen(true)} size="sm" variant="secondary">Gabung RM</Button></div>}><form className="grid gap-4 md:grid-cols-2 md:items-end" onSubmit={applyFilters}>
@@ -149,8 +149,8 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
                     <CardContent className="p-0">
                         <div className="overflow-x-auto"><Table className="min-w-[1120px]"><TableHeader><tr><TableHead>No. RM</TableHead><TableHead>Pasien</TableHead><TableHead>JK / Umur</TableHead><TableHead>Kontak</TableHead><TableHead>Alamat</TableHead><TableHead>Kepesertaan</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                             <TableBody>{patients.data.length ? patients.data.map((patient) => <TableRow key={patient.id}>
-                                <TableCell><Link className="font-mono text-xs font-semibold text-neutral-700 hover:underline" href={`/pelayanan/pasien/${patient.id}`}>{patient.medicalRecordNumber}</Link></TableCell>
-                                <TableCell><div className="font-medium text-neutral-900">{patient.name}</div>{patient.nip && <div className="font-mono text-xs text-neutral-500">NIP: {patient.nip}</div>}{patient.nik && <div className="font-mono text-xs text-neutral-400">NIK: {patient.nik}</div>}</TableCell>
+                                <TableCell><Link className="font-sans tabular-nums text-xs font-semibold text-neutral-700 hover:underline" href={`/pelayanan/pasien/${patient.id}`}>{patient.medicalRecordNumber}</Link></TableCell>
+                                <TableCell><div className="font-medium text-neutral-900">{patient.name}</div>{patient.nip && <div className="font-sans tabular-nums text-xs text-neutral-500">NIP: {patient.nip}</div>}{patient.nik && <div className="font-sans tabular-nums text-xs text-neutral-400">NIK: {patient.nik}</div>}</TableCell>
                                 <TableCell className="whitespace-nowrap text-neutral-600">{patient.gender ?? 'Belum diisi'} / {patient.age === null ? 'Belum diisi' : `${patient.age} th`}</TableCell>
                                 <TableCell className="text-neutral-600">{patient.phone ?? 'Belum diisi'}</TableCell>
                                 <TableCell className="max-w-56 truncate text-neutral-500">{patient.address ?? 'Belum diisi'}</TableCell>

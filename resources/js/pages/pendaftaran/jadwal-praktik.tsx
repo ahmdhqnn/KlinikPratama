@@ -122,7 +122,7 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
 
     return (
         <>
-            <Head title="Jadwal Praktik Dokter" />
+            <Head title="Jadwal praktik dokter" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">{canManage ? 'Pengaturan layanan' : 'Informasi jadwal layanan'}</p>
@@ -192,7 +192,7 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                                 <Field error={form.errors.jam_selesai} htmlFor="schedule-end" label="Jam selesai" required>
                                     <Input id="schedule-end" min={form.data.jam_mulai} onChange={(event) => form.setData('jam_selesai', event.target.value)} required type="time" value={form.data.jam_selesai} />
                                 </Field>
-                                <Field error={form.errors.berlaku_mulai || form.errors.berlaku_sampai} htmlFor="schedule-validity" label="Masa berlaku"><DateRangePicker id="schedule-validity" from={form.data.berlaku_mulai} to={form.data.berlaku_sampai} min={today} onChange={(range) => { form.setData('berlaku_mulai', range.from); form.setData('berlaku_sampai', range.to); }} /></Field>
+                                <Field error={form.errors.berlaku_mulai || form.errors.berlaku_sampai} htmlFor="schedule-validity" label="Masa berlaku"><DateRangePicker id="schedule-validity" from={form.data.berlaku_mulai} to={form.data.berlaku_sampai} min={today} onChange={(range) => form.setData((current) => ({ ...current, berlaku_mulai: range.from, berlaku_sampai: range.to }))} /></Field>
                             </div>
                             <Button disabled={form.processing || doctors.length === 0 || clinics.length === 0} type="submit"><Plus className="size-4" />{form.processing ? 'Menyimpan…' : 'Tambah jadwal'}</Button>
                         </form>
@@ -230,7 +230,7 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                                             <TableCell className="font-medium text-neutral-900">{schedule.doctor}</TableCell>
                                             <TableCell className="text-neutral-600">{schedule.clinic}</TableCell>
                                             <TableCell><span className="rounded-full bg-neutral-50 px-2.5 py-1 text-xs font-semibold capitalize text-neutral-700">{schedule.day}</span></TableCell>
-                                            <TableCell><span className="inline-flex items-center gap-2 font-mono text-xs text-neutral-600"><Clock3 className="size-3.5" />{schedule.start} – {schedule.end}</span><span className="mt-1 block text-xs text-neutral-500">{schedule.validFrom ?? '1970-01-01'} s.d. {schedule.validUntil ?? 'seterusnya'}</span></TableCell>
+                                            <TableCell><span className="inline-flex items-center gap-2 font-sans tabular-nums text-xs text-neutral-600"><Clock3 className="size-3.5" />{schedule.start} – {schedule.end}</span><span className="mt-1 block text-xs text-neutral-500">{schedule.validFrom ?? '1970-01-01'} s.d. {schedule.validUntil ?? 'seterusnya'}</span></TableCell>
                                             <TableCell><Badge variant="default">{schedule.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell>
                                             <TableCell><div className="flex justify-center gap-2"><ActionButton onClick={() => setDetailSchedule(schedule)} type="button" action="detail" label={`Detail jadwal ${schedule.doctor} ${schedule.day}`} /><><ActionButton disabledReason="Aksi ini memerlukan hak akses pengelolaan yang sesuai." disabled={!canManage} onClick={() => editSchedule(schedule)} type="button" action="edit" label={`Perbarui jadwal ${schedule.doctor} ${schedule.day}`} /><ActionButton disabledReason="Aksi ini memerlukan hak akses pengelolaan yang sesuai." disabled={!canManage} onClick={() => deleteSchedule(schedule)} type="button" action="delete" label={`Hapus jadwal ${schedule.doctor} ${schedule.day}`} /></></div></TableCell>
                                         </TableRow>
@@ -251,7 +251,7 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                                 <Field error={form.errors.hari} htmlFor="edit-schedule-day" label="Hari" required><Select id="edit-schedule-day" onChange={(event) => form.setData('hari', event.target.value)} required value={form.data.hari}><option value="">Pilih hari</option>{days.map((day) => <option key={day} value={day}>{capitalize(day)}</option>)}</Select></Field>
                                 <div className="grid grid-cols-2 gap-3"><Field error={form.errors.jam_mulai} htmlFor="edit-schedule-start" label="Jam mulai" required><Input id="edit-schedule-start" onChange={(event) => form.setData('jam_mulai', event.target.value)} required type="time" value={form.data.jam_mulai} /></Field><Field error={form.errors.jam_selesai} htmlFor="edit-schedule-end" label="Jam selesai" required><Input id="edit-schedule-end" min={form.data.jam_mulai} onChange={(event) => form.setData('jam_selesai', event.target.value)} required type="time" value={form.data.jam_selesai} /></Field></div>
                             </div>
-                            <Field error={form.errors.berlaku_mulai || form.errors.berlaku_sampai} htmlFor="edit-schedule-validity" label="Masa berlaku" required><DateRangePicker id="edit-schedule-validity" from={form.data.berlaku_mulai} to={form.data.berlaku_sampai} required={false} onChange={(range) => { form.setData('berlaku_mulai', range.from); form.setData('berlaku_sampai', range.to); }} /></Field>
+                            <Field error={form.errors.berlaku_mulai || form.errors.berlaku_sampai} htmlFor="edit-schedule-validity" label="Masa berlaku" required><DateRangePicker id="edit-schedule-validity" from={form.data.berlaku_mulai} to={form.data.berlaku_sampai} required={false} onChange={(range) => form.setData((current) => ({ ...current, berlaku_mulai: range.from, berlaku_sampai: range.to }))} /></Field>
                             <p className="text-xs text-neutral-500">Tanggal akhir boleh dikosongkan untuk jadwal tanpa batas akhir.</p>
                             <div className="flex justify-end gap-2 border-t border-neutral-100 pt-4"><Button onClick={closeScheduleEditor} type="button" variant="secondary">Batal</Button><Button disabled={form.processing} type="submit">{form.processing ? 'Menyimpan…' : 'Simpan perubahan'}</Button></div>
                         </form>

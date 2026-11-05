@@ -60,7 +60,7 @@ export function DentalExaminationSummary({ anamnesis, intraoralExam, extraoralEx
                         </TableRow></TableHeader>
                         <TableBody>{findings.map((finding) => (
                             <TableRow key={finding.toothFdi + '-' + finding.surface}>
-                                <TableCell className="px-5 py-4 text-center align-middle font-mono font-semibold">{finding.toothFdi}</TableCell>
+                                <TableCell className="px-5 py-4 text-center align-middle font-sans tabular-nums font-semibold">{finding.toothFdi}</TableCell>
                                 <TableCell className="break-words px-5 py-4 text-center align-middle">{options.surfaces[finding.surface] ?? finding.surface}</TableCell>
                                 <TableCell className="break-words px-5 py-4 text-center align-middle">{options.findings[finding.findingCode] ?? finding.findingCode}</TableCell>
                                 <TableCell className="whitespace-pre-wrap break-words px-5 py-4 text-center align-middle">{[finding.detailSummary, normalizeClinicalAnswer(finding.notes)].filter(Boolean).join('\n') || optionalAnswers.notRecorded}</TableCell>
@@ -140,7 +140,7 @@ export function DiagnosisSummary({ id = 'diagnosis-summary', diagnoses, differen
                         </TableRow></TableHeader>
                         <TableBody>{orderedDiagnoses.map((diagnosis) => (
                             <TableRow key={diagnosis.id}>
-                                <TableCell className="break-words px-5 py-4 text-center align-middle font-mono font-semibold">{diagnosis.code || 'Manual'}</TableCell>
+                                <TableCell className="break-words px-5 py-4 text-center align-middle font-sans tabular-nums font-semibold">{diagnosis.code || 'Manual'}</TableCell>
                                 <TableCell className="break-words px-5 py-4 text-center align-middle">{diagnosis.codeSystem === 'manual' || !diagnosis.code ? 'Manual' : codeSystems.find((system) => system.value === diagnosis.codeSystem)?.label ?? diagnosis.codeSystem ?? optionalAnswers.notRecorded}</TableCell>
                                 <TableCell className="whitespace-pre-wrap break-words px-5 py-4 text-center align-middle font-medium"><p>{diagnosis.name}</p>{diagnosis.toothFdi && <p className="mt-1 text-sm">Gigi {diagnosis.toothFdi} · {dentalSurfaceLabel(diagnosis.surfaces ?? []) || 'Tanpa permukaan spesifik'}</p>}{dentalDiagnosisDescription(diagnosis) && <p className="mt-1 font-normal text-neutral-600">{dentalDiagnosisDescription(diagnosis)}</p>}</TableCell>
                                 <TableCell className="px-5 py-4 text-center align-middle"><Badge variant={diagnosis.type === 'utama' ? 'examination' : 'default'}>{diagnosis.type === 'utama' ? 'Utama' : 'Tambahan'}</Badge></TableCell>

@@ -59,7 +59,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
 
     return (
         <>
-            <Head title="Kunjungan Poli" />
+            <Head title="Kunjungan poli" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Pemantauan antrean klinik</p>
@@ -87,7 +87,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                 <TableBody>
                                     {recentVisits.data.length > 0 ? recentVisits.data.map((visit) => (
                                         <TableRow key={visit.id}>
-                                            <TableCell className="font-mono text-xs text-neutral-600">{visit.number}</TableCell>
+                                            <TableCell className="font-sans tabular-nums text-xs text-neutral-600">{visit.number}</TableCell>
                                             <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
@@ -133,7 +133,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                 <TableBody>
                                     {visits.data.length > 0 ? visits.data.map((visit) => (
                                         <TableRow key={visit.id}>
-                                            <TableCell className="font-mono text-xs text-neutral-600">{visit.number}</TableCell>
+                                            <TableCell className="font-sans tabular-nums text-xs text-neutral-600">{visit.number}</TableCell>
                                             <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>

@@ -41,7 +41,7 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                 <TableBody>
                     {visits.length > 0 ? visits.map((visit) => (
                         <tr className="transition-colors hover:bg-neutral-50/80" key={visit.id}>
-                            <TableCell className="text-center whitespace-nowrap font-mono text-xs text-neutral-600">
+                            <TableCell className="text-center whitespace-nowrap font-sans tabular-nums text-xs text-neutral-600">
                                 <Link className="font-medium text-neutral-900 underline-offset-4 hover:underline" href={visit.actionUrl}>{visit.number}</Link>
                             </TableCell>
                             <TableCell className="text-center">

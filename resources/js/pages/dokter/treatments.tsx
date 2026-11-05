@@ -113,7 +113,7 @@ export default function DoctorTreatments({ filters, stats, actions }: Props) {
                                     {actions.data.length ? actions.data.map((action) => (
                                         <TableRow key={action.id}>
                                             <TableCell className="whitespace-nowrap text-center">{action.date}</TableCell>
-                                            <TableCell className="whitespace-nowrap text-center font-mono text-xs">{action.number}</TableCell>
+                                            <TableCell className="whitespace-nowrap text-center font-sans tabular-nums text-xs">{action.number}</TableCell>
                                             <TableCell className="text-center"><p className="font-medium">{action.patient}</p><p className="text-xs text-neutral-500">{action.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-center">{action.clinic}</TableCell>
                                             <TableCell className="max-w-56 text-center"><span className="line-clamp-2">{action.name}</span>{action.code && <span className="mt-1 block text-xs text-neutral-500">{action.code}</span>}</TableCell>

@@ -38,7 +38,7 @@ export function Empty({
             )}
             <div className="max-w-sm space-y-1">
                 <h3 className="text-base font-semibold tracking-tight text-neutral-950">{title}</h3>
-                <p className="text-sm leading-5 text-neutral-500">{description ?? 'Konten yang tersedia akan ditampilkan di sini.'}</p>
+                <p className="text-sm leading-5 text-neutral-500">{description ?? 'Data yang tersedia akan ditampilkan di sini.'}</p>
             </div>
             {action}
         </div>

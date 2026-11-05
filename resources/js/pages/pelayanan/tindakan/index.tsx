@@ -59,7 +59,7 @@ export default function NursingProcedureQueue({ stats, filters: initialFilters, 
     }
 
     return <>
-        <Head title="Tindakan Perawat" />
+        <Head title="Tindakan perawat" />
         <div className="space-y-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -92,7 +92,7 @@ function VisitList({ title, description, icon, visits }: { title: string; descri
         <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700">{icon}</span><div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div></div></CardHeader>
         <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[1060px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter / poli</TableHead><TableHead>Tindakan</TableHead><TableHead>Status kunjungan</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>
             {visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}>
-                <TableCell className="font-mono text-xs text-neutral-600">{visit.number}</TableCell>
+                <TableCell className="font-sans tabular-nums text-xs text-neutral-600">{visit.number}</TableCell>
                 <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                 <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                 <TableCell>{visit.doctor}<p className="mt-0.5 text-xs text-neutral-500">{visit.clinic}</p></TableCell>

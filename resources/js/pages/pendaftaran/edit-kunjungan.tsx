@@ -26,7 +26,7 @@ export default function EditRegistrationVisit({ visit, clinics, today, doctorsUr
 
     return (
         <>
-            <Head title="Edit Kunjungan" />
+            <Head title="Edit kunjungan" />
             <div className="mx-auto max-w-4xl space-y-5">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>

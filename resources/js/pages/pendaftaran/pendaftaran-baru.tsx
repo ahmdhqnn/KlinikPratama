@@ -71,7 +71,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
 
     return (
         <>
-            <Head title="Pendaftaran Pasien" />
+            <Head title="Pendaftaran pasien" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Layanan pendaftaran</p>

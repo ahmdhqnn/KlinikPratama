@@ -102,11 +102,11 @@ export default function Profile({ profile }: Props) {
 
     return (
         <>
-            <Head title="Profil Saya" />
+            <Head title="Profil saya" />
             <div className="mx-auto max-w-5xl space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Akun pribadi</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Profil Saya</h2>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Profil saya</h2>
                     <p className="mt-1 text-sm text-neutral-500">{roleDescriptions[profile.role] ?? 'Kelola identitas akun, foto, informasi kontak, dan keamanan masuk Anda.'}</p>
                 </div>
 

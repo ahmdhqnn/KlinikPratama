@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "@fontsource-variable/plus-jakarta-sans/wght.css";
+@import "@fontsource-variable/plus-jakarta-sans/wght-italic.css";
 @import "tw-animate-css";
 @import '../../vendor/livewire/flux/dist/flux.css';
 
@@ -78,14 +80,16 @@
     .odontogram-fdi .gingiva-contour { fill: none; stroke: var(--dental-gum-line); stroke-width: 1; stroke-linecap: round; opacity: 0.6; }
     .odontogram-fdi .arch-divider { stroke: var(--color-neutral-300); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.7; }
     .odontogram-fdi .arch-label { fill: var(--color-neutral-600); font-family: var(--font-sans); font-size: 12px; font-weight: 500; }
-    .odontogram-fdi .fdi-number { fill: var(--color-neutral-700); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: central; user-select: none; }
+    .odontogram-fdi .fdi-number { fill: var(--color-neutral-700); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: central; user-select: none; }
     .odontogram-fdi .fdi-number.is-active { fill: var(--dental-selection); font-weight: 700; }
 
 
 }
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-mono: var(--font-sans);
+    --font-serif: var(--font-sans);
     --color-accent: var(--clinic-neutral-900);
     --color-accent-content: var(--clinic-neutral-800);
     --color-accent-foreground: var(--clinic-neutral-50);
@@ -225,6 +229,16 @@
     }
     .dark :is(.text-sky-600, .text-sky-700, .text-sky-800, .text-sky-900, .text-sky-950) {
         color: color-mix(in srgb, var(--color-sky-400) 28%, white);
+    }
+}
+
+@layer base {
+    html {
+        font-family: var(--font-sans);
+    }
+
+    body {
+        line-height: 1.6;
     }
 }
 

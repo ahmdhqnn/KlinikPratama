@@ -1,3 +1,4 @@
+import { printWithFonts } from '@/lib/print-typography';
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -39,11 +40,11 @@ export default function ScreeningPrint({ document }: Props) {
     const { clinic, patient, sections } = document;
     const identityRows = [
         ['Nama', patient.name, '', 'font-semibold text-neutral-900 print:text-black'],
-        ['No. RM', patient.medicalRecordNumber, '', 'font-mono text-neutral-900 print:text-black'],
+        ['No. RM', patient.medicalRecordNumber, '', 'font-sans tabular-nums text-neutral-900 print:text-black'],
         ['Jenis kelamin', patient.gender === 'L' ? 'Laki-laki' : patient.gender === 'P' ? 'Perempuan' : null, '', ''],
         ['Umur', patient.age === null ? null : `${patient.age} tahun`, '', ''],
         ['Poliklinik', document.clinicName, '', ''],
-        ['No. kunjungan', document.visitNumber, '', 'font-mono text-neutral-900 print:text-black'],
+        ['No. kunjungan', document.visitNumber, '', 'font-sans tabular-nums text-neutral-900 print:text-black'],
         ['Petugas', document.nurseName, '', ''],
         ...(document.recordedBy ? [['Diinput oleh', document.recordedBy, '', '']] : []),
         ['Dokter tujuan', document.doctorName, '', ''],
@@ -62,7 +63,7 @@ export default function ScreeningPrint({ document }: Props) {
                 </Button>
                 <div className="flex items-center gap-2">
                     <ThemeToggle />
-                    <Button onClick={() => window.print()} type="button">
+                    <Button onClick={() => void printWithFonts()} type="button">
                         <Printer className="size-4" />
                         Cetak dokumen
                     </Button>
@@ -81,8 +82,8 @@ export default function ScreeningPrint({ document }: Props) {
 
                 <div className="mt-7 flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <h2 className="text-lg font-bold uppercase tracking-tight text-neutral-950 print:text-black">Pengkajian Awal Perawat &amp; Tanda-Tanda Vital</h2>
-                        <p className="mt-1 text-sm text-neutral-600 print:text-neutral-700">Nomor: <span className="font-mono font-medium text-neutral-900 print:text-black">{document.visitNumber}</span></p>
+                        <h2 className="text-lg font-bold uppercase tracking-tight text-neutral-950 print:text-black">Pengkajian awal perawat &amp; tanda vital</h2>
+                        <p className="mt-1 text-sm text-neutral-600 print:text-neutral-700">Nomor: <span className="font-sans tabular-nums font-medium text-neutral-900 print:text-black">{document.visitNumber}</span></p>
                     </div>
                     <p className="text-sm text-neutral-600 print:text-neutral-700">{document.printDate}</p>
                 </div>
@@ -94,12 +95,12 @@ export default function ScreeningPrint({ document }: Props) {
                     {identityRows.map(([label, value, rowClass, valueClass]) => <p className={rowClass} key={label}><span className="inline-block w-24 text-neutral-600 print:text-neutral-600">{label}</span>: <span className={valueClass || undefined}>{value}</span></p>)}
                 </section>
 
-                <PrintSection title="Keluhan & Riwayat Kesehatan" rows={sections.history} />
-                <PrintSection title="Tanda Vital" rows={sections.vitals} emphasized />
-                <PrintSection title="Berat dan Tinggi Badan" rows={sections.measurements} emphasized note={sections.measurementNote ? <><strong>Catatan pengkajian antropometri:</strong> {sections.measurementNote}</> : null} />
-                <PrintSection title="Kondisi yang Perlu Perhatian" rows={sections.triage} />
-                {document.clinicType === 'gigi' && Object.keys(sections.dental).length > 0 && <PrintSection title="Pengkajian Khusus Gigi dan Mulut" rows={sections.dental} note="Asesmen awal ini tidak menyatakan kelayakan anestesi atau tindakan. Keputusan klinis sepenuhnya oleh dokter gigi." />}
-                {(Object.keys(sections.additional).length > 0 || document.startedAt || document.submittedAt) && <PrintSection title="Pengkajian Tambahan & Waktu Pengkajian" rows={{
+                <PrintSection title="Keluhan & riwayat kesehatan" rows={sections.history} />
+                <PrintSection title="Tanda vital" rows={sections.vitals} emphasized />
+                <PrintSection title="Berat dan tinggi badan" rows={sections.measurements} emphasized note={sections.measurementNote ? <><strong>Catatan pengkajian antropometri:</strong> {sections.measurementNote}</> : null} />
+                <PrintSection title="Kondisi yang perlu perhatian" rows={sections.triage} />
+                {document.clinicType === 'gigi' && Object.keys(sections.dental).length > 0 && <PrintSection title="Pengkajian khusus gigi dan mulut" rows={sections.dental} note="Asesmen awal ini tidak menyatakan kelayakan anestesi atau tindakan. Keputusan klinis sepenuhnya oleh dokter gigi." />}
+                {(Object.keys(sections.additional).length > 0 || document.startedAt || document.submittedAt) && <PrintSection title="Pengkajian tambahan & waktu pengkajian" rows={{
                     ...sections.additional,
                     ...(document.startedAt || document.submittedAt ? { 'Waktu pengkajian': [document.startedAt ? `Mulai ${document.startedAt}` : null, document.submittedAt ? `Dikirim ${document.submittedAt}` : document.isDraft ? 'Belum dikirim' : null].filter(Boolean).join(' · ') } : {}),
                 }} />}

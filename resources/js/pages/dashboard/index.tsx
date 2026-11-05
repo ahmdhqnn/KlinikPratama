@@ -96,7 +96,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
 
     return (
         <>
-            <Head title="Dashboard" />
+            <Head title="Dasbor" />
             <div className="space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>

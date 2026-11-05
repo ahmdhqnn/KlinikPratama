@@ -40,12 +40,12 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
 
     return (
         <>
-            <Head title="Dashboard Perawat" />
+            <Head title="Dasbor perawat" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ringkasan pelayanan keperawatan</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Ringkasan menunjukkan pengkajian dan tindakan poli; antrean dan kebutuhan respons menampilkan kondisi hari ini.</p>
+                    <p className="mt-1 text-sm text-neutral-500">Pantau pengkajian awal, pemeriksaan dokter, dan tindakan perawat di poliklinik Anda. Antrean menampilkan pasien yang memerlukan layanan hari ini.</p>
                 </div>
                 <section aria-label="Statistik keperawatan" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>a>section]:h-full [&>a>section>div]:h-full">
                     <StatCard description={`Seluruh kunjungan poli Anda${todayCountDescription(stats.total_kunjungan_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan" value={stats.total_kunjungan} />
@@ -81,7 +81,7 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                         <QuickLink href="/pelayanan/screening" icon={<HeartPulse className="size-4" />} label="Pengkajian awal" />
                         <QuickLink href="/pelayanan/tindakan-perawat" icon={<ClipboardCheck className="size-4" />} label="Tindakan perawat" />
                         <QuickLink href="/pendaftaran/kunjungan-per-poli" icon={<Activity className="size-4" />} label="Kunjungan poli" />
-                        <QuickLink href="/pendaftaran/database-pasien" icon={<UsersRound className="size-4" />} label="Database pasien" />
+                        <QuickLink href="/pendaftaran/database-pasien" icon={<UsersRound className="size-4" />} label="Data pasien" />
                     </CardContent>
                 </Card>
                 <Card className="overflow-hidden">

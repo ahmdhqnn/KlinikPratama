@@ -74,8 +74,8 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                                 <TableBody>
                                     {patients.data.length > 0 ? patients.data.map((patient) => (
                                         <TableRow key={patient.id}>
-                                            <TableCell className="font-mono text-xs font-semibold text-neutral-700">{patient.medicalRecordNumber}</TableCell>
-                                            <TableCell className="font-medium text-neutral-900">{patient.name}{patient.nip && <p className="mt-1 font-mono text-xs font-normal text-neutral-500">NIP: {patient.nip}</p>}</TableCell>
+                                            <TableCell className="font-sans tabular-nums text-xs font-semibold text-neutral-700">{patient.medicalRecordNumber}</TableCell>
+                                            <TableCell className="font-medium text-neutral-900">{patient.name}{patient.nip && <p className="mt-1 font-sans tabular-nums text-xs font-normal text-neutral-500">NIP: {patient.nip}</p>}</TableCell>
                                             <TableCell className="text-neutral-600">{patient.gender === 'L' ? 'Laki-laki' : patient.gender === 'P' ? 'Perempuan' : 'Belum diisi'}</TableCell>
                                             <TableCell className="whitespace-nowrap text-neutral-600">{patient.birthDate}{patient.age !== null && <span className="ml-1 text-xs text-neutral-400">({patient.age} th)</span>}</TableCell>
                                             <TableCell className="text-neutral-600">{patient.phone || 'Belum diisi'}</TableCell>

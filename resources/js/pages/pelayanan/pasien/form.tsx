@@ -76,7 +76,7 @@ export default function PatientForm({ patient }: Props) {
                     </TabsContent>}
                     {registrationType === 'manual' && <TabsContent className="space-y-6" value="manual">
                         <Card>
-                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Identitas pasien</CardTitle><CardDescription className="mt-1">Simpan identitas pasien, lalu verifikasi kepesertaannya melalui database pasien.</CardDescription></div></div></CardHeader>
+                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Identitas pasien</CardTitle><CardDescription className="mt-1">Simpan identitas pasien, lalu verifikasi kepesertaannya melalui data pasien.</CardDescription></div></div></CardHeader>
                             <CardContent className="space-y-6">
                                 <ManualPatientFields errors={form.errors} onChange={(field, value) => form.setData(field, value)} value={form.data} />
 

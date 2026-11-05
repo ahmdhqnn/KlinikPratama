@@ -36,7 +36,7 @@ export default function DoctorPatients({ search, patients }: Props) {
 
     return (
         <>
-            <Head title="Pasien Dokter" />
+            <Head title="Pasien dokter" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Data pasien</p>
@@ -56,7 +56,7 @@ export default function DoctorPatients({ search, patients }: Props) {
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UsersRound className="size-5" /></span>
-                            <div><CardTitle>Database pasien</CardTitle><CardDescription className="mt-1">Informasi identitas dibatasi pada kebutuhan pelayanan.</CardDescription></div>
+                            <div><CardTitle>Data pasien</CardTitle><CardDescription className="mt-1">Informasi identitas dibatasi pada kebutuhan pelayanan.</CardDescription></div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -66,7 +66,7 @@ export default function DoctorPatients({ search, patients }: Props) {
                                 <TableBody>
                                     {patients.data.length > 0 ? patients.data.map((patient) => (
                                         <TableRow key={patient.id}>
-                                            <TableCell className="font-mono text-xs font-medium text-neutral-700">{patient.medicalRecordNumber}</TableCell>
+                                            <TableCell className="font-sans tabular-nums text-xs font-medium text-neutral-700">{patient.medicalRecordNumber}</TableCell>
                                             <TableCell className="font-medium text-neutral-900">{patient.name}</TableCell>
                                             <TableCell className="text-neutral-600">{patient.gender ?? 'Belum diisi'}</TableCell>
                                             <TableCell className="text-center tabular-nums text-neutral-600">{new Intl.NumberFormat('id-ID').format(patient.visitCount)}</TableCell>
