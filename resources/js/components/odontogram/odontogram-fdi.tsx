@@ -10,6 +10,7 @@ export interface DentalFinding {
 }
 
 export interface OdontogramProps {
+    recordView?: boolean;
     dentition: 'adult' | 'primary';
     findings: DentalFinding[];
     selectedTooth: string;
@@ -170,6 +171,7 @@ export const FINDING_CLASSES: Record<string, string> = {
 };
 
 export function OdontogramFdi({
+    recordView = false,
     dentition,
     findings,
     selectedTooth,
@@ -178,7 +180,7 @@ export function OdontogramFdi({
     findingLabels = {},
     surfaceLabels = {},
 }: OdontogramProps) {
-    const [model, setModel] = useState<'arch' | 'front'>('arch');
+    const [model, setModel] = useState<'arch' | 'front'>(recordView ? 'front' : 'arch');
     const [hoveredTooth, setHoveredTooth] = useState<string | null>(null);
     const [activeTypeFilter, setActiveTypeFilter] = useState<ToothType | null>(null);
     const teethList = dentition === 'adult' ? ADULT_TEETH : PRIMARY_TEETH;
@@ -217,7 +219,7 @@ export function OdontogramFdi({
     return (
         <div className="odontogram-fdi min-w-0 space-y-5">
             {/* Layout Utama: 2 Kolom Seimbang (Lengkung Gigi di Kiri, Visualisasi Tipe & Oklusi di Kanan) */}
-            <div role="group" aria-label="Model peta gigi" className="flex flex-wrap gap-2"><Button type="button" size="sm" variant={model === 'arch' ? 'default' : 'secondary'} aria-pressed={model === 'arch'} onClick={() => setModel('arch')}>Peta FDI</Button><Button type="button" size="sm" variant={model === 'front' ? 'default' : 'secondary'} aria-pressed={model === 'front'} onClick={() => setModel('front')}>Gigi & gusi</Button><Button type="button" size="sm" variant="ghost" disabled={disabled || !selectedTooth} onClick={() => onSelect('')}>Lepas pilihan</Button></div>
+            {(<div role="group" aria-label="Model peta gigi" className="flex flex-wrap gap-2"><Button type="button" size="sm" variant={model === 'arch' ? 'default' : 'secondary'} aria-pressed={model === 'arch'} onClick={() => setModel('arch')}>Peta FDI</Button><Button type="button" size="sm" variant={model === 'front' ? 'default' : 'secondary'} aria-pressed={model === 'front'} onClick={() => setModel('front')}>Gigi & gusi</Button>{!recordView && <Button type="button" size="sm" variant="ghost" disabled={disabled || !selectedTooth} onClick={() => onSelect('')}>Lepas pilihan</Button>}</div>)}
             <div className="min-w-0">
                 {/* Panel Kiri: Peta Lengkung Gigi FDI (Dental Arch) - 7 Kolom */}
                 <div hidden={model !== 'arch'} className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 transition-colors sm:p-5">
@@ -293,7 +295,7 @@ export function OdontogramFdi({
                                         className={`tooth-interactive ${toothClassName} ${disabled ? 'cursor-default' : 'cursor-pointer'}`}
                                         key={tooth.fdi}
                                         onClick={() => handleToothClick(tooth.fdi)}
-                                        onMouseEnter={() => setHoveredTooth(tooth.fdi)}
+                                        onMouseEnter={() => { if (!recordView) setHoveredTooth(tooth.fdi); }}
                                         onMouseLeave={() => setHoveredTooth(null)}
                                         onKeyDown={(e) => {
                                             if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
@@ -301,7 +303,7 @@ export function OdontogramFdi({
                                                 handleToothClick(tooth.fdi);
                                             }
                                         }}
-                                        role="button"
+                                        role={recordView ? 'img' : 'button'}
                                         tabIndex={disabled ? -1 : 0}
                                     >
                                         <title>{`Gigi FDI ${tooth.fdi} · ${tooth.name} · ${findingSummary}`}</title>
@@ -341,14 +343,14 @@ export function OdontogramFdi({
 
                     <div className="flex flex-wrap gap-2" aria-label="Kondisi khusus pada peta">{findings.filter(finding => !['sound', 'caries', 'missing', 'unerupted', 'fractured_crown', 'root_remnant', 'restored'].includes(finding.findingCode)).map(finding => <span key={`${finding.toothFdi}-${finding.surface}`} className="rounded-md border border-neutral-200 bg-surface px-2 py-1 text-xs text-neutral-700">{finding.toothFdi} · {findingLabels[finding.findingCode] ?? finding.findingCode}</span>)}</div>
                     {/* Catatan Kaki Lengkung */}
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 pt-3 text-sm leading-5 text-neutral-600">
+                    {!recordView && (<div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 pt-3 text-sm leading-5 text-neutral-600">
                         <span>Klik kembali gigi terpilih untuk melepas pilihan.</span>
                         <span>Sorot kelompok gigi melalui pilihan jenis gigi.</span>
-                    </div>
+                    </div>)}
                 </div>
 
                 {/* Panel Kanan: Visualisasi Tipe Gigi (Atas) & Oklusi Rahang Mulut (Bawah) - 5 Kolom */}
-                <div hidden={model !== 'front'} className={model === 'front' ? 'flex min-w-0 flex-col gap-5' : 'hidden'}>
+                {(<div hidden={model !== 'front'} className={model === 'front' ? 'flex min-w-0 flex-col gap-5' : 'hidden'}>
                     {/* Bagian Kanan Atas: 4 Tipe Anatomi Gigi (Akar & Mahkota) Sesuai Referensi Gambar */}
                     <div className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 sm:p-5">
                         <div className="mb-3 flex items-center justify-between border-b border-neutral-100 pb-2.5">
@@ -521,11 +523,11 @@ export function OdontogramFdi({
                             </svg>
                         </div>
                     </div>
-                </div>
+                </div>)}
             </div>
 
             {/* Panel Ringkasan Gigi Terpilih (Active Tooth Detail Banner) */}
-            <div className="flex flex-col justify-between gap-3 rounded-xl border border-neutral-200/90 bg-neutral-50/70 p-3.5 transition-colors sm:flex-row sm:items-center">
+            {!recordView && (<div className="flex flex-col justify-between gap-3 rounded-xl border border-neutral-200/90 bg-neutral-50/70 p-3.5 transition-colors sm:flex-row sm:items-center">
                 <div className="flex min-w-0 items-center gap-3">
                     <div aria-label={activeMeta ? `Gigi FDI ${activeMeta.fdi}` : 'Belum ada gigi dipilih'} className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900 font-mono text-base font-black text-neutral-50 dark:bg-neutral-100 dark:text-neutral-950" role="img">
                         {activeMeta ? activeMeta.fdi : <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 5C9.5 3 6 3 4.5 5.5 2.5 9 5 13 5.5 16c.3 2 1.2 5 2.5 5 1.5 0 1-7 4-7s2.5 7 4 7c1.3 0 2.2-3 2.5-5 .5-3 3-7 1-10.5C18 3 14.5 3 12 5Z" /></svg>}
@@ -566,7 +568,7 @@ export function OdontogramFdi({
                         </span>
                     )}
                 </div>
-            </div>
+            </div>)}
 
             {/* Legenda menggunakan palet yang sama dengan peta dan gambar gigi. */}
             <div aria-label="Legenda status klinis odontogram" className="flex flex-wrap items-center justify-center gap-2 text-sm">

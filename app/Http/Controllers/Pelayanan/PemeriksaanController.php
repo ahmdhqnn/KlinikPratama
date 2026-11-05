@@ -1024,7 +1024,10 @@ class PemeriksaanController extends Controller
         abort_unless($request->user()->role === 'dokter', 403, 'Finalisasi, koreksi final dan penerbitan dokumen dilakukan dokter penanggung jawab.');
         $request->validate([
             'signature_password' => ['required', 'current_password'],
+            'review_final_plan' => ['required', 'accepted'],
         ], [
+            'review_final_plan.required' => 'Konfirmasi diagnosis banding, edukasi, dan tindak lanjut sebelum menandatangani.',
+            'review_final_plan.accepted' => 'Konfirmasi diagnosis banding, edukasi, dan tindak lanjut sebelum menandatangani.',
             'signature_password.current_password' => 'Kata sandi akun tidak sesuai; pemeriksaan belum ditandatangani.',
         ]);
 
@@ -1115,7 +1118,19 @@ class PemeriksaanController extends Controller
             }
 
             $lockedVisit->unsetRelation('tindakanKunjungan');
+            foreach ([
+                'diagnosis_banding' => 'Tidak ada diagnosis banding lain yang dipertimbangkan setelah evaluasi',
+                'non_farmakologis' => 'Tidak diperlukan perawatan nonfarmakologis tambahan pada kunjungan ini',
+                'edukasi' => 'Tidak diperlukan edukasi tambahan pada kunjungan ini',
+                'catatan' => 'Tidak ada catatan tindak lanjut tambahan pada kunjungan ini',
+            ] as $field => $statement) {
+                if (blank($examination->getAttribute($field))) {
+                    $examination->setAttribute($field, $statement);
+                }
+            }
+            $examination->save();
             $payload = $noteRecorder->snapshot($lockedVisit, $examination);
+            $payload['final_plan_review'] = ['reviewed_by' => $request->user()->id, 'reviewed_at' => now()->toIso8601String(), 'next_control_required' => $examination->kontrol_berikutnya !== null];
             if ($lockedVisit->poliklinik?->jenis === 'gigi') {
                 $screening = $lockedVisit->screening;
                 $payload['dental_review'] = [

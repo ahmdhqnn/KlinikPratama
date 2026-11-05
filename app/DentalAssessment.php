@@ -30,7 +30,7 @@ class DentalAssessment
     /** @return array<string, string> */
     public static function redFlagLabels(): array
     {
-        return ['none' => 'Tidak ditemukan setelah ditanyakan / diamati', 'breathing' => 'Sulit bernapas', 'swallowing' => 'Sulit menelan', 'rapid_swelling' => 'Pembengkakan cepat meluas / menutup mata', 'severe_allergy' => 'Dugaan reaksi alergi berat', 'heavy_bleeding' => 'Perdarahan hebat', 'critical_vitals' => 'TTV sangat abnormal menurut penilaian petugas', 'trismus' => 'Sulit membuka mulut', 'fever' => 'Demam / kondisi umum memburuk', 'unknown' => 'Belum dapat dinilai'];
+        return ['none' => 'Tidak ditemukan setelah ditanyakan / diamati', 'breathing' => 'Sulit bernapas', 'swallowing' => 'Sulit menelan', 'rapid_swelling' => 'Pembengkakan cepat meluas / menutup mata', 'severe_allergy' => 'Dugaan reaksi alergi berat', 'heavy_bleeding' => 'Perdarahan hebat', 'critical_vitals' => 'TTV sangat abnormal menurut penilaian petugas', 'trismus' => 'Sulit membuka mulut', 'fever' => 'Demam / kondisi umum memburuk', 'trauma' => 'Trauma wajah atau rahang', 'other' => 'Lainnya', 'unknown' => 'Belum dapat dinilai'];
     }
 
     /** @param array<string, mixed> $finding */

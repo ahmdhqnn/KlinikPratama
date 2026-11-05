@@ -12,6 +12,7 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
                 className,
             )}
             {...props}
+            placeholder={props.placeholder ?? 'Catat keterangan yang relevan'}
             {...accessibility}
         />
     );

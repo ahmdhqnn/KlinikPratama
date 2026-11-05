@@ -94,8 +94,8 @@ for (const clinicType of ['umum', 'gigi']) {
         });
         assert.match(html, /id="section-ringkas"/);
         const assessment = html.slice(html.indexOf('id="section-ringkas"'));
-        assert.ok(assessment.indexOf('Keluhan dan informasi pasien') < assessment.indexOf('Alergi dan riwayat kesehatan'));
-        assert.ok(assessment.indexOf('Alergi dan riwayat kesehatan') < assessment.indexOf('Tanda vital'));
+        assert.ok(assessment.indexOf('Keluhan dan informasi pasien') < assessment.indexOf('Riwayat kesehatan umum'));
+        assert.ok(assessment.indexOf('Riwayat kesehatan umum') < assessment.indexOf('Tanda vital'));
         assert.match(html, /id="berat_badan"/);
         assert.match(html, /id="tinggi_badan"/);
         assert.match(html, /id="lama_keluhan"/);
@@ -128,7 +128,7 @@ for (const clinicType of ['umum', 'gigi']) {
         assert.match(html, /aria-label="Tekanan diastole"/);
         assert.match(html, /Catatan Pengkajian/);
         assert.ok((html.match(/min-w-0 md:col-span-2/g) ?? []).length >= 1, 'the primary complaint should span the full form width');
-        assert.match(html, /grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4/, 'vital signs should use the same four-column wide layout as anthropometry');
+        assert.match(html, /grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-3/, 'six vital controls use two balanced rows');
         assert.doesNotMatch(html, /rounded-lg border border-neutral-200 bg-neutral-50\/50 p-3 sm:col-start-2 xl:col-start-2/, 'the last triage card should stay at the start of its row');
         assert.match(html, /id="section-attachments"/);
         assert.match(html, /Berkas pendukung/);
@@ -146,7 +146,7 @@ for (const clinicType of ['umum', 'gigi']) {
         assert.match(html, /Penisilin/);
         assert.doesNotMatch(html, /value="120"|value="80"|value="36.5"/);
         if (clinicType === 'gigi') {
-            assert.match(html, /id="risiko_medis_gigi-belum_diketahui"/);
+            assert.match(html, /id="status_riwayat_penyakit-belum_diketahui"/);
         } else {
             assert.doesNotMatch(html, /id="risiko_medis_gigi-hipertensi"|id="lokasi_nyeri_gigi"|id="pemicu_nyeri_gigi-mengunyah"|Pengkajian khusus gigi/);
         }
@@ -186,9 +186,9 @@ test('compact screening retains saved answers and requires clarification of unkn
     assert.match(html, /id="keluhan_tambahan"[^>]*>Nyeri saat mengunyah</);
     assert.match(html, /id="spo2"[^>]*value="98"/);
     assert.match(html, /id="section-ringkas"/);
-    assert.match(html, /id="risiko_medis_gigi-belum_diketahui"/);
+    assert.match(html, /id="status_riwayat_penyakit-belum_diketahui"/);
     assert.doesNotMatch(html, /id="section-triage"/);
-    assert.match(html, /Riwayat sistemik yang perlu diperhatikan dokter gigi/);
+    assert.match(html, /Riwayat penyakit yang pernah atau sedang dialami/);
     assert.match(html, /id="catatan_medis_gigi"[^>]*required=""/);
     assert.match(html, /id="lokasi_nyeri_gigi"[^>]*value="Geraham kiri bawah"/);
     assert.match(html, /id="durasi_keluhan_gigi"[^>]*value="Saat mengunyah"/);
@@ -1156,10 +1156,12 @@ test('dental nurse observation exposes explicit unknown answers and an immediate
         visit: { id: 1, number: 'K-DENTAL', status: 'screening', clinic: 'Poli Gigi', clinicType: 'gigi', doctor: 'Dokter Uji', patient: { name: 'Pasien Uji', medicalRecordNumber: 'RM-DENTAL', gender: 'P', age: 35, bloodType: null, allergyHistory: null }, screening: { extraoral_swelling: 'present', dental_red_flags: ['breathing'] }, triage: null, priority: null, printUrl: null, startedAt: null },
         staff: [], canSelectStaff: false, currentStaff: 'Perawat Uji',
     });
-    assert.match(html, /Visual ekstraoral cepat/);
+    assert.match(html, /Observasi ekstraoral dan kondisi umum/);
+    assert.equal((html.match(/id="kesadaran-sadar"/g) ?? []).length, 1);
+    assert.doesNotMatch(html, /id="section-triage"/);
     assert.match(html, /Simetri wajah/);
     assert.match(html, /Belum dapat dinilai/);
-    assert.match(html, /Pemeriksaan intraoral, diagnosis, serta validasi penuh dilakukan dokter gigi/);
+    assert.match(html, /Sampaikan segera kepada dokter bila ada temuan yang mengkhawatirkan/);
     assert.match(html, /role="alert"[^>]*>Perlu respons segera/);
     assert.match(html, /Dahulukan pertolongan awal sesuai SOP dan kemampuan klinik/);
     assert.match(html, /rujukan ke fasilitas kesehatan eksternal/);
@@ -3146,4 +3148,47 @@ test('extended odontogram conditions remain visually recorded and historical tre
         assert.ok(group.candidates.length > 0, code);
         assert.equal(group.candidates[0].exact, false, code + ' requires catalog review');
     }
+});
+
+
+test('restored dental nursing form keeps other details and oxygen saturation inside patient assessment', async () => {
+    const html = await renderPage('pelayanan/screening/show', {
+        visit: { id: 1, number: 'K-SAFETY', status: 'screening', clinic: 'Poli Gigi', clinicType: 'gigi', doctor: 'Dokter Uji', patient: { name: 'Pasien Uji', medicalRecordNumber: 'RM-1', gender: null, age: null, bloodType: null, allergyHistory: null }, screening: { status_riwayat_penyakit: 'ada', dental_red_flags: ['other'], risiko_medis_gigi: ['lainnya'], pemicu_nyeri_gigi: ['lainnya'], riwayat_infeksi_gigi: ['infeksi_lain'], dental_medication_categories: ['other'] }, medicationCategories: { other: 'Obat lain' }, triage: null, priority: null, printUrl: null, startedAt: null }, staff: [], canSelectStaff: false, currentStaff: 'Perawat Uji',
+    });
+    for (const id of ['dental_red_flags_other', 'risiko_medis_gigi_lainnya', 'pemicu_nyeri_gigi_lainnya', 'riwayat_infeksi_gigi_lainnya', 'dental_medication_categories_other', 'spo2']) {
+        assert.equal((html.match(new RegExp('id="' + id + '"', 'g')) ?? []).length, 1, id);
+    }
+    assert.ok(html.indexOf('id="screening-assessment"') < html.indexOf('aria-label="Observasi awal wajah dan mulut"'));
+    assert.match(html, /status_alergi-belum_dikonfirmasi/);
+    assert.doesNotMatch(html, /status_riwayat_penyakit-belum_dikonfirmasi/);
+    assert.doesNotMatch(html, /id="nyeri_karakter"/);
+});
+
+
+test('dental history supports explicit absence confirmation for medication and previous treatment', async () => {
+    const html = await renderPage('pelayanan/pemeriksaan/show', examinationProps('gigi'));
+    for (const id of ['riwayat_obat-none', 'riwayat_perawatan_gigi-none', 'kebiasaan_gigi-none']) {
+        assert.match(html, new RegExp('id="' + id + '"'));
+    }
+    assert.match(html, /Nama obat, dosis, dan frekuensi yang diketahui/);
+});
+
+
+test('medical record odontogram shows examination chart beside findings without examination controls', async () => {
+    const { OdontogramRecord } = await server.ssrLoadModule('/resources/js/components/odontogram/odontogram-record.tsx');
+    const html = renderToString(createElement(OdontogramRecord, { findings: [{ toothFdi: '11', surface: 'W', findingCode: 'caries', notes: 'Temuan tersimpan' }] }, createElement('p', null, 'Rincian klinis')));
+    assert.match(html, /Peta odontogram FDI/);
+    assert.match(html.replaceAll('<!-- -->', ''), /Temuan pemeriksaan \(1\)/);
+    assert.doesNotMatch(html, /role="tablist"/);
+    assert.match(html, /Rincian klinis/);
+    assert.doesNotMatch(html, /Lepas pilihan|Klik kembali|Sorot kelompok|Pilih gigi untuk/);
+});
+
+
+test('oral observation starts unassessed and disease and medication details are conditional', async () => {
+    const props = { visit: { id: 1, number: 'ORAL-1', status: 'screening', clinic: 'Poli Gigi', clinicType: 'gigi', doctor: 'Dokter', patient: { name: 'Pasien', medicalRecordNumber: 'RM-1', age: 30 }, screening: { status_riwayat_penyakit: 'tidak_ada', status_riwayat_obat: 'tidak_ada' }, medicationCategories: { antidiabetic: 'Obat diabetes' }, triage: null, printUrl: null, startedAt: null }, staff: [], canSelectStaff: false, currentStaff: 'Perawat' };
+    const html = await renderPage('pelayanan/screening/show', props);
+    for (const key of ['lidah', 'pipi', 'bibir', 'palatum', 'gusi']) assert.match(html, new RegExp('id="mukosa-' + key + '"'));
+    assert.doesNotMatch(html, /id="risiko_medis_gigi-diabetes"|id="dental_medication_categories-antidiabetic"|id="kelainan_mukosa"/);
+    for (const key of ['teh_kopi', 'alkohol', 'soda', 'merokok', 'satu_sisi', 'sirih_tembakau', 'benda_keras', 'bruksisme']) assert.match(html, new RegExp('aria-checked="false"[^>]*id="kebiasaan_gigi_opsi-' + key + '"'));
 });

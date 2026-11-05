@@ -13,6 +13,7 @@ export function Input({ className, type = 'text', ...props }: InputHTMLAttribute
                 className,
             )}
             {...props}
+            placeholder={props.placeholder ?? (['text', 'email', 'tel', 'url', 'search', 'number', 'password'].includes(type) && !props.readOnly ? (type === 'number' ? 'Masukkan angka' : type === 'search' ? 'Cari data' : 'Masukkan ' + (props['aria-label'] ?? props.name?.replaceAll('_', ' ') ?? 'data')) : undefined)}
             {...accessibility}
         />
     );

@@ -341,7 +341,7 @@ class ScreeningWorkflowTest extends TestCase
         $payload = [
             ...$this->payload(), 'status_riwayat_penyakit' => 'ada', 'riwayat_penyakit' => 'Hipertensi',
             'penyakit_nama' => 'Hipertensi lama', 'penyakit_keterangan' => 'Catatan lama',
-            'risiko_medis_gigi' => ['lainnya'], 'extraoral_symmetry' => 'asymmetric',
+            'risiko_medis_gigi' => ['lainnya'], 'risiko_medis_gigi_lainnya' => 'Kondisi lain perlu dikonfirmasi', 'extraoral_symmetry' => 'asymmetric',
             'extraoral_notes' => 'Asimetri pipi kanan, disampaikan kepada dokter.',
         ];
         $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
@@ -368,6 +368,61 @@ class ScreeningWorkflowTest extends TestCase
                 ->where('visit.screening.summary.Catatan visual ekstraoral awal perawat', $payload['extraoral_notes'])
                 ->where('visit.examination', null));
         }
+    }
+
+    public function test_dental_other_details_require_explanation_and_clear_when_deselected(): void
+    {
+        [$nurse, $visit] = $this->context('gigi');
+        $payload = [...$this->payload(), 'extraoral_notes' => 'Temuan disampaikan kepada dokter'];
+        foreach (Screening::OTHER_DETAILS as $field => [$option, $detail]) {
+            $payload[$field] = [$option];
+        }
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)
+            ->assertSessionHasErrors(array_column(Screening::OTHER_DETAILS, 1));
+        foreach (Screening::OTHER_DETAILS as [$option, $detail]) {
+            $payload[$detail] = 'Keterangan pasien untuk dokter';
+        }
+        $this->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $this->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.screening.dental_red_flags_other', 'Keterangan pasien untuk dokter'));
+        $this->post(route('pelayanan.screening.store', $visit), [...$this->payload(), 'risiko_medis_gigi' => ['tidak_ada']])->assertSessionHasNoErrors();
+        foreach (Screening::OTHER_DETAILS as [$option, $detail]) {
+            $this->assertNull($visit->fresh()->screening->getAttribute($detail));
+        }
+    }
+
+    public function test_unconfirmed_allergy_is_distinct_from_no_allergy_and_reaches_handover(): void
+    {
+        [$nurse, $visit] = $this->context('gigi');
+        $payload = [...$this->payload(), 'status_alergi' => 'belum_dikonfirmasi', 'risiko_medis_gigi' => ['tidak_ada'], 'alergi_verifikasi' => 'Perlu konfirmasi dengan keluarga', 'nyeri_karakter' => 'Berdenyut, tidak menjalar', 'nyeri_pereda' => 'Istirahat'];
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $summary = $visit->fresh()->screening->handoverSummary();
+        $this->assertSame('Belum dapat dikonfirmasi', $summary['Status alergi saat ini']);
+        $this->assertSame('Perlu konfirmasi dengan keluarga', $summary['Catatan verifikasi alergi']);
+        $this->assertSame('Berdenyut, tidak menjalar', $summary['Karakter dan penjalaran nyeri']);
+    }
+
+    public function test_structured_oral_observation_and_habits_reach_handover_and_print(): void
+    {
+        [$nurse, $visit] = $this->context('gigi');
+        $payload = [...$this->payload(), 'status_riwayat_penyakit' => 'ada', 'risiko_medis_gigi' => ['diabetes'],
+            'status_riwayat_obat' => 'ada', 'dental_medication_categories' => ['antidiabetic'], 'riwayat_obat' => 'Metformin menurut pasien',
+            'mukosa_mulut' => ['lidah' => 'normal', 'pipi' => 'normal', 'bibir' => 'normal', 'palatum' => 'belum_dinilai', 'gusi' => 'abnormal'],
+            'kelainan_mukosa' => 'Gusi kanan tampak bengkak', 'kebiasaan_gigi_opsi' => ['teh_kopi', 'satu_sisi']];
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $screening = $visit->fresh()->screening;
+        $this->assertSame('abnormal', $screening->mukosa_mulut['gusi']);
+        $this->assertSame('Diabetes melitus', $screening->reportedMedicalHistory());
+        $this->assertSame(['teh_kopi', 'satu_sisi'], $screening->kebiasaan_gigi_opsi);
+        $this->assertSame('Abnormal', $screening->handoverSummary()['Observasi mukosa - Gusi']);
+        $this->assertStringContainsString('Mengunyah satu sisi', $screening->handoverSummary()['Kebiasaan terkait gigi dan mulut']);
+        $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page->where('document.sections.dental.Observasi mukosa - Gusi', 'Abnormal'));
+        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'kelainan_mukosa' => null])->assertSessionHasErrors('kelainan_mukosa');
+        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'mukosa_mulut' => ['gusi' => 'invalid']])->assertSessionHasErrors('mukosa_mulut.gusi');
+        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'kebiasaan_gigi_opsi' => ['tidak_ada', 'merokok']])->assertSessionHasErrors('kebiasaan_gigi_opsi');
+        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'status_riwayat_obat' => 'tidak_ada', 'mukosa_mulut' => ['gusi' => 'normal']])->assertSessionHasNoErrors();
+        $this->assertNull($visit->fresh()->screening->kelainan_mukosa);
+        $this->assertNull($visit->fresh()->screening->riwayat_obat);
     }
 
     /** @return array<string, mixed> */

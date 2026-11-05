@@ -82,7 +82,7 @@ class AdminClinicalAssistanceTest extends TestCase
         $this->assertSame($staff->id, $visit->fresh()->dokter_id);
         $this->assertDatabaseHas('pemeriksaan', ['kunjungan_id' => $visit->id, 'dokter_id' => $staff->id, 'signed_at' => null]);
         $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'kunjungan_id' => $visit->id, 'action' => 'admin_assistance.draft_write']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertForbidden();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password'])->assertForbidden();
         $this->post(route('pelayanan.pemeriksaan.addendum', $visit), [])->assertForbidden();
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Bantuan pencatatan sementara.'])->assertForbidden();
         $this->assertDatabaseMissing('clinical_audit_events', ['actor_id' => $doctor->id, 'action' => 'admin_assistance.attempt_rejected']);
@@ -136,12 +136,12 @@ class AdminClinicalAssistanceTest extends TestCase
         if ($procedure) {
             $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan perawat sesuai rencana', 'jumlah' => 1, 'execution_role' => 'perawat', 'tooth_fdis' => $type === 'gigi' ? ['46'] : []])->assertSessionHasNoErrors();
         }
-        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasErrors('review_admin_assistance');
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password'])->assertSessionHasErrors('review_admin_assistance');
         $this->assertDatabaseCount('clinical_note_versions', 0);
         $page = $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertOk();
         $review = $page->inertiaProps('assistanceReview');
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), [
-            'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
+            'review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
             'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash'],
         ])->assertRedirect()->assertSessionHasNoErrors();
         $this->assertSame($procedure ? 'tindakan' : ($medicine ? 'farmasi' : 'selesai'), $visit->fresh()->status);
@@ -170,13 +170,13 @@ class AdminClinicalAssistanceTest extends TestCase
         $review = $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))->inertiaProps('assistanceReview');
         $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'rencana', 'edukasi' => 'Perubahan edukasi terbaru'])->assertSessionHasNoErrors();
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.selesai', $visit), [
-            'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
+            'review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
             'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash'],
         ])->assertSessionHasErrors('assistance_review_id');
         $review = $this->get(route('pelayanan.pemeriksaan.show', $visit))->inertiaProps('assistanceReview');
         $visit->pemeriksaan()->update(['edukasi' => 'Isi berubah setelah tinjauan']);
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), [
-            'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
+            'review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
             'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash'],
         ])->assertSessionHasErrors('assistance_review_hash');
         $this->assertDatabaseCount('clinical_note_versions', 0);
@@ -204,7 +204,7 @@ class AdminClinicalAssistanceTest extends TestCase
         $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan dokter', 'jumlah' => 1, 'execution_role' => 'dokter'])->assertSessionHasNoErrors();
         $this->actingAs($doctor);
         $review = $this->get(route('pelayanan.pemeriksaan.show', $visit))->inertiaProps('assistanceReview');
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true, 'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash']])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true, 'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash']])->assertSessionHasNoErrors();
         $this->assertSame('selesai', $visit->fresh()->status);
         $this->assertSame($doctor->id, $visit->tindakanKunjungan()->sole()->performed_by);
         $this->assertSame('completed', ClinicalNoteVersion::sole()->payload['treatments'][0]['execution_status']);

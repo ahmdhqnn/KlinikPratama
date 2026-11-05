@@ -19,7 +19,6 @@ use App\ScreeningReportQuery;
 use App\VisitSchedulingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -28,6 +27,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class ScreeningController extends Controller
 {
@@ -349,6 +349,8 @@ class ScreeningController extends Controller
                     'dental' => $kunjungan->poliklinik?->jenis === 'gigi' ? $presentRows([
                         'Kondisi kesehatan yang perlu diketahui dokter gigi' => $screening->risiko_medis_gigi ? $choices($screening->risiko_medis_gigi) : null,
                         ...$screening->dentalObservationSummary(),
+                        ...array_filter($screening->handoverSummary(), fn ($value, $key): bool => str_starts_with($key, 'Observasi mukosa') || in_array($key, ['Kelainan mukosa yang ditemukan', 'Kebiasaan gigi dan mulut yang dilaporkan', 'Status penggunaan obat'], true), ARRAY_FILTER_USE_BOTH),
+                        ...array_intersect_key($screening->handoverSummary(), array_flip(['Keterangan tanda bahaya lainnya', 'Keterangan kondisi sistemik lainnya', 'Keterangan pemicu lainnya', 'Keterangan infeksi lainnya', 'Keterangan obat lainnya', 'Tingkat keparahan alergi jika diketahui', 'Catatan verifikasi alergi', 'Karakter dan penjalaran nyeri', 'Hal yang mengurangi nyeri', 'Dampak nyeri pada aktivitas atau tidur', 'Kondisi khusus, operasi, atau rawat inap yang relevan', 'Observasi awal mulut dan rahang', 'Perawatan mulut dan kebiasaan sehari-hari'])),
                         'Riwayat perawatan gigi' => $screening->riwayat_perawatan_gigi,
                         'Kebiasaan terkait gigi dan mulut' => $screening->kebiasaan_gigi,
                         'Lokasi keluhan / nyeri' => $screening->lokasi_nyeri_gigi,
@@ -380,6 +382,8 @@ class ScreeningController extends Controller
             ->where('poliklinik_id', $kunjungan->poliklinik_id)->orderBy('nama')->get();
 
         $screeningFields = [
+            'status_riwayat_obat', 'mukosa_mulut', 'kelainan_mukosa', 'kebiasaan_gigi_opsi',
+            ...Screening::SAFETY_FIELDS,
             'extraoral_symmetry', 'extraoral_swelling', 'extraoral_notes', 'dental_red_flags', 'dental_medication_categories', 'dental_vitals_unmeasurable',
             'petugas_id', 'keluhan', 'td_sistole', 'td_diastole', 'nadi', 'suhu', 'berat_badan', 'tinggi_badan',
             'lingkar_perut', 'spo2', 'respirasi', 'riwayat_penyakit', 'riwayat_alergi', 'risiko_jatuh',
@@ -424,7 +428,7 @@ class ScreeningController extends Controller
                     'gender' => $kunjungan->pasien?->jenis_kelamin,
                     'age' => $kunjungan->pasien?->umur,
                     'bloodType' => $kunjungan->pasien?->golongan_darah,
-                    'allergyHistory' => $screeningValues['riwayat_alergi'],
+                    'allergyHistory' => $this->allergies->recordedBeforeVisit($kunjungan)['riwayat_alergi'] ?? $screeningValues['riwayat_alergi'],
                 ],
                 'clinic' => $kunjungan->poliklinik?->nama ?? 'Belum diisi',
                 'clinicType' => $kunjungan->poliklinik?->jenis,
@@ -432,10 +436,15 @@ class ScreeningController extends Controller
                 'screening' => $screeningValues,
                 'screeningRevision' => $kunjungan->screening?->revisionToken() ?? 'new',
                 'medicationCategories' => Screening::dentalMedicationCategories(),
+                'oralHabitOptions' => Screening::ORAL_HABITS,
                 'triage' => $kunjungan->screening?->kesimpulan_triase,
                 'priority' => $kunjungan->screening?->prioritas_layanan,
                 'printUrl' => $kunjungan->screening ? route('pelayanan.screening.print', $kunjungan) : null,
                 'startedAt' => $kunjungan->screening?->started_at?->format('d/m/Y H:i'),
+                'submittedAt' => $kunjungan->screening?->submitted_at?->format('d/m/Y H:i'),
+                'submittedBy' => $kunjungan->screening?->recordedBy?->name,
+                'reviewedAt' => $kunjungan->pemeriksaan?->signed_at?->format('d/m/Y H:i'),
+
                 'attachments' => $kunjungan->attachmentSummaries(),
                 'attachmentUploadUrl' => route('pelayanan.kunjungan.attachments.store', $kunjungan),
             ],
@@ -465,6 +474,26 @@ class ScreeningController extends Controller
         $revision = $data['screening_revision'] ?? null;
         unset($data['screening_revision']);
         unset($data['tindakan'], $data['konfirmasi_riwayat'], $data['assistance_reason']);
+        foreach (Screening::SAFETY_FIELDS as $field) {
+            $data[$field] = filled($data[$field] ?? null) ? trim($data[$field]) : null;
+        }
+        foreach (Screening::OTHER_DETAILS as $field => [$option, $detail]) {
+            if (! $isDental || ! in_array($option, $data[$field] ?? [], true)) {
+                $data[$detail] = null;
+            }
+        }
+        $data['dental_medication_categories'] = $isDental ? ($data['dental_medication_categories'] ?? null) : null;
+        foreach (['status_riwayat_obat', 'mukosa_mulut', 'kelainan_mukosa', 'kebiasaan_gigi_opsi'] as $field) {
+            $data[$field] = $isDental && filled($data[$field] ?? null) ? $data[$field] : null;
+        }
+        if ($isDental && ($data['status_riwayat_obat'] ?? null) === 'tidak_ada') {
+            $data['riwayat_obat'] = null;
+            $data['dental_medication_categories'] = ['none'];
+            $data['dental_medication_categories_other'] = null;
+        }
+        if (! in_array('abnormal', $data['mukosa_mulut'] ?? [], true)) {
+            $data['kelainan_mukosa'] = null;
+        }
         $data['recorded_by_user_id'] = $request->user()->id;
 
         foreach (['pemicu_nyeri_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi', 'dental_red_flags'] as $field) {
@@ -554,9 +583,13 @@ class ScreeningController extends Controller
                     $data[$field] = $value;
                 }
             }
+            $recordedAllergy = $this->allergies->forVisit($lockedVisit)['riwayat_alergi'];
+            if (filled($recordedAllergy) && (in_array($data['status_alergi'] ?? null, ['belum_diketahui', 'belum_dikonfirmasi', 'tidak_ada'], true) || ($data['riwayat_alergi'] ?? null) !== $recordedAllergy)) {
+                $data['alergi_verifikasi'] = $data['alergi_verifikasi'] ?: 'Perlu verifikasi: riwayat alergi berbeda atau belum dikonfirmasi. Riwayat tercatat: '.mb_substr($recordedAllergy, 0, 1000);
+            }
             Screening::updateOrCreate(['kunjungan_id' => $kunjungan->id], $data);
             if (! $isDraft) {
-                $this->allergies->remember($lockedVisit, $data['riwayat_alergi'] ?? null);
+                $this->allergies->remember($lockedVisit, ($data['status_alergi'] ?? null) !== 'ada' && filled($data['alergi_verifikasi'] ?? null) ? $recordedAllergy : ($data['riwayat_alergi'] ?? null));
             }
             $lockedVisit->update(['status' => $wasSubmitted ? 'pemeriksaan' : ($isDraft ? 'screening' : 'pemeriksaan')]);
             $auditRecorder->record($request, $isDraft ? 'screening.draft_saved' : 'screening.create_or_update', $lockedVisit->pasien_id, $lockedVisit->id);
@@ -588,7 +621,7 @@ class ScreeningController extends Controller
             return ['merah', 'darurat'];
         }
 
-        $priority = ($isDental && ! empty($data['dental_vitals_unmeasurable'])) || (bool) array_intersect($data['dental_red_flags'] ?? [], ['trismus', 'fever'])
+        $priority = ($isDental && ! empty($data['dental_vitals_unmeasurable'])) || (bool) array_intersect($data['dental_red_flags'] ?? [], ['trismus', 'fever', 'trauma'])
             || ($data['extraoral_swelling'] ?? null) === 'present'
             || ($data['kondisi_psikiatri'] ?? null) === 'terganggu'
             || ($data['kesadaran'] ?? null) === 'menurun'
