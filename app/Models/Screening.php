@@ -8,9 +8,31 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Screening extends Model
 {
+    public const SAFETY_FIELDS = ['dental_red_flags_other', 'risiko_medis_gigi_lainnya', 'pemicu_nyeri_gigi_lainnya', 'riwayat_infeksi_gigi_lainnya', 'dental_medication_categories_other', 'alergi_keparahan', 'alergi_verifikasi', 'nyeri_karakter', 'nyeri_pereda', 'nyeri_dampak', 'riwayat_kondisi_khusus', 'observasi_mulut', 'kebiasaan_perawatan_mulut'];
+
+    public const OTHER_DETAILS = [
+        'dental_red_flags' => ['other', 'dental_red_flags_other'],
+        'risiko_medis_gigi' => ['lainnya', 'risiko_medis_gigi_lainnya'],
+        'pemicu_nyeri_gigi' => ['lainnya', 'pemicu_nyeri_gigi_lainnya'],
+        'riwayat_infeksi_gigi' => ['infeksi_lain', 'riwayat_infeksi_gigi_lainnya'],
+        'dental_medication_categories' => ['other', 'dental_medication_categories_other'],
+    ];
+
+    public const ORAL_AREAS = ['lidah' => 'Lidah', 'pipi' => 'Pipi', 'bibir' => 'Bibir', 'palatum' => 'Palatum', 'gusi' => 'Gusi'];
+
+    public const ORAL_HABITS = [
+        'teh_kopi' => 'Minum teh atau kopi', 'alkohol' => 'Minum minuman beralkohol',
+        'soda' => 'Minum minuman bersoda', 'merokok' => 'Merokok', 'satu_sisi' => 'Mengunyah satu sisi',
+        'sirih_tembakau' => 'Mengunyah sirih atau tembakau', 'benda_keras' => 'Menggigit benda keras',
+        'bruksisme' => 'Menggemeretakkan gigi (bruksisme)', 'lainnya' => 'Lainnya',
+        'tidak_ada' => 'Tidak ada kebiasaan yang dilaporkan', 'belum_diketahui' => 'Belum diketahui',
+    ];
+
     protected $table = 'screening';
 
     protected $fillable = [
+        'status_riwayat_obat', 'mukosa_mulut', 'kelainan_mukosa', 'kebiasaan_gigi_opsi',
+        ...self::SAFETY_FIELDS,
         'dental_vitals_unmeasurable',
         'dental_medication_categories',
         'riwayat_perawatan_gigi', 'kebiasaan_gigi',
@@ -34,6 +56,7 @@ class Screening extends Model
     ];
 
     protected $casts = [
+        'mukosa_mulut' => 'array', 'kebiasaan_gigi_opsi' => 'array',
         'dental_vitals_unmeasurable' => 'boolean',
         'dental_medication_categories' => 'array',
         'dental_red_flags' => 'array',
@@ -109,8 +132,16 @@ class Screening extends Model
         return match ($this->status_riwayat_penyakit) {
             'belum_diketahui' => null,
             'tidak_ada' => 'Pasien menyangkal riwayat penyakit',
-            default => $this->riwayat_penyakit,
+            default => $this->riwayat_penyakit ?: $this->reportedDiseaseChoices(),
         };
+    }
+
+    private function reportedDiseaseChoices(): ?string
+    {
+        $labels = ['hipertensi' => 'Hipertensi', 'diabetes' => 'Diabetes melitus', 'penyakit_jantung' => 'Penyakit jantung', 'gangguan_pembekuan' => 'Gangguan pembekuan darah', 'antikoagulan' => 'Penggunaan antikoagulan', 'lainnya' => $this->risiko_medis_gigi_lainnya];
+        $reported = array_filter(array_map(static fn (string $value): ?string => $labels[$value] ?? null, $this->risiko_medis_gigi ?? []));
+
+        return $reported ? implode(', ', $reported) : null;
     }
 
     private function hasReportedDiseaseDetails(): bool
@@ -122,7 +153,7 @@ class Screening extends Model
     public function handoverSummary(): array
     {
         $labels = [
-            'ada' => 'Ada riwayat', 'tidak_ada' => 'Tidak ada, telah dikaji', 'belum_diketahui' => 'Belum dapat diketahui',
+            'belum_dikonfirmasi' => 'Belum dapat dikonfirmasi', 'ada' => 'Ada riwayat', 'tidak_ada' => 'Tidak ada, telah dikaji', 'belum_diketahui' => 'Belum dapat diketahui',
             'pasien' => 'Pasien sendiri', 'keluarga' => 'Keluarga', 'pendamping' => 'Pendamping',
             'tidak_dapat_diperoleh' => 'Belum dapat diperoleh', 'ya' => 'Ya', 'tidak' => 'Tidak',
             'teraba' => 'Teraba', 'tidak_teraba' => 'Tidak teraba', 'normal' => 'Normal',
@@ -144,7 +175,19 @@ class Screening extends Model
             ? $choice($this->kesimpulan_triase).(filled($this->prioritas_layanan) ? ' · '.$choice($this->prioritas_layanan) : '')
             : null;
 
+        $details = [];
+        foreach (self::SAFETY_FIELDS as $field) {
+            $details[$field] = $this->getAttribute($field);
+        }
+
         return [
+            ...array_combine(['Keterangan tanda bahaya lainnya', 'Keterangan kondisi sistemik lainnya', 'Keterangan pemicu lainnya', 'Keterangan infeksi lainnya', 'Keterangan obat lainnya', 'Tingkat keparahan alergi jika diketahui', 'Catatan verifikasi alergi', 'Karakter dan penjalaran nyeri', 'Hal yang mengurangi nyeri', 'Dampak nyeri pada aktivitas atau tidur', 'Kondisi khusus, operasi, atau rawat inap yang relevan', 'Observasi awal mulut dan rahang', 'Perawatan mulut dan kebiasaan sehari-hari'], array_values($details)),
+            'Status penggunaan obat' => $choice($this->status_riwayat_obat),
+            ...collect(self::ORAL_AREAS)->mapWithKeys(fn (string $label, string $key): array => [
+                'Observasi mukosa - '.$label => ['normal' => 'Normal', 'abnormal' => 'Abnormal', 'belum_dinilai' => 'Belum dapat dinilai'][$this->mukosa_mulut[$key] ?? ''] ?? null,
+            ])->all(),
+            'Kelainan mukosa yang ditemukan' => $this->kelainan_mukosa,
+            'Kebiasaan gigi dan mulut yang dilaporkan' => $this->kebiasaan_gigi_opsi ? implode(', ', array_map(fn (string $value): string => self::ORAL_HABITS[$value] ?? $value, $this->kebiasaan_gigi_opsi)) : null,
             'Keluhan tambahan' => $this->keluhan_tambahan,
             'Lama keluhan' => $this->lama_keluhan,
             'Sumber informasi' => $choice($this->sumber_informasi),
@@ -173,7 +216,7 @@ class Screening extends Model
             'Observasi awal' => $this->pemeriksaan_fisik,
             ...$this->dentalObservationSummary(),
             'Riwayat perawatan gigi' => $this->riwayat_perawatan_gigi,
-            'Kebiasaan terkait gigi dan mulut' => $this->kebiasaan_gigi,
+            'Kebiasaan terkait gigi dan mulut' => $this->kebiasaan_gigi_opsi ? implode(', ', array_map(fn (string $value): string => self::ORAL_HABITS[$value] ?? $value, $this->kebiasaan_gigi_opsi)).(filled($this->kebiasaan_gigi) ? ' — '.$this->kebiasaan_gigi : '') : $this->kebiasaan_gigi,
             'Lokasi keluhan / nyeri' => $this->lokasi_nyeri_gigi,
             'Pemicu keluhan' => $choices($this->pemicu_nyeri_gigi),
             'Pola / lama keluhan' => $this->durasi_keluhan_gigi,

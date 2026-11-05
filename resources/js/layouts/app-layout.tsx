@@ -436,6 +436,12 @@ function AccountAvatar({ user }: { user: AppUser | null }) {
 
 export default function AppLayout({ children }: { children: ReactNode }) {
     const page = usePage<SharedPageProps>();
+    useEffect(() => router.on('httpException', () => { toast.error('Halaman belum dapat dibuka. Muat ulang atau coba kembali.'); }), []);
+    useEffect(() => router.on('error', event => {
+        const messages = Object.values(event.detail.errors).flat().filter(value => typeof value === 'string');
+        if (messages.length) toast.error(messages[0]);
+    }), []);
+
     const { auth, flash, modules, nurseQueues, doctorQueues, pharmacyQueues } = page.props;
     const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);

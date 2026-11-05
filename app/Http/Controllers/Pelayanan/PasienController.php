@@ -400,7 +400,7 @@ class PasienController extends Controller
         return redirect()->route('pelayanan.pasien.index')->with('success', 'Data pasien berhasil dihapus.');
     }
 
-    public function rekamMedis(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, ClinicalNoteRecorder $noteRecorder, PerawatClinicResolver $perawatClinicResolver, CorrespondenceService $correspondence): \Illuminate\Http\Response
+    public function rekamMedis(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, ClinicalNoteRecorder $noteRecorder, PerawatClinicResolver $perawatClinicResolver, CorrespondenceService $correspondence): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorizeDoctorPatient($pasien);
         $pasien->load('kepesertaan');

@@ -147,85 +147,85 @@
     --color-amber-50: color-mix(in srgb, var(--color-amber-500) 16%, var(--clinic-surface));
     --color-amber-100: color-mix(in srgb, var(--color-amber-500) 24%, var(--clinic-surface));
     --color-amber-200: color-mix(in srgb, var(--color-amber-500) 42%, var(--clinic-surface));
-    --color-amber-700: color-mix(in srgb, var(--color-amber-500) 65%, hsl(0 0% 98%));
-    --color-amber-800: color-mix(in srgb, var(--color-amber-500) 65%, hsl(0 0% 98%));
-    --color-amber-900: color-mix(in srgb, var(--color-amber-500) 65%, hsl(0 0% 98%));
-    --color-amber-950: color-mix(in srgb, var(--color-amber-500) 65%, hsl(0 0% 98%));
     --color-blue-50: color-mix(in srgb, var(--color-blue-500) 16%, var(--clinic-surface));
     --color-blue-100: color-mix(in srgb, var(--color-blue-500) 24%, var(--clinic-surface));
     --color-blue-200: color-mix(in srgb, var(--color-blue-500) 42%, var(--clinic-surface));
-    --color-blue-700: color-mix(in srgb, var(--color-blue-500) 65%, hsl(0 0% 98%));
-    --color-blue-800: color-mix(in srgb, var(--color-blue-500) 65%, hsl(0 0% 98%));
-    --color-blue-900: color-mix(in srgb, var(--color-blue-500) 65%, hsl(0 0% 98%));
-    --color-blue-950: color-mix(in srgb, var(--color-blue-500) 65%, hsl(0 0% 98%));
     --color-violet-50: color-mix(in srgb, var(--color-violet-500) 16%, var(--clinic-surface));
     --color-violet-100: color-mix(in srgb, var(--color-violet-500) 24%, var(--clinic-surface));
     --color-violet-200: color-mix(in srgb, var(--color-violet-500) 42%, var(--clinic-surface));
-    --color-violet-700: color-mix(in srgb, var(--color-violet-500) 65%, hsl(0 0% 98%));
-    --color-violet-800: color-mix(in srgb, var(--color-violet-500) 65%, hsl(0 0% 98%));
-    --color-violet-900: color-mix(in srgb, var(--color-violet-500) 65%, hsl(0 0% 98%));
-    --color-violet-950: color-mix(in srgb, var(--color-violet-500) 65%, hsl(0 0% 98%));
     --color-orange-50: color-mix(in srgb, var(--color-orange-500) 16%, var(--clinic-surface));
     --color-orange-100: color-mix(in srgb, var(--color-orange-500) 24%, var(--clinic-surface));
     --color-orange-200: color-mix(in srgb, var(--color-orange-500) 42%, var(--clinic-surface));
-    --color-orange-700: color-mix(in srgb, var(--color-orange-500) 65%, hsl(0 0% 98%));
-    --color-orange-800: color-mix(in srgb, var(--color-orange-500) 65%, hsl(0 0% 98%));
-    --color-orange-900: color-mix(in srgb, var(--color-orange-500) 65%, hsl(0 0% 98%));
-    --color-orange-950: color-mix(in srgb, var(--color-orange-500) 65%, hsl(0 0% 98%));
     --color-pink-50: color-mix(in srgb, var(--color-pink-500) 16%, var(--clinic-surface));
     --color-pink-100: color-mix(in srgb, var(--color-pink-500) 24%, var(--clinic-surface));
     --color-pink-200: color-mix(in srgb, var(--color-pink-500) 42%, var(--clinic-surface));
-    --color-pink-700: color-mix(in srgb, var(--color-pink-500) 65%, hsl(0 0% 98%));
-    --color-pink-800: color-mix(in srgb, var(--color-pink-500) 65%, hsl(0 0% 98%));
-    --color-pink-900: color-mix(in srgb, var(--color-pink-500) 65%, hsl(0 0% 98%));
-    --color-pink-950: color-mix(in srgb, var(--color-pink-500) 65%, hsl(0 0% 98%));
     --color-emerald-50: color-mix(in srgb, var(--color-emerald-500) 16%, var(--clinic-surface));
     --color-emerald-100: color-mix(in srgb, var(--color-emerald-500) 24%, var(--clinic-surface));
     --color-emerald-200: color-mix(in srgb, var(--color-emerald-500) 42%, var(--clinic-surface));
-    --color-emerald-700: color-mix(in srgb, var(--color-emerald-500) 65%, hsl(0 0% 98%));
-    --color-emerald-800: color-mix(in srgb, var(--color-emerald-500) 65%, hsl(0 0% 98%));
-    --color-emerald-900: color-mix(in srgb, var(--color-emerald-500) 65%, hsl(0 0% 98%));
-    --color-emerald-950: color-mix(in srgb, var(--color-emerald-500) 65%, hsl(0 0% 98%));
     --color-red-50: color-mix(in srgb, var(--color-red-500) 16%, var(--clinic-surface));
     --color-red-100: color-mix(in srgb, var(--color-red-500) 24%, var(--clinic-surface));
     --color-red-200: color-mix(in srgb, var(--color-red-500) 42%, var(--clinic-surface));
-    --color-red-300: color-mix(in srgb, var(--color-red-500) 52%, var(--clinic-surface));
-    --color-red-700: color-mix(in srgb, var(--color-red-500) 65%, hsl(0 0% 98%));
-    --color-red-800: color-mix(in srgb, var(--color-red-500) 65%, hsl(0 0% 98%));
-    --color-red-900: color-mix(in srgb, var(--color-red-500) 65%, hsl(0 0% 98%));
-    --color-red-950: color-mix(in srgb, var(--color-red-500) 65%, hsl(0 0% 98%));
     --color-green-50: color-mix(in srgb, var(--color-green-500) 16%, var(--clinic-surface));
     --color-green-100: color-mix(in srgb, var(--color-green-500) 24%, var(--clinic-surface));
     --color-green-200: color-mix(in srgb, var(--color-green-500) 42%, var(--clinic-surface));
-    --color-green-700: color-mix(in srgb, var(--color-green-500) 65%, hsl(0 0% 98%));
-    --color-green-800: color-mix(in srgb, var(--color-green-500) 65%, hsl(0 0% 98%));
-    --color-green-900: color-mix(in srgb, var(--color-green-500) 65%, hsl(0 0% 98%));
-    --color-green-950: color-mix(in srgb, var(--color-green-500) 65%, hsl(0 0% 98%));
     --color-yellow-50: color-mix(in srgb, var(--color-yellow-500) 16%, var(--clinic-surface));
     --color-yellow-100: color-mix(in srgb, var(--color-yellow-500) 24%, var(--clinic-surface));
     --color-yellow-200: color-mix(in srgb, var(--color-yellow-500) 42%, var(--clinic-surface));
-    --color-yellow-700: color-mix(in srgb, var(--color-yellow-500) 65%, hsl(0 0% 98%));
-    --color-yellow-800: color-mix(in srgb, var(--color-yellow-500) 65%, hsl(0 0% 98%));
-    --color-yellow-900: color-mix(in srgb, var(--color-yellow-500) 65%, hsl(0 0% 98%));
-    --color-yellow-950: color-mix(in srgb, var(--color-yellow-500) 65%, hsl(0 0% 98%));
     --color-purple-50: color-mix(in srgb, var(--color-purple-500) 16%, var(--clinic-surface));
     --color-purple-100: color-mix(in srgb, var(--color-purple-500) 24%, var(--clinic-surface));
     --color-purple-200: color-mix(in srgb, var(--color-purple-500) 42%, var(--clinic-surface));
-    --color-purple-700: color-mix(in srgb, var(--color-purple-500) 65%, hsl(0 0% 98%));
-    --color-purple-800: color-mix(in srgb, var(--color-purple-500) 65%, hsl(0 0% 98%));
-    --color-purple-900: color-mix(in srgb, var(--color-purple-500) 65%, hsl(0 0% 98%));
-    --color-purple-950: color-mix(in srgb, var(--color-purple-500) 65%, hsl(0 0% 98%));
     --color-indigo-50: color-mix(in srgb, var(--color-indigo-500) 16%, var(--clinic-surface));
     --color-indigo-100: color-mix(in srgb, var(--color-indigo-500) 24%, var(--clinic-surface));
     --color-indigo-200: color-mix(in srgb, var(--color-indigo-500) 42%, var(--clinic-surface));
-    --color-indigo-700: color-mix(in srgb, var(--color-indigo-500) 65%, hsl(0 0% 98%));
-    --color-indigo-800: color-mix(in srgb, var(--color-indigo-500) 65%, hsl(0 0% 98%));
-    --color-indigo-900: color-mix(in srgb, var(--color-indigo-500) 65%, hsl(0 0% 98%));
-    --color-indigo-950: color-mix(in srgb, var(--color-indigo-500) 65%, hsl(0 0% 98%));
 }
 
-.dark .text-red-600 {
-    color: var(--color-red-700);
+/* Keep hue tokens stable: dark backgrounds and readable text use separate roles. */
+@media screen {
+    .dark :is(.text-amber-600, .text-amber-700, .text-amber-800, .text-amber-900, .text-amber-950) {
+        color: color-mix(in srgb, var(--color-amber-400) 28%, white);
+    }
+    .dark :is(.text-blue-600, .text-blue-700, .text-blue-800, .text-blue-900, .text-blue-950) {
+        color: color-mix(in srgb, var(--color-blue-400) 28%, white);
+    }
+    .dark :is(.text-violet-600, .text-violet-700, .text-violet-800, .text-violet-900, .text-violet-950) {
+        color: color-mix(in srgb, var(--color-violet-400) 28%, white);
+    }
+    .dark :is(.text-orange-600, .text-orange-700, .text-orange-800, .text-orange-900, .text-orange-950) {
+        color: color-mix(in srgb, var(--color-orange-400) 28%, white);
+    }
+    .dark :is(.text-pink-600, .text-pink-700, .text-pink-800, .text-pink-900, .text-pink-950) {
+        color: color-mix(in srgb, var(--color-pink-400) 28%, white);
+    }
+    .dark :is(.text-emerald-600, .text-emerald-700, .text-emerald-800, .text-emerald-900, .text-emerald-950) {
+        color: color-mix(in srgb, var(--color-emerald-400) 28%, white);
+    }
+    .dark :is(.text-red-600, .text-red-700, .text-red-800, .text-red-900, .text-red-950) {
+        color: color-mix(in srgb, var(--color-red-400) 28%, white);
+    }
+    .dark :is(.text-green-600, .text-green-700, .text-green-800, .text-green-900, .text-green-950) {
+        color: color-mix(in srgb, var(--color-green-400) 28%, white);
+    }
+    .dark :is(.text-yellow-600, .text-yellow-700, .text-yellow-800, .text-yellow-900, .text-yellow-950) {
+        color: color-mix(in srgb, var(--color-yellow-400) 28%, white);
+    }
+    .dark :is(.text-purple-600, .text-purple-700, .text-purple-800, .text-purple-900, .text-purple-950) {
+        color: color-mix(in srgb, var(--color-purple-400) 28%, white);
+    }
+    .dark :is(.text-indigo-600, .text-indigo-700, .text-indigo-800, .text-indigo-900, .text-indigo-950) {
+        color: color-mix(in srgb, var(--color-indigo-400) 28%, white);
+    }
+    .dark :is(.text-rose-600, .text-rose-700, .text-rose-800, .text-rose-900, .text-rose-950) {
+        color: color-mix(in srgb, var(--color-rose-400) 28%, white);
+    }
+    .dark :is(.text-cyan-600, .text-cyan-700, .text-cyan-800, .text-cyan-900, .text-cyan-950) {
+        color: color-mix(in srgb, var(--color-cyan-400) 28%, white);
+    }
+    .dark :is(.text-teal-600, .text-teal-700, .text-teal-800, .text-teal-900, .text-teal-950) {
+        color: color-mix(in srgb, var(--color-teal-400) 28%, white);
+    }
+    .dark :is(.text-sky-600, .text-sky-700, .text-sky-800, .text-sky-900, .text-sky-950) {
+        color: color-mix(in srgb, var(--color-sky-400) 28%, white);
+    }
 }
 
 body {
@@ -328,3 +328,13 @@ body {
     .queue-ticket { width: 80mm; max-width: 100% !important; margin: 0 auto !important; }
 }
 .print-only { display: none; }
+
+@media print {
+    .medical-record-print [role="tabpanel"][hidden] { display: block !important; }
+    .medical-record-print { border-radius: 0; margin-bottom: 6mm; }
+    .medical-record-print h3, .medical-record-print h4, .medical-record-print figcaption { break-after: avoid; }
+    .medical-record-print figure, .medical-record-print tr { break-inside: avoid; }
+    .medical-record-print svg { max-height: 145mm; }
+    .medical-record-print p, .medical-record-print dd { orphans: 3; widows: 3; }
+    .medical-record-print { color: #171717; background: white; }
+}

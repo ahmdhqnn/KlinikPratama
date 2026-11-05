@@ -11,6 +11,16 @@ class PatientAllergyHistory
 {
     public function __construct(private ClinicalNoteRecorder $notes) {}
 
+    /** @return array{riwayat_alergi: ?string, alergi_jenis: ?string, alergi_reaksi: ?string} */
+    public function recordedBeforeVisit(Kunjungan $visit): array
+    {
+        $previousContext = clone $visit;
+        $previousContext->setRelation('screening', null);
+        $previousContext->setRelation('pemeriksaan', null);
+
+        return $this->forVisit($previousContext);
+    }
+
     public function examination(?Pemeriksaan $examination): ?string
     {
         if (! $examination) {

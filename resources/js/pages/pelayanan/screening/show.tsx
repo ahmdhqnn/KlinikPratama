@@ -17,6 +17,8 @@ import { StatusBadge } from '@/components/dashboard/status-badge';
 import { VisitAttachments, type ClinicalAttachment } from '@/components/kunjungan/visit-attachments';
 
 type ScreeningValues = Record<ScalarField, string> & {
+    mukosa_mulut: Record<string, string>;
+    kebiasaan_gigi_opsi: string[];
     screening_revision?: string;
     dental_vitals_unmeasurable: boolean;
     dental_medication_categories: string[];
@@ -27,9 +29,18 @@ type ScreeningValues = Record<ScalarField, string> & {
     konfirmasi_riwayat: boolean;
     assistance_reason: string;
 };
-const scalarFields = ['riwayat_perawatan_gigi', 'kebiasaan_gigi', 'extraoral_symmetry', 'extraoral_swelling', 'extraoral_notes', 'petugas_id', 'keluhan', 'keluhan_tambahan', 'lama_keluhan', 'sumber_informasi', 'td_sistole', 'td_diastole', 'nadi', 'suhu', 'respirasi', 'spo2', 'berat_badan', 'tinggi_badan', 'lingkar_perut', 'alasan_pengukuran_tidak_lengkap', 'riwayat_alergi', 'status_alergi', 'alergi_jenis', 'alergi_reaksi', 'status_riwayat_penyakit', 'riwayat_penyakit', 'penyakit_nama', 'penyakit_keterangan', 'riwayat_obat', 'riwayat_penyakit_keluarga', 'skala_nyeri', 'skrining_gizi', 'pemeriksaan_fisik', 'nyeri_dada', 'kejang', 'nadi_teraba', 'pola_pernapasan', 'kesadaran', 'kondisi_psikiatri', 'risiko_jatuh_visual', 'catatan_triase', 'lokasi_nyeri_gigi', 'durasi_keluhan_gigi', 'catatan_medis_gigi'] as const;
+const scalarFields = ['status_riwayat_obat', 'kelainan_mukosa',"dental_red_flags_other","risiko_medis_gigi_lainnya","pemicu_nyeri_gigi_lainnya","riwayat_infeksi_gigi_lainnya","dental_medication_categories_other","alergi_keparahan","alergi_verifikasi","nyeri_karakter","nyeri_pereda","nyeri_dampak","riwayat_kondisi_khusus","observasi_mulut","kebiasaan_perawatan_mulut",'riwayat_perawatan_gigi', 'kebiasaan_gigi', 'extraoral_symmetry', 'extraoral_swelling', 'extraoral_notes', 'petugas_id', 'keluhan', 'keluhan_tambahan', 'lama_keluhan', 'sumber_informasi', 'td_sistole', 'td_diastole', 'nadi', 'suhu', 'respirasi', 'spo2', 'berat_badan', 'tinggi_badan', 'lingkar_perut', 'alasan_pengukuran_tidak_lengkap', 'riwayat_alergi', 'status_alergi', 'alergi_jenis', 'alergi_reaksi', 'status_riwayat_penyakit', 'riwayat_penyakit', 'penyakit_nama', 'penyakit_keterangan', 'riwayat_obat', 'riwayat_penyakit_keluarga', 'skala_nyeri', 'skrining_gizi', 'pemeriksaan_fisik', 'nyeri_dada', 'kejang', 'nadi_teraba', 'pola_pernapasan', 'kesadaran', 'kondisi_psikiatri', 'risiko_jatuh_visual', 'catatan_triase', 'lokasi_nyeri_gigi', 'durasi_keluhan_gigi', 'catatan_medis_gigi'] as const;
 type ScalarField = typeof scalarFields[number];
 const assessmentPlaceholders = {
+    alergi_keparahan: "Keparahan alergi jika diketahui",
+    alergi_verifikasi: "Perbedaan alergi yang perlu diverifikasi",
+    nyeri_karakter: "Karakter nyeri dan penjalarannya",
+    nyeri_pereda: "Hal yang mengurangi nyeri",
+    nyeri_dampak: "Dampak nyeri pada aktivitas atau tidur",
+    riwayat_kondisi_khusus: "Kondisi khusus, operasi, atau rawat inap yang relevan",
+    observasi_mulut: "Observasi awal mulut dan rahang",
+    kebiasaan_perawatan_mulut: "Perawatan mulut dan kebiasaan sehari-hari",
+    kelainan_mukosa: 'Lokasi, tampilan, dan kelainan yang terlihat saat observasi',
     keluhan: 'Keluhan utama yang disampaikan pasien',
     keluhan_tambahan: 'Keluhan lain yang menyertai keluhan utama',
     lama_keluhan: 'Contoh: sejak kemarin atau selama 3 hari',
@@ -51,14 +62,17 @@ const assessmentPlaceholders = {
     extraoral_notes: 'Lokasi, sisi, lama dan perkembangan pembengkakan / asimetri, kendala penilaian, serta komunikasi kepada dokter',
     catatan_medis_gigi: 'Informasi yang perlu dikonfirmasi kepada dokter gigi',
 } satisfies Partial<Record<ScalarField, string>>;
+const otherDetails = {"dental_red_flags": {"option": "other", "field": "dental_red_flags_other", "label": "Keterangan tanda bahaya lainnya"}, "risiko_medis_gigi": {"option": "lainnya", "field": "risiko_medis_gigi_lainnya", "label": "Keterangan kondisi sistemik lainnya"}, "pemicu_nyeri_gigi": {"option": "lainnya", "field": "pemicu_nyeri_gigi_lainnya", "label": "Keterangan pemicu lainnya"}, "riwayat_infeksi_gigi": {"option": "infeksi_lain", "field": "riwayat_infeksi_gigi_lainnya", "label": "Keterangan infeksi lainnya"}, "dental_medication_categories": {"option": "other", "field": "dental_medication_categories_other", "label": "Keterangan obat lainnya"}} as const;
 type Option = [string, string];
 interface Visit {
+    submittedAt?: string | null; submittedBy?: string | null; reviewedAt?: string | null;
     screeningRevision?: string;
+    oralHabitOptions?: Record<string, string>;
     medicationCategories?: Record<string, string>;
     attachments?: ClinicalAttachment[]; attachmentUploadUrl?: string;
     id: number; number: string; status: string; examinationStarted: boolean; editable: boolean; submitted: boolean; clinic: string; clinicType: 'umum' | 'gigi'; doctor: string;
     patient: { name: string; medicalRecordNumber: string; gender: string | null; age: number | null; bloodType: string | null; allergyHistory: string | null };
-    screening: Record<string, string | number | boolean | string[] | null>;
+    screening: Record<string, string | number | boolean | string[] | Record<string, string> | null>;
     triage: string | null; priority: string | null; printUrl: string | null; startedAt: string | null;
 }
 interface Props { visit: Visit; staff: { id: number; name: string; position: string }[]; canSelectStaff: boolean; currentStaff: string | null }
@@ -85,13 +99,14 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     if (!values.status_riwayat_penyakit && values.riwayat_penyakit) {
         values.status_riwayat_penyakit = /^(pasien menyangkal|tidak ada)/i.test(values.riwayat_penyakit.trim()) ? 'tidak_ada' : 'ada';
     }
+    if (!values.status_riwayat_penyakit && Array.isArray(visit.screening.risiko_medis_gigi) && visit.screening.risiko_medis_gigi.some(value => !['tidak_ada', 'belum_diketahui'].includes(String(value)))) values.status_riwayat_penyakit = 'ada';
     if (values.status_riwayat_penyakit !== 'ada') {
         values.riwayat_penyakit = '';
         values.penyakit_nama = '';
         values.penyakit_keterangan = '';
     }
     const list = (key: string): string[] => Array.isArray(visit.screening[key]) ? visit.screening[key].map(String) : [];
-    const form = useForm<ScreeningValues>({ ...values, dental_vitals_unmeasurable: visit.screening.dental_vitals_unmeasurable === true, dental_medication_categories: list('dental_medication_categories'), dental_red_flags: list('dental_red_flags'), pemicu_nyeri_gigi: list('pemicu_nyeri_gigi'), risiko_medis_gigi: list('risiko_medis_gigi'), riwayat_infeksi_gigi: list('riwayat_infeksi_gigi'), konfirmasi_riwayat: false, assistance_reason: '' });
+    const form = useForm<ScreeningValues>({ ...values, status_riwayat_obat: values.status_riwayat_obat || (list('dental_medication_categories').includes('none') ? 'tidak_ada' : values.riwayat_obat || list('dental_medication_categories').some(v => !['unknown', 'none'].includes(v)) ? 'ada' : ''), mukosa_mulut: typeof visit.screening.mukosa_mulut === 'object' && !Array.isArray(visit.screening.mukosa_mulut) ? visit.screening.mukosa_mulut as Record<string, string> ?? {} : {}, kebiasaan_gigi_opsi: list('kebiasaan_gigi_opsi'), dental_vitals_unmeasurable: visit.screening.dental_vitals_unmeasurable === true, dental_medication_categories: list('dental_medication_categories'), dental_red_flags: list('dental_red_flags'), pemicu_nyeri_gigi: list('pemicu_nyeri_gigi'), risiko_medis_gigi: list('risiko_medis_gigi'), riwayat_infeksi_gigi: list('riwayat_infeksi_gigi'), konfirmasi_riwayat: false, assistance_reason: '' });
     const [expanded, setExpanded] = useState<Record<Section, boolean>>({ triage: false, complaint: true, history: true, vitals: true, anthropometry: false, dental: false, additional: false, ringkas: true, attachments: false });
     const [attachmentPending, setAttachmentPending] = useState(false);
     const [starting, setStarting] = useState(false);
@@ -106,7 +121,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     const bmi = Number(form.data.berat_badan) > 0 && Number(form.data.tinggi_badan) > 0 ? (Number(form.data.berat_badan) / (Number(form.data.tinggi_badan) / 100) ** 2).toFixed(2) : null;
     const dentalEmergency = isDental && form.data.dental_red_flags.some((flag) => ['breathing', 'swallowing', 'rapid_swelling', 'severe_allergy', 'heavy_bleeding', 'critical_vitals'].includes(flag));
     const emergency = dentalEmergency || form.data.nyeri_dada === 'ya' || form.data.kejang === 'ya' || form.data.nadi_teraba === 'tidak_teraba' || form.data.kesadaran === 'tidak_sadar' || form.data.pola_pernapasan === 'tidak_normal';
-    const priority = (isDental && (form.data.dental_vitals_unmeasurable || form.data.extraoral_swelling === 'present' || form.data.dental_red_flags.some((flag) => ['trismus', 'fever'].includes(flag)))) || form.data.kesadaran === 'menurun' || form.data.kondisi_psikiatri === 'terganggu' || ['sedang', 'tinggi'].includes(form.data.risiko_jatuh_visual);
+    const priority = (isDental && (form.data.dental_vitals_unmeasurable || form.data.extraoral_swelling === 'present' || form.data.dental_red_flags.some((flag) => ['trismus', 'fever', 'trauma'].includes(flag)))) || form.data.kesadaran === 'menurun' || form.data.kondisi_psikiatri === 'terganggu' || ['sedang', 'tinggi'].includes(form.data.risiko_jatuh_visual);
     const triageComplete = triageFields.every(({ name }) => form.data[name] !== '');
     const triageAnswersNormal = allTriageAnswersNormal(form.data);
     const triageHasAbnormal = hasAbnormalTriageAnswer(form.data);
@@ -116,7 +131,21 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         <Checkbox checked={triageAnswersNormal} className="shrink-0" disabled={triageHasAbnormal} id={id} onCheckedChange={(checked) => form.setData((data) => ({ ...data, ...quickNormalTriagePatch(checked === true) }))} />
         <span>Semua jawaban kondisi awal normal setelah diperiksa{triageHasAbnormal && <span className="text-neutral-500"> · ada temuan tidak normal</span>}</span>
     </label>;
-    const update = (name: ScalarField, value: string) => form.setData((data) => ({ ...data, [name]: value, ...(['status_alergi', 'riwayat_alergi', 'alergi_jenis', 'alergi_reaksi', 'status_riwayat_penyakit', 'riwayat_penyakit', 'penyakit_nama', 'penyakit_keterangan', 'riwayat_obat', 'riwayat_perawatan_gigi', 'kebiasaan_gigi', 'riwayat_penyakit_keluarga'].includes(name) ? { konfirmasi_riwayat: false } : {}) }));
+    const update = (name: ScalarField, value: string) => form.setData(data => ({
+        ...data, [name]: value, konfirmasi_riwayat: false,
+        ...(name === 'status_riwayat_penyakit' && value !== 'ada' ? { risiko_medis_gigi: value ? [value] : [], risiko_medis_gigi_lainnya: '', riwayat_penyakit: '', penyakit_nama: '', penyakit_keterangan: '' } : {}),
+        ...(name === 'status_riwayat_penyakit' && value === 'ada' ? { risiko_medis_gigi: data.risiko_medis_gigi.filter(v => !['tidak_ada', 'belum_diketahui'].includes(v)) } : {}),
+        ...(name === 'status_riwayat_obat' && value !== 'ada' ? { dental_medication_categories: value === 'tidak_ada' ? ['none'] : value ? ['unknown'] : [], dental_medication_categories_other: '', riwayat_obat: '' } : {}),
+        ...(name === 'status_riwayat_obat' && value === 'ada' ? { dental_medication_categories: data.dental_medication_categories.filter(v => !['none', 'unknown'].includes(v)) } : {}),
+    }));
+    const setChoices = (name: keyof typeof otherDetails, selected: string[]) => {
+        const item = otherDetails[name];
+        form.setData(data => ({ ...data, [name]: selected, [item.field]: selected.includes(item.option) ? data[item.field] : '', konfirmasi_riwayat: false }));
+    };
+    const otherInput = (name: keyof typeof otherDetails) => {
+        const item = otherDetails[name];
+        return form.data[name].includes(item.option) ? <Field htmlFor={item.field} label={item.label} required error={form.errors[item.field]}><Textarea required id={item.field} maxLength={2000} value={form.data[item.field]} onChange={e => update(item.field, e.target.value)} /></Field> : null;
+    };
     const allSections = (open: boolean) => setExpanded(Object.fromEntries(sections.map((key) => [key, open])) as Record<Section, boolean>);
     const onError = () => { setMode('lengkap'); allSections(true); requestAnimationFrame(() => errorSummary.current?.focus()); };
     function save(action: 'draf' | 'kirim') {
@@ -142,7 +171,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         </div>
     </Field>;
     const anthropometry = <>
-        <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {numeric('berat_badan', 'Berat badan', 'kg', false, '0.1', 500, true)}
             {numeric('tinggi_badan', 'Tinggi badan', 'cm', false, '0.1', 300, true)}
             {numeric('lingkar_perut', 'Lingkar perut', 'cm', false, '0.1', 300, true)}
@@ -163,29 +192,63 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         {form.errors.konfirmasi_riwayat && <p className="text-xs text-red-600">{form.errors.konfirmasi_riwayat}</p>}
     </>;
     const painScale = <Field error={form.errors.skala_nyeri} htmlFor="skala_nyeri" label="Skala nyeri (0–10)"><Select id="skala_nyeri" value={form.data.skala_nyeri} onChange={(event) => update('skala_nyeri', event.target.value)}><option value="">Belum dikaji</option>{Array.from({ length: 11 }, (_, value) => <option key={value} value={value}>{value}{value === 0 ? ' · Tidak nyeri' : ''}</option>)}</Select></Field>;
-    const dentalSafety = <section className="space-y-4 rounded-xl border border-neutral-200 p-4" aria-label="Visual ekstraoral awal perawat">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Visual ekstraoral cepat</h4><p className="mt-1 text-sm text-neutral-600">Observasi awal perawat: amati wajah dan keluhan yang tampak. Pemeriksaan intraoral, diagnosis, serta validasi penuh dilakukan dokter gigi.</p></div>
+    const allergyDetails = <div className="grid min-w-0 gap-4 md:grid-cols-2"><div className="min-w-0 col-span-full">{text('riwayat_alergi', 'Rincian alergi obat / makanan / lainnya', true, true)}</div>{text('alergi_reaksi', 'Reaksi alergi', true, true)}{text('alergi_keparahan', 'Keparahan alergi (jika diketahui)', false, true, true)}{text('alergi_jenis', 'Jenis / pemicu alergi')}</div>;
+    const generalSafety = (
+        <div className="space-y-4 border-t border-neutral-100 pt-5">
+            <div><h4 className="text-sm font-semibold text-neutral-900">Kondisi umum pasien</h4><p className="mt-1 text-xs text-neutral-500">Periksa kondisi umum untuk melengkapi penilaian tanda bahaya. Jawaban kosong berarti belum dinilai.</p></div>
+            <div className="grid min-w-0 items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {triageFields.map((field) => <div key={field.name} className="min-w-0 rounded-lg border border-neutral-200 bg-surface p-3">{single(field.name, field.label, field.options, false)}</div>)}
+                <div className="min-w-0 xl:col-span-2">{text('catatan_triase', 'Catatan untuk dokter', false, true, true)}</div>
+            </div>
+            {quickNormalTriage('triage-quick-normal-compact')}
+            {triage && <div role="status" className={`rounded-lg border p-3 text-sm ${triage === 'merah' ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300' : triage === 'kuning' ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300' : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'}`}><strong>Kebutuhan respons awal: {responseLabel}.</strong> {triage === 'merah' ? 'Segera hubungi dokter dan ikuti prosedur kegawatdaruratan klinik; jangan menunda pertolongan untuk melengkapi formulir.' : 'Gunakan hasil ini sebagai informasi awal dan tetap ikuti penilaian klinis serta prosedur klinik.'}</div>}
+        </div>
+    );
+    const dentalSafety = <section className="space-y-5 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4 sm:p-5" aria-label="Observasi awal wajah dan mulut">
+            <div><h4 className="text-sm font-semibold text-neutral-900">Observasi ekstraoral dan kondisi umum</h4><p className="mt-1 text-sm text-neutral-600">Amati wajah dan mulut, tanyakan tanda bahaya, lalu periksa kondisi umum. Sampaikan segera kepada dokter bila ada temuan yang mengkhawatirkan.</p></div>
             <div className="grid min-w-0 gap-4 xl:grid-cols-2">
                 {single('extraoral_symmetry', 'Simetri wajah', [['symmetric', 'Tampak simetris'], ['asymmetric', 'Tampak asimetris'], ['unknown', 'Belum dapat dinilai']], false)}
                 {single('extraoral_swelling', 'Pembengkakan wajah / rahang', [['none', 'Tidak tampak'], ['present', 'Tampak pembengkakan'], ['unknown', 'Belum dapat dinilai']], false)}
             </div>
             <ChoiceGroup error={form.errors.dental_red_flags} label="Tanda bahaya gigi / mulut" name="dental_red_flags" options={[
-                ['none', 'Tidak ditemukan setelah ditanyakan / diamati'], ['breathing', 'Sulit bernapas'], ['swallowing', 'Sulit menelan'], ['rapid_swelling', 'Pembengkakan cepat meluas / menutup mata'], ['severe_allergy', 'Dugaan reaksi alergi berat'], ['heavy_bleeding', 'Perdarahan hebat'], ['critical_vitals', 'TTV sangat abnormal menurut penilaian petugas'], ['trismus', 'Sulit membuka mulut'], ['fever', 'Demam / kondisi umum memburuk'], ['unknown', 'Belum dapat dinilai'],
-            ]} selected={form.data.dental_red_flags} onChange={(value) => form.setData('dental_red_flags', value)} />
+                ['none', 'Tidak ditemukan setelah ditanyakan / diamati'], ['breathing', 'Sulit bernapas'], ['swallowing', 'Sulit menelan'], ['rapid_swelling', 'Pembengkakan cepat meluas / menutup mata'], ['severe_allergy', 'Dugaan reaksi alergi berat'], ['heavy_bleeding', 'Perdarahan hebat'], ['critical_vitals', 'TTV sangat abnormal menurut penilaian petugas'], ['trismus', 'Sulit membuka mulut'], ['fever', 'Demam / kondisi umum memburuk'], ['trauma', 'Trauma wajah atau rahang'], ['other', 'Lainnya'], ['unknown', 'Belum dapat dinilai'],
+            ]} selected={form.data.dental_red_flags} onChange={(value) => setChoices('dental_red_flags', value)} />{otherInput('dental_red_flags')}
             {text('extraoral_notes', 'Rincian observasi dan tindak lanjut', form.data.extraoral_symmetry === 'asymmetric' || form.data.extraoral_swelling === 'present' || form.data.dental_red_flags.some((flag) => flag !== 'none'), true, true)}
             <label className="flex items-center gap-2 text-sm">
                 <Checkbox checked={form.data.dental_vitals_unmeasurable} onCheckedChange={(value) => form.setData('dental_vitals_unmeasurable', value === true)} />
                 Sebagian atau seluruh tanda vital belum dapat diukur
             </label>
             {form.data.dental_vitals_unmeasurable && <p className="text-sm text-neutral-700">Catat hasil penilaian kesadaran dan pernapasan, tanda vital yang berhasil diukur, alasan pengukuran belum lengkap, dan hasil serah terima kepada dokter gigi di Catatan Pengkajian. Ulangi pengukuran saat kondisi memungkinkan.</p>}
-            {dentalEmergency && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">Perlu respons segera. Hubungi dokter gigi penanggung jawab atau petugas medis yang sedang bertugas. Sampaikan tanda bahaya dan hasil penilaian awal secara verbal. Dahulukan pertolongan awal sesuai SOP dan kemampuan klinik. Koordinasikan rujukan ke fasilitas kesehatan eksternal sesuai kebutuhan pasien.</p>}
+            {dentalEmergency && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">Perlu respons segera. Hubungi dokter gigi penanggung jawab atau petugas medis yang sedang bertugas. Sampaikan tanda bahaya dan hasil penilaian awal secara verbal. Dahulukan pertolongan awal sesuai SOP dan kemampuan klinik. Koordinasikan rujukan ke fasilitas kesehatan eksternal sesuai kebutuhan pasien.</p>}
+        {generalSafety}
         </section>;
 
-    const dentalAssessment = <>
-        <ChoiceGroup error={form.errors.risiko_medis_gigi} label="Riwayat sistemik yang perlu diperhatikan dokter gigi" name="risiko_medis_gigi" required options={[
+    const dentalDiseaseDetails = form.data.status_riwayat_penyakit === 'ada' && <div className="space-y-4">
+<ChoiceGroup error={form.errors.risiko_medis_gigi} label="Penyakit atau kondisi yang dilaporkan" name="risiko_medis_gigi" required options={[
             ['hipertensi', 'Hipertensi'], ['diabetes', 'Diabetes melitus'], ['penyakit_jantung', 'Penyakit jantung'], ['gangguan_pembekuan', 'Gangguan pembekuan'],
-            ['antikoagulan', 'Obat antikoagulan'], ['lainnya', 'Lainnya'], ['tidak_ada', 'Tidak ada, sudah ditanyakan'], ['belum_diketahui', 'Belum dapat diketahui'],
-        ]} selected={form.data.risiko_medis_gigi} onChange={(value) => form.setData((data) => ({ ...data, risiko_medis_gigi: value, konfirmasi_riwayat: false }))} />
+            ['antikoagulan', 'Obat antikoagulan'], ['lainnya', 'Lainnya'],
+        ]} selected={form.data.risiko_medis_gigi} onChange={(value) => setChoices('risiko_medis_gigi', value)} />{otherInput('risiko_medis_gigi')}
+        <div className="min-w-0 col-span-full">{text('riwayat_penyakit', 'Rincian riwayat penyakit (bila diperlukan)', false, true, true)}</div>
+    </div>;
+    const dentalHealth = <div className="space-y-4 border-t border-neutral-200 pt-4">
+        {single('status_riwayat_obat', 'Penggunaan obat saat ini', [['ada', 'Ada obat yang digunakan'], ['tidak_ada', 'Tidak menggunakan obat'], ['belum_diketahui', 'Belum diketahui']])}
+        {form.data.status_riwayat_obat === 'ada' && <>
+            <div className="space-y-3 md:col-span-2">
+                {visit.medicationCategories && <ChoiceGroup
+                    name="dental_medication_categories"
+                    label="Kategori obat yang dilaporkan"
+                    options={Object.entries(visit.medicationCategories).filter(([key]) => !['none', 'unknown'].includes(key))}
+                    selected={form.data.dental_medication_categories}
+                    error={form.errors.dental_medication_categories}
+                    onChange={(value) => setChoices('dental_medication_categories', value)}
+                />}{otherInput('dental_medication_categories')}
+                {text('riwayat_obat', 'Obat yang sedang digunakan', false, true, true)}
+                <p className="mt-1 text-xs text-neutral-600">Tanyakan antikoagulan, antiplatelet, obat diabetes dan antihipertensi. Catat nama dan dosis bila diketahui.</p>
+            </div></>}
+    </div>;
+    const dentalAssessment = <>
+        {dentalSafety}
+        <p className="text-xs text-neutral-500">Nyeri: catat pemicu dan pereda, karakter, lokasi atau penjalaran, skala, serta waktu keluhan. Lengkapi rincian di tab Lengkap bila diperlukan.</p>
         <div className="grid min-w-0 gap-4 md:grid-cols-2">
             {text('lokasi_nyeri_gigi', 'Lokasi nyeri gigi / gusi', false, false, true)}
             {text('durasi_keluhan_gigi', 'Pola dan durasi episode nyeri', false, false, true)}
@@ -193,33 +256,28 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         </div>
         <ChoiceGroup error={form.errors.pemicu_nyeri_gigi} label="Pemicu nyeri gigi (opsional)" name="pemicu_nyeri_gigi" options={[
             ['dingin', 'Dingin'], ['manis', 'Manis'], ['mengunyah', 'Mengunyah'], ['panas', 'Panas'], ['spontan', 'Spontan'], ['lainnya', 'Lainnya'], ['tidak_ada', 'Tidak ada pemicu'],
-        ]} selected={form.data.pemicu_nyeri_gigi} onChange={(value) => form.setData('pemicu_nyeri_gigi', value)} />
+        ]} selected={form.data.pemicu_nyeri_gigi} onChange={(value) => setChoices('pemicu_nyeri_gigi', value)} />{otherInput('pemicu_nyeri_gigi')}
         <ChoiceGroup error={form.errors.riwayat_infeksi_gigi} label="Riwayat infeksi yang diketahui (opsional)" name="riwayat_infeksi_gigi" options={[
             ['hepatitis', 'Hepatitis'], ['hiv', 'HIV'], ['infeksi_lain', 'Infeksi lain'], ['tidak_ada', 'Tidak ada riwayat yang diketahui'],
-        ]} selected={form.data.riwayat_infeksi_gigi} onChange={(value) => form.setData('riwayat_infeksi_gigi', value)} />
+        ]} selected={form.data.riwayat_infeksi_gigi} onChange={(value) => setChoices('riwayat_infeksi_gigi', value)} />{otherInput('riwayat_infeksi_gigi')}
         {text('catatan_medis_gigi', 'Catatan / hal yang perlu dikonfirmasi dokter gigi', form.data.risiko_medis_gigi.includes('belum_diketahui'), true, true)}
         <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-3 md:col-span-2">
-                {visit.medicationCategories && <ChoiceGroup
-                    name="dental_medication_categories"
-                    label="Kategori obat yang dilaporkan"
-                    options={Object.entries(visit.medicationCategories)}
-                    selected={form.data.dental_medication_categories}
-                    error={form.errors.dental_medication_categories}
-                    onChange={(value) => form.setData((data) => ({ ...data, dental_medication_categories: value, konfirmasi_riwayat: false }))}
-                />}
-                {text('riwayat_obat', 'Obat yang sedang digunakan', false, true, true)}
-                <p className="mt-1 text-xs text-neutral-600">Tanyakan antikoagulan, antiplatelet, obat diabetes dan antihipertensi. Catat nama dan dosis bila diketahui.</p>
-            </div>
-            {text('riwayat_perawatan_gigi', 'Riwayat perawatan gigi dan komplikasi', false, true, true)}
-            {text('kebiasaan_gigi', 'Kebiasaan terkait gigi dan mulut', false, true, true)}
+
+            <div className="col-span-full min-w-0">{text('riwayat_perawatan_gigi', 'Riwayat perawatan gigi dan komplikasi', false, true, true)}</div>
+            <section className="col-span-full min-w-0 space-y-4"><h4 className="text-sm font-semibold">Kebiasaan terkait gigi dan mulut</h4><ChoiceGroup name="kebiasaan_gigi_opsi" label="Kebiasaan yang dilaporkan pasien" options={Object.entries(visit.oralHabitOptions ?? { teh_kopi: 'Minum teh atau kopi', alkohol: 'Minum minuman beralkohol', soda: 'Minum minuman bersoda', merokok: 'Merokok', satu_sisi: 'Mengunyah satu sisi', sirih_tembakau: 'Mengunyah sirih atau tembakau', benda_keras: 'Menggigit benda keras', bruksisme: 'Menggemeretakkan gigi (bruksisme)', lainnya: 'Lainnya', tidak_ada: 'Tidak ada kebiasaan yang dilaporkan', belum_diketahui: 'Belum diketahui' })} error={form.errors.kebiasaan_gigi_opsi} selected={form.data.kebiasaan_gigi_opsi} onChange={value => form.setData(data => ({ ...data, kebiasaan_gigi_opsi: value, konfirmasi_riwayat: false }))} />{text('kebiasaan_gigi', 'Keterangan kebiasaan (bila diperlukan)', form.data.kebiasaan_gigi_opsi.includes('lainnya'), true, Boolean(form.data.kebiasaan_gigi))}</section>
         </div>
-        {historyConfirmation}
+        {text('nyeri_karakter', 'Karakter nyeri dan penjalarannya', false, true)}
+        {text('nyeri_pereda', 'Hal yang mengurangi nyeri', false, true)}
+        {text('nyeri_dampak', 'Dampak nyeri pada aktivitas atau tidur', false, true)}
+
+        <section className="space-y-4 border-t border-neutral-200 pt-4"><div><h4 className="text-sm font-semibold">Observasi mukosa mulut</h4><p className="mt-1 text-xs text-neutral-500">Isi hasil pengamatan awal sesuai kewenangan. Bagian yang belum diamati tidak dianggap normal.</p></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Object.entries({ lidah: 'Lidah', pipi: 'Pipi', bibir: 'Bibir', palatum: 'Palatum', gusi: 'Gusi' }).map(([key, label]) => <Field key={key} htmlFor={`mukosa-${key}`} label={label} error={form.errors[`mukosa_mulut.${key}` as keyof typeof form.errors]}><Select id={`mukosa-${key}`} value={form.data.mukosa_mulut[key] ?? ''} onChange={event => form.setData(data => ({ ...data, mukosa_mulut: { ...data.mukosa_mulut, [key]: event.target.value } }))}><option value="">Belum dinilai</option><option value="normal">Normal</option><option value="abnormal">Abnormal</option><option value="belum_dinilai">Belum dapat dinilai</option></Select></Field>)}</div>{(Object.values(form.data.mukosa_mulut).includes('abnormal') || Boolean(form.errors.kelainan_mukosa)) && text('kelainan_mukosa', 'Kelainan yang ditemukan', true, true, true)}</section>
+        {text('observasi_mulut', 'Observasi awal mulut dan rahang', false, true)}<p className="text-xs text-neutral-500">Bila dilakukan sesuai kewenangan, catat tampilan mukosa, lidah, gusi, kebersihan mulut, serta keterbatasan membuka mulut. Jangan menetapkan diagnosis dokter pada bagian ini.</p>
+        {text('kebiasaan_perawatan_mulut', 'Perawatan mulut dan kebiasaan sehari-hari', false, true)}
     </>;
     const compactAssessment = <AssessmentSection
         id="ringkas"
         title="Pengkajian awal"
-        description="Isian inti pengkajian pasien. Bagian lain tersedia di tab Lengkap."
+        description="Catat keluhan, riwayat kesehatan, dan hasil penilaian awal. Rincian tambahan tersedia di tab Lengkap."
         open={expanded.ringkas}
         onToggle={() => setExpanded((state) => ({ ...state, ringkas: !state.ringkas }))}
     >
@@ -235,24 +293,27 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                 </Field>
             </div>
         </section>
-        <section className="space-y-4 border-t border-neutral-100 pt-5">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Alergi dan riwayat kesehatan</h4><p className="mt-1 text-xs text-neutral-500">Periksa kembali informasi sebelumnya bersama pasien sebelum dikirim ke dokter.</p></div>
+        <section className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4 sm:p-5">
+            <div><h4 className="text-sm font-semibold text-neutral-900">Riwayat kesehatan umum</h4><p className="mt-1 text-xs text-neutral-500">Konfirmasi alergi dan riwayat kesehatan bersama pasien. Tandai informasi yang masih perlu dipastikan.</p></div>
             <div className="space-y-4">
-                {single('status_alergi', 'Status riwayat alergi', historyOptions)}
-                {form.data.status_alergi === 'ada' && <div className="grid min-w-0 gap-4 md:grid-cols-2"><div className="min-w-0 col-span-full">{text('riwayat_alergi', 'Rincian alergi obat / makanan / lainnya', true, true)}</div>{text('alergi_reaksi', 'Reaksi alergi', false, true)}{text('alergi_jenis', 'Jenis / pemicu alergi')}</div>}
+                {text('alergi_verifikasi', 'Perbedaan alergi yang perlu diverifikasi', false, true)}{single('status_alergi', 'Konfirmasi alergi pada kunjungan ini', [['ada', 'Ada alergi'], ['tidak_ada', 'Tidak ada alergi'], ['belum_diketahui', 'Belum diketahui'], ['belum_dikonfirmasi', 'Belum dapat dikonfirmasi']])}
+                {form.data.status_alergi === 'ada' && allergyDetails}
             </div>
             <div className="space-y-4 border-t border-neutral-100 pt-5">
                 {single('status_riwayat_penyakit', 'Riwayat penyakit yang pernah atau sedang dialami', historyOptions)}
-                {form.data.status_riwayat_penyakit === 'ada' && <div className="grid min-w-0 gap-4 md:grid-cols-2"><div className="min-w-0 col-span-full">{text('riwayat_penyakit', 'Rincian penyakit yang dilaporkan', true, true)}</div>{text('penyakit_nama', 'Nama penyakit spesifik')}{text('penyakit_keterangan', 'Keterangan riwayat penyakit', false, true)}</div>}
+                {isDental && dentalDiseaseDetails}
+                {!isDental && form.data.status_riwayat_penyakit === 'ada' && <div className="grid min-w-0 gap-4 md:grid-cols-2"><div className="min-w-0 col-span-full">{text('riwayat_penyakit', 'Rincian penyakit yang dilaporkan', true, true)}</div>{text('penyakit_nama', 'Nama penyakit spesifik')}{text('penyakit_keterangan', 'Keterangan riwayat penyakit', false, true)}</div>}
             </div>
+            {text('riwayat_kondisi_khusus', 'Kondisi khusus, operasi, rawat inap atau kehamilan yang relevan', false, true)}
+            {isDental && dentalHealth}
             {!isDental && text('riwayat_obat', 'Obat rutin / sedang digunakan', false, true, true)}
-            {!isDental && historyConfirmation}
+            {historyConfirmation}
         </section>
         <section className="space-y-4 border-t border-neutral-100 pt-5">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Tanda vital</h4><p className="mt-1 text-xs text-neutral-500">Isi berdasarkan hasil pengukuran.</p></div>
-            <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div><h4 className="text-sm font-semibold text-neutral-900">Tanda vital</h4><p className="mt-1 text-xs text-neutral-500">Catat hasil pengukuran yang diperoleh pada kunjungan ini.</p></div>
+            <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {bloodPressure()}{numeric('nadi', 'Denyut nadi', 'kali/menit', true)}
-                {numeric('suhu', 'Suhu tubuh', '°C', true, '0.1', 45)}{numeric('respirasi', 'Frekuensi napas', 'kali/menit', true, '1', 100)}{numeric('spo2', 'Saturasi oksigen', '%', false, '1', 100)}
+                {numeric('suhu', 'Suhu tubuh', '°C', true, '0.1', 45)}{numeric('respirasi', 'Frekuensi napas', 'kali/menit', true, '1', 100)}{numeric('spo2', 'SpO₂', '%', false, '1', 100, true)}
             </div>
         </section>
         <section className="space-y-4 border-t border-neutral-100 pt-5">
@@ -260,18 +321,10 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
             {anthropometry}
         </section>
         {isDental && <section className="space-y-4 border-t border-neutral-100 pt-5" aria-label="Pengkajian khusus gigi dan mulut">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Pengkajian khusus gigi & mulut</h4><p className="mt-1 text-xs text-neutral-500">Catat keluhan gigi, kondisi kesehatan, dan informasi untuk dokter gigi.</p></div>
+            <div><h4 className="text-sm font-semibold text-neutral-900">Riwayat kesehatan gigi dan observasi mulut</h4><p className="mt-1 text-xs text-neutral-500">Pisahkan keluhan pasien dari temuan yang Anda amati. Penilaian dan diagnosis dilakukan dokter gigi.</p></div>
             {dentalAssessment}
         </section>}
-        <section className="space-y-4 border-t border-neutral-100 pt-5">
-            <div><h4 className="text-sm font-semibold text-neutral-900">Pemeriksaan kondisi awal</h4><p className="mt-1 text-xs text-neutral-500">Isi sesuai kondisi pasien. Jawaban kosong berarti belum dinilai.</p></div>
-            <div className="grid min-w-0 items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {triageFields.map((field) => <div key={field.name} className="min-w-0 rounded-lg border border-neutral-200 bg-neutral-50/50 p-3">{single(field.name, field.label, field.options, false)}</div>)}
-                <div className="min-w-0 xl:col-span-2">{text('catatan_triase', 'Catatan untuk dokter', false, true, true)}</div>
-            </div>
-            {quickNormalTriage('triage-quick-normal-compact')}
-            {triage && <div role="status" className={`rounded-lg border p-3 text-sm ${triage === 'merah' ? 'border-red-200 bg-red-50 text-red-900' : triage === 'kuning' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}><strong>Kebutuhan respons awal: {responseLabel}.</strong> {triage === 'merah' ? 'Segera hubungi dokter dan ikuti prosedur kegawatdaruratan klinik; jangan menunda pertolongan untuk melengkapi formulir.' : 'Gunakan hasil ini sebagai informasi awal dan tetap ikuti penilaian klinis serta prosedur klinik.'}</div>}
-        </section>
+        {!isDental && generalSafety}
     </AssessmentSection>;
     return <><Head title={`Pengkajian awal ${isDental ? 'gigi' : 'umum'} - ${visit.patient.name}`} />
         {assistance}
@@ -326,12 +379,10 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                     </div>
                 </CardContent>
             </Card>
+            {visit.submitted && <div className="rounded-xl border border-neutral-200 bg-surface p-4 text-sm"><strong>{visit.reviewedAt ? 'Telah ditinjau dokter' : 'Menunggu evaluasi dokter'}</strong><p>Dikirim: {visit.submittedAt ?? 'Waktu tidak tercatat'} · {visit.submittedBy ?? currentStaff ?? 'Petugas pengkajian'} · Penerima: {visit.doctor}</p>{visit.reviewedAt && <p>Ditinjau dan ditandatangani dokter: {visit.reviewedAt}</p>}</div>}
             {visit.submitted && <div role="status" className="rounded-xl border border-neutral-200 bg-neutral-100 p-4 text-sm text-neutral-800"><strong>Pengkajian sudah dikirim.</strong> {editable ? 'Anda dapat memperbarui catatan sebelum dokter mulai.' : 'Pengkajian tersedia untuk dibaca dan dicetak.'}</div>}
-            {visit.patient.allergyHistory && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><strong>Riwayat alergi tersimpan:</strong> {visit.patient.allergyHistory}<p className="mt-1 text-xs">Konfirmasi kembali dengan pasien. Riwayat sebelumnya tetap tersedia untuk membantu pengkajian.</p></div>}
-            {Object.keys(form.errors).length > 0 && <div ref={errorSummary} tabIndex={-1} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><strong>Pengkajian belum dapat disimpan.</strong><ul className="mt-2 list-inside list-disc">{Object.entries(form.errors).map(([name, error]) => <li key={name}>{error}</li>)}</ul></div>}
-            {isDental && <fieldset className="min-w-0" disabled={!editable || form.processing || starting}>
-                {dentalSafety}
-            </fieldset>}
+            {visit.patient.allergyHistory && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"><strong>Riwayat alergi tersimpan:</strong> {visit.patient.allergyHistory}<p className="mt-1 text-xs">Konfirmasi kembali dengan pasien. Riwayat sebelumnya tetap tersedia untuk membantu pengkajian.</p></div>}
+            {Object.keys(form.errors).length > 0 && <div ref={errorSummary} tabIndex={-1} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"><strong>Pengkajian belum dapat disimpan.</strong><ul className="mt-2 list-inside list-disc">{Object.entries(form.errors).map(([name, error]) => <li key={name}>{error}</li>)}</ul></div>}
             <Tabs value={mode} onValueChange={setMode} className="space-y-4">
                 <div className="rounded-xl border border-neutral-200 bg-surface">
                     <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
@@ -345,7 +396,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                         <TabsTrigger aria-controls="screening-assessment" value="lengkap">Lengkap</TabsTrigger>
                     </TabsList>
                     <p className="px-4 py-3 text-xs leading-5 text-neutral-500 sm:px-5">
-                        {mode === 'ringkas' ? 'Isian utama untuk pengkajian pasien.' : 'Isian tambahan sesuai kebutuhan pasien.'}
+                        {mode === 'ringkas' ? 'Isian utama untuk pengkajian pada kunjungan ini.' : 'Rincian pengkajian yang dapat dilengkapi sesuai kondisi pasien.'}
                     </p>
                 </div>
                 <TabsContent id="screening-assessment" value={mode} className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400">
@@ -369,52 +420,51 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                     </div>
                 </>)}
 
-                {section('history', '2. Alergi dan riwayat kesehatan', 'Tanyakan kembali alergi, penyakit yang pernah dialami, dan obat yang digunakan.', <>
+                {section('history', '2. Riwayat kesehatan umum', 'Konfirmasi alergi, riwayat penyakit, kondisi khusus, dan obat pasien dalam satu bagian.', <>
                     <div className="space-y-4">
-                        {single('status_alergi', 'Status riwayat alergi', historyOptions)}
-                        {form.data.status_alergi === 'ada' && <div className="grid min-w-0 gap-4">
-                            {text('riwayat_alergi', 'Rincian alergi obat / makanan / lainnya', true, true)}
-                            {text('alergi_reaksi', 'Reaksi alergi', false, true)}
-                            {text('alergi_jenis', 'Jenis / pemicu alergi')}
-                        </div>}
+                        {text('alergi_verifikasi', 'Perbedaan alergi yang perlu diverifikasi', false, true)}{single('status_alergi', 'Konfirmasi alergi pada kunjungan ini', [['ada', 'Ada alergi'], ['tidak_ada', 'Tidak ada alergi'], ['belum_diketahui', 'Belum diketahui'], ['belum_dikonfirmasi', 'Belum dapat dikonfirmasi']])}
+                        {form.data.status_alergi === 'ada' && allergyDetails}
                     </div>
                     <div className="space-y-4 border-t border-neutral-100 pt-5">
-                        {single('status_riwayat_penyakit', 'Status riwayat penyakit sistemik', historyOptions)}
-                        {form.data.status_riwayat_penyakit === 'ada' && <div className="grid min-w-0 gap-4">
+                        {single('status_riwayat_penyakit', 'Riwayat penyakit yang pernah atau sedang dialami', historyOptions)}
+                        {isDental && dentalDiseaseDetails}
+                {!isDental && form.data.status_riwayat_penyakit === 'ada' && <div className="grid min-w-0 gap-4">
                             {text('riwayat_penyakit', 'Riwayat penyakit sistemik', true, true)}
                             {text('penyakit_nama', 'Nama penyakit spesifik')}
                             {text('penyakit_keterangan', 'Keterangan riwayat penyakit', false, true)}
                         </div>}
                         {!isDental && text('riwayat_obat', 'Obat rutin / sedang digunakan', false, true)}
                     </div>
-                    {!isDental && historyConfirmation}
+                    {historyConfirmation}
+                    {text('riwayat_kondisi_khusus', 'Kondisi khusus, operasi, rawat inap atau kehamilan yang relevan', false, true)}
+            {isDental && dentalHealth}
                 </>)}
 
                 {section('vitals', '3. Tanda vital', 'Catat tekanan darah, nadi, suhu, dan frekuensi napas yang sudah diukur.', <>
-                    <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
                         {bloodPressure()}
                         {numeric('nadi', 'Denyut nadi', 'kali/menit', true)}
                         {numeric('suhu', 'Suhu tubuh', '°C', true, '0.1', 45)}
                         {numeric('respirasi', 'Frekuensi napas', 'kali/menit', true, '1', 100)}
-                        {numeric('spo2', 'Saturasi oksigen', '%', false, '1', 100)}
+                        {numeric('spo2', 'SpO₂', '%', false, '1', 100, true)}
                     </div>
                 </>)}
 
                 {section('anthropometry', '4. Berat, tinggi, dan lingkar perut', 'Isi bila pengukuran tersedia. Indeks massa tubuh dihitung otomatis.', anthropometry)}
 
-                {isDental && section('dental', '5. Pengkajian khusus gigi & mulut', 'Keluhan gigi dan mulut, risiko medis, serta informasi untuk dokter gigi.', dentalAssessment)}
+                {isDental && section('dental', '5. Riwayat kesehatan gigi dan observasi mulut', 'Catat keluhan pasien dan temuan yang Anda amati. Penilaian klinis dilanjutkan oleh dokter gigi.', dentalAssessment)}
 
-                {section('triage', `${isDental ? '6' : '5'}. Pemeriksaan kondisi awal`, 'Catat temuan yang perlu segera diketahui dokter.', <>
+                {!isDental && section('triage', `${isDental ? '6' : '5'}. Pemeriksaan kondisi awal`, 'Catat temuan yang perlu segera diketahui dokter.', <>
                     <p className="text-xs leading-5 text-neutral-500">Biarkan kosong bila belum dinilai. Jawaban kosong tidak dianggap normal.</p>
                     <div className="grid min-w-0 items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                        {triageFields.map((field) => <div key={field.name} className="min-w-0 rounded-lg border border-neutral-200 bg-neutral-50/50 p-3">{single(field.name, field.label, field.options, false)}</div>)}
+                        {triageFields.map((field) => <div key={field.name} className="min-w-0 rounded-lg border border-neutral-200 bg-surface p-3">{single(field.name, field.label, field.options, false)}</div>)}
                         <div className="min-w-0 xl:col-span-2">{text('catatan_triase', 'Catatan untuk dokter', false, true, true)}</div>
                     </div>
                     {quickNormalTriage('triage-quick-normal-full')}
-                    {triage && <div role="status" className={`rounded-lg border p-3 text-sm ${triage === 'merah' ? 'border-red-200 bg-red-50 text-red-900' : triage === 'kuning' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}><strong>Kebutuhan respons awal: {responseLabel}.</strong> {triage === 'merah' ? 'Segera hubungi dokter dan ikuti prosedur kegawatdaruratan klinik; jangan menunda pertolongan untuk melengkapi formulir.' : 'Gunakan hasil ini sebagai informasi awal dan tetap ikuti penilaian klinis serta prosedur klinik.'}</div>}
+                    {triage && <div role="status" className={`rounded-lg border p-3 text-sm ${triage === 'merah' ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300' : triage === 'kuning' ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300' : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'}`}><strong>Kebutuhan respons awal: {responseLabel}.</strong> {triage === 'merah' ? 'Segera hubungi dokter dan ikuti prosedur kegawatdaruratan klinik; jangan menunda pertolongan untuk melengkapi formulir.' : 'Gunakan hasil ini sebagai informasi awal dan tetap ikuti penilaian klinis serta prosedur klinik.'}</div>}
                 </>)}
 
-                {showOptional('skala_nyeri', 'skrining_gizi', 'riwayat_penyakit_keluarga', 'pemeriksaan_fisik') && section('additional', `${isDental ? '7' : '6'}. Pengkajian tambahan`, 'Opsional sesuai kebutuhan pasien. Jawaban kosong berarti belum dikaji, bukan hasil normal.', <div className="grid gap-4 md:grid-cols-2">{!isDental && painScale}<Field error={form.errors.skrining_gizi} htmlFor="skrining_gizi" label="Hasil pengkajian gizi"><Select id="skrining_gizi" value={form.data.skrining_gizi} onChange={(event) => update('skrining_gizi', event.target.value)}><option value="">Belum dikaji</option><option value="normal">Normal</option><option value="kurang">Gizi kurang</option><option value="lebih">Gizi lebih</option></Select></Field>{text('riwayat_penyakit_keluarga', 'Riwayat penyakit keluarga', false, true)}{text('pemeriksaan_fisik', 'Observasi / catatan pemeriksaan awal', false, true)}</div>)}
+                {showOptional('skala_nyeri', 'skrining_gizi', 'riwayat_penyakit_keluarga', 'pemeriksaan_fisik') && section('additional', '6. Pengkajian tambahan', 'Opsional sesuai kebutuhan pasien. Jawaban kosong berarti belum dikaji, bukan hasil normal.', <div className="grid gap-4 md:grid-cols-2">{!isDental && painScale}<Field error={form.errors.skrining_gizi} htmlFor="skrining_gizi" label="Hasil pengkajian gizi"><Select id="skrining_gizi" value={form.data.skrining_gizi} onChange={(event) => update('skrining_gizi', event.target.value)}><option value="">Belum dikaji</option><option value="normal">Normal</option><option value="kurang">Gizi kurang</option><option value="lebih">Gizi lebih</option></Select></Field>{text('riwayat_penyakit_keluarga', 'Riwayat penyakit keluarga', false, true)}{text('pemeriksaan_fisik', 'Observasi / catatan pemeriksaan awal', false, true)}</div>)}
                 </>}
                 </fieldset>
                 </TabsContent>
@@ -452,7 +502,7 @@ function ProfileDetail({ label, children }: { label: string; children: ReactNode
 }
 
 function AssessmentSection({ id, title, description, open, onToggle, children }: { id: string; title: string; description: string; open: boolean; onToggle: () => void; children: ReactNode }) {
-    return <details className="min-w-0 rounded-xl border border-neutral-200 bg-surface" open={open} id={`section-${id}`}>
+    return <details className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-surface" open={open} id={`section-${id}`}>
         <summary
             className="flex cursor-pointer list-none items-start justify-between gap-4 rounded-xl p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 sm:px-5 [&::-webkit-details-marker]:hidden"
             onClick={(event) => { event.preventDefault(); onToggle(); }}

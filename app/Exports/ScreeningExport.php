@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Nakes;
+use App\Models\Screening;
 use App\ScreeningReportQuery;
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
@@ -27,7 +28,7 @@ class ScreeningExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             'Status Pengkajian', 'Waktu Terkirim', 'Keluhan', 'Triase', 'Prioritas',
             'Sistole (mmHg)', 'Diastole (mmHg)', 'Nadi (/menit)', 'Suhu (C)', 'SpO2 (%)',
             'Respirasi (/menit)', 'Berat Badan (kg)', 'Tinggi Badan (cm)', 'Riwayat Alergi',
-            'Riwayat Penyakit', 'Riwayat Obat', 'Skala Nyeri',
+            'Riwayat Penyakit', 'Riwayat Obat', 'Skala Nyeri', 'Catatan keselamatan dan pengkajian tambahan',
         ], $this->nurse?->poliklinik?->jenis === 'gigi' || $this->nurse === null ? ['Lokasi Nyeri Gigi', 'Durasi Keluhan Gigi', 'Catatan Medis Gigi'] : []);
     }
 
@@ -44,6 +45,8 @@ class ScreeningExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             $screening->spo2, $screening->respirasi, $screening->berat_badan, $screening->tinggi_badan,
             $screening->riwayat_alergi, $screening->riwayat_penyakit, $screening->riwayat_obat, $screening->skala_nyeri,
         ];
+        $notes = array_filter(array_slice($screening->handoverSummary(), 0, count(Screening::SAFETY_FIELDS) + 8, true), fn ($value): bool => filled($value));
+        $values[] = implode('; ', array_map(fn ($label, $value): string => $label.': '.$value, array_keys($notes), array_values($notes)));
         if ($visit->poliklinik?->jenis === 'gigi' || $this->nurse === null) {
             array_push($values, $screening->lokasi_nyeri_gigi, $screening->durasi_keluhan_gigi, $screening->catatan_medis_gigi);
         }

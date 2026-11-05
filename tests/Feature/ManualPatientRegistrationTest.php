@@ -59,7 +59,7 @@ class ManualPatientRegistrationTest extends TestCase
         $prescriptionItem = $visit->fresh()->resep->resepObat->sole();
         $this->assertSame('Obat uji', $prescriptionItem->nama_obat);
         $this->assertSame('tablet', $prescriptionItem->satuan);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password'])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password'])->assertSessionHasNoErrors();
         $this->assertSame('farmasi', $visit->fresh()->status);
         $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien))->assertInertia(fn (Assert $page) => $page
             ->where('patient.birthPlace', 'Bandung')->where('patient.address', 'Jl. Merdeka')
