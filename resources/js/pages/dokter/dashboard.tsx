@@ -22,7 +22,7 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
 
     return (
         <>
-            <Head title="Dashboard Dokter" />
+            <Head title="Dasbor dokter" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">{practiceLabel}</p>

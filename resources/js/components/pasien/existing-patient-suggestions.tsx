@@ -31,7 +31,7 @@ export function ExistingPatientSuggestions({ query }: { query: string }) {
         <p className="mt-1 text-xs text-neutral-600">Periksa identitas berikut sebelum membuat nomor rekam medis baru.</p>
         <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto">
             {patients.map((patient) => <li key={patient.id} className="flex flex-wrap items-center justify-between gap-2">
-                <span className="min-w-0 text-sm">{patient.nama} <span className="font-mono text-xs text-neutral-500">{patient.no_rm}</span></span>
+                <span className="min-w-0 text-sm">{patient.nama} <span className="font-sans tabular-nums text-xs text-neutral-500">{patient.no_rm}</span></span>
                 <Button asChild size="sm" variant="secondary"><Link href={`/pendaftaran/pendaftaran-baru?tab=registered&pasien_id=${patient.id}`}>Gunakan pasien</Link></Button>
             </li>)}
         </ul>

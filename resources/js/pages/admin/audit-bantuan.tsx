@@ -65,7 +65,7 @@ export default function AssistanceAuditPage({ filters, actions, events }: Props)
                             <TableCell className="font-medium">{event.label}</TableCell>
                             <TableCell>{event.result ?? 'Berhasil'}</TableCell>
                             <TableCell>{event.actor}</TableCell>
-                            <TableCell className="font-mono text-xs">{event.visitNumber ?? 'Tidak terhubung'}</TableCell>
+                            <TableCell className="font-sans tabular-nums text-xs">{event.visitNumber ?? 'Tidak terhubung'}</TableCell>
                             <TableCell>{event.clinic ?? '—'}</TableCell>
                             <TableCell className="max-w-xs whitespace-normal">{event.reason ?? 'Tidak dicatat pada event ini'}</TableCell>
                         </TableRow>) : <TableRow><TableCell colSpan={7}><Empty description="Coba ubah rentang tanggal atau jenis kegiatan." icon={<ClipboardCheck className="size-5" />} size="compact" title="Belum ada riwayat bantuan pada filter ini." /></TableCell></TableRow>}</TableBody>

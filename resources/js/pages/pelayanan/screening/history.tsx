@@ -90,7 +90,7 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                             <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Petugas</TableHead><TableHead className="text-center">Prioritas</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
                             <TableBody>
                                 {screenings.data.length ? screenings.data.map((record) => <TableRow key={record.id}>
-                                    <TableCell className="font-mono text-xs">{record.visitNumber}</TableCell>
+                                    <TableCell className="font-sans tabular-nums text-xs">{record.visitNumber}</TableCell>
                                     <TableCell>{record.date}</TableCell>
                                     <TableCell><p className="font-medium text-neutral-900">{record.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{record.medicalRecordNumber}</p></TableCell>
                                     <TableCell>{record.clinic}</TableCell>

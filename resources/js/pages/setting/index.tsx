@@ -51,7 +51,7 @@ export default function ClinicSettings({ setting }: Props) {
 
     return (
         <>
-            <Head title="Pengaturan Klinik" />
+            <Head title="Pengaturan klinik" />
             <div className="mx-auto max-w-4xl space-y-6">
                 <div><p className="text-sm font-medium text-neutral-700">Konfigurasi aplikasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Profil klinik</h2><p className="mt-1 text-sm text-neutral-500">Identitas ini digunakan di dokumen dan alur pelayanan klinik.</p></div>
                 <Card><CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Building2 className="size-5" /></span><div><CardTitle>Identitas dan profil klinik</CardTitle><CardDescription className="mt-1">Informasi untuk kop surat, resep, dan kuitansi.</CardDescription></div></div></CardHeader><CardContent><form className="space-y-5" onSubmit={saveProfile}>

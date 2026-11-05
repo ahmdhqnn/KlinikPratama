@@ -31,7 +31,7 @@ export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
 
     return (
         <>
-            <Head title="Laporan Top Diagnosa" />
+            <Head title="Laporan diagnosis terbanyak" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Analisis pelayanan</p>
@@ -59,7 +59,7 @@ export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
                                     {diagnoses.data.length > 0 ? diagnoses.data.map((diagnosis, index) => (
                                         <TableRow key={`${diagnosis.code}-${diagnosis.name}`}>
                                             <TableCell><span className="inline-flex size-8 items-center justify-center rounded-lg bg-neutral-100 text-xs font-semibold text-neutral-600">{(diagnoses.from ?? 1) + index}</span></TableCell>
-                                            <TableCell className="font-mono text-xs font-semibold text-neutral-700">{diagnosis.code || 'Manual'}</TableCell>
+                                            <TableCell className="font-sans tabular-nums text-xs font-semibold text-neutral-700">{diagnosis.code || 'Manual'}</TableCell>
                                             <TableCell className="font-medium text-neutral-800">{diagnosis.name}</TableCell>
                                             <TableCell className="text-center font-semibold tabular-nums text-neutral-900">{new Intl.NumberFormat('id-ID').format(diagnosis.count)}</TableCell>
                                         </TableRow>

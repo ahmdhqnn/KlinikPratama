@@ -26,7 +26,7 @@ export default function PharmacyDashboard({ stats, recentVisits, followUp }: Pro
 
     return (
         <>
-            <Head title="Dashboard Farmasi" />
+            <Head title="Dasbor farmasi" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Operasional farmasi</p>

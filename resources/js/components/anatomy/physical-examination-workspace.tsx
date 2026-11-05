@@ -170,7 +170,7 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
     }
 
     return <Card>
-        <CardHeader><CardTitle>Diagram Anatomi & Lokasi Keluhan Tubuh (Body Map)</CardTitle><CardDescription>Pilih cara pencatatan pemeriksaan sesuai kebutuhan.</CardDescription></CardHeader>
+        <CardHeader><CardTitle>Diagram anatomi dan lokasi keluhan</CardTitle><CardDescription>Pilih cara pencatatan pemeriksaan sesuai kebutuhan.</CardDescription></CardHeader>
         <CardContent className="space-y-5">
             {errors.body_map && <p role="alert" className="text-sm text-red-600">{errors.body_map}</p>}
             <Tabs value={tab} onValueChange={(value) => changeTab(value as 'interactive' | 'manual')}>

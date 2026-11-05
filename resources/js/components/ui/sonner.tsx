@@ -20,6 +20,7 @@ export function Toaster({ toastOptions, ...props }: ToasterProps) {
             richColors
             {...props}
             theme={theme}
+            style={{ ...props.style, fontFamily: 'var(--font-sans)' }}
             toastOptions={{
                 ...toastOptions,
                 classNames: {

@@ -200,7 +200,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
                         <CardHeader>
                             <div className="flex items-start gap-3">
                                 <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span>
-                                <div><CardTitle>Data kunjungan baru</CardTitle><CardDescription className="mt-1">Pasien yang sama dapat memiliki banyak kunjungan pada tanggal yang berbeda.</CardDescription></div>
+                                <div><CardTitle>Data kunjungan baru</CardTitle><CardDescription className="mt-1">Daftarkan kunjungan baru untuk pasien yang telah terdaftar.</CardDescription></div>
                             </div>
                         </CardHeader>
                         <CardContent>

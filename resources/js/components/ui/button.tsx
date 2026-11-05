@@ -11,8 +11,8 @@ export const buttonVariants = cva(
                 default: 'bg-neutral-900 text-neutral-50 shadow-sm hover:bg-neutral-800',
                 secondary: 'border border-neutral-200 bg-surface text-neutral-700 shadow-sm hover:bg-neutral-50',
                 ghost: 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900',
-                destructive: 'bg-red-600 text-on-inverse shadow-sm hover:bg-red-700 dark:hover:bg-red-600/90',
-                destructiveOutline: 'border border-red-200 bg-surface text-red-700 shadow-sm hover:bg-red-50 focus-visible:ring-red-500',
+                destructive: 'border border-red-200 bg-surface text-red-700 shadow-sm hover:bg-red-50 focus-visible:ring-red-500 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/40',
+                destructiveOutline: 'border border-red-200 bg-surface text-red-700 shadow-sm hover:bg-red-50 focus-visible:ring-red-500 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/40',
                 link: 'text-neutral-700 underline-offset-4 hover:underline',
             },
             size: {

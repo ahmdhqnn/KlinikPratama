@@ -49,7 +49,7 @@ export default function IssueLetter({ visit, templates, today }: Props) {
             </Card>
 
             <Card>
-                <CardHeader><CardTitle>Isi dokumen</CardTitle><CardDescription>Nomor otomatis untuk semua surat. Urutan terus berjalan tanpa reset; nomor arsip tidak digunakan ulang.</CardDescription></CardHeader>
+                <CardHeader><CardTitle>Isi dokumen</CardTitle><CardDescription>Nomor surat dibuat otomatis dan berurutan. Nomor yang telah diterbitkan tetap tersimpan dan tidak digunakan kembali.</CardDescription></CardHeader>
                 <CardContent>
                     <form className="space-y-5" onSubmit={submit}>
                         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

@@ -27,7 +27,7 @@ interface Props {
 export default function RegistrationDashboard({ stats, followUp, today, schedules, visits }: Props) {
     return (
         <>
-            <Head title="Dashboard Pendaftaran" />
+            <Head title="Dasbor pendaftaran" />
             <div className="space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>
@@ -81,7 +81,7 @@ export default function RegistrationDashboard({ stats, followUp, today, schedule
                     <CardContent className="flex-1 overflow-x-auto p-0">
                         <Table className="min-w-[980px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader>
                             <TableBody>{visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}>
-                                <TableCell className="font-mono text-xs">{visit.number}</TableCell>
+                                <TableCell className="font-sans tabular-nums text-xs">{visit.number}</TableCell>
                                 <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                 <TableCell><p className="font-medium">{visit.patient}</p><p className="text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                 <TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell>

@@ -1,3 +1,4 @@
+import { printWithFonts } from '@/lib/print-typography';
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ interface Record { number: string; date: string; patient: string; medicalRecordN
 
 export default function DirectDispensingPrint({ record, appName }: { record: Record; appName: string }) {
     return <><Head title={`Bukti pemberian obat ${record.number}`} /><div className="mx-auto max-w-3xl space-y-5">
-        <div className="flex flex-wrap justify-between gap-3 print:hidden"><Button asChild variant="secondary"><Link href="/farmasi/pemberian-obat"><ArrowLeft className="size-4" />Kembali ke obat langsung</Link></Button><Button onClick={() => window.print()}><Printer className="size-4" />Cetak bukti</Button></div>
+        <div className="flex flex-wrap justify-between gap-3 print:hidden"><Button asChild variant="secondary"><Link href="/farmasi/pemberian-obat"><ArrowLeft className="size-4" />Kembali ke obat langsung</Link></Button><Button onClick={() => void printWithFonts()}><Printer className="size-4" />Cetak bukti</Button></div>
         <Card className="print:border-0 print:shadow-none"><CardHeader className="border-b border-neutral-100 text-center"><CardTitle>{appName}</CardTitle><CardDescription>Bukti pemberian obat langsung · {record.number}</CardDescription></CardHeader><CardContent className="space-y-6 p-6 sm:p-8">
             <div className="grid gap-4 sm:grid-cols-2"><Info label="Tanggal penyerahan" value={record.date} /><Info label="Pasien" value={`${record.patient} · ${record.medicalRecordNumber}`} /><Info label="Obat" value={record.medicine} /><Info label="Jumlah" value={`${record.quantity} ${record.unit}`} /><Info label="Aturan pakai" value={record.instruction} /><Info label="Petugas farmasi" value={record.pharmacist} /></div>
             <div className="rounded-xl border border-neutral-200 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Alasan pemberian langsung</p><p className="mt-2 whitespace-pre-wrap text-sm">{record.basis}</p></div>

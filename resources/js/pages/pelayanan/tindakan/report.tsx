@@ -1,3 +1,4 @@
+import { printWithFonts } from '@/lib/print-typography';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { ActionButton } from '@/components/ui/action-button';
@@ -60,7 +61,7 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
         <div className="space-y-6">
             {printMode ? <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
                 <Button asChild variant="secondary"><Link href={`${baseUrl}${queryString(filters)}`}><ArrowLeft className="size-4" />Kembali ke laporan tindakan</Link></Button>
-                <Button onClick={() => window.print()} type="button"><Printer className="size-4" />Cetak laporan</Button>
+                <Button onClick={() => void printWithFonts()} type="button"><Printer className="size-4" />Cetak laporan</Button>
             </div> : <div>
                 <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan · {clinicName}</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{title}</h2>
@@ -98,7 +99,7 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
                         <Table className={printMode ? 'min-w-[1120px] print:min-w-0' : 'min-w-[980px]'}>
                             <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Tindakan</TableHead>{printMode && <TableHead>Instruksi dan hasil</TableHead>}<TableHead>Pelaksana</TableHead><TableHead>Status</TableHead>{!printMode && <TableHead className="print:hidden">Aksi</TableHead>}</tr></TableHeader>
                             <TableBody>{procedures.data.length ? procedures.data.map((procedure) => <TableRow className="align-top" key={procedure.id}>
-                                <TableCell className="whitespace-nowrap font-mono text-xs text-neutral-600">{procedure.visitNumber}</TableCell>
+                                <TableCell className="whitespace-nowrap font-sans tabular-nums text-xs text-neutral-600">{procedure.visitNumber}</TableCell>
                                 <TableCell className="whitespace-nowrap text-neutral-600">{procedure.date}</TableCell>
                                 <TableCell className="min-w-40"><p className="font-medium text-neutral-900">{procedure.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{procedure.medicalRecordNumber}</p><p className="mt-1 text-xs text-neutral-500">{procedure.clinic} · {procedure.doctor}</p></TableCell>
                                 <TableCell className={printMode ? 'min-w-44' : 'max-w-64'}><p className={printMode ? 'font-medium text-neutral-900' : 'truncate font-medium text-neutral-900'} title={procedure.name}>{procedure.name}</p>{procedure.code && <p className="mt-1 text-xs text-neutral-500">ICD-9-CM {procedure.code}</p>}<p className="mt-1 text-xs text-neutral-500">Jumlah: {procedure.quantity}{procedure.tooth ? ` · Gigi ${procedure.tooth}` : ''}</p></TableCell>

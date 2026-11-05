@@ -35,7 +35,7 @@ export default function LoginPage() {
                         </span>
                         <span>
                             <span className="block text-base font-semibold">Klinik Pratama</span>
-                            <span className="block text-xs text-on-inverse/70">Sistem Rekam Medis Elektronik</span>
+                            <span className="block text-xs text-on-inverse/70">Sistem rekam medis elektronik</span>
                         </span>
                     </div>
                     <div className="relative max-w-xl pb-10">
@@ -44,10 +44,10 @@ export default function LoginPage() {
                             Akses aman untuk tim klinik
                         </div>
                         <h1 className="text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">
-                            Pelayanan klinik yang terhubung, dimulai dari satu tempat.
+                            Pelayanan klinik terintegrasi dalam satu sistem.
                         </h1>
                         <p className="mt-5 max-w-lg text-base leading-7 text-on-inverse/70">
-                            Kelola pendaftaran, pemeriksaan, farmasi, dan administrasi pasien dengan alur kerja yang lebih jelas.
+                            Kelola pendaftaran, pengkajian awal, pemeriksaan, farmasi, dan administrasi pasien dalam alur pelayanan yang terhubung.
                         </p>
                         <div className="mt-10 flex items-center gap-3 text-sm text-on-inverse/70">
                             <span className="flex size-9 items-center justify-center rounded-full border border-on-inverse/15 bg-on-inverse/5">
@@ -93,7 +93,7 @@ export default function LoginPage() {
                                         </div>
                                     </Field>
 
-                                    <Field error={form.errors.password} htmlFor="password" label="Password">
+                                    <Field error={form.errors.password} htmlFor="password" label="Kata sandi">
                                         <div className="relative">
                                             <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
                                             <Input

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
@@ -442,7 +442,7 @@ test('dashboard summaries and day bars navigate to their related menus', async (
         ['/pelayanan/screening', 'Pengkajian awal'],
         ['/pelayanan/tindakan-perawat', 'Tindakan perawat'],
         ['/pendaftaran/kunjungan-per-poli', 'Kunjungan poli'],
-        ['/pendaftaran/database-pasien', 'Database pasien'],
+        ['/pendaftaran/database-pasien', 'Data pasien'],
     ]) {
         assert.match(nurseDashboard, new RegExp(`href="${href}"[\\s\\S]*?${label}`));
     }
@@ -1126,10 +1126,10 @@ test('screening print returns to the nurse assessment queue and follows the shar
     assert.match(html, /href="\/pelayanan\/screening"[^>]*>[\s\S]*?Kembali ke pengkajian awal/);
     assert.match(html, /Cetak dokumen/);
     assert.match(html, /Klinik Uji/);
-    assert.match(html, /Pengkajian Awal Perawat &amp; Tanda-Tanda Vital/);
+    assert.match(html, /Pengkajian awal perawat &amp; tanda vital/);
     assert.match(html, /Demam sejak kemarin/);
     assert.doesNotMatch(html, /Pengkajian saya/);
-    assert.doesNotMatch(html, /Pengkajian Khusus Gigi dan Mulut/);
+    assert.doesNotMatch(html, /Pengkajian khusus gigi dan mulut/);
 });
 
 function examinationProps(clinicType = 'gigi', overrides = {}) {
@@ -1174,7 +1174,7 @@ test('dental lesion details remain visible with the saved findings and in the cl
     assert.match(html, /id="dental-detail-pulpal"/);
     assert.match(html, /id="dental-detail-assessment"/);
     assert.match(html, /ICDAS 5 - Aktif - Dentin/);
-    assert.match(html, /Odontogram Kunjungan \(Peta Gigi FDI\)/);
+    assert.match(html, /Odontogram kunjungan \(peta gigi FDI\)/);
     assert.match(html, /Pemeriksaan intraoral/);
 });
 
@@ -1188,7 +1188,7 @@ test('dental examination places the FDI entry before the findings table within i
     assert.match(panel, /aria-label="Batalkan temuan gigi 46 permukaan O"/);
     assert.match(html, /aria-selected="true"[^>]*data-value="odontogram"/);
     assert.match(html, /Pemeriksaan &amp; odontogram/);
-    assert.doesNotMatch(html, /Diagram Anatomi &amp; Lokasi Keluhan Tubuh/);
+    assert.doesNotMatch(html, /Diagram anatomi dan lokasi keluhan/);
     assert.doesNotMatch(html, /id="riwayat-alergi-dokter"[^>]*class="[^"]*border-red|border-red-300[^>]*id="riwayat-alergi-dokter"/);
     assert.doesNotMatch(html, /Tinjauan sebelum selesai/);
     assert.doesNotMatch(html, /Isian belum disimpan/);
@@ -1197,9 +1197,9 @@ test('dental examination places the FDI entry before the findings table within i
 test('general examination keeps the body map with physical examination and omits the dental workflow', async () => {
     const html = await renderPage('pelayanan/pemeriksaan/show', examinationProps('umum'));
     assert.match(html, /aria-selected="true"[^>]*data-value="anamnesis"/);
-    assert.match(html, /Diagram Anatomi &amp; Lokasi Keluhan Tubuh/);
-    assert.match(examinationPanel(html, 'pemeriksaan'), /Diagram Anatomi &amp; Lokasi Keluhan Tubuh/);
-    assert.doesNotMatch(examinationPanel(html, 'anamnesis'), /Diagram Anatomi|id="pemeriksaan_fisik"/);
+    assert.match(html, /Diagram anatomi dan lokasi keluhan/);
+    assert.match(examinationPanel(html, 'pemeriksaan'), /Diagram anatomi dan lokasi keluhan/);
+    assert.doesNotMatch(examinationPanel(html, 'anamnesis'), /Diagram anatomi|id="pemeriksaan_fisik"/);
     assert.doesNotMatch(html, /data-value="odontogram"|id="dental-tooth"|id="extraoral"/);
 });
 
@@ -1338,7 +1338,7 @@ for (const clinicType of ['gigi', 'umum']) {
             assert.match(physical, /id="dental-tooth"/);
             assert.ok(physical.indexOf('id="dental-tooth"') < physical.indexOf('Tabel temuan odontogram'));
         } else {
-            assert.match(physical, /Diagram Anatomi/);
+            assert.match(physical, /Diagram anatomi/);
             assert.match(physical, /aria-label="Lokasi pemeriksaan"[^>]*role="img"[^>]*><svg[^>]*lucide-map-pin/);
             assert.doesNotMatch(physical, /id="extraoral"|id="dental-tooth"/);
         }
@@ -1370,10 +1370,10 @@ async function renderRoleNavigation(role, url, clinicType = null) {
 }
 
 for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
-    ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Operasional', 'Data Master', 'Pengelolaan', 'Laporan', 'Akun'], 18],
+    ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Operasional', 'Data master', 'Pengelolaan', 'Laporan', 'Akun'], 18],
     ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 9],
-    ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 10],
-    ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi Layanan', 'Laporan', 'Akun'], 10],
+    ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
+    ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
     ['dokter', 'umum', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 13],
     ['dokter', 'gigi', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 13],
     ['farmasi', null, '/farmasi/dashboard', '/pelayanan/farmasi', ['Ringkasan', 'Operasional', 'Pengelolaan obat', 'Laporan', 'Akun'], 11],
@@ -2572,7 +2572,7 @@ for (const role of ['admin', 'dokter', 'perawat', 'farmasi', 'pendaftaran', 'man
     test(`${role} navigation hides unavailable modules`, async () => {
         const html = await renderRoleNavigation(role, '/');
         assert.doesNotMatch(html, /href="\/(?:master\/(?:laboratorium|depo-obat|alkes|tindakan)|laporan\/laboratorium)"/);
-        assert.doesNotMatch(html, /aria-label="(?:Laboratorium|Laporan Laboratorium|Depo obat|Alat kesehatan)"/);
+        assert.doesNotMatch(html, /aria-label="(?:Laboratorium|Laporan laboratorium|Depo obat|Alat kesehatan)"/);
     });
 }
 
@@ -2955,7 +2955,7 @@ test('dental selection rows align and clinical tests share a compact two-column 
     const panel = htmlElementById(html, 'dental-action-panel');
     assert.match(panel, /grid-rows-subgrid/);
     assert.match(panel, /aria-label="Gigi terpilih"/);
-    assert.match(panel, /bg-neutral-900 text-neutral-50 font-mono text-xl/);
+    assert.match(panel, /bg-neutral-900 text-neutral-50 font-sans tabular-nums text-xl/);
     assert.match(panel, /grid min-w-0 items-start gap-4 sm:grid-cols-2/);
     const handover = htmlElementById(html, 'nurse-assessment-summary');
     assert.doesNotMatch(handover, /overflow-y-auto|max-h-|sticky/);
@@ -2997,7 +2997,7 @@ for (const clinicType of ['umum', 'gigi']) {
 
 test('physician sections use the dental examination title and shared centered tables', async () => {
     const dental = await renderPage('pelayanan/pemeriksaan/show', examinationProps());
-    assert.match(dental, /Pemeriksaan Fisik &amp; Intraoral Dokter/);
+    assert.match(dental, /Pemeriksaan fisik &amp; intraoral dokter/);
     const { DentalExaminationSummary, GeneralExaminationSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
     const summary = renderToString(createElement(DentalExaminationSummary, { anamnesis: '', findings: [{ toothFdi: '46', surface: 'O', findingCode: 'caries', notes: 'Kavitas' }], options: { surfaces: { O: 'Oklusal' }, findings: { caries: 'Karies' } }, hasUnsavedChanges: false, onReview() {} }));
     assert.match(summary, /px-5 py-4 text-center align-middle/);
@@ -3191,4 +3191,80 @@ test('oral observation starts unassessed and disease and medication details are 
     for (const key of ['lidah', 'pipi', 'bibir', 'palatum', 'gusi']) assert.match(html, new RegExp('id="mukosa-' + key + '"'));
     assert.doesNotMatch(html, /id="risiko_medis_gigi-diabetes"|id="dental_medication_categories-antidiabetic"|id="kelainan_mukosa"/);
     for (const key of ['teh_kopi', 'alkohol', 'soda', 'merokok', 'satu_sisi', 'sirih_tembakau', 'benda_keras', 'bruksisme']) assert.match(html, new RegExp('aria-checked="false"[^>]*id="kebiasaan_gigi_opsi-' + key + '"'));
+});
+
+test('all application typography uses the shared Jakarta family, including standalone print documents', () => {
+    function sourceFiles(directory) {
+        return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+            const url = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory);
+            return entry.isDirectory() ? sourceFiles(url) : /\.(css|tsx?|php|svg)$/.test(entry.name) ? [url] : [];
+        });
+    }
+    const files = sourceFiles(new URL('../resources/', import.meta.url));
+    for (const file of files) {
+        const source = readFileSync(file, 'utf8');
+        assert.doesNotMatch(source, /Instrument Sans|Times New Roman|\bArial\b|ui-monospace|SFMono-Regular/, file.pathname);
+        if (/\.tsx?$/.test(file.pathname)) assert.doesNotMatch(source, /\bfont-(?:mono|serif|black)\b/, file.pathname);
+        for (const [, family] of source.matchAll(/font-family\s*:\s*([^;}\n]+)/g)) {
+            assert.match(family, /var\(--font-sans\)|Plus Jakarta Sans Variable/, `${file.pathname}: ${family}`);
+        }
+        if (/\.tsx$/.test(file.pathname)) assert.doesNotMatch(source, /window\.print\(\)|printWindow\.print\(\)/, file.pathname);
+    }
+});
+
+test('printing waits for both font loading and layout readiness before opening the print dialog', async () => {
+    const { printWithFonts } = await server.ssrLoadModule('/resources/js/lib/print-typography.ts');
+    const events = [];
+    let finishFonts;
+    let finishLayout;
+    const loading = new Promise((resolve) => { finishFonts = resolve; });
+    const ready = new Promise((resolve) => { finishLayout = resolve; });
+    const target = {
+        closed: false,
+        document: { fonts: { load: () => loading, ready } },
+        focus: () => events.push('focus'),
+        print: () => events.push('print'),
+    };
+
+    const printing = printWithFonts(target);
+    assert.deepEqual(events, []);
+    finishFonts([{}]);
+    await Promise.resolve();
+    assert.deepEqual(events, []);
+    finishLayout();
+    await printing;
+
+    assert.deepEqual(events, ['focus', 'print']);
+});
+
+for (const failure of ['unavailable', 'network']) {
+    test(`printing avoids fallback fonts when Jakarta is ${failure}`, async () => {
+        const { printWithFonts } = await server.ssrLoadModule('/resources/js/lib/print-typography.ts');
+        let printed = false;
+        const target = {
+            closed: false,
+            document: { fonts: { load: async () => { if (failure === 'network') throw new Error('Font request failed'); return []; }, ready: Promise.resolve() } },
+            focus: () => {},
+            print: () => { printed = true; },
+        };
+
+        await printWithFonts(target);
+
+        assert.equal(printed, false);
+    });
+}
+
+test('printing leaves an already closed label window alone', async () => {
+    const { printWithFonts } = await server.ssrLoadModule('/resources/js/lib/print-typography.ts');
+    const events = [];
+    const target = {
+        closed: true,
+        document: { fonts: { load: async () => [{}], ready: Promise.resolve() } },
+        focus: () => events.push('focus'),
+        print: () => events.push('print'),
+    };
+
+    await printWithFonts(target);
+
+    assert.deepEqual(events, []);
 });
