@@ -44,6 +44,229 @@ async function renderPage(path, props, url = '/pendaftaran') {
 
 const singlePage = { currentPage: 1, lastPage: 1, from: 1, to: 9, total: 9, previousUrl: null, nextUrl: null };
 const pageOf = (data) => ({ currentPage: 1, lastPage: 1, from: data.length ? 1 : null, to: data.length || null, total: data.length, previousUrl: null, nextUrl: null, data });
+
+test('general nursing assessment guides complaint follow-up and keeps unassessed systems explicit', async () => {
+    const { GeneralNursingAssessment } = await server.ssrLoadModule('/resources/js/components/kunjungan/general-assessment.tsx');
+    const html = renderToString(createElement(GeneralNursingAssessment, {
+        complaint: 'Batuk dan sesak', value: { systems: { respiratory: { status: 'positive', notes: '<script>unsafe</script>' } } }, onChange() {},
+    }));
+    assert.match(html, /Pertanyaan lanjutan sesuai keluhan/);
+    assert.match(html, /Respirasi: tanyakan awitan sesak/);
+    assert.match(htmlElementById(html, 'general_assessment.systems-genitourinary-not_assessed'), /aria-checked="true"/);
+    assert.match(htmlElementById(html, 'general_assessment.systems-respiratory-positive'), /aria-checked="true"/);
+    assert.match(html, /&lt;script&gt;unsafe&lt;\/script&gt;/);
+    assert.doesNotMatch(html, /<script>unsafe/);
+    assert.match(html, /Ringkasan sistem tubuh/);
+    assert.doesNotMatch(html, /Odontogram|Gusi|Mukosa/);
+});
+
+test('normal system shortcut preserves abnormal findings and resets only safe answers', async () => {
+    const { normalSystemsPatch, allSystemsNegative, hasProtectedSystemAnswer } = await server.ssrLoadModule('/resources/js/components/kunjungan/general-assessment.tsx');
+    const normal = normalSystemsPatch({}, true);
+    assert.equal(Object.keys(normal).length, 8);
+    assert.equal(allSystemsNegative(normal), true);
+    assert.ok(Object.values(normalSystemsPatch(normal, false)).every(answer => answer.status === 'not_assessed'));
+    for (const answer of [{ status: 'positive', notes: 'Batuk' }, { status: 'negative', notes: 'Perlu observasi' }, { status: 'not_relevant', notes: '' }]) {
+        const value = { respiratory: answer };
+        assert.equal(hasProtectedSystemAnswer(value), true);
+        assert.deepEqual(normalSystemsPatch(value, true), value);
+    }
+});
+
+test('associated symptom options preserve legacy narratives and serialize one doctor-readable answer', async () => {
+    const { parseSymptoms, formatSymptoms } = await server.ssrLoadModule('/resources/js/components/kunjungan/associated-symptoms.tsx');
+    assert.deepEqual(parseSymptoms('Mual; Demam; Sulit makan sejak pagi'), { selected: ['mual', 'demam', 'lainnya'], other: 'Sulit makan sejak pagi' });
+    assert.equal(formatSymptoms(['mual', 'lainnya'], 'Nyeri menelan'), 'Mual; Nyeri menelan');
+    assert.equal(parseSymptoms('Keluhan lama yang tetap disimpan').other, 'Keluhan lama yang tetap disimpan');
+    assert.equal(formatSymptoms(['tidak_ada'], ''), 'Tidak ada gejala penyerta');
+});
+
+test('dental progression exposes contextual detail without repeating dental pain fields', async () => {
+    const { GeneralNursingAssessment } = await server.ssrLoadModule('/resources/js/components/kunjungan/general-assessment.tsx');
+    const html = renderToString(createElement(GeneralNursingAssessment, { dental: true, section: 'complaint', complaint: '', value: { progression: 'memburuk' }, onChange() {} }));
+    assert.match(html, /id="general-progression_notes"/);
+    assert.match(html, /placeholder="Catat rincian perkembangan keluhan"/);
+    assert.doesNotMatch(html, /id="general-location"|id="general-triggers"|Masukkan data/);
+});
+
+test('doctor continues nurse system assessment with corrections instead of a second blank survey', async () => {
+    const { NursingSystemReview } = await server.ssrLoadModule('/resources/js/components/kunjungan/nursing-system-review.tsx');
+    const source = { respiratory: { status: 'positive', notes: 'Batuk berdahak' }, digestive: { status: 'negative', notes: '' } };
+    const html = renderToString(createElement(NursingSystemReview, { source, value: { ...source, respiratory: { status: 'positive', notes: 'Batuk tanpa sesak' } }, onChange() {} }));
+    assert.match(html, /Verifikasi pengkajian sistem perawat/);
+    assert.match(html, /Batuk berdahak/);
+    assert.match(html, /Batuk tanpa sesak/);
+    assert.match(html, /diperbarui dokter/);
+    assert.match(html, /Belum dikaji/);
+    assert.doesNotMatch(html, /Review of Systems|quick-normal/);
+});
+
+test('general doctor uses nurse continuity and one anatomy workspace through treatment', async () => {
+    const props = examinationProps('umum');
+    props.initialTab = 'pemeriksaan';
+    props.visit.examinationFormDefaults.reviewOfSystems = { respiratory: { status: 'positive', notes: 'Batuk berdahak' } };
+    props.visit.screening = { ...props.visit.screening, systemAssessment: props.visit.examinationFormDefaults.reviewOfSystems, summary: { 'Pengkajian sistem - Respirasi': 'Positif / abnormal — Batuk berdahak', 'Masalah / kebutuhan teridentifikasi': 'Perlu pemantauan' } };
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    const anamnesis = html.slice(html.indexOf('id="tab-anamnesis"'), html.indexOf('id="tab-diagnosa"'));
+    assert.doesNotMatch(anamnesis, /Verifikasi pengkajian sistem perawat/);
+    assert.doesNotMatch(html, /name="review_of_systems-respiratory"/);
+    assert.match(html, /Tutup acuan pemeriksaan dari perawat/);
+    assert.ok(html.indexOf('aria-label="Acuan pemeriksaan dari perawat"') < html.indexOf('Diagram anatomi dan lokasi keluhan'));
+    assert.match(html, /Diagram anatomi dan lokasi keluhan/);
+    assert.match(html, /Konteks klinis untuk tindakan/);
+    assert.match(html, /id="general-treatment-examination-summary"/);
+    assert.doesNotMatch(html, /id="supporting-laboratory"|id="supporting-radiology"|Pemeriksaan penunjang/);
+    assert.match(html, /Perlu pemantauan/);
+    assert.doesNotMatch(html, /id="social-history"|Review of Systems \(ROS\)|id="physical-system-/);
+});
+
+test('focused examination searches fine locations and records non-diagram areas without inventing map coordinates', async () => {
+    const { detailedExamLocations, emptyBodyFinding, matchesExamLocation, organLocations } = await server.ssrLoadModule('/resources/js/lib/body-examination.ts');
+    const { createRecordedFinding } = await server.ssrLoadModule('/resources/js/lib/body-map.ts');
+    assert.equal(matchesExamLocation(organLocations.find(item => item.id === 'bladder'), 'BAK'), true);
+    assert.equal(matchesExamLocation(organLocations.find(item => item.id === 'lungs'), 'batuk'), true);
+    assert.equal(matchesExamLocation(detailedExamLocations.find(item => item.id === 'detail:general'), 'demam'), true);
+    for (const id of ['detail:ear', 'detail:mouth', 'detail:genital', 'detail:finger', 'detail:general', 'detail:psychological']) {
+        const location = detailedExamLocations.find(item => item.id === id);
+        assert.ok(location, id);
+        const result = createRecordedFinding({ ...emptyBodyFinding, locationId: 'other', locationLabel: location.label, category: location.category, finding: 'Temuan sesuai pemeriksaan terarah' }, 'body', 'front', 'female', id);
+        assert.equal(result.finding.locationLabel, location.label);
+        assert.equal(result.finding.locationId, 'other');
+    }
+});
+
+test('clinical finding signs compose narrative without duplicating results or inventing normal findings', async () => {
+    const { setFindingSign } = await server.ssrLoadModule('/resources/js/components/anatomy/clinical-finding-signs.tsx');
+    let value = setFindingSign('', 'Nyeri tekan', '+');
+    value = setFindingSign(value, 'Defensif muskular', '-');
+    value = setFindingSign(value, 'Organomegali', '-');
+    assert.equal(value, 'Nyeri tekan (+), Defensif muskular (-), Organomegali (-)');
+    assert.equal(setFindingSign(value, 'Nyeri tekan', '-'), 'Nyeri tekan (-), Defensif muskular (-), Organomegali (-)');
+    assert.equal(setFindingSign('Tidak teraba massa abnormal', 'Mual', '+'), 'Tidak teraba massa abnormal, Mual (+)');
+    assert.equal(setFindingSign(value, '', '+'), value);
+});
+
+test('fine location selection switches to annotation while preserving clinical draft', async () => {
+    const { default: ts } = await import('typescript');
+    const { detailedExamLocations, bodyLocations, organLocations } = await server.ssrLoadModule('/resources/js/lib/body-examination.ts');
+    const source = readFileSync(new URL('../resources/js/components/anatomy/physical-examination-workspace.tsx', import.meta.url), 'utf8');
+    const ast = ts.createSourceFile('workspace.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const functions = [];
+    function collect(node) { if (ts.isFunctionDeclaration(node) && ['chooseLocation', 'locationChanged'].includes(node.name?.text)) functions.push(node.getText(ast)); ts.forEachChild(node, collect); }
+    collect(ast);
+    const changes = {};
+    const scope = { disabled: false, mode: 'organs', view: 'front', pending: true, draft: { locationId: 'stomach', finding: 'Nyeri tekan (+)', symptom: 'Mual (+)' }, detailedExamLocations, bodyLocations, organLocations,
+        setMode(value) { changes.mode = value; }, setView() {}, setError() {}, setTab(value) { changes.tab = value; }, setCompact(value) { changes.compact = value; }, onDraftChange(value) { changes.draft = value; }, confirmAction(message, action) { changes.confirmed = true; action(); } };
+    const code = ts.transpileModule(functions.join('\n'), { compilerOptions: { target: ts.ScriptTarget.ESNext } }).outputText;
+    runInNewContext(code + '; locationChanged("detail:epigastrium");', scope);
+    assert.equal(changes.tab, 'manual');
+    assert.equal(changes.compact, false);
+    assert.equal(changes.draft.locationId, 'other');
+    assert.equal(changes.draft.locationLabel, 'Ulu hati / epigastrium');
+    assert.equal(changes.draft.finding, 'Nyeri tekan (+)');
+    assert.equal(changes.draft.symptom, 'Mual (+)');
+    assert.equal(changes.confirmed, true);
+});
+
+test('annotation narrative uses recorded data and custom sign inputs start behind Lainnya', async () => {
+    const { annotationNarrative, emptyBodyFinding } = await server.ssrLoadModule('/resources/js/lib/body-examination.ts');
+    assert.equal(annotationNarrative({ ...emptyBodyFinding, locationLabel: 'Ulu hati / epigastrium', symptom: 'Mual (+)', finding: 'Nyeri tekan (+), massa (-)' }), 'Lokasi pemeriksaan: Ulu hati / epigastrium.\nKeluhan lokal pasien: Mual (+)\nTemuan pemeriksaan: Nyeri tekan (+), massa (-)');
+    assert.equal(annotationNarrative(emptyBodyFinding), '');
+    const { ClinicalFindingSigns } = await server.ssrLoadModule('/resources/js/components/anatomy/clinical-finding-signs.tsx');
+    const html = renderToString(createElement(ClinicalFindingSigns, { value: '', onChange() {}, suggestions: ['Mual'], label: 'Opsi gejala lokal' }));
+    assert.match(html, /Lainnya/);
+    assert.match(html, /aria-expanded="false"/);
+    assert.doesNotMatch(html, /<input/);
+});
+
+test('automatic annotation updates generated notes while protecting manual notes', async () => {
+    const { default: ts } = await import('typescript');
+    const source = readFileSync(new URL('../resources/js/components/anatomy/physical-examination-workspace.tsx', import.meta.url), 'utf8');
+    const ast = ts.createSourceFile('workspace.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    let callback;
+    function collect(node) { if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect' && node.arguments[0]?.getText(ast).includes('generatedAnnotationNote')) callback = node.arguments[0].getText(ast); ts.forEachChild(node, collect); }
+    collect(ast);
+    const code = ts.transpileModule(`const run = ${callback}; run();`, { compilerOptions: { target: ts.ScriptTarget.ESNext } }).outputText;
+    const changes = [];
+    const scope = { tab: 'manual', disabled: false, automaticNote: 'Lokasi pemeriksaan: Ulu hati.', manualAnnotationNote: { current: false }, generatedAnnotationNote: { current: '' }, bodyMap: { annotation: { strokes: [], note: '' }, findings: [] }, onBodyMapChange(value) { changes.push(value); } };
+    runInNewContext(code, { ...scope });
+    assert.equal(changes[0].annotation.note, scope.automaticNote);
+    runInNewContext(code, { ...scope, manualAnnotationNote: { current: true } });
+    assert.equal(changes.length, 1, 'manual edits must not be overwritten');
+    runInNewContext(code, { ...scope, automaticNote: '', bodyMap: { annotation: { strokes: [], note: scope.automaticNote } } });
+    assert.equal(changes[1].annotation.note, '', 'cancelled unsaved findings must not leave an automatic narrative');
+});
+
+test('clinical drafts save sequentially and retain edits after validation or network failure', async () => {
+    const { default: ts } = await import('typescript');
+    const source = readFileSync(new URL('../resources/js/pages/pelayanan/pemeriksaan/show.tsx', import.meta.url), 'utf8');
+    const ast = ts.createSourceFile('examination.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    let fn;
+    function collect(node) { if (ts.isFunctionDeclaration(node) && node.name?.text === 'saveClinicalDraft') fn = node.getText(ast); ts.forEachChild(node, collect); }
+    collect(ast);
+    const calls = []; const statuses = [];
+    const form = section => ({ data: { section, note: 'Isian dokter' }, isDirty: true, defaults: 0, setDefaults() { this.defaults++; this.isDirty = false; }, post(url, options) { calls.push({ section, url, options }); } });
+    const first = form('anamnesis'); const second = form('pemeriksaan');
+    const scope = { canEdit: true, saving: false, draftSaveBusy: { current: false }, lastDraftAttempt: { current: {} }, visit: { id: 17 }, draftTasks: [{ key: 'anamnesis', form: first, eligible: true }, { key: 'pemeriksaan', form: second, eligible: true }], setDraftSaveStatus(value) { statuses.push(value); } };
+    const code = ts.transpileModule(fn, { compilerOptions: { target: ts.ScriptTarget.ESNext } }).outputText;
+    const save = runInNewContext(code + '; saveClinicalDraft;', scope);
+    save(true); assert.equal(calls.length, 1); save(true); assert.equal(calls.length, 1);
+    calls[0].options.onSuccess(); assert.equal(first.defaults, 1); assert.equal(calls.length, 2);
+    calls[1].options.onError(); assert.equal(second.isDirty, true); assert.equal(scope.draftSaveBusy.current, false);
+    save(true); assert.equal(calls.length, 2, 'unchanged invalid payload must not retry endlessly');
+    second.data.note = 'Perbaikan baru'; save(true); assert.equal(calls.length, 3);
+    calls[2].options.onFinish(); assert.equal(scope.draftSaveBusy.current, false, 'network failure must release the save lock');
+    assert.equal(second.isDirty, true);
+});
+
+test('diagnosis selector omits retired choices and draft save remains separate from signature', async () => {
+    const props = examinationProps('umum');
+    props.diagnosisCodeSystems = [{ value: 'icd10_who', label: 'ICD-10 WHO' }, { value: 'icd9cm_diagnosis', label: 'ICD-9-CM diagnosis' }, { value: 'icd10_cm', label: 'ICD-10-CM' }];
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    assert.match(html, /Simpan draf pemeriksaan/);
+    assert.match(html, /disimpan otomatis sebagai draf/);
+    assert.doesNotMatch(html, />ICD-10 WHO<|>ICD-9-CM diagnosis</);
+});
+
+test('doctor ROS exposes all general systems with separate status and description', async () => {
+    const { SystemAssessment } = await server.ssrLoadModule('/resources/js/components/kunjungan/general-assessment.tsx');
+    const html = renderToString(createElement(SystemAssessment, { doctor: true, prefix: 'review_of_systems', value: {}, onChange() {} }));
+    assert.equal((html.match(/role="checkbox"/g) ?? []).length, 40);
+    assert.equal((html.match(/aria-checked="true"/g) ?? []).length, 10);
+    assert.match(html, /Konstitusional/);
+    assert.match(html, /Kepala dan leher/);
+    assert.match(html, /Genitourinaria/);
+});
+
+test('general nursing form locks before start and presents each clinical input once', async () => {
+    const props = {
+        visit: { id: 1, number: 'K-START', status: 'menunggu', clinic: 'Poli Umum', clinicType: 'umum', doctor: 'Dokter Uji', patient: { name: 'Pasien Uji', medicalRecordNumber: 'RM-START', gender: 'P', age: 35, bloodType: null, allergyHistory: null }, screening: {}, triage: null, priority: null, printUrl: null, startedAt: null },
+        staff: [], canSelectStaff: false, currentStaff: 'Perawat Uji',
+    };
+    const locked = await renderPage('pelayanan/screening/show', props);
+    assert.match(locked, /Klik Mulai pengkajian untuk membuka isian pasien/);
+    assert.match(locked, /<fieldset disabled="" class="min-w-0 space-y-4">/);
+    assert.doesNotMatch(locked, /type="datetime-local"/);
+    assert.doesNotMatch(locked, /Informasi kunjungan dan kondisi kedatangan/);
+    assert.doesNotMatch(locked, /id="general-(?:visit_purpose|onset|severity|chronic|summary|doctor_notes)"/);
+    const active = await renderPage('pelayanan/screening/show', { ...props, visit: { ...props.visit, status: 'screening', startedAt: '06/11/2026 09:00' } });
+    assert.doesNotMatch(active, /<fieldset disabled="" class="min-w-0 space-y-4">/);
+    for (const id of ['keluhan', 'lama_keluhan', 'sumber_informasi', 'keluhan_tambahan', 'riwayat_obat', 'catatan_triase', 'alasan_pengukuran_tidak_lengkap']) {
+        const count = (active.match(new RegExp(`id="${id}"`, 'g')) ?? []).length;
+        assert.ok(count <= 1, `${id} must not be rendered twice`);
+    }
+    const ids = [...active.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
+    assert.equal(new Set(ids).size, ids.length, 'all rendered element IDs must be unique');
+    assert.equal((active.match(/id="section-ringkas"/g) ?? []).length, 1);
+    assert.doesNotMatch(active, /id="section-(?:complaint|history|triage|vitals|additional)"/);
+    assert.doesNotMatch(active, /id="general-companion"/);
+    const accompanied = await renderPage('pelayanan/screening/show', { ...props, visit: { ...props.visit, screening: { sumber_informasi: 'keluarga', keluhan_tambahan: 'Mual', catatan_triase: 'Pantau keluhan' }, startedAt: '06/11/2026 09:00' } });
+    assert.match(accompanied, /id="general-companion"/);
+    const accompaniedIds = [...accompanied.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
+    assert.equal(new Set(accompaniedIds).size, accompaniedIds.length, 'populated optional fields must also have unique IDs');
+    assert.match(active, /id="general-arrival-mandiri"/);
+    assert.match(active, /id="general-surgery_status-tidak_ada"/);
+});
 function htmlElementById(html, id) {
     const idIndex = html.indexOf(`id="${id}"`);
     assert.notEqual(idIndex, -1, `expected element #${id}`);
@@ -96,10 +319,15 @@ for (const clinicType of ['umum', 'gigi']) {
         const assessment = html.slice(html.indexOf('id="section-ringkas"'));
         assert.ok(assessment.indexOf('Keluhan dan informasi pasien') < assessment.indexOf('Riwayat kesehatan umum'));
         assert.ok(assessment.indexOf('Riwayat kesehatan umum') < assessment.indexOf('Tanda vital'));
+        assert.ok(assessment.indexOf('Tanda vital') < assessment.indexOf('Berat, tinggi, dan lingkar perut'));
         assert.match(html, /id="berat_badan"/);
         assert.match(html, /id="tinggi_badan"/);
         assert.match(html, /id="lama_keluhan"/);
         assert.match(html, /id="konfirmasi_riwayat"/);
+        assert.match(html, /Ringkasan dan serah terima/);
+        assert.match(html, /id="general-handover_follow_up"/);
+        const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
+        assert.equal(new Set(ids).size, ids.length, 'nursing form IDs must be unique');
         assert.match(html, /role="checkbox"/);
         assert.match(html, /aria-checked="true"[^>]*id="status_alergi-ada"/);
         assert.match(html, /id="riwayat_alergi"[^>]*>Penisilin/);
@@ -111,7 +339,7 @@ for (const clinicType of ['umum', 'gigi']) {
         assert.match(html, /aria-selected="true"[^>]*data-value="ringkas"/);
         assert.match(html, /role="tab"[^>]*>Lengkap</);
         assert.match(html, /id="section-ringkas"/);
-        assert.doesNotMatch(html, /id="section-triage"|id="section-complaint"|id="section-history"/);
+        if (clinicType === 'gigi') assert.doesNotMatch(html, /id="section-triage"|id="section-complaint"|id="section-history"/);
         assert.doesNotMatch(html, />Buka semua<|>Tutup semua</);
         assert.doesNotMatch(html, /Prioritas menurut penilaian petugas/);
         assert.match(html, /id="suhu"/);
@@ -119,9 +347,9 @@ for (const clinicType of ['umum', 'gigi']) {
         assert.match(html, /id="triage-quick-normal-compact"[^>]*aria-checked="false"|aria-checked="false"[^>]*id="triage-quick-normal-compact"/, 'quick normal screening starts unchecked');
         assert.match(html, /Semua jawaban kondisi awal normal setelah diperiksa/);
         assert.doesNotMatch(html, /<label[^>]*rounded-lg border[^>]*for="triage-quick-normal-compact"/);
-        assert.ok(html.indexOf('id="catatan_triase"') < html.indexOf('id="triage-quick-normal-compact"'), 'quick normal checkbox follows the screening fields');
-        assert.match(html, /Catatan untuk dokter/);
-        assert.match(html, /min-w-0 xl:col-span-2/, 'the triage note should fill the two columns beside the final triage item');
+        if (clinicType === 'gigi') assert.ok(html.indexOf('id="catatan_triase"') < html.indexOf('id="triage-quick-normal-compact"'), 'quick normal checkbox follows the screening fields');
+        assert.match(html, /Catatan kondisi awal \/ triase/);
+        if (clinicType === 'gigi') assert.match(html, /min-w-0 xl:col-span-2/, 'the triage note should fill the two columns beside the final triage item');
         assert.match(html, /id="td_sistole"/);
         assert.match(html, /Tekanan darah \(mmHg\)/);
         assert.match(html, /aria-label="Tekanan sistole"/);
@@ -141,7 +369,7 @@ for (const clinicType of ['umum', 'gigi']) {
         assert.match(html, /id="sumber_informasi"/);
         assert.match(html, />Mulai pengkajian<\/button>/);
         assert.doesNotMatch(html, /Panggil pasien|Pasien hadir/);
-        assert.doesNotMatch(html, /id="section-additional"/);
+        if (clinicType === 'gigi') assert.doesNotMatch(html, /id="section-additional"/);
         assert.match(html, /aria-label="Profil pasien"/);
         assert.match(html, /Penisilin/);
         assert.doesNotMatch(html, /value="120"|value="80"|value="36.5"/);
@@ -868,7 +1096,7 @@ test('assessment attachments expose upload controls without nesting forms and es
         visit: {
             id: 1, number: 'K-001', status: 'screening', clinic: 'Poli Umum', clinicType: 'umum', doctor: 'Dokter Uji',
             patient: { name: 'Pasien Uji', medicalRecordNumber: 'RM-001', gender: 'P', age: 35, bloodType: null, allergyHistory: null },
-            screening: {}, triage: null, priority: null, printUrl: null, startedAt: null,
+            screening: {}, triage: null, priority: null, printUrl: null, startedAt: '06/11/2026 09:00',
             attachmentUploadUrl: '/pelayanan/kunjungan/1/lampiran',
             attachments: [{ id: 'file-1', name: '<script>Dokumen</script>.pdf', note: 'Hasil lab dari pasien', size: 1024, mime: 'application/pdf', downloadUrl: '/pelayanan/kunjungan/1/lampiran/file-1', deleteUrl: '/pelayanan/kunjungan/1/lampiran/file-1' }],
         }, staff: [], canSelectStaff: false, currentStaff: 'Perawat Uji',
@@ -1097,6 +1325,8 @@ test('medical record fills available width, displays dental anthropometry and pr
         assert.ok(html.includes(expected), expected);
     }
     assert.equal((html.match(/print:block hidden/g) ?? []).length, 3, 'collapsed visits remain available for printing');
+    assert.match(html.match(/<button[^>]*aria-label="Cetak rekam medis kunjungan K-001"[^>]*>/)?.[0] ?? '', /disabled=""/);
+    assert.match(html.match(/<button[^>]*title="Cetak tersedia setelah seluruh pemeriksaan pada halaman ini difinalisasi dokter."[^>]*>/)?.[0] ?? '', /disabled=""/);
     assert.doesNotMatch(html, /bg-emerald-50|xl:col-span-4|lg:grid-cols-2/);
 });
 
@@ -1121,13 +1351,17 @@ test('screening print returns to the nurse assessment queue and follows the shar
         visitNumber: 'K-007', clinicName: 'Poli Umum', clinicType: 'umum', doctorName: 'Dokter Uji', nurseName: 'Perawat Uji',
         visitStatus: 'pemeriksaan', isDraft: false, startedAt: '24/10/2026 09:00', submittedAt: '24/10/2026 09:10',
         printDate: '24 Oktober 2026', printedAt: '24/10/2026 09:15', signatureDataUrl: null, backUrl: '/pelayanan/screening',
-        sections: { history: { 'Keluhan utama': 'Demam sejak kemarin' }, vitals: { 'Suhu tubuh': '38 °C' }, measurements: {}, measurementNote: null, triage: {}, dental: {}, additional: {} },
+        sections: { history: { 'Keluhan utama': 'Demam sejak kemarin', 'Riwayat keluarga': null, 'Catatan': '' }, vitals: { 'Suhu tubuh': '38 °C' }, measurements: {}, measurementNote: null, triage: {}, dental: {}, additional: {} },
     } });
     assert.match(html, /href="\/pelayanan\/screening"[^>]*>[\s\S]*?Kembali ke pengkajian awal/);
     assert.match(html, /Cetak dokumen/);
     assert.match(html, /Klinik Uji/);
     assert.match(html, /Pengkajian awal perawat &amp; tanda vital/);
     assert.match(html, /Demam sejak kemarin/);
+    assert.doesNotMatch(html, /Riwayat kunjungan sebelumnya|Belum ada riwayat kunjungan sebelumnya/);
+    assert.match(html, /Belum dikaji \/ belum dicatat/);
+    assert.doesNotMatch(html, /<td[^>]*>\s*<\/td>/);
+    assert.match(html, /Alamat/);
     assert.doesNotMatch(html, /Pengkajian saya/);
     assert.doesNotMatch(html, /Pengkajian khusus gigi dan mulut/);
 });
@@ -1227,7 +1461,7 @@ test('doctor handover shows only entered nursing answers and measured values', a
     assert.match(handover, /Buka/);
     assert.match(handover, /Tutup/);
     assert.doesNotMatch(handover, /max-h-|overflow-y-auto/);
-    assert.doesNotMatch(handover.match(/<details[^>]*>/)?.[0] ?? '', / open(?:=|>)/);
+    assert.match(handover.match(/<details[^>]*>/)?.[0] ?? '', / open(?:=|>)/);
     assert.match(handover, /md:col-span-2[^>]*>[\s\S]*Pengkajian tambahan/);
     assert.match(html, /aria-label="Tutup informasi pemeriksaan"/);
 });
@@ -1685,6 +1919,7 @@ async function clinicalSaveHarness(pendingBodyFinding = false) {
         setData(data) { this.data = data; },
         reset() { this.resets++; this.isDirty = false; },
     }]));
+    Object.assign(forms.examinationForm.data, { review_of_systems: {} });
     Object.assign(forms.diagnosisForm.data, { is_manual: true, nama_diagnosa: 'Diagnosis dokter', kode_icd10: '', code_system: 'manual' });
     Object.assign(forms.treatmentForm.data, { terminology_id: '1', jumlah: '1' });
     Object.assign(forms.prescriptionForm.data, { obat_id: '1', jumlah: '1' });
@@ -1695,7 +1930,7 @@ async function clinicalSaveHarness(pendingBodyFinding = false) {
     Object.assign(forms.dentalForm.data, { tooth_fdi: '46', surface: 'O', finding_code: 'caries', notes: 'Kavitas baru', reason: '' });
     const code = ts.transpileModule(functions.join('\n'), { compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext } }).outputText;
     const scope = {
-        ...forms, visit: { id: 17, clinicId: 1, examination: null, odontogram: [] }, diagnosisCodeSystem: 'icd10_who', bodyFindingPending: pendingBodyFinding, addendumBodyPending: false, toast: { error() {} },
+        ...forms, isDental: false, visit: { id: 17, clinicId: 1, examination: null, odontogram: [] }, diagnosisCodeSystem: 'icd10_who', bodyFindingPending: pendingBodyFinding, addendumBodyPending: false, toast: { error() {} },
         canEdit: true, canCorrect: false, prescriptionEditable: true, treatmentMode: 'icd9cm', addendumDefaults: { reason: '', pemeriksaan_fisik: 'Temuan awal' },
         normalizeClinicalAnswer: (value) => value?.trim() || null,
         confirmAction(description, action, actionLabel, title) { requests.push({ description, action, actionLabel, title }); },
@@ -2190,31 +2425,32 @@ test('manual diagnosis form renders a text diagnosis and type without a hidden m
 });
 
 
-test('body location dropdown exposes all organ and body locations plus other through the shared Select', async () => {
+test('body location dropdown searches all areas and keeps shared Select options flat', async () => {
     const { default: ts } = await import('typescript');
     const { Children } = await import('react');
-    const { bodyLocations, organLocations } = await server.ssrLoadModule('/resources/js/lib/body-examination.ts');
+    const { bodyLocations, organLocations, detailedExamLocations, matchesExamLocation } = await server.ssrLoadModule('/resources/js/lib/body-examination.ts');
     const source = readFileSync(new URL('../resources/js/components/anatomy/physical-examination-workspace.tsx', import.meta.url), 'utf8');
     const ast = ts.createSourceFile('workspace.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     let fn;
     function collect(node) { if (ts.isFunctionDeclaration(node) && node.name?.text === 'renderLocationPicker') fn = node.getText(ast); ts.forEachChild(node, collect); }
     collect(ast);
     const code = ts.transpileModule(fn, { compilerOptions: { target: ts.ScriptTarget.ESNext, jsx: ts.JsxEmit.React } }).outputText;
-    for (const tab of ['interactive', 'manual']) {
-        const render = runInNewContext(code + '\nrenderLocationPicker', { React: { createElement }, Field: 'field', Select: 'select', Input: 'input', inputId: (id) => id, draft: { locationId: '' }, disabled: false, locationChanged() {}, tab, mode: 'organs', view: 'front', organLocations, bodyLocations });
-        const select = render().props.children.props.children[0];
-        // The shared Select accepts direct option children only, not optgroup or fragments.
+    for (const query of ['', 'BAK', 'lokasi tidak tersedia']) {
+        const render = runInNewContext(code + '\nrenderLocationPicker', { React: { createElement }, Field: 'field', Select: 'select', Input: 'input', inputId: id => id, draft: { locationId: 'lungs' }, disabled: false, locationChanged() {}, locationSearch: query, setLocationSearch() {}, detailedExamLocations, matchesExamLocation, organLocations, bodyLocations });
+        function findSelect(node) { if (node?.type === 'select') return node; return Children.toArray(node?.props?.children).map(findSelect).find(Boolean); }
+        const select = findSelect(render());
         const options = Children.toArray(select.props.children);
-        assert.ok(options.every((option) => option.type === 'option'));
-        const values = options.map((option) => option.props.value);
+        assert.ok(options.every(option => option.type === 'option'));
+        const values = options.map(option => option.props.value);
         assert.equal(values[0], '');
         assert.equal(values.at(-1), 'other');
-        assert.equal(options.at(-1).props.children, 'Lainnya');
         assert.equal(new Set(values).size, values.length);
-        assert.ok(values.includes('lungs'));
-        if (tab !== 'interactive') {
-            for (const region of [...bodyLocations('front'), ...bodyLocations('back')]) assert.ok(values.includes(region.id), tab + ': ' + region.id);
+        assert.ok(values.includes('lungs'), 'selected location remains visible while searching');
+        if (!query) {
+            for (const region of [...bodyLocations('front'), ...bodyLocations('back'), ...detailedExamLocations]) assert.ok(values.includes(region.id), region.id);
         }
+        if (query === 'BAK') { assert.ok(values.includes('bladder')); assert.ok(!values.includes('heart')); }
+        if (query === 'lokasi tidak tersedia') assert.deepEqual(values, ['', 'lungs', 'other']);
     }
 });
 
@@ -3272,6 +3508,21 @@ test('printing leaves an already closed label window alone', async () => {
 });
 
 
+for (const service of ['umum', 'gigi']) {
+    test(`${service} doctor receives shared nursing handover without repeated entry`, async () => {
+        const props = examinationProps(service);
+        props.visit.screening = { dentalPainTriggers: [], dentalMedicalRisks: [], dentalInfectionHistory: [], ...props.visit.screening, summary: {
+            'Masalah / kebutuhan teridentifikasi': 'Perlu bantuan mobilisasi',
+            'Tindakan awal sesuai kewenangan': 'Dibantu duduk, pasien nyaman',
+            'Tindak lanjut serah terima': 'Disampaikan kepada dokter pukul 09.15',
+        } };
+        const html = await renderPage('pelayanan/pemeriksaan/show', props);
+        assert.match(html, /Ringkasan dan serah terima perawat/);
+        assert.match(html, /Disampaikan kepada dokter pukul 09.15/);
+        assert.doesNotMatch(html, /id="general-handover_follow_up"/);
+    });
+}
+
 test('dental handover highlights non-normal mucosa and shows dismissible nurse notes only when present', async () => {
     const props = examinationProps('gigi');
     props.visit.screening = { dentalPainTriggers: [], dentalMedicalRisks: [], dentalInfectionHistory: [], ...props.visit.screening, dentalNotes: 'Konfirmasi pembengkakan gusi', summary: {
@@ -3342,8 +3593,11 @@ test('printing one RME visit retains selection during preparation and restores t
     const states = [];
     let finish;
     const preparation = new Promise((resolve) => { finish = resolve; });
-    const scope = { flushSync: (fn) => fn(), setPrintVisitId: (id) => states.push(id), printWithFonts: () => preparation };
+    const scope = { visits: [{ id: 42, examination: { signedAt: '2026-11-06' } }, { id: 84, examination: { signedAt: '2026-11-06' } }, { id: 99, examination: null }], canPrintPage: false, canPrintVisit: visit => Boolean(visit.examination?.signedAt), flushSync: (fn) => fn(), setPrintVisitId: (id) => states.push(id), printWithFonts: () => preparation };
     runInNewContext(functionBody + '; this.run = printVisits;', scope);
+    await scope.run(99);
+    await scope.run();
+    assert.deepEqual(states, [], 'unfinished examination and mixed page printing must be blocked');
     const printing = scope.run(42);
     assert.deepEqual(states, [42]);
     finish();

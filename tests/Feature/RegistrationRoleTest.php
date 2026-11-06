@@ -291,7 +291,7 @@ class RegistrationRoleTest extends TestCase
             ->has('visit.screening')
             ->has('staff')
         );
-        $this->actingAs($user)->post(route('pelayanan.kunjungan.screening.store', $visit), [
+        $this->actingAs($user)->beginNursingAssessment($visit)->post(route('pelayanan.kunjungan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new',
             'keluhan' => 'Keluhan pasien', 'lama_keluhan' => '2 hari', 'sumber_informasi' => 'pasien',
             'status_alergi' => 'belum_diketahui', 'status_riwayat_penyakit' => 'belum_diketahui', 'konfirmasi_riwayat' => true,
             'triase_perawat' => 'hijau',

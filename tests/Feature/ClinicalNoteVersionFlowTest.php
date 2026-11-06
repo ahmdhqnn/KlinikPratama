@@ -44,21 +44,21 @@ class ClinicalNoteVersionFlowTest extends TestCase
         Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
         $examination = Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id]);
 
-        $this->actingAs($doctorUser)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password'])->assertUnprocessable();
+        $this->actingAs($doctorUser)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertUnprocessable();
         $this->assertDatabaseCount('clinical_note_versions', 0);
         $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
             ->where('visits.0.examination.signatureDataUrl', null));
 
         $examination->update(['anamnesis' => 'Demam dua hari', 'pemeriksaan_fisik' => 'Suhu 38 C']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password'])->assertUnprocessable();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertUnprocessable();
         $this->assertDatabaseCount('clinical_note_versions', 0);
 
         Diagnosa::create([
             'pemeriksaan_id' => $examination->id, 'kode_icd10' => 'R50.9',
             'nama_diagnosa' => 'Demam, tidak spesifik', 'jenis' => 'utama',
         ]);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'wrong-password'])->assertSessionHasErrors('signature_password');
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password'])->assertRedirect(route('pelayanan.pemeriksaan.index'));
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'wrong-password'])->assertSessionHasErrors('signature_password');
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertRedirect(route('pelayanan.pemeriksaan.index'));
         $this->assertDatabaseHas('pemeriksaan', [
             'id' => $examination->id, 'status' => 'selesai', 'signed_by_user_id' => $doctorUser->id,
             'anamnesis' => 'Demam dua hari',
@@ -76,7 +76,7 @@ class ClinicalNoteVersionFlowTest extends TestCase
         $this->assertSame(64, strlen($final->content_hash));
         $this->assertTrue((new ClinicalNoteRecorder)->verify($examination));
 
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password'])->assertUnprocessable();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertUnprocessable();
         $this->post(route('pelayanan.pemeriksaan.store', $visit), [
             'anamnesis' => 'Menimpa catatan lama',
         ])->assertUnprocessable();

@@ -115,7 +115,7 @@ class SharedDomainFilteringTest extends TestCase
         $visit = $this->visit('UPDATE', '2026-10-20', 'screening');
         $staff = Nakes::create(['kode' => 'UPDATE-NURSE', 'nama' => 'Petugas Skrining', 'kategori' => 'medis', 'jabatan' => 'perawat', 'poliklinik_id' => $visit->poliklinik_id, 'is_active' => true]);
 
-        $this->actingAs($user)->put(route('pelayanan.screening.update', $visit), [
+        $this->actingAs($user)->beginNursingAssessment($visit)->put(route('pelayanan.screening.update', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new',
             'petugas_id' => $staff->id, 'assistance_reason' => 'Bantuan pengkajian karena akun layanan terganggu.',
             'keluhan' => 'Keluhan pasien', 'lama_keluhan' => '2 hari', 'sumber_informasi' => 'pasien',
             'status_alergi' => 'belum_diketahui', 'status_riwayat_penyakit' => 'belum_diketahui', 'konfirmasi_riwayat' => true,

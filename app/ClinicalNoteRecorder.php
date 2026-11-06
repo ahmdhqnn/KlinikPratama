@@ -17,6 +17,11 @@ class ClinicalNoteRecorder
         $visit->loadMissing(['tindakanKunjungan.tindakan', 'resep.resepObat', 'rujukanInternal', 'odontogramFindings']);
 
         return [
+            'supporting_exams' => $examination->supporting_exams,
+            'review_of_systems' => $examination->review_of_systems,
+            'riwayat_sosial' => $examination->riwayat_sosial,
+            'kondisi_akhir' => $examination->kondisi_akhir,
+            'disposisi' => $examination->disposisi,
             'riwayat_obat' => ClinicalAnswer::normalize($examination->riwayat_obat),
             'riwayat_perawatan_gigi' => ClinicalAnswer::normalize($examination->riwayat_perawatan_gigi),
             'kebiasaan_gigi' => ClinicalAnswer::normalize($examination->kebiasaan_gigi),

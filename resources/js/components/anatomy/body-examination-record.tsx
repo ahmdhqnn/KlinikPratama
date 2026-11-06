@@ -43,13 +43,16 @@ export function BodyExaminationRecord({ data, systems = {}, gender, title = 'Pet
                 <div className="min-w-0 space-y-3">{items.map((finding, index) => <article key={finding.id} className={'min-w-0 rounded-xl border p-4 print:break-inside-avoid ' + (selected.id === finding.id ? 'border-neutral-400 bg-neutral-50' : 'border-neutral-200')}><div className="mb-3 flex items-center justify-between gap-2"><span className="text-xs text-neutral-500">Temuan {index + 1} · {finding.view === 'back' ? 'Tampak belakang' : 'Tampak depan'}</span><Button type="button" size="icon" variant="ghost" className="print:hidden" title="Tampilkan lokasi pada peta" aria-label={'Tampilkan lokasi ' + (findingLocation(finding)?.label ?? '')} aria-pressed={selected.id === finding.id} onClick={() => setSelectedId(finding.id)}><MapPin className="size-4" /></Button></div><BodyFindingDetails finding={finding} /></article>)}</div>
             </div>;
         })}
-        <UnlocatedFindings findings={textFindings} />
-        {data && (data.annotation.strokes.length > 0 || data.annotation.note) && <div className={(findings.length ? 'border-t border-neutral-200 pt-4 ' : '') + 'space-y-3 print:break-inside-avoid'}><h4 className="text-sm font-semibold text-neutral-900">Anotasi pemeriksaan tubuh</h4><div className="mx-auto max-w-2xl"><BodyAnnotationView value={data.annotation} /></div></div>}
+        {(textFindings.length > 0 || data && (data.annotation.strokes.length > 0 || data.annotation.note)) && <div className="grid min-w-0 items-start gap-4 md:grid-cols-[minmax(12rem,0.8fr)_minmax(0,1.2fr)] print:grid-cols-2">
+            <div className="min-w-0 rounded-lg bg-neutral-50 p-2"><h4 className="mb-2 text-xs font-semibold text-neutral-700">Gambar dan anotasi pemeriksaan</h4><div className="mx-auto max-w-[280px]"><BodyAnnotationView value={{ strokes: data?.annotation.strokes ?? [], note: '' }} /></div></div>
+            <div className="min-w-0 space-y-3"><UnlocatedFindings findings={textFindings} />{data?.annotation.note && <details className="rounded-lg border border-neutral-200 p-3"><summary className="cursor-pointer text-xs font-medium">Narasi anotasi</summary><p className="mt-2 whitespace-pre-wrap text-sm">{data.annotation.note}</p></details>}</div>
+        </div>}
+
     </section>;
 }
 
 function UnlocatedFindings({ findings }: { findings: RecordedBodyFinding[] }) {
     if (!findings.length) return null;
 
-    return <div className="min-w-0 space-y-3">{findings.map((finding) => <article key={finding.id} className="min-w-0 space-y-3 rounded-xl border border-neutral-200 p-4 print:break-inside-avoid"><Badge>{finding.entryMode === 'quick' ? 'Isian ringkas' : finding.entryMode === 'manual' ? 'Gambar & anotasi' : 'Lokasi lainnya'}</Badge><BodyFindingDetails finding={finding} /></article>)}</div>;
+    return <div className="min-w-0 space-y-3">{findings.map((finding) => <article key={finding.id} className="min-w-0 space-y-2 rounded-lg border border-neutral-200 p-3 print:break-inside-avoid"><Badge>{finding.entryMode === 'quick' ? 'Isian ringkas' : finding.entryMode === 'manual' ? 'Gambar & anotasi' : 'Lokasi lainnya'}</Badge><BodyFindingDetails finding={finding} /></article>)}</div>;
 }

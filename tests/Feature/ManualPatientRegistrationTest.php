@@ -40,7 +40,7 @@ class ManualPatientRegistrationTest extends TestCase
         $visit = Kunjungan::sole();
         $this->actingAs($pharmacist)->post(route('pelayanan.farmasi.store', $visit), ['items' => []])->assertUnprocessable();
 
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new',
             'keluhan' => 'Keluhan pasien', 'lama_keluhan' => '2 hari', 'sumber_informasi' => 'pasien',
             'status_alergi' => 'belum_diketahui', 'status_riwayat_penyakit' => 'belum_diketahui', 'konfirmasi_riwayat' => true,
             'triase_perawat' => 'hijau',
@@ -59,7 +59,7 @@ class ManualPatientRegistrationTest extends TestCase
         $prescriptionItem = $visit->fresh()->resep->resepObat->sole();
         $this->assertSame('Obat uji', $prescriptionItem->nama_obat);
         $this->assertSame('tablet', $prescriptionItem->satuan);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password'])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertSessionHasNoErrors();
         $this->assertSame('farmasi', $visit->fresh()->status);
         $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien))->assertInertia(fn (Assert $page) => $page
             ->where('patient.birthPlace', 'Bandung')->where('patient.address', 'Jl. Merdeka')

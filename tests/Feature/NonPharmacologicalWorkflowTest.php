@@ -50,7 +50,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
             ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 20]);
             $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['obat_id' => $medicine->id, 'jumlah' => 2, 'jenis' => 'jadi', 'aturan_pakai' => 'Sesuai instruksi dokter'])->assertSessionHasNoErrors();
         }
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect()->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect()->assertSessionHasNoErrors();
         $hash = $examination->fresh()->latest_note_hash;
         $this->assertSame($procedure ? 'tindakan' : ($medication ? 'farmasi' : 'selesai'), $visit->fresh()->status);
         $this->assertSame('Latihan sesuai toleransi', ClinicalNoteVersion::sole()->payload['non_farmakologis']);
@@ -103,7 +103,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
         $catalog->bhp()->create(['obat_id' => $supply->id, 'jumlah' => 2]);
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['tindakan_id' => $catalog->id, 'jumlah' => 2, 'execution_role' => 'perawat'])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Evaluasi luka', 'jumlah' => 1])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $this->assertSame(10, (int) $supply->fresh()->stok);
         [$first, $second] = $visit->tindakanKunjungan()->orderBy('id')->get()->all();
         $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $visit))->assertSessionHasNoErrors();
@@ -124,7 +124,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
     {
         [$doctor, $nurse, $visit] = $this->context();
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan uji', 'jumlah' => 1])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $visit))->assertRedirect(route('pelayanan.tindakan.show', $visit));
         $startedAt = $visit->fresh()->tindakan_started_at;
         $this->assertNotNull($startedAt);
@@ -138,7 +138,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
     public function test_start_rejects_a_visit_without_pending_nursing_procedures(): void
     {
         [$doctor, $nurse, $visit] = $this->context();
-        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $visit->update(['status' => 'tindakan']);
 
         $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $visit))->assertUnprocessable();
@@ -155,7 +155,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
         [$doctor, , $visit] = $this->context();
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan uji', 'jumlah' => 1]);
         $treatment = $visit->tindakanKunjungan()->sole();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true]);
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true]);
         $actor = User::factory()->create(['role' => $role]);
         $startResponse = $this->actingAs($actor)->post(route('pelayanan.tindakan.start', $visit));
         $response = $this->actingAs($actor)->post(route('pelayanan.tindakan.complete', [$visit, $treatment]), ['execution_result' => 'Tidak sah']);
@@ -192,7 +192,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
         [$doctor, , $visit] = $this->context('gigi');
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan oleh dokter', 'jumlah' => 1, 'execution_role' => 'dokter', 'catatan' => 'Hasil baik'])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['nama_obat' => 'Obat luar', 'jumlah' => 1, 'jenis' => 'jadi', 'is_resep_luar' => true])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $this->assertSame('selesai', $visit->fresh()->status);
         $this->assertDatabaseHas('tindakan_kunjungan', ['kunjungan_id' => $visit->id, 'execution_status' => 'completed', 'performed_by' => $doctor->id]);
         $this->assertDatabaseMissing('farmasi', ['kunjungan_id' => $visit->id]);
@@ -206,7 +206,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
         $catalog = Tindakan::create(['kode' => 'TD-LOW', 'nama' => 'Tindakan uji', 'kategori' => 'medis', 'poliklinik_id' => $visit->poliklinik_id, 'is_active' => true]);
         $catalog->bhp()->create(['obat_id' => $supply->id, 'jumlah' => 2]);
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['tindakan_id' => $catalog->id, 'jumlah' => 1])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $procedure = $visit->tindakanKunjungan()->sole();
         $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $visit))->assertSessionHasNoErrors();
         $this->post(route('pelayanan.tindakan.complete', [$visit, $procedure]), ['execution_result' => 'Hasil uji'])->assertSessionHasErrors('items');
@@ -222,7 +222,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
     {
         [$doctor, $nurse, $visit, $examination] = $this->context();
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan uji', 'jumlah' => 1]);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $procedure = $visit->tindakanKunjungan()->sole();
         $this->actingAs($nurse)->post(route('pelayanan.tindakan.start', $visit))->assertSessionHasNoErrors();
         $this->post(route('pelayanan.tindakan.complete', [$visit, $procedure]), ['execution_result' => ' '])->assertSessionHasErrors('execution_result');
@@ -241,7 +241,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
     {
         [$doctor, $nurse, $visit, $examination] = $this->context();
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan uji', 'jumlah' => 1]);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $original = $examination->clinicalNoteVersions()->firstOrFail();
         $this->post(route('pelayanan.pemeriksaan.addendum', $visit), [
             'reason' => 'Melengkapi rencana tanpa obat',
@@ -274,7 +274,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
             $drug = Obat::create(['kode' => 'HELP-OB', 'nama' => 'Obat', 'satuan_kecil' => 'tablet', 'jenis' => 'obat', 'stok' => 10, 'is_active' => true]);
             $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['obat_id' => $drug->id, 'jumlah' => 1, 'jenis' => 'jadi', 'aturan_pakai' => 'Sesuai dokter'])->assertSessionHasNoErrors();
         }
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $procedure = $visit->tindakanKunjungan()->sole();
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $this->actingAs($admin)->get(route('pelayanan.tindakan.index'))->assertInertia(fn (Assert $page) => $page->where('stats.todayPending', 1));

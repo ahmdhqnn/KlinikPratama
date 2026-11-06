@@ -11,6 +11,7 @@ class Pemeriksaan extends Model
     protected $table = 'pemeriksaan';
 
     protected $casts = [
+        'supporting_exams' => 'array', 'review_of_systems' => 'array',
         'kontrol_berikutnya' => 'date',
         'signed_at' => 'datetime',
         'started_at' => 'datetime',
@@ -20,6 +21,7 @@ class Pemeriksaan extends Model
     ];
 
     protected $fillable = [
+        'supporting_exams', 'review_of_systems', 'riwayat_sosial', 'kondisi_akhir', 'disposisi',
         'riwayat_perawatan_gigi', 'kebiasaan_gigi', 'riwayat_obat',
         'kunjungan_id', 'dokter_id', 'anamnesis',
         'pemeriksaan_fisik', 'catatan', 'edukasi', 'non_farmakologis', 'kontrol_berikutnya',

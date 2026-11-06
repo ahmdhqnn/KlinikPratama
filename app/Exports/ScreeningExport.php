@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\GeneralAssessment;
 use App\Models\Nakes;
 use App\Models\Screening;
 use App\ScreeningReportQuery;
@@ -29,7 +30,9 @@ class ScreeningExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             'Sistole (mmHg)', 'Diastole (mmHg)', 'Nadi (/menit)', 'Suhu (C)', 'SpO2 (%)',
             'Respirasi (/menit)', 'Berat Badan (kg)', 'Tinggi Badan (cm)', 'Riwayat Alergi',
             'Riwayat Penyakit', 'Riwayat Obat', 'Skala Nyeri', 'Catatan keselamatan dan pengkajian tambahan',
-        ], $this->nurse?->poliklinik?->jenis === 'gigi' || $this->nurse === null ? ['Lokasi Nyeri Gigi', 'Durasi Keluhan Gigi', 'Catatan Medis Gigi'] : []);
+        ], $this->nurse?->poliklinik?->jenis === 'gigi' || $this->nurse === null ? ['Lokasi Nyeri Gigi', 'Durasi Keluhan Gigi', 'Catatan Medis Gigi'] : [],
+            $this->nurse?->poliklinik?->jenis !== 'gigi' ? array_keys((new Screening)->generalAssessmentSummary()) : [],
+            ['Waktu Pengukuran TTV', 'Waktu Triase', 'Waktu Pengiriman Terakhir']);
     }
 
     public function map($screening): array
@@ -45,11 +48,23 @@ class ScreeningExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             $screening->spo2, $screening->respirasi, $screening->berat_badan, $screening->tinggi_badan,
             $screening->riwayat_alergi, $screening->riwayat_penyakit, $screening->riwayat_obat, $screening->skala_nyeri,
         ];
-        $notes = array_filter(array_slice($screening->handoverSummary(), 0, count(Screening::SAFETY_FIELDS) + 8, true), fn ($value): bool => filled($value));
+        $summary = $screening->handoverSummary();
+        // Keep structured general findings in separate cells: a combined narrative
+        // can exceed Excel's cell limit and silently truncate assessment data.
+        $general = $screening->generalAssessmentSummary();
+        $clinical = array_diff_key($summary, $general, array_flip(['Pengirim pengkajian pertama', 'Waktu pengiriman pertama', 'Waktu pengiriman terakhir', 'Waktu pencatatan TTV', 'Petugas pengkajian TTV', 'Waktu pencatatan triase']));
+        $notes = array_filter(array_slice($clinical, 0, count(Screening::SAFETY_FIELDS) + 8, true), fn ($value): bool => filled($value));
+        if ($visit->poliklinik?->jenis === 'gigi') {
+            $notes = [...$notes, ...array_filter(GeneralAssessment::handoverSummary($screening->general_assessment), fn ($value): bool => filled($value))];
+        }
         $values[] = implode('; ', array_map(fn ($label, $value): string => $label.': '.$value, array_keys($notes), array_values($notes)));
         if ($visit->poliklinik?->jenis === 'gigi' || $this->nurse === null) {
             array_push($values, $screening->lokasi_nyeri_gigi, $screening->durasi_keluhan_gigi, $screening->catatan_medis_gigi);
         }
+        if ($this->nurse?->poliklinik?->jenis !== 'gigi') {
+            array_push($values, ...array_values($visit->poliklinik?->jenis === 'umum' ? $general : array_fill_keys(array_keys($general), null)));
+        }
+        array_push($values, $screening->vitals_measured_at?->format('d/m/Y H:i'), $screening->triaged_at?->format('d/m/Y H:i'), $screening->last_submitted_at?->format('d/m/Y H:i'));
 
         return array_map(fn ($value) => is_string($value) && preg_match('/^[=+@-]/', $value) ? chr(39).$value : $value, $values);
     }

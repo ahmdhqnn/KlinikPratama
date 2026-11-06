@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use App\DentalAssessment;
+use App\GeneralAssessment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Screening extends Model
 {
@@ -31,6 +33,8 @@ class Screening extends Model
     protected $table = 'screening';
 
     protected $fillable = [
+        'submitted_by_user_id', 'submitted_petugas_id', 'last_submitted_at',
+        'vitals_unmeasurable', 'general_assessment', 'vitals_measured_at', 'triaged_at',
         'status_riwayat_obat', 'mukosa_mulut', 'kelainan_mukosa', 'kebiasaan_gigi_opsi',
         ...self::SAFETY_FIELDS,
         'dental_vitals_unmeasurable',
@@ -56,12 +60,14 @@ class Screening extends Model
     ];
 
     protected $casts = [
+        'vitals_unmeasurable' => 'boolean', 'general_assessment' => 'array', 'vitals_measured_at' => 'datetime', 'triaged_at' => 'datetime',
         'mukosa_mulut' => 'array', 'kebiasaan_gigi_opsi' => 'array',
         'dental_vitals_unmeasurable' => 'boolean',
         'dental_medication_categories' => 'array',
         'dental_red_flags' => 'array',
         'started_at' => 'datetime',
         'submitted_at' => 'datetime',
+        'last_submitted_at' => 'datetime',
         'lingkar_perut' => 'decimal:1',
         'skala_nyeri' => 'integer',
         'pemicu_nyeri_gigi' => 'array',
@@ -83,9 +89,51 @@ class Screening extends Model
         ];
     }
 
+    public function versions(): HasMany
+    {
+        return $this->hasMany(ScreeningVersion::class)->orderBy('version');
+    }
+
+    public function generalAssessmentSummary(): array
+    {
+        return GeneralAssessment::nursingSummary($this->general_assessment);
+    }
+
+    public function versionSummaries(): array
+    {
+        $versions = $this->versions()->with('actor')->get();
+        if ($versions->isEmpty()) {
+            return [];
+        }
+        $staff = Nakes::whereIn('id', $versions->pluck('payload.petugas_id')->filter()->unique())->get()->keyBy('id');
+        $submitters = User::whereIn('id', $versions->pluck('payload.submitted_by_user_id')->filter()->unique())->get()->keyBy('id');
+
+        return $versions->map(function (ScreeningVersion $version) use ($staff, $submitters): array {
+            $snapshot = new self($version->payload);
+            $snapshot->setRelation('kunjungan', $this->kunjungan);
+            $snapshot->setRelation('petugas', $staff->get($snapshot->petugas_id));
+            $snapshot->setRelation('submittedBy', $submitters->get($snapshot->submitted_by_user_id));
+
+            return [
+                'version' => $version->version, 'reason' => $version->reason,
+                'recordedAt' => $version->recorded_at?->format('d/m/Y H:i'),
+                'actor' => $version->actor?->name,
+                'summary' => [
+                    'Keluhan utama' => $snapshot->keluhan,
+                    'Tekanan darah' => $snapshot->td_sistole !== null ? $snapshot->td_sistole.'/'.$snapshot->td_diastole.' mmHg' : null,
+                    'Nadi' => $snapshot->nadi !== null ? $snapshot->nadi.' kali/menit' : null,
+                    'Suhu' => $snapshot->suhu !== null ? $snapshot->suhu.' °C' : null,
+                    'Frekuensi napas' => $snapshot->respirasi !== null ? $snapshot->respirasi.' kali/menit' : null,
+                    'SpO₂' => $snapshot->spo2 !== null ? $snapshot->spo2.'%' : null,
+                    ...$snapshot->handoverSummary(),
+                ],
+            ];
+        })->all();
+    }
+
     public function revisionToken(): string
     {
-        return hash('sha256', serialize($this->getRawOriginal()));
+        return hash('sha256', serialize([$this->getRawOriginal(), $this->versions()->max('version')]));
     }
 
     public function kunjungan(): BelongsTo
@@ -96,6 +144,11 @@ class Screening extends Model
     public function recordedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recorded_by_user_id');
+    }
+
+    public function submittedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by_user_id');
     }
 
     public function petugas(): BelongsTo
@@ -157,7 +210,7 @@ class Screening extends Model
         if ($recorded === count($fields)) {
             return 'Tekanan darah, nadi, suhu, dan frekuensi napas tercatat';
         }
-        if ($this->dental_vitals_unmeasurable) {
+        if ($this->dental_vitals_unmeasurable || $this->vitals_unmeasurable) {
             return $recorded > 0 ? 'Sebagian TTV tidak dapat diukur' : 'TTV tidak dapat diukur';
         }
 
@@ -201,6 +254,13 @@ class Screening extends Model
         }
 
         return [
+            ...($this->kunjungan?->poliklinik?->jenis === 'umum' ? $this->generalAssessmentSummary() : GeneralAssessment::handoverSummary($this->general_assessment)),
+            'Pengirim pengkajian pertama' => $this->submittedBy?->name,
+            'Waktu pengiriman pertama' => $this->submitted_at?->format('d/m/Y H:i'),
+            'Waktu pengiriman terakhir' => $this->last_submitted_at?->format('d/m/Y H:i'),
+            'Waktu pencatatan TTV' => $this->vitals_measured_at?->format('d/m/Y H:i'),
+            'Petugas pengkajian TTV' => $this->vitals_measured_at ? $this->petugas?->nama : null,
+            'Waktu pencatatan triase' => $this->triaged_at?->format('d/m/Y H:i'),
             ...array_combine(['Keterangan tanda bahaya lainnya', 'Keterangan kondisi sistemik lainnya', 'Keterangan pemicu lainnya', 'Keterangan infeksi lainnya', 'Keterangan obat lainnya', 'Tingkat keparahan alergi jika diketahui', 'Catatan verifikasi alergi', 'Karakter dan penjalaran nyeri', 'Hal yang mengurangi nyeri', 'Dampak nyeri pada aktivitas atau tidur', 'Kondisi khusus, operasi, atau rawat inap yang relevan', 'Observasi awal mulut dan rahang', 'Perawatan mulut dan kebiasaan sehari-hari'], array_values($details)),
             'Status penggunaan obat' => $choice($this->status_riwayat_obat),
             ...collect(self::ORAL_AREAS)->mapWithKeys(fn (string $label, string $key): array => [

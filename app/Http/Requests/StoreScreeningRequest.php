@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\DentalAssessment;
+use App\GeneralAssessment;
 use App\Models\Kunjungan;
 use App\Models\Screening;
 use App\PerawatClinicResolver;
@@ -17,6 +18,15 @@ class StoreScreeningRequest extends FormRequest
     {
         if (is_string($this->input('assistance_reason'))) {
             $this->merge(['assistance_reason' => trim($this->input('assistance_reason'))]);
+        }
+        $general = $this->input('general_assessment');
+        if (is_array($general)) {
+            foreach (['special_needs_status' => 'special_needs', 'needs_status' => 'needs', 'initial_actions_status' => 'initial_actions'] as $status => $detail) {
+                if (($general[$status] ?? null) === 'tidak_ada') {
+                    $general[$detail] = null;
+                }
+            }
+            $this->merge(['general_assessment' => $general]);
         }
         if ($this->route('kunjungan')?->poliklinik?->jenis === 'gigi') {
             if (in_array($this->input('status_riwayat_penyakit'), ['tidak_ada', 'belum_diketahui'], true) && ! $this->filled('risiko_medis_gigi')) {
@@ -38,6 +48,7 @@ class StoreScreeningRequest extends FormRequest
             abort_unless((int) $visit->poliklinik_id === app(PerawatClinicResolver::class)->clinicId($this->user()), 404);
         }
         abort_unless($visit->canUpdateScreening(), 422, 'Pengkajian hanya dapat diperbarui sebelum dokter memulai pemeriksaan.');
+        abort_unless($visit->screening?->started_at !== null || $visit->screening?->submitted_at !== null, 422, 'Klik Mulai pengkajian sebelum mengisi atau menyimpan hasil.');
         app(VisitSchedulingService::class)->ensureServiceDate($visit);
 
         return in_array($this->user()->role, ['admin', 'perawat'], true);
@@ -50,6 +61,12 @@ class StoreScreeningRequest extends FormRequest
         $wasSubmitted = $this->route('kunjungan')->screening?->submitted_at !== null;
         $required = $wasSubmitted || $this->input('tindakan', 'kirim') === 'kirim' ? 'required' : 'nullable';
         $rules = [
+            ...GeneralAssessment::nursingRules(! $isDental),
+            'request_id' => ['nullable', 'uuid'],
+            'vitals_unmeasurable' => [Rule::excludeIf($isDental), 'sometimes', 'boolean'],
+            'revision_reason' => ['nullable', 'string', 'min:10', 'max:2000'],
+            'vitals_measured_at' => ['exclude'],
+            'triaged_at' => ['exclude'],
             'assistance_reason' => [Rule::excludeIf($this->user()->role !== 'admin'), 'required', 'string', 'min:10', 'max:1000'],
             'tindakan' => ['sometimes', Rule::in($wasSubmitted ? ['kirim'] : ['draf', 'kirim'])],
             'petugas_id' => [Rule::excludeIf($this->user()->role === 'perawat'), 'required', Rule::exists('nakes', 'id')->whereIn('jabatan', ['perawat', 'bidan', 'terapis_gigi'])->where('poliklinik_id', $this->route('kunjungan')->poliklinik_id)->where('is_active', true)->whereNull('deleted_at')],
@@ -117,7 +134,7 @@ class StoreScreeningRequest extends FormRequest
             $rules[$field] = ['nullable', 'string', 'max:2000'];
         }
 
-        $rules['status_riwayat_obat'] = [Rule::excludeIf(! $isDental), 'nullable', Rule::in(['ada', 'tidak_ada', 'belum_diketahui'])];
+        $rules['status_riwayat_obat'] = ['nullable', Rule::in(['ada', 'tidak_ada', 'belum_diketahui'])];
         $rules['mukosa_mulut'] = [Rule::excludeIf(! $isDental), 'nullable', 'array:lidah,pipi,bibir,palatum,gusi'];
         $rules['mukosa_mulut.*'] = ['nullable', Rule::in(['normal', 'abnormal', 'belum_dinilai'])];
         $rules['kelainan_mukosa'] = [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:2000'];
@@ -149,7 +166,7 @@ class StoreScreeningRequest extends FormRequest
                         $validator->errors()->add($detail, 'Jelaskan riwayat yang ditemukan sebelum meneruskan pasien.');
                     }
                 }
-                $unmeasurable = $this->route('kunjungan')->poliklinik?->jenis === 'gigi' && $this->boolean('dental_vitals_unmeasurable');
+                $unmeasurable = $this->route('kunjungan')->poliklinik?->jenis === 'gigi' ? $this->boolean('dental_vitals_unmeasurable') : $this->boolean('vitals_unmeasurable');
                 if ($unmeasurable && ! $this->filled('alasan_pengukuran_tidak_lengkap')) {
                     $validator->errors()->add('alasan_pengukuran_tidak_lengkap', 'Catat alasan TTV tidak dapat diukur, observasi cepat, dan serah terima ke dokter.');
                 }
@@ -161,6 +178,9 @@ class StoreScreeningRequest extends FormRequest
             }
             if ($this->filled('td_sistole') && $this->filled('td_diastole') && $this->integer('td_sistole') <= $this->integer('td_diastole')) {
                 $validator->errors()->add('td_diastole', 'Tekanan diastole harus lebih rendah daripada sistole. Periksa kembali pengukuran.');
+            }
+            if ($final && $this->input('status_riwayat_obat') === 'ada' && ! $this->filled('riwayat_obat')) {
+                $validator->errors()->add('riwayat_obat', 'Catat obat yang digunakan atau jelaskan bila rinciannya belum diketahui.');
             }
             if ($this->route('kunjungan')->poliklinik?->jenis !== 'gigi') {
                 return;
@@ -174,9 +194,6 @@ class StoreScreeningRequest extends FormRequest
             }
             if ($final && in_array('lainnya', $habits, true) && ! $this->filled('kebiasaan_gigi')) {
                 $validator->errors()->add('kebiasaan_gigi', 'Jelaskan kebiasaan lain yang dilaporkan pasien.');
-            }
-            if ($final && $this->input('status_riwayat_obat') === 'ada' && ! $this->filled('riwayat_obat')) {
-                $validator->errors()->add('riwayat_obat', 'Catat nama atau jenis obat; jelaskan bila rinciannya belum diketahui.');
             }
             $medications = $this->input('dental_medication_categories', []) ?? [];
             if (array_intersect(['none', 'unknown'], $medications) && count($medications) > 1) {
