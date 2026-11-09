@@ -506,9 +506,6 @@ class ScreeningController extends Controller
             $data['dental_medication_categories'] = $isDental ? [($data['status_riwayat_obat'] === 'tidak_ada' ? 'none' : 'unknown')] : null;
             $data['dental_medication_categories_other'] = null;
         }
-        if (! in_array('abnormal', $data['mukosa_mulut'] ?? [], true)) {
-            $data['kelainan_mukosa'] = null;
-        }
         $data['recorded_by_user_id'] = $request->user()->id;
 
         foreach (['pemicu_nyeri_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi', 'dental_red_flags'] as $field) {
@@ -545,7 +542,7 @@ class ScreeningController extends Controller
         [$data['kesimpulan_triase'], $data['prioritas_layanan']] = $this->determineTriage($data, $isDental);
 
         $wasSubmitted = false;
-        DB::transaction(function () use ($data, $kunjungan, $request, $auditRecorder, $isDraft, $nurse, $revision, $revisionReason, $requestId, $requestHash, &$wasSubmitted): void {
+        DB::transaction(function () use ($data, $kunjungan, $request, $auditRecorder, $isDental, $isDraft, $nurse, $revision, $revisionReason, $requestId, $requestHash, &$wasSubmitted): void {
             $lockedVisit = Kunjungan::with(['screening', 'pemeriksaan'])->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             abort_if($nurse && (int) $lockedVisit->poliklinik_id !== (int) $nurse->poliklinik_id, 404);
             abort_unless($lockedVisit->canUpdateScreening(), 422, 'Pengkajian hanya dapat diperbarui sebelum dokter memulai pemeriksaan.');
@@ -577,6 +574,10 @@ class ScreeningController extends Controller
             }
             $wasSubmitted = $lockedVisit->screening?->submitted_at !== null;
             abort_if($wasSubmitted && $isDraft, 409, 'Pengkajian sudah dikirim. Muat ulang sebelum memperbarui catatan.');
+            // Keep historical entries from the previous form on revision.
+            if ($isDental && isset($lockedVisit->screening->general_assessment['systems']) && array_key_exists('general_assessment', $data)) {
+                $data['general_assessment']['systems'] = $lockedVisit->screening->general_assessment['systems'];
+            }
             $data['started_at'] = $lockedVisit->screening?->started_at ?? now();
             $data['submitted_at'] = $isDraft ? null : ($lockedVisit->screening?->submitted_at ?? now());
             if (! $isDraft) {

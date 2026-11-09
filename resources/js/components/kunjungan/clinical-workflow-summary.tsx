@@ -1,3 +1,4 @@
+import { OdontogramRecord } from '@/components/odontogram/odontogram-record';
 import { dentalDiagnosisDescription, dentalSurfaceLabel } from '@/lib/dental-diagnosis';
 import type { ReactNode } from 'react';
 import { BodyExaminationRecord } from '@/components/anatomy/body-examination-record';
@@ -17,6 +18,7 @@ interface SummaryProps {
 }
 
 interface DentalExaminationSummaryProps extends SummaryProps {
+    id?: string;
     anamnesis: string | null | undefined;
     intraoralExam: string | null | undefined;
     extraoralExam: string | null | undefined;
@@ -31,14 +33,14 @@ interface DiagnosisSummaryProps extends SummaryProps {
     codeSystems: Array<{ value: string; label: string }>;
 }
 
-export function DentalExaminationSummary({ anamnesis, intraoralExam, extraoralExam, findings, options, hasUnsavedChanges, onReview }: DentalExaminationSummaryProps) {
+export function DentalExaminationSummary({ id = 'dental-examination-summary', anamnesis, intraoralExam, extraoralExam, findings, options, hasUnsavedChanges, onReview }: DentalExaminationSummaryProps) {
     return (
         <WorkflowSummary
             counts={<><Badge>{new Set(findings.map((finding) => finding.toothFdi)).size} gigi</Badge><Badge>{findings.length} temuan</Badge></>}
             description="Hasil pemeriksaan tersimpan pada kunjungan ini sebagai acuan penetapan diagnosis."
             hasUnsavedChanges={hasUnsavedChanges}
             icon={Stethoscope}
-            id="dental-examination-summary"
+            id={id}
             onReview={onReview}
             reviewLabel="Tinjau pemeriksaan dan odontogram"
             title="Ringkasan pemeriksaan & odontogram"
@@ -50,8 +52,8 @@ export function DentalExaminationSummary({ anamnesis, intraoralExam, extraoralEx
                 {normalizeClinicalAnswer(extraoralExam) && <SummaryValue label="Pemeriksaan ekstraoral" value={extraoralExam} />}
             </dl>}
             {findings.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-neutral-200">
-                    <Table aria-label="Ringkasan temuan odontogram" className="min-w-[36rem] table-fixed">
+                <OdontogramRecord compact findings={findings}><div className="overflow-x-auto rounded-xl border border-neutral-200">
+                    <Table aria-label="Ringkasan temuan odontogram" className="min-w-[26rem] table-fixed">
                         <TableHeader><TableRow>
                             <TableHead className="w-24 px-5 py-4 text-center">Gigi FDI</TableHead>
                             <TableHead className="w-36 px-5 py-4 text-center">Permukaan</TableHead>
@@ -67,7 +69,7 @@ export function DentalExaminationSummary({ anamnesis, intraoralExam, extraoralEx
                             </TableRow>
                         ))}</TableBody>
                     </Table>
-                </div>
+                </div></OdontogramRecord>
             ) : <Empty size="compact" title="Belum ada temuan odontogram tersimpan" description="Lengkapi temuan pada tab Pemeriksaan & odontogram sebagai acuan diagnosis." />}
         </WorkflowSummary>
     );

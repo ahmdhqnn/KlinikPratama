@@ -135,8 +135,13 @@ class StoreScreeningRequest extends FormRequest
         }
 
         $rules['status_riwayat_obat'] = ['nullable', Rule::in(['ada', 'tidak_ada', 'belum_diketahui'])];
-        $rules['mukosa_mulut'] = [Rule::excludeIf(! $isDental), 'nullable', 'array:lidah,pipi,bibir,palatum,gusi'];
-        $rules['mukosa_mulut.*'] = ['nullable', Rule::in(['normal', 'abnormal', 'belum_dinilai'])];
+        $mucosaSites = implode(',', array_keys(Screening::ORAL_AREAS));
+        $rules['mukosa_mulut'] = [Rule::excludeIf(! $isDental), 'nullable', 'array:'.$mucosaSites.',catatan'];
+        $rules['mukosa_mulut.catatan'] = ['nullable', 'array:'.$mucosaSites];
+        $rules['mukosa_mulut.catatan.*'] = ['nullable', 'string', 'max:2000'];
+        foreach (array_keys(Screening::ORAL_AREAS) as $site) {
+            $rules['mukosa_mulut.'.$site] = ['nullable', Rule::in(['normal', 'abnormal', 'belum_dinilai'])];
+        }
         $rules['kelainan_mukosa'] = [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:2000'];
         $rules['kebiasaan_gigi_opsi'] = [Rule::excludeIf(! $isDental), 'nullable', 'array', 'max:11'];
         $rules['kebiasaan_gigi_opsi.*'] = ['required', 'string', 'distinct', Rule::in(array_keys(Screening::ORAL_HABITS))];
@@ -189,8 +194,12 @@ class StoreScreeningRequest extends FormRequest
             if (array_intersect(['tidak_ada', 'belum_diketahui'], $habits) && count($habits) > 1) {
                 $validator->errors()->add('kebiasaan_gigi_opsi', 'Pilihan tidak ada atau belum diketahui harus dipilih sendiri.');
             }
-            if ($final && in_array('abnormal', $this->input('mukosa_mulut', []) ?? [], true) && ! $this->filled('kelainan_mukosa')) {
-                $validator->errors()->add('kelainan_mukosa', 'Jelaskan lokasi dan kelainan mukosa yang ditemukan.');
+            if ($final && ! $this->filled('kelainan_mukosa')) {
+                foreach (Screening::ORAL_AREAS as $site => $label) {
+                    if ($this->input('mukosa_mulut.'.$site) === 'abnormal' && ! $this->filled('mukosa_mulut.catatan.'.$site)) {
+                        $validator->errors()->add('mukosa_mulut.catatan.'.$site, 'Jelaskan temuan abnormal pada '.mb_strtolower($label).'.');
+                    }
+                }
             }
             if ($final && in_array('lainnya', $habits, true) && ! $this->filled('kebiasaan_gigi')) {
                 $validator->errors()->add('kebiasaan_gigi', 'Jelaskan kebiasaan lain yang dilaporkan pasien.');

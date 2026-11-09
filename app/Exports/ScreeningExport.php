@@ -30,7 +30,7 @@ class ScreeningExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             'Sistole (mmHg)', 'Diastole (mmHg)', 'Nadi (/menit)', 'Suhu (C)', 'SpO2 (%)',
             'Respirasi (/menit)', 'Berat Badan (kg)', 'Tinggi Badan (cm)', 'Riwayat Alergi',
             'Riwayat Penyakit', 'Riwayat Obat', 'Skala Nyeri', 'Catatan keselamatan dan pengkajian tambahan',
-        ], $this->nurse?->poliklinik?->jenis === 'gigi' || $this->nurse === null ? ['Lokasi Nyeri Gigi', 'Durasi Keluhan Gigi', 'Catatan Medis Gigi'] : [],
+        ], $this->nurse?->poliklinik?->jenis === 'gigi' || $this->nurse === null ? ['Lokasi Nyeri Gigi', 'Durasi Keluhan Gigi', 'Catatan Medis Gigi', 'Observasi mukosa mulut'] : [],
             $this->nurse?->poliklinik?->jenis !== 'gigi' ? array_keys((new Screening)->generalAssessmentSummary()) : [],
             ['Waktu Pengukuran TTV', 'Waktu Triase', 'Waktu Pengiriman Terakhir']);
     }
@@ -58,8 +58,15 @@ class ScreeningExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             $notes = [...$notes, ...array_filter(GeneralAssessment::handoverSummary($screening->general_assessment), fn ($value): bool => filled($value))];
         }
         $values[] = implode('; ', array_map(fn ($label, $value): string => $label.': '.$value, array_keys($notes), array_values($notes)));
-        if ($visit->poliklinik?->jenis === 'gigi' || $this->nurse === null) {
-            array_push($values, $screening->lokasi_nyeri_gigi, $screening->durasi_keluhan_gigi, $screening->catatan_medis_gigi);
+        if ($this->nurse?->poliklinik?->jenis === 'gigi' || $this->nurse === null) {
+            $mucosa = [];
+            foreach (array_filter($screening->mucosaSiteSummary(), fn ($value): bool => filled($value)) as $label => $value) {
+                $mucosa[] = str_replace('Observasi mukosa - ', '', $label).': '.$value;
+            }
+            if (filled($screening->kelainan_mukosa)) {
+                $mucosa[] = 'Catatan umum: '.$screening->kelainan_mukosa;
+            }
+            array_push($values, $screening->lokasi_nyeri_gigi, $screening->durasi_keluhan_gigi, $screening->catatan_medis_gigi, $mucosa ? implode("\n", $mucosa) : null);
         }
         if ($this->nurse?->poliklinik?->jenis !== 'gigi') {
             array_push($values, ...array_values($visit->poliklinik?->jenis === 'umum' ? $general : array_fill_keys(array_keys($general), null)));

@@ -22,6 +22,7 @@ class GeneralAssessment
         'hospitalization_status' => 'Riwayat rawat inap', 'surgery_status' => 'Riwayat operasi', 'special_needs_status' => 'Status kebutuhan khusus', 'needs_status' => 'Status masalah perawat', 'initial_actions_status' => 'Status tindakan awal',
         'visit_purpose' => 'Tujuan kunjungan (catatan sebelumnya)', 'companion' => 'Pendamping pasien',
         'arrival' => 'Kondisi kedatangan', 'general_condition' => 'Kondisi umum',
+        'systems_notes' => 'Catatan pengkajian sistem tubuh',
         'airway' => 'Jalan napas', 'circulation' => 'Sirkulasi',
         'red_flags' => 'Tanda bahaya / hasil penilaian',
         'onset' => 'Awitan keluhan (catatan sebelumnya)', 'location' => 'Lokasi keluhan',
@@ -51,7 +52,12 @@ class GeneralAssessment
         $append('Pasien mengeluhkan ', $complaint);
         $append(preg_match('/^(sejak|selama)\b/i', trim($duration ?? '')) ? 'Keluhan dirasakan ' : 'Keluhan berlangsung selama ', $duration);
         foreach (['location' => 'Keluhan berlokasi di ', 'character' => 'Karakter keluhan berupa ', 'pattern' => 'Pola / frekuensi keluhan: ', 'triggers' => 'Keluhan dipicu oleh ', 'relief' => 'Keluhan berkurang dengan '] as $key => $prefix) {
-            $append($prefix, $assessment[$key] ?? null);
+            $value = $assessment[$key] ?? null;
+            if ($key === 'triggers' && is_string($value) && preg_match('/^tidak ada(?: pemicu)?\.?$/i', trim($value))) {
+                $append('', 'Tidak ada pemicu keluhan yang dilaporkan');
+            } else {
+                $append($prefix, $value);
+            }
         }
         $progression = ['membaik' => 'Keluhan membaik', 'menetap' => 'Keluhan menetap', 'memburuk' => 'Keluhan memburuk', 'belum_diketahui' => 'Perkembangan keluhan belum diketahui'];
         $append('', $progression[$assessment['progression'] ?? ''] ?? null);
