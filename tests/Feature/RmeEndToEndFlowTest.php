@@ -112,7 +112,7 @@ class RmeEndToEndFlowTest extends TestCase
         $this->assertEquals('menunggu', $kunjungan->status);
 
         // 4. Screening Tanda Vital
-        $resScreening = $this->actingAs($nurse)->post("/pelayanan/kunjungan/{$kunjungan->id}/screening", [
+        $resScreening = $this->actingAs($nurse)->beginNursingAssessment($kunjungan)->post("/pelayanan/kunjungan/{$kunjungan->id}/screening", [
             'td_sistole' => 120,
             'td_diastole' => 80,
             'nadi' => 78,
@@ -158,7 +158,7 @@ class RmeEndToEndFlowTest extends TestCase
         ]);
 
         // Pemeriksaan dokter -> tindakan perawat -> farmasi
-        $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/selesai", ['review_final_plan' => true, 'signature_password' => 'password']);
+        $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/selesai", ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $kunjungan->fresh()->screening?->revisionToken(), 'signature_password' => 'password']);
         $kunjungan->refresh();
         $this->assertSame('tindakan', $kunjungan->status);
         $this->assertEquals(5, $supply->fresh()->stok);
@@ -171,7 +171,7 @@ class RmeEndToEndFlowTest extends TestCase
         $this->actingAs($doctorUser);
         $this->assertEquals(100, $obat->fresh()->stok);
         $this->assertEquals(3, $supply->fresh()->stok);
-        $this->post('/pelayanan/pemeriksaan/'.$kunjungan->id.'/selesai', ['review_final_plan' => true, 'signature_password' => 'password'])->assertUnprocessable();
+        $this->post('/pelayanan/pemeriksaan/'.$kunjungan->id.'/selesai', ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $kunjungan->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertUnprocessable();
         $this->assertEquals(3, $supply->fresh()->stok);
 
         $this->actingAs($nurse)->post("/pelayanan/kunjungan/{$kunjungan->id}/screening", [

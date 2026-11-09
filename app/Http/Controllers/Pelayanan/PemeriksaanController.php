@@ -9,6 +9,7 @@ use App\ClinicalNoteRecorder;
 use App\CorrespondenceService;
 use App\DentalAssessment;
 use App\DoctorAccessService;
+use App\GeneralAssessment;
 use App\Http\Controllers\Controller;
 use App\MedicalLetterData;
 use App\Models\ClinicalTerminology;
@@ -63,6 +64,7 @@ class PemeriksaanController extends Controller
 
         $todayQueue = (clone $visitQuery)->with(['pasien', 'poliklinik', 'dokter', 'screening', 'pemeriksaan.diagnosa', 'pemeriksaan.clinicalNoteVersions'])
             ->whereDate('tanggal', today())->where('status', 'pemeriksaan')
+            ->orderByRaw("coalesce((select case prioritas_layanan when 'darurat' then 0 when 'segera' then 1 else 2 end from screening where screening.kunjungan_id = kunjungan.id), 2) asc")
             ->orderBy('created_at')->orderBy('id')->paginate(10, ['*'], 'today_page')->withQueryString();
 
         $patientIds = $kunjungan->getCollection()->pluck('pasien_id')->merge($todayQueue->getCollection()->pluck('pasien_id'))->unique();
@@ -142,16 +144,14 @@ class PemeriksaanController extends Controller
             ->when(! config('clinic.modules.laboratory', false), fn ($query) => $query->where('kategori', 'medis'))
             ->orderBy('nama')->get();
         $diagnosisCodeSystems = collect([
-            ['value' => 'icd10_who', 'label' => 'ICD-10 WHO'],
             ['value' => 'icd10_cm', 'label' => 'ICD-10-CM'],
-            ['value' => 'icd9cm_diagnosis', 'label' => 'ICD-9-CM diagnosis'],
         ])->merge(ClinicalTerminology::query()->where('is_active', true)->where('code_type', 'diagnosis')
             ->select('code_system')->distinct()->orderBy('code_system')->get()
             ->map(fn (ClinicalTerminology $terminology): array => [
                 'value' => $terminology->code_system,
                 'label' => $terminology->code_system,
             ]))
-            ->unique('value')->values();
+            ->reject(fn (array $system): bool => in_array($system['value'], ['icd10_who', 'icd9cm_diagnosis'], true))->unique('value')->values();
         $obatList = Obat::withSum(['batches as usable_stock' => fn ($query) => $query->usable()], 'stok')->where('is_active', true)->where('jenis', 'obat')->orderBy('nama')->get();
         $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
         $latestNote = $kunjungan->pemeriksaan?->clinicalNoteVersions->sortBy('version')->last();
@@ -169,13 +169,17 @@ class PemeriksaanController extends Controller
 
             return null;
         };
+        $nurseGeneral = $kunjungan->poliklinik?->jenis === 'umum' && $kunjungan->screening?->submitted_at
+            ? $kunjungan->screening->general_assessment ?? [] : [];
+        $nurseCurrentHistory = GeneralAssessment::currentIllnessNarrative($nurseGeneral, $kunjungan->screening?->keluhan, $kunjungan->screening?->lama_keluhan, $kunjungan->screening?->keluhan_tambahan, $kunjungan->screening?->skala_nyeri);
         $examinationFormDefaults = [
+            'reviewOfSystems' => is_array($effectiveNote) ? ($effectiveNote['review_of_systems'] ?? []) : ($kunjungan->pemeriksaan?->review_of_systems ?? []),
             'anamnesis' => is_array($effectiveNote)
                 ? ClinicalAnswer::normalize($effectiveNote['anamnesis'] ?? null)
                 : $firstRecordedValue($kunjungan->pemeriksaan?->anamnesis, $kunjungan->screening?->keluhan),
             'currentHistory' => ClinicalAnswer::normalize(is_array($effectiveNote)
                 ? ($effectiveNote['riwayat_penyakit_sekarang'] ?? null)
-                : $kunjungan->pemeriksaan?->riwayat_penyakit_sekarang),
+                : $firstRecordedValue($kunjungan->pemeriksaan?->riwayat_penyakit_sekarang, $kunjungan->poliklinik?->jenis === 'umum' ? $nurseCurrentHistory : null)),
             'pastHistory' => is_array($effectiveNote)
                 ? ClinicalAnswer::normalize($effectiveNote['riwayat_penyakit_dahulu'] ?? null)
                 : $clinicalHistory['riwayat_penyakit'],
@@ -197,7 +201,7 @@ class PemeriksaanController extends Controller
             $nurseDentalHistory['Obat yang digunakan'] ?? null,
         ])->filter()->implode("\n");
         foreach ([
-            'riwayat_obat' => $nurseMedication,
+            'riwayat_obat' => $kunjungan->poliklinik?->jenis === 'umum' ? ($kunjungan->screening?->handoverSummary()['Obat yang digunakan'] ?? null) : $nurseMedication,
             'riwayat_perawatan_gigi' => $nurseDentalHistory['Riwayat perawatan gigi'] ?? null,
             'kebiasaan_gigi' => $nurseDentalHistory['Kebiasaan terkait gigi dan mulut'] ?? null,
             'pemeriksaan_ekstraoral' => $nurseExtraoral,
@@ -250,6 +254,8 @@ class PemeriksaanController extends Controller
                 'examinationFormDefaults' => $examinationFormDefaults,
                 'screening' => $kunjungan->screening ? [
                     'summary' => $kunjungan->screening->handoverSummary(),
+                    'systemAssessment' => $nurseGeneral['systems'] ?? [],
+                    'versions' => $kunjungan->screening->versionSummaries(),
                     'systolic' => $kunjungan->screening->td_sistole,
                     'diastolic' => $kunjungan->screening->td_diastole,
                     'pulse' => $kunjungan->screening->nadi,
@@ -289,6 +295,12 @@ class PemeriksaanController extends Controller
                     'riwayat_obat' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_obat'] ?? null) : $kunjungan->pemeriksaan->riwayat_obat),
                     'riwayat_perawatan_gigi' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_perawatan_gigi'] ?? null) : $kunjungan->pemeriksaan->riwayat_perawatan_gigi),
                     'kebiasaan_gigi' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['kebiasaan_gigi'] ?? null) : $kunjungan->pemeriksaan->kebiasaan_gigi),
+                    'supportingExams' => is_array($effectiveNote) ? ($effectiveNote['supporting_exams'] ?? []) : ($kunjungan->pemeriksaan?->supporting_exams ?? []),
+                    'reviewOfSystems' => is_array($effectiveNote) ? ($effectiveNote['review_of_systems'] ?? []) : ($kunjungan->pemeriksaan?->review_of_systems ?? []),
+                    'socialHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_sosial'] ?? null) : $kunjungan->pemeriksaan?->riwayat_sosial,
+                    'finalCondition' => is_array($effectiveNote) ? ($effectiveNote['kondisi_akhir'] ?? null) : $kunjungan->pemeriksaan?->kondisi_akhir,
+                    'disposition' => is_array($effectiveNote) ? ($effectiveNote['disposisi'] ?? null) : $kunjungan->pemeriksaan?->disposisi,
+                    'nursingReview' => $effectiveNote['nursing_review'] ?? null,
                     'dentalReview' => is_array($effectiveNote) ? ($effectiveNote['dental_review'] ?? null) : null,
                     'extraoralExam' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_ekstraoral'] ?? null) : $kunjungan->pemeriksaan->pemeriksaan_ekstraoral,
                     'oralHygieneIndex' => is_numeric($oralHygieneIndex) ? (float) $oralHygieneIndex : null,
@@ -476,7 +488,7 @@ class PemeriksaanController extends Controller
                 if ($examination->started_at === null) {
                     $examination->update(['started_at' => now()]);
                 }
-                $auditRecorder->record($request, 'clinical_examination.started', $visit->pasien_id, $visit->id);
+                $auditRecorder->record($request, 'clinical_examination.started', $visit->pasien_id, $visit->id, ['screening_revision' => $visit->screening?->revisionToken(), 'screening_submitted_at' => $visit->screening?->submitted_at?->toIso8601String()]);
             }
         });
 
@@ -1025,6 +1037,7 @@ class PemeriksaanController extends Controller
         $request->validate([
             'signature_password' => ['required', 'current_password'],
             'review_final_plan' => ['required', 'accepted'],
+            'nursing_clarification' => ['nullable', 'string', 'max:3000'],
         ], [
             'review_final_plan.required' => 'Konfirmasi diagnosis banding, edukasi, dan tindak lanjut sebelum menandatangani.',
             'review_final_plan.accepted' => 'Konfirmasi diagnosis banding, edukasi, dan tindak lanjut sebelum menandatangani.',
@@ -1109,6 +1122,14 @@ class PemeriksaanController extends Controller
 
             }
 
+            if ($lockedVisit->poliklinik?->jenis === 'umum') {
+                $request->validate([
+                    'review_nursing_assessment' => ['required', 'accepted'],
+                    'screening_revision' => ['required', 'string', Rule::in([$lockedVisit->screening?->revisionToken()])],
+                    'nursing_clarification' => [Rule::requiredIf($lockedVisit->screening?->vitals_unmeasurable || $lockedVisit->screening?->prioritas_layanan === 'darurat'), 'nullable', 'string', 'max:3000'],
+                ], ['review_nursing_assessment.required' => 'Verifikasi pengkajian perawat sebelum menandatangani.', 'review_nursing_assessment.accepted' => 'Verifikasi pengkajian perawat sebelum menandatangani.', 'nursing_clarification.required' => 'Catat penilaian ulang dan tindak lanjut untuk tanda bahaya atau TTV yang tidak dapat diukur.', 'screening_revision.in' => 'Pengkajian perawat berubah. Muat ulang dan tinjau sebelum menandatangani.']);
+            }
+
             $procedures = $lockedVisit->tindakanKunjungan()->with('tindakan.bhp.obat')->where('execution_role', 'dokter')->orderBy('id')->lockForUpdate()->get();
             $supplyIds = $procedures->flatMap(fn (TindakanKunjungan $procedure) => $procedure->tindakan?->bhp->pluck('obat_id') ?? collect())->unique()->sort()->values();
             Obat::whereIn('id', $supplyIds)->orderBy('id')->lockForUpdate()->get();
@@ -1130,6 +1151,15 @@ class PemeriksaanController extends Controller
             }
             $examination->save();
             $payload = $noteRecorder->snapshot($lockedVisit, $examination);
+            $payload['nursing_review'] = [
+                'reviewed_by' => $request->user()->id, 'reviewed_at' => now()->toIso8601String(),
+                'received_by' => $request->user()->id, 'received_at' => now()->toIso8601String(),
+                'status' => 'verified',
+                'screening_revision' => $lockedVisit->screening?->revisionToken(),
+                'screening' => $lockedVisit->screening?->attributesToArray(),
+                'handover' => $lockedVisit->screening?->handoverSummary() ?? [],
+                'clarification' => $request->input('nursing_clarification'),
+            ];
             $payload['final_plan_review'] = ['reviewed_by' => $request->user()->id, 'reviewed_at' => now()->toIso8601String(), 'next_control_required' => $examination->kontrol_berikutnya !== null];
             if ($lockedVisit->poliklinik?->jenis === 'gigi') {
                 $screening = $lockedVisit->screening;
@@ -1178,10 +1208,11 @@ class PemeriksaanController extends Controller
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:10', 'max:2000'],
             'anamnesis' => ['sometimes', 'nullable', 'string'],
+            ...$this->generalExaminationRules($isGeneralClinic),
             'riwayat_penyakit_sekarang' => ['sometimes', 'nullable', 'string', 'max:10000'],
             'riwayat_penyakit_dahulu' => ['sometimes', 'nullable', 'string', 'max:10000'],
             'riwayat_penyakit_keluarga' => ['sometimes', 'nullable', 'string', 'max:10000'],
-            'riwayat_obat' => ['sometimes', Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
+            'riwayat_obat' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'riwayat_perawatan_gigi' => ['sometimes', Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'kebiasaan_gigi' => ['sometimes', Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'riwayat_alergi' => ['sometimes', 'nullable', 'string', 'max:5000'],
@@ -1197,6 +1228,7 @@ class PemeriksaanController extends Controller
             'kontrol_berikutnya' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
         ]);
         $fields = array_intersect_key($data, array_flip([
+            'supporting_exams', 'review_of_systems', 'riwayat_sosial', 'kondisi_akhir', 'disposisi',
             'riwayat_obat', 'riwayat_perawatan_gigi', 'kebiasaan_gigi',
             'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu',
             'riwayat_penyakit_keluarga', 'riwayat_alergi', 'pemeriksaan_fisik',
@@ -1584,6 +1616,19 @@ class PemeriksaanController extends Controller
     /**
      * @return array<string, mixed>
      */
+    private function generalExaminationRules(bool $enabled): array
+    {
+        return [
+            'supporting_exams' => [Rule::excludeIf(! $enabled), 'nullable', 'array:laboratory,rapid,radiology,results'],
+            'supporting_exams.*' => ['nullable', 'string', 'max:5000'],
+            ...GeneralAssessment::systemRules('review_of_systems', GeneralAssessment::ROS),
+            'review_of_systems' => [Rule::excludeIf(! $enabled), 'nullable', 'array:'.implode(',', array_keys(GeneralAssessment::ROS))],
+            'riwayat_sosial' => [Rule::excludeIf(! $enabled), 'nullable', 'string', 'max:5000'],
+            'kondisi_akhir' => [Rule::excludeIf(! $enabled), 'nullable', 'string', 'max:3000'],
+            'disposisi' => [Rule::excludeIf(! $enabled), 'nullable', Rule::in(['pulang', 'observasi', 'rujukan'])],
+        ];
+    }
+
     private function validateExamination(Request $request, Kunjungan $kunjungan): array
     {
         $isGeneralClinic = $kunjungan->poliklinik?->jenis === 'umum';
@@ -1591,10 +1636,11 @@ class PemeriksaanController extends Controller
 
         $data = $request->validate([
             'section' => ['sometimes', 'required', Rule::in(['anamnesis', 'pemeriksaan', 'diagnosis', 'rencana'])],
-            'riwayat_obat' => [Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
+            'riwayat_obat' => ['nullable', 'string', 'max:5000'],
             'riwayat_perawatan_gigi' => [Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'kebiasaan_gigi' => [Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'anamnesis' => ['nullable', 'string', 'max:10000'],
+            ...$this->generalExaminationRules($isGeneralClinic),
             'riwayat_penyakit_sekarang' => ['nullable', 'string', 'max:10000'],
             'riwayat_penyakit_dahulu' => ['nullable', 'string', 'max:10000'],
             'riwayat_penyakit_keluarga' => ['nullable', 'string', 'max:10000'],
@@ -1615,10 +1661,10 @@ class PemeriksaanController extends Controller
         unset($data['section']);
         if ($section !== null) {
             $sectionFields = match ($section) {
-                'anamnesis' => ['riwayat_obat', 'riwayat_perawatan_gigi', 'kebiasaan_gigi', 'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu', 'riwayat_penyakit_keluarga', 'riwayat_alergi'],
-                'pemeriksaan' => ['pemeriksaan_fisik', 'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'body_map'],
+                'anamnesis' => ['review_of_systems', 'riwayat_sosial', 'riwayat_obat', 'riwayat_perawatan_gigi', 'kebiasaan_gigi', 'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu', 'riwayat_penyakit_keluarga', 'riwayat_alergi'],
+                'pemeriksaan' => ['supporting_exams', 'pemeriksaan_fisik', 'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'body_map'],
                 'diagnosis' => ['diagnosis_banding'],
-                'rencana' => ['kontrol_berikutnya', 'catatan', 'edukasi', 'non_farmakologis'],
+                'rencana' => ['kondisi_akhir', 'disposisi', 'kontrol_berikutnya', 'catatan', 'edukasi', 'non_farmakologis'],
             };
             $data = array_intersect_key($data, array_flip($sectionFields));
         }

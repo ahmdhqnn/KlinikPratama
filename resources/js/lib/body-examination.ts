@@ -65,3 +65,29 @@ export const organLocations: (BodyLocation & { path: string; color: string })[] 
     { id: 'appendix', label: 'Apendiks', category: 'Abdomen', x: 175, y: 333, width: 0, height: 0, color: '#fdba74', path: 'M173 323 Q166 334 173 340 Q182 344 183 335 L178 332 L178 324Z' },
     { id: 'bladder', label: 'Kandung kemih', category: 'Abdomen', x: 200, y: 350, width: 0, height: 0, color: '#6ee7b7', path: 'M187 345 Q200 336 213 345 Q215 358 203 365 L203 372 L197 372 L197 365 Q185 359 187 345Z' },
 ];
+
+export const detailedExamLocations = [
+    ['eye', 'Mata / kelopak mata', 'Kepala dan leher'], ['ear', 'Telinga', 'Kepala dan leher'], ['nose', 'Hidung / sinus', 'Kepala dan leher'],
+    ['mouth', 'Mulut / lidah / gigi / gusi', 'Kepala dan leher'], ['throat', 'Tenggorokan / tonsil', 'Kepala dan leher'], ['neck-gland', 'Kelenjar leher', 'Kepala dan leher'],
+    ['breast', 'Payudara / ketiak', 'Thorax'], ['epigastrium', 'Ulu hati / epigastrium', 'Abdomen'], ['umbilical', 'Sekitar pusar', 'Abdomen'],
+    ['lower-abdomen', 'Perut bawah / suprapubik', 'Abdomen'], ['genital', 'Genital / perineum', 'Lainnya'], ['anal', 'Anus / rektum', 'Lainnya'],
+    ['finger', 'Jari tangan / kuku', 'Ekstremitas'], ['toe', 'Jari kaki / kuku', 'Ekstremitas'], ['skin', 'Kulit / ruam / luka', 'Kulit'],
+    ['neurological', 'Fungsi neurologis / sensorik / motorik', 'Neurologis'], ['general', 'Keluhan umum / tanpa lokasi spesifik', 'Lainnya'],
+    ['psychological', 'Psikologis / status mental / fungsi aktivitas', 'Lainnya'],
+].map(([id, label, category]) => ({ id: `detail:${id}`, label, category }));
+
+const examLocationKeywords: Record<string, string> = {
+    brain: 'pusing sakit kepala migrain', lungs: 'batuk sesak napas dahak', heart: 'berdebar palpitasi nyeri dada',
+    stomach: 'mual muntah maag ulu hati', intestines: 'diare mencret sembelit bab buang air besar', bladder: 'bak kencing berkemih anyang buang air kecil',
+    kidneys: 'pinggang urin kencing', 'detail:ear': 'telinga berdenging pendengaran', 'detail:eye': 'mata penglihatan merah',
+    'detail:mouth': 'sariawan menelan gigi gusi', 'detail:skin': 'gatal bentol ruam luka', 'detail:neurological': 'kebas kesemutan kelemahan',
+    'detail:general': 'demam lemas lelah meriang seluruh tubuh', 'detail:psychological': 'cemas tidur gelisah psikologis',
+};
+export function matchesExamLocation(location: { id: string; label: string; category: string }, query: string): boolean {
+    return `${location.label} ${location.category} ${examLocationKeywords[location.id] ?? ''}`.toLocaleLowerCase('id').includes(query.trim().toLocaleLowerCase('id'));
+}
+
+export function annotationNarrative(draft: BodyFindingDraft): string {
+    const location = [draft.locationLabel, draft.side && !draft.locationLabel.toLocaleLowerCase('id').includes(draft.side.toLocaleLowerCase('id')) ? draft.side : '', draft.detail].filter(value => value?.trim()).join(', ');
+    return [location ? `Lokasi pemeriksaan: ${location}.` : '', draft.symptom.trim() ? `Keluhan lokal pasien: ${draft.symptom.trim()}` : '', draft.finding.trim() ? `Temuan pemeriksaan: ${draft.finding.trim()}` : ''].filter(Boolean).join('\n');
+}

@@ -74,13 +74,14 @@ export function DentalExaminationSummary({ anamnesis, intraoralExam, extraoralEx
 }
 
 interface GeneralExaminationSummaryProps extends SummaryProps {
+    id?: string;
     anamnesis: string | null | undefined;
     physicalExam: string | null | undefined;
     physicalSystems: Record<string, string>;
     bodyMap?: BodyMapData | null;
 }
 
-export function GeneralExaminationSummary({ anamnesis, physicalExam, physicalSystems, bodyMap, hasUnsavedChanges, onReview }: GeneralExaminationSummaryProps) {
+export function GeneralExaminationSummary({ id = 'general-examination-summary', anamnesis, physicalExam, physicalSystems, bodyMap, hasUnsavedChanges, onReview }: GeneralExaminationSummaryProps) {
     const recordedSystems = Object.entries(physicalSystems)
         .map(([system, value]) => ({ system, value: normalizeClinicalAnswer(value) }))
         .filter(({ value }) => value !== null);
@@ -93,7 +94,7 @@ export function GeneralExaminationSummary({ anamnesis, physicalExam, physicalSys
             description="Hasil pemeriksaan tersimpan pada kunjungan ini sebagai acuan penetapan diagnosis."
             hasUnsavedChanges={hasUnsavedChanges}
             icon={Stethoscope}
-            id="general-examination-summary"
+            id={id}
             onReview={onReview}
             reviewLabel="Tinjau pemeriksaan fisik"
             title="Ringkasan pemeriksaan fisik"

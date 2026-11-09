@@ -39,7 +39,7 @@ class ScreeningWorkflowTest extends TestCase
         [$nurse, $visit] = $this->context('gigi');
         $visit->pasien->update(['riwayat_alergi' => 'Penisilin']);
 
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new',
             'tindakan' => 'draf', 'keluhan' => 'Nyeri gigi', 'konfirmasi_riwayat' => false,
             'risiko_medis_gigi' => [], 'status_alergi' => 'tidak_ada',
         ])->assertSessionHasNoErrors()->assertRedirect(route('pelayanan.screening.show', $visit));
@@ -59,11 +59,11 @@ class ScreeningWorkflowTest extends TestCase
     {
         [$nurse, $visit] = $this->context('gigi');
 
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [])
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new'])
             ->assertSessionHasErrors(['keluhan', 'lama_keluhan', 'sumber_informasi', 'status_alergi', 'status_riwayat_penyakit', 'konfirmasi_riwayat', 'risiko_medis_gigi']);
 
-        $this->assertDatabaseCount('screening', 0);
-        $this->assertSame('menunggu', $visit->fresh()->status);
+        $this->assertNull($visit->fresh()->screening?->submitted_at);
+        $this->assertSame('screening', $visit->fresh()->status);
     }
 
     public function test_vitals_remain_required_while_anthropometry_and_triage_are_optional(): void
@@ -72,11 +72,11 @@ class ScreeningWorkflowTest extends TestCase
         $payload = $this->payload();
         unset($payload['td_sistole'], $payload['berat_badan']);
 
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)
             ->assertSessionHasErrors(['td_sistole' => 'Isi hasil pengukuran sebelum meneruskan pasien.']);
 
-        $this->assertDatabaseCount('screening', 0);
-        $this->assertSame('menunggu', $visit->fresh()->status);
+        $this->assertNull($visit->fresh()->screening?->submitted_at);
+        $this->assertSame('screening', $visit->fresh()->status);
     }
 
     public function test_urgent_handoff_allows_optional_anthropometry_and_triage_and_cannot_downgrade_red_flags(): void
@@ -86,13 +86,13 @@ class ScreeningWorkflowTest extends TestCase
         unset($payload['berat_badan'], $payload['tinggi_badan'], $payload['kejang'], $payload['nadi_teraba'], $payload['pola_pernapasan'], $payload['kesadaran'], $payload['kondisi_psikiatri'], $payload['risiko_jatuh_visual']);
         $payload = [...$payload, 'nyeri_dada' => 'ya', 'triase_perawat' => 'hijau'];
 
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)
             ->assertSessionHasNoErrors()->assertRedirect(route('pelayanan.kunjungan.show', $visit));
 
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'berat_badan' => null, 'tinggi_badan' => null, 'kesimpulan_triase' => 'merah', 'prioritas_layanan' => 'darurat']);
         $this->assertNotNull($visit->fresh()->screening->submitted_at);
         $this->assertSame('pemeriksaan', $visit->fresh()->status);
-        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'tindakan' => 'draf'])->assertSessionHasErrors('tindakan');
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$payload, 'tindakan' => 'draf'])->assertSessionHasErrors('tindakan');
         $this->assertSame('merah', $visit->fresh()->screening->kesimpulan_triase);
     }
 
@@ -101,9 +101,9 @@ class ScreeningWorkflowTest extends TestCase
         [$nurse, $visit] = $this->context('gigi', 'terapis_gigi');
         $payload = [...$this->payload(), 'dental_vitals_unmeasurable' => true, 'risiko_medis_gigi' => ['tidak_ada']];
         unset($payload['td_sistole'], $payload['td_diastole'], $payload['nadi'], $payload['suhu'], $payload['respirasi'], $payload['kesadaran'], $payload['pola_pernapasan']);
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)
             ->assertSessionHasErrors(['alasan_pengukuran_tidak_lengkap', 'kesadaran', 'pola_pernapasan']);
-        $this->post(route('pelayanan.screening.store', $visit), [
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new',
             ...$payload, 'kesadaran' => 'sadar', 'pola_pernapasan' => 'normal',
             'alasan_pengukuran_tidak_lengkap' => 'Pasien belum kooperatif. Dokter menerima serah terima verbal.',
         ])->assertSessionHasNoErrors();
@@ -115,7 +115,7 @@ class ScreeningWorkflowTest extends TestCase
         [$nurse, $visit] = $this->context('gigi', 'terapis_gigi');
         $payload = [...$this->payload(), 'riwayat_penyakit' => 'Diabetes', 'status_riwayat_penyakit' => 'ada', 'risiko_medis_gigi' => ['diabetes'], 'riwayat_obat' => 'Obat rutin sesuai keterangan pasien', 'keluhan_tambahan' => '<script>alert(1)</script>'];
 
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'riwayat_obat' => 'Obat rutin sesuai keterangan pasien', 'skala_nyeri' => null]);
         $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
@@ -134,20 +134,20 @@ class ScreeningWorkflowTest extends TestCase
     {
         [$nurse, $visit] = $this->context('gigi');
 
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [...$this->payload(), 'risiko_medis_gigi' => ['tidak_ada', 'diabetes']])
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$this->payload(), 'risiko_medis_gigi' => ['tidak_ada', 'diabetes']])
             ->assertSessionHasErrors('risiko_medis_gigi');
 
-        $this->assertDatabaseCount('screening', 0);
+        $this->assertNull($visit->fresh()->screening?->submitted_at);
     }
 
     public function test_unknown_dental_systemic_history_requires_a_handoff_note(): void
     {
         [$nurse, $visit] = $this->context('gigi');
 
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [...$this->payload(), 'risiko_medis_gigi' => ['belum_diketahui']])
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$this->payload(), 'risiko_medis_gigi' => ['belum_diketahui']])
             ->assertSessionHasErrors('catatan_medis_gigi');
 
-        $this->assertDatabaseCount('screening', 0);
+        $this->assertNull($visit->fresh()->screening?->submitted_at);
     }
 
     public function test_print_and_start_remain_scoped_to_the_nurses_clinic(): void
@@ -178,7 +178,7 @@ class ScreeningWorkflowTest extends TestCase
     {
         [$nurse, $visit] = $this->context('gigi', 'terapis_gigi');
 
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new',
             ...$this->payload(), 'risiko_medis_gigi' => ['tidak_ada'], 'status_alergi' => 'tidak_ada',
         ])->assertSessionHasNoErrors()->assertRedirect(route('pelayanan.kunjungan.show', $visit));
 
@@ -195,7 +195,7 @@ class ScreeningWorkflowTest extends TestCase
         [$nurse, $visit] = $this->context();
         $payload = $this->payload();
 
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('pelayanan.kunjungan.show', $visit));
 
@@ -208,7 +208,7 @@ class ScreeningWorkflowTest extends TestCase
                 ->where('visits.data.0.actionUrl', route('pelayanan.screening.show', $visit))
                 ->where('visits.data.0.actionLabel', 'Perbarui pengkajian'));
 
-        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'keluhan' => 'Keluhan diperbarui'])
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$payload, 'keluhan' => 'Keluhan diperbarui'])
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('pelayanan.screening.show', $visit));
 
@@ -223,12 +223,12 @@ class ScreeningWorkflowTest extends TestCase
     public function test_submitted_assessment_cannot_be_updated_after_the_doctor_starts(): void
     {
         [$nurse, $visit] = $this->context();
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $this->payload())->assertSessionHasNoErrors();
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $this->payload())->assertSessionHasNoErrors();
         $doctor = Nakes::create(['kode' => 'SKR-DOCTOR', 'nama' => 'Dokter Uji', 'kategori' => 'medis', 'jabatan' => 'dokter', 'poliklinik_id' => $visit->poliklinik_id, 'is_active' => true]);
         Pemeriksaan::create(['kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id, 'status' => 'draft', 'started_at' => now()]);
 
         $this->get(route('pelayanan.screening.show', $visit))->assertUnprocessable();
-        $this->post(route('pelayanan.screening.store', $visit), [...$this->payload(), 'keluhan' => 'Tidak boleh berubah'])
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$this->payload(), 'keluhan' => 'Tidak boleh berubah'])
             ->assertUnprocessable();
 
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'keluhan' => 'Keluhan pasien']);
@@ -237,9 +237,9 @@ class ScreeningWorkflowTest extends TestCase
     public function test_submitted_assessment_cannot_be_saved_as_an_incomplete_draft(): void
     {
         [$nurse, $visit] = $this->context();
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $this->payload())->assertSessionHasNoErrors();
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $this->payload())->assertSessionHasNoErrors();
 
-        $this->post(route('pelayanan.screening.store', $visit), ['tindakan' => 'draf'])
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', 'tindakan' => 'draf'])
             ->assertSessionHasErrors(['tindakan', 'keluhan']);
 
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'keluhan' => 'Keluhan pasien']);
@@ -261,7 +261,7 @@ class ScreeningWorkflowTest extends TestCase
         $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('document.isDraft', true)
             ->where('document.signatureDataUrl', null));
-        $this->post(route('pelayanan.screening.store', $visit), $this->payload())->assertSessionHasNoErrors();
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $this->payload())->assertSessionHasNoErrors();
 
         $this->actingAs($viewer)->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('document.isDraft', false)
@@ -282,37 +282,37 @@ class ScreeningWorkflowTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $reason = 'Akun petugas sedang mengalami gangguan.';
         $this->actingAs($admin)->post(route('pelayanan.screening.start', $visit), ['petugas_id' => $staff->id])->assertSessionHasErrors('assistance_reason');
-        $this->assertDatabaseCount('screening', 0);
+        $this->assertNull($visit->fresh()->screening?->submitted_at);
         $this->post(route('pelayanan.screening.start', $visit), ['petugas_id' => $staff->id, 'assistance_reason' => $reason])->assertRedirect();
-        $this->post(route('pelayanan.screening.store', $visit), ['petugas_id' => $staff->id, 'tindakan' => 'draf', 'assistance_reason' => $reason, 'keluhan' => 'Keluhan awal'])->assertSessionHasNoErrors();
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', 'petugas_id' => $staff->id, 'tindakan' => 'draf', 'assistance_reason' => $reason, 'keluhan' => 'Keluhan awal'])->assertSessionHasNoErrors();
         $this->assertSame('screening', $visit->fresh()->status);
         $this->assertNull($visit->fresh()->screening->submitted_at);
         $payload = [...$this->payload(), 'petugas_id' => $staff->id, 'assistance_reason' => $reason, 'risiko_medis_gigi' => ['tidak_ada']];
-        $this->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
         $this->assertSame('pemeriksaan', $visit->fresh()->status);
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'petugas_id' => $staff->id, 'recorded_by_user_id' => $admin->id]);
         $event = DB::table('clinical_audit_events')->where('action', 'admin_assistance.screening_write')->where('kunjungan_id', $visit->id)->latest('id')->first();
         $this->assertSame($admin->id, $event->actor_id);
         $this->assertSame($reason, json_decode($event->metadata, true)['reason']);
         $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page->where('document.signatureDataUrl', null)->where('document.recordedBy', $admin->name));
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), [...$payload, 'revision_reason' => 'Konfirmasi langsung oleh perawat', 'screening_revision' => $visit->fresh()->screening->revisionToken()])->assertSessionHasNoErrors();
         $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page->where('document.signatureDataUrl', fn ($signature) => is_string($signature) && str_starts_with($signature, 'data:image/')));
         Pemeriksaan::create(['kunjungan_id' => $visit->id, 'started_at' => now()]);
-        $this->actingAs($admin)->post(route('pelayanan.screening.store', $visit), $payload)->assertUnprocessable();
+        $this->actingAs($admin)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertUnprocessable();
     }
 
     public function test_admin_assessment_rejects_blank_reason_and_staff_from_another_clinic(): void
     {
         [, $visit, $staff] = $this->context();
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        $this->actingAs($admin)->post(route('pelayanan.screening.store', $visit), ['tindakan' => 'draf', 'petugas_id' => $staff->id, 'assistance_reason' => str_repeat(' ', 20)])->assertSessionHasErrors('assistance_reason');
+        $this->actingAs($admin)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', 'tindakan' => 'draf', 'petugas_id' => $staff->id, 'assistance_reason' => str_repeat(' ', 20)])->assertSessionHasErrors('assistance_reason');
         $other = Poliklinik::create(['kode' => 'OTHER', 'nama' => 'Poli Lain', 'jenis' => 'gigi', 'is_active' => true]);
         $staff->update(['poliklinik_id' => $other->id]);
         $payload = ['tindakan' => 'draf', 'petugas_id' => $staff->id, 'assistance_reason' => 'Bantuan diperlukan untuk pengkajian.'];
-        $this->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasErrors('petugas_id');
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasErrors('petugas_id');
         $this->post(route('pelayanan.screening.start', $visit), $payload)->assertSessionHasErrors('petugas_id');
-        $this->assertDatabaseCount('screening', 0);
-        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'menunggu']);
+        $this->assertNull($visit->fresh()->screening?->submitted_at);
+        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'screening']);
     }
 
     /** @return array{User, Kunjungan, Nakes} */
@@ -344,12 +344,12 @@ class ScreeningWorkflowTest extends TestCase
             'risiko_medis_gigi' => ['lainnya'], 'risiko_medis_gigi_lainnya' => 'Kondisi lain perlu dikonfirmasi', 'extraoral_symmetry' => 'asymmetric',
             'extraoral_notes' => 'Asimetri pipi kanan, disampaikan kepada dokter.',
         ];
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
         $this->actingAs($doctorUser)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('visit.screening.medicalHistory', 'Hipertensi'));
 
         foreach (['belum_diketahui' => null, 'tidak_ada' => 'Pasien menyangkal riwayat penyakit'] as $status => $expected) {
-            $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [
+            $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new',
                 ...$payload, 'status_riwayat_penyakit' => $status,
             ])->assertSessionHasNoErrors();
             $this->assertDatabaseHas('screening', [
@@ -377,15 +377,15 @@ class ScreeningWorkflowTest extends TestCase
         foreach (Screening::OTHER_DETAILS as $field => [$option, $detail]) {
             $payload[$field] = [$option];
         }
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)
             ->assertSessionHasErrors(array_column(Screening::OTHER_DETAILS, 1));
         foreach (Screening::OTHER_DETAILS as [$option, $detail]) {
             $payload[$detail] = 'Keterangan pasien untuk dokter';
         }
-        $this->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
         $this->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('visit.screening.dental_red_flags_other', 'Keterangan pasien untuk dokter'));
-        $this->post(route('pelayanan.screening.store', $visit), [...$this->payload(), 'risiko_medis_gigi' => ['tidak_ada']])->assertSessionHasNoErrors();
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$this->payload(), 'risiko_medis_gigi' => ['tidak_ada']])->assertSessionHasNoErrors();
         foreach (Screening::OTHER_DETAILS as [$option, $detail]) {
             $this->assertNull($visit->fresh()->screening->getAttribute($detail));
         }
@@ -394,7 +394,7 @@ class ScreeningWorkflowTest extends TestCase
     public function test_handover_describes_recorded_measurements_and_confirmed_absence_without_inventing_optional_notes(): void
     {
         [$nurse, $visit] = $this->context('gigi');
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [...$this->payload(),
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$this->payload(),
             'td_sistole' => 120, 'td_diastole' => 80, 'nadi' => 80, 'suhu' => 36.5, 'respirasi' => 18,
             'status_riwayat_obat' => 'tidak_ada', 'risiko_medis_gigi' => ['tidak_ada'],
             'risiko_medis_gigi_lainnya' => 'Rincian lama yang tidak dipilih',
@@ -433,7 +433,7 @@ class ScreeningWorkflowTest extends TestCase
     {
         [$nurse, $visit] = $this->context('gigi');
         $payload = [...$this->payload(), 'status_alergi' => 'belum_dikonfirmasi', 'risiko_medis_gigi' => ['tidak_ada'], 'alergi_verifikasi' => 'Perlu konfirmasi dengan keluarga', 'nyeri_karakter' => 'Berdenyut, tidak menjalar', 'nyeri_pereda' => 'Istirahat'];
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
         $summary = $visit->fresh()->screening->handoverSummary();
         $this->assertSame('Belum dapat dikonfirmasi', $summary['Status alergi saat ini']);
         $this->assertSame('Perlu konfirmasi dengan keluarga', $summary['Catatan verifikasi alergi']);
@@ -447,7 +447,7 @@ class ScreeningWorkflowTest extends TestCase
             'status_riwayat_obat' => 'ada', 'dental_medication_categories' => ['antidiabetic'], 'riwayat_obat' => 'Metformin menurut pasien',
             'mukosa_mulut' => ['lidah' => 'normal', 'pipi' => 'normal', 'bibir' => 'normal', 'palatum' => 'belum_dinilai', 'gusi' => 'abnormal'],
             'kelainan_mukosa' => 'Gusi kanan tampak bengkak', 'kebiasaan_gigi_opsi' => ['teh_kopi', 'satu_sisi']];
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
         $screening = $visit->fresh()->screening;
         $this->assertSame('abnormal', $screening->mukosa_mulut['gusi']);
         $this->assertSame('Diabetes melitus', $screening->reportedMedicalHistory());
@@ -455,10 +455,10 @@ class ScreeningWorkflowTest extends TestCase
         $this->assertSame('Abnormal', $screening->handoverSummary()['Observasi mukosa - Gusi']);
         $this->assertStringContainsString('Mengunyah satu sisi', $screening->handoverSummary()['Kebiasaan terkait gigi dan mulut']);
         $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page->where('document.sections.dental.Observasi mukosa - Gusi', 'Abnormal'));
-        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'kelainan_mukosa' => null])->assertSessionHasErrors('kelainan_mukosa');
-        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'mukosa_mulut' => ['gusi' => 'invalid']])->assertSessionHasErrors('mukosa_mulut.gusi');
-        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'kebiasaan_gigi_opsi' => ['tidak_ada', 'merokok']])->assertSessionHasErrors('kebiasaan_gigi_opsi');
-        $this->post(route('pelayanan.screening.store', $visit), [...$payload, 'status_riwayat_obat' => 'tidak_ada', 'mukosa_mulut' => ['gusi' => 'normal']])->assertSessionHasNoErrors();
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$payload, 'kelainan_mukosa' => null])->assertSessionHasErrors('kelainan_mukosa');
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$payload, 'mukosa_mulut' => ['gusi' => 'invalid']])->assertSessionHasErrors('mukosa_mulut.gusi');
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$payload, 'kebiasaan_gigi_opsi' => ['tidak_ada', 'merokok']])->assertSessionHasErrors('kebiasaan_gigi_opsi');
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$payload, 'status_riwayat_obat' => 'tidak_ada', 'mukosa_mulut' => ['gusi' => 'normal']])->assertSessionHasNoErrors();
         $this->assertNull($visit->fresh()->screening->kelainan_mukosa);
         $this->assertNull($visit->fresh()->screening->riwayat_obat);
     }

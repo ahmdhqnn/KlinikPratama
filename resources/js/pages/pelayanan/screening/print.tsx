@@ -1,3 +1,4 @@
+import { ScreeningVersionHistory, type ScreeningVersionSummary } from '@/components/kunjungan/screening-version-history';
 import { ClinicalDocumentHeader } from '@/components/clinical-document-header';
 import { printWithFonts } from '@/lib/print-typography';
 import { Head, Link } from '@inertiajs/react';
@@ -9,6 +10,7 @@ type Rows = Record<string, string>;
 
 interface Props {
     document: {
+        versions?: ScreeningVersionSummary[];
         clinic: { name: string; address: string | null; phone: string | null; email: string | null; logoUrl: string | null };
         patient: { name: string | null; medicalRecordNumber: string | null; gender: string | null; age: number | null; address: string | null };
         visitNumber: string;
@@ -26,6 +28,7 @@ interface Props {
         signatureDataUrl: string | null;
         backUrl: string;
         sections: {
+            general?: Rows;
             history: Rows;
             vitals: Rows;
             measurements: Rows;
@@ -50,7 +53,7 @@ export default function ScreeningPrint({ document }: Props) {
         ...(document.recordedBy ? [['Diinput oleh', document.recordedBy, '', '']] : []),
         ['Dokter tujuan', document.doctorName, '', ''],
         ['Alamat', patient.address, 'sm:col-span-2', ''],
-    ].filter((row): row is [string, string, string, string] => Boolean(row[1]));
+    ].map(([label, value, rowClass, valueClass]) => [label, value?.trim() || 'Belum tercatat', rowClass, valueClass] as [string, string, string, string]);
 
     return <>
         <Head title={`Pengkajian awal · ${patient.name ?? document.visitNumber}`} />
@@ -71,6 +74,7 @@ export default function ScreeningPrint({ document }: Props) {
                 </div>
             </div>
 
+            <ScreeningVersionHistory versions={document.versions} />
             <article className="clinical-sheet min-h-[10in] rounded-xl border border-neutral-200 bg-surface p-6 text-neutral-950 shadow-sm sm:p-12 print:min-h-0 print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black print:shadow-none">
                 <ClinicalDocumentHeader clinic={clinic} />
 
@@ -90,6 +94,7 @@ export default function ScreeningPrint({ document }: Props) {
                 </section>
 
                 <PrintSection title="Keluhan & riwayat kesehatan" rows={sections.history} />
+                {<PrintSection title={document.clinicType === 'umum' ? "Pengkajian Poli Umum dan sistem tubuh" : "Ringkasan dan serah terima"} rows={sections.general ?? {}} />}
                 <PrintSection title="Tanda vital" rows={sections.vitals} emphasized />
                 <PrintSection title="Berat dan tinggi badan" rows={sections.measurements} emphasized note={sections.measurementNote ? <><strong>Catatan pengkajian antropometri:</strong> {sections.measurementNote}</> : null} />
                 <PrintSection title="Kondisi yang perlu perhatian" rows={sections.triage} />
@@ -100,13 +105,13 @@ export default function ScreeningPrint({ document }: Props) {
                 }} />}
 
                 <div className="mt-14 grid break-inside-avoid grid-cols-2 gap-8 text-center text-sm print:mt-10">
-                    <SignatureBlock clinicName={document.clinicName} date={document.printDate} heading="Petugas pengkajian awal," name={document.nurseName ?? '________________________'} signature={document.signatureDataUrl} note={document.submittedAt ? `Dikirim: ${document.submittedAt}` : 'Petugas pengkaji'} />
-                    <SignatureBlock date={document.printDate} heading="Dokter tujuan," name={document.doctorName ?? '________________________'} note="Dokter tujuan; bukan bukti verifikasi atau tanda tangan" subheading="Serah terima dokter pemeriksa," />
+                    <SignatureBlock clinicName={document.clinicName} date={document.printDate} heading="Petugas pengkajian awal," name={document.nurseName?.trim() || 'Petugas belum tercatat'} signature={document.signatureDataUrl} note={document.submittedAt ? `Dikirim: ${document.submittedAt}` : 'Petugas pengkaji'} />
+                    <SignatureBlock date={document.printDate} heading="Dokter tujuan," name={document.doctorName?.trim() || 'Dokter tujuan belum tercatat'} note="Dokter tujuan; bukan bukti verifikasi atau tanda tangan" subheading="Serah terima dokter pemeriksa," />
                 </div>
 
                 <footer className="mt-10 border-t border-neutral-200 pt-4 text-center text-xs text-neutral-500 print:border-neutral-300 print:text-neutral-600">
                     {document.visitNumber} · Dicetak {document.printedAt} · Dokumen rekam medis, bersifat rahasia.<br />
-                    Bagian yang tidak ditampilkan belum diisi atau belum dikaji; hal tersebut tidak berarti hasilnya normal atau pasien tidak memiliki keluhan.
+                    Status belum dikaji / belum dicatat menunjukkan informasi belum tersedia dan tidak berarti hasilnya normal. Dokumen ini hanya memuat pengkajian pada episode dan poliklinik kunjungan ini.
                 </footer>
             </article>
         </main>
@@ -122,7 +127,7 @@ function PrintSection({ title, rows, emphasized = false, note = null }: { title:
             <table className="w-full text-xs"><tbody className="divide-y divide-neutral-200 print:divide-neutral-300">
                 {Object.entries(rows).map(([label, value]) => <tr key={label}>
                     <th className="w-1/3 bg-neutral-50 px-3 py-2 text-left font-medium text-neutral-600 print:bg-neutral-100 print:text-neutral-700">{label}</th>
-                    <td className={`whitespace-pre-wrap px-3 py-2 text-left text-neutral-900 print:text-black ${emphasized ? 'font-medium' : ''}`}>{value}</td>
+                    <td className={`whitespace-pre-wrap px-3 py-2 text-left text-neutral-900 print:text-black ${emphasized ? 'font-medium' : ''}`}>{value === null || value === undefined || (typeof value === 'string' && !value.trim()) ? 'Belum dikaji / belum dicatat' : value}</td>
                 </tr>)}
             </tbody></table>
             {note && <div className="border-t border-neutral-200 bg-neutral-50/50 px-3 py-2 text-xs text-neutral-700 print:border-neutral-300 print:bg-transparent print:text-neutral-800">{note}</div>}

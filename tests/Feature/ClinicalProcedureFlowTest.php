@@ -218,7 +218,7 @@ class ClinicalProcedureFlowTest extends TestCase
             'terminology_id' => $code->id, 'jumlah' => 1, 'catatan' => 'Catatan asli tindakan',
         ])->assertSessionHasNoErrors();
 
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
 
         $final = ClinicalNoteVersion::where('pemeriksaan_id', $examination->id)->sole();
         $this->assertSame('23.09', $final->payload['treatments'][0]['code']);
@@ -337,7 +337,7 @@ class ClinicalProcedureFlowTest extends TestCase
             'nama_tindakan_manual' => 'Tindakan manual dokter', 'jumlah' => 1, 'catatan' => 'Catatan tindakan',
             'tooth_fdis' => $clinicType === 'gigi' ? ['46'] : [],
         ])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $final = ClinicalNoteVersion::sole();
         $this->assertNull($final->payload['diagnoses'][0]['code']);
         $this->assertSame('manual', $final->payload['diagnoses'][0]['code_system']);

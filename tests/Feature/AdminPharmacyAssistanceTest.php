@@ -32,7 +32,7 @@ class AdminPharmacyAssistanceTest extends TestCase
         $medicine = Obat::create(['kode' => 'ADMIN-OB', 'nama' => 'Obat uji', 'satuan_kecil' => 'tablet', 'stok' => 10, 'jenis' => 'obat', 'is_active' => true]);
         $batch = ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 10]);
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['obat_id' => $medicine->id, 'jumlah' => 2, 'jenis' => 'jadi', 'aturan_pakai' => 'Sesuai dokter'])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $item = $visit->resep()->sole()->resepObat()->sole();
         $payload = ['items' => [['resep_obat_id' => $item->id, 'obat_id' => $medicine->id, 'jumlah_diberikan' => $quantity]], 'catatan' => $quantity < 2 ? 'Sisa obat ditindaklanjuti sesuai instruksi' : null];
@@ -61,7 +61,7 @@ class AdminPharmacyAssistanceTest extends TestCase
         [$doctor, , $visit] = $this->context();
         $medicine = Obat::create(['kode' => 'EMPTY-OB', 'nama' => 'Obat kosong', 'satuan_kecil' => 'tablet', 'stok' => 0, 'jenis' => 'obat', 'is_active' => true]);
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['obat_id' => $medicine->id, 'jumlah' => 2, 'jenis' => 'jadi', 'aturan_pakai' => 'Sesuai dokter'])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $item = $visit->resep()->sole()->resepObat()->sole();
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $reason = ['assistance_reason' => 'Bantuan farmasi saat akun petugas terganggu.'];
@@ -79,7 +79,7 @@ class AdminPharmacyAssistanceTest extends TestCase
     {
         [$doctor, , $visit, $examination] = $this->context();
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan tertunda', 'jumlah' => 1])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $visit->update(['status' => 'farmasi']);
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $payload = ['assistance_reason' => 'Bantuan layanan farmasi diperlukan.', 'items' => []];

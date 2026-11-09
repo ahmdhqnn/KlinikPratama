@@ -26,7 +26,7 @@ class PatientAllergyContinuityTest extends TestCase
         $this->actingAs($nurse)->get(route('pelayanan.screening.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('visit.screening.riwayat_alergi', 'Penisilin')
             ->where('visit.screening.alergi_jenis', 'Obat')->where('visit.screening.alergi_reaksi', 'Gatal'));
-        $this->post(route('pelayanan.screening.store', $visit), [...$this->triage(), 'riwayat_alergi' => ''])
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$this->triage(), 'riwayat_alergi' => ''])
             ->assertSessionHasNoErrors()->assertRedirect(route('pelayanan.kunjungan.show', $visit));
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'riwayat_alergi' => 'Penisilin', 'alergi_reaksi' => 'Gatal']);
         $this->assertSame('Penisilin', $patient->fresh()->riwayat_alergi);
@@ -102,7 +102,7 @@ class PatientAllergyContinuityTest extends TestCase
             ->where('visit.screening.riwayat_penyakit_keluarga', 'Diabetes pada ibu')
             ->where('visit.screening.riwayat_obat', 'Obat rutin dari dokter')
             ->where('visit.screening.keluhan', null)->where('visit.screening.td_sistole', null)->where('visit.screening.berat_badan', null));
-        $this->post(route('pelayanan.screening.store', $visit), [...$this->triage(),
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$this->triage(),
             'status_riwayat_penyakit' => 'ada', 'riwayat_penyakit' => 'Hipertensi terkontrol', 'riwayat_obat' => 'Obat rutin sudah diperbarui'])
             ->assertSessionHasNoErrors();
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'riwayat_penyakit' => 'Hipertensi terkontrol',
@@ -132,7 +132,7 @@ class PatientAllergyContinuityTest extends TestCase
         [$nurse, $doctor, $patient, $visit, $previous] = $this->context();
         Screening::create(['kunjungan_id' => $previous->id, 'riwayat_penyakit' => 'Hipertensi',
             'riwayat_penyakit_keluarga' => 'Diabetes pada ibu', 'riwayat_obat' => 'Obat rutin', 'riwayat_alergi' => 'Udang']);
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [...$this->triage(),
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$this->triage(),
             'riwayat_penyakit' => '', 'riwayat_penyakit_keluarga' => '', 'riwayat_obat' => ''])
             ->assertSessionHasNoErrors();
         $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'riwayat_penyakit' => null,
@@ -176,7 +176,7 @@ class PatientAllergyContinuityTest extends TestCase
     {
         [$nurse, $doctor, $patient, $visit, $previous] = $this->context();
         Screening::create(['kunjungan_id' => $previous->id, 'riwayat_penyakit' => 'Catatan perlu dikoreksi', 'riwayat_alergi' => 'Udang']);
-        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), [...$this->triage(),
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$this->triage(),
             'status_riwayat_penyakit' => 'tidak_ada', 'status_alergi' => 'tidak_ada', 'riwayat_obat' => 'Tidak ada obat rutin'])
             ->assertSessionHasNoErrors();
         $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
