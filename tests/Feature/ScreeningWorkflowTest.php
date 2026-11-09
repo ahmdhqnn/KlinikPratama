@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exports\ScreeningExport;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Pasien;
@@ -455,11 +456,40 @@ class ScreeningWorkflowTest extends TestCase
         $this->assertSame('Abnormal', $screening->handoverSummary()['Observasi mukosa - Gusi']);
         $this->assertStringContainsString('Mengunyah satu sisi', $screening->handoverSummary()['Kebiasaan terkait gigi dan mulut']);
         $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page->where('document.sections.dental.Observasi mukosa - Gusi', 'Abnormal'));
-        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$payload, 'kelainan_mukosa' => null])->assertSessionHasErrors('kelainan_mukosa');
+        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$payload, 'kelainan_mukosa' => null])->assertSessionHasErrors('mukosa_mulut.catatan.gusi');
         $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$payload, 'mukosa_mulut' => ['gusi' => 'invalid']])->assertSessionHasErrors('mukosa_mulut.gusi');
         $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$payload, 'kebiasaan_gigi_opsi' => ['tidak_ada', 'merokok']])->assertSessionHasErrors('kebiasaan_gigi_opsi');
-        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', ...$payload, 'status_riwayat_obat' => 'tidak_ada', 'mukosa_mulut' => ['gusi' => 'normal']])->assertSessionHasNoErrors();
-        $this->assertNull($visit->fresh()->screening->kelainan_mukosa);
+        $history = ['respiratory' => ['status' => 'positive', 'notes' => 'Catatan historis']];
+        $screening->update(['general_assessment' => ['systems' => $history]]);
+        $mucosaNote = 'Palatum belum terlihat jelas karena pasien sulit membuka mulut.';
+        $finding = 'Gusi kanan tampak bengkak.';
+        $revision = [
+            'revision_reason' => 'Koreksi setelah konfirmasi ulang',
+            'screening_revision' => $visit->fresh()->screening->revisionToken(),
+            ...$payload,
+            'status_riwayat_obat' => 'tidak_ada',
+            'mukosa_mulut' => ['gusi' => 'abnormal', 'palatum' => 'belum_dinilai', 'catatan' => ['palatum' => $mucosaNote, 'gusi' => $finding]],
+            'kelainan_mukosa' => null,
+        ];
+        $this->post(route('pelayanan.screening.store', $visit), [...$revision, 'general_assessment' => ['systems' => $history]])
+            ->assertSessionHasErrors('general_assessment');
+        $this->post(route('pelayanan.screening.store', $visit), [...$revision, 'general_assessment' => ['general_condition' => 'baik']])
+            ->assertSessionHasNoErrors();
+
+        $screening = $visit->fresh()->screening;
+        $this->assertSame($mucosaNote, $screening->mukosa_mulut['catatan']['palatum']);
+        $this->assertSame($history, $screening->general_assessment['systems']);
+        $this->assertSame('Abnormal — '.$finding, $screening->handoverSummary()['Observasi mukosa - Gusi']);
+        $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('document.sections.dental.Observasi mukosa - Palatum', 'Belum dapat dinilai — '.$mucosaNote)
+            ->missing('document.sections.general.Pengkajian sistem - Respirasi'));
+
+        foreach ([null, $screening->petugas] as $staff) {
+            $export = new ScreeningExport([], $staff);
+            $row = array_combine($export->headings(), $export->map($screening));
+            $this->assertStringContainsString('Palatum: Belum dapat dinilai — '.$mucosaNote, $row['Observasi mukosa mulut']);
+            $this->assertNull($row['Pengkajian sistem - Respirasi'] ?? null);
+        }
         $this->assertNull($visit->fresh()->screening->riwayat_obat);
     }
 

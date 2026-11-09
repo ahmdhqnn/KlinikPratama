@@ -171,7 +171,19 @@ class PemeriksaanController extends Controller
         };
         $nurseGeneral = $kunjungan->poliklinik?->jenis === 'umum' && $kunjungan->screening?->submitted_at
             ? $kunjungan->screening->general_assessment ?? [] : [];
-        $nurseCurrentHistory = GeneralAssessment::currentIllnessNarrative($nurseGeneral, $kunjungan->screening?->keluhan, $kunjungan->screening?->lama_keluhan, $kunjungan->screening?->keluhan_tambahan, $kunjungan->screening?->skala_nyeri);
+        $nurseNarrativeData = $nurseGeneral;
+        if ($kunjungan->poliklinik?->jenis === 'gigi' && $kunjungan->screening?->submitted_at) {
+            $dentalSummary = $kunjungan->screening->handoverSummary();
+            $nurseNarrativeData = [
+                ...($kunjungan->screening->general_assessment ?? []),
+                'location' => $kunjungan->screening->lokasi_nyeri_gigi,
+                'character' => $kunjungan->screening->nyeri_karakter,
+                'pattern' => $kunjungan->screening->durasi_keluhan_gigi,
+                'triggers' => $dentalSummary['Pemicu keluhan'] ?? null,
+                'relief' => $kunjungan->screening->nyeri_pereda,
+            ];
+        }
+        $nurseCurrentHistory = GeneralAssessment::currentIllnessNarrative($nurseNarrativeData, $kunjungan->screening?->keluhan, $kunjungan->screening?->lama_keluhan, $kunjungan->screening?->keluhan_tambahan, $kunjungan->screening?->skala_nyeri);
         $examinationFormDefaults = [
             'reviewOfSystems' => is_array($effectiveNote) ? ($effectiveNote['review_of_systems'] ?? []) : ($kunjungan->pemeriksaan?->review_of_systems ?? []),
             'anamnesis' => is_array($effectiveNote)
@@ -179,7 +191,7 @@ class PemeriksaanController extends Controller
                 : $firstRecordedValue($kunjungan->pemeriksaan?->anamnesis, $kunjungan->screening?->keluhan),
             'currentHistory' => ClinicalAnswer::normalize(is_array($effectiveNote)
                 ? ($effectiveNote['riwayat_penyakit_sekarang'] ?? null)
-                : $firstRecordedValue($kunjungan->pemeriksaan?->riwayat_penyakit_sekarang, $kunjungan->poliklinik?->jenis === 'umum' ? $nurseCurrentHistory : null)),
+                : $firstRecordedValue($kunjungan->pemeriksaan?->riwayat_penyakit_sekarang, $nurseCurrentHistory)),
             'pastHistory' => is_array($effectiveNote)
                 ? ClinicalAnswer::normalize($effectiveNote['riwayat_penyakit_dahulu'] ?? null)
                 : $clinicalHistory['riwayat_penyakit'],

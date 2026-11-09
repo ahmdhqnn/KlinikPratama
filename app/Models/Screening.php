@@ -218,6 +218,18 @@ class Screening extends Model
     }
 
     /** @return array<string, ?string> */
+    public function mucosaSiteSummary(): array
+    {
+        $statuses = ['normal' => 'Normal', 'abnormal' => 'Abnormal', 'belum_dinilai' => 'Belum dapat dinilai'];
+
+        return collect(self::ORAL_AREAS)->mapWithKeys(function (string $label, string $site) use ($statuses): array {
+            $status = $statuses[$this->mukosa_mulut[$site] ?? ''] ?? null;
+            $note = $this->mukosa_mulut['catatan'][$site] ?? null;
+
+            return ['Observasi mukosa - '.$label => filled($note) ? ($status ?? 'Belum diamati').' — '.$note : $status];
+        })->all();
+    }
+
     public function handoverSummary(): array
     {
         $labels = [
@@ -263,10 +275,8 @@ class Screening extends Model
             'Waktu pencatatan triase' => $this->triaged_at?->format('d/m/Y H:i'),
             ...array_combine(['Keterangan tanda bahaya lainnya', 'Keterangan kondisi sistemik lainnya', 'Keterangan pemicu lainnya', 'Keterangan infeksi lainnya', 'Keterangan obat lainnya', 'Tingkat keparahan alergi jika diketahui', 'Catatan verifikasi alergi', 'Karakter dan penjalaran nyeri', 'Hal yang mengurangi nyeri', 'Dampak nyeri pada aktivitas atau tidur', 'Kondisi khusus, operasi, atau rawat inap yang relevan', 'Observasi awal mulut dan rahang', 'Perawatan mulut dan kebiasaan sehari-hari'], array_values($details)),
             'Status penggunaan obat' => $choice($this->status_riwayat_obat),
-            ...collect(self::ORAL_AREAS)->mapWithKeys(fn (string $label, string $key): array => [
-                'Observasi mukosa - '.$label => ['normal' => 'Normal', 'abnormal' => 'Abnormal', 'belum_dinilai' => 'Belum dapat dinilai'][$this->mukosa_mulut[$key] ?? ''] ?? null,
-            ])->all(),
-            'Kelainan mukosa yang ditemukan' => $this->kelainan_mukosa,
+            ...$this->mucosaSiteSummary(),
+            (in_array('abnormal', $this->mukosa_mulut ?? [], true) ? 'Kelainan mukosa yang ditemukan' : 'Observasi mukosa - Catatan tambahan') => $this->kelainan_mukosa,
             'Kebiasaan gigi dan mulut yang dilaporkan' => $this->kebiasaan_gigi_opsi ? implode(', ', array_map(fn (string $value): string => self::ORAL_HABITS[$value] ?? $value, $this->kebiasaan_gigi_opsi)) : null,
             'Keluhan tambahan' => $this->keluhan_tambahan,
             'Lama keluhan' => $this->lama_keluhan,

@@ -57,6 +57,9 @@ test('general nursing assessment guides complaint follow-up and keeps unassessed
     assert.match(html, /&lt;script&gt;unsafe&lt;\/script&gt;/);
     assert.doesNotMatch(html, /<script>unsafe/);
     assert.match(html, /Ringkasan sistem tubuh/);
+    const complaintOrder = ['location', 'triggers', 'relief', 'character', 'pattern'];
+    assert.deepEqual([...html.matchAll(/id="general-(location|triggers|relief|character|pattern)"/g)].map(([, key]) => key), complaintOrder);
+    assert.match(html, /<textarea[^>]*id="general-pattern"/);
     assert.doesNotMatch(html, /Odontogram|Gusi|Mukosa/);
 });
 
@@ -228,6 +231,25 @@ test('diagnosis selector omits retired choices and draft save remains separate f
     assert.doesNotMatch(html, />ICD-10 WHO<|>ICD-9-CM diagnosis</);
 });
 
+for (const service of ['umum', 'gigi']) {
+    test(`${service} follow-up shares narrative controls and physical handover messaging`, async () => {
+        const props = examinationProps(service);
+        props.initialTab = service === 'gigi' ? 'odontogram' : 'pemeriksaan';
+        props.visit.screening = { dentalPainTriggers: [], dentalMedicalRisks: [], dentalInfectionHistory: [], ...props.visit.screening, summary: { 'Masalah / kebutuhan teridentifikasi': 'Perlu evaluasi nyeri', 'Tindakan awal sesuai kewenangan': 'Posisi pasien dibuat nyaman' } };
+        const html = await renderPage('pelayanan/pemeriksaan/show', props);
+        assert.match(html, /Tutup acuan pemeriksaan dari perawat/);
+        assert.match(html, /Perlu evaluasi nyeri/);
+        assert.match(html, /<textarea[^>]*id="catatan"/);
+        assert.ok(html.indexOf('id="kontrol_berikutnya"') < html.indexOf('id="catatan"'));
+        assert.equal((html.match(/id="catatan"/g) ?? []).length, 1);
+        if (service === 'umum') assert.ok(html.indexOf('id="catatan"') < html.indexOf('id="final-condition"'));
+        else {
+            assert.doesNotMatch(html, /id="final-condition"/);
+            assert.match(html, /id="dental-treatment-examination-summary"/);
+        }
+    });
+}
+
 test('doctor ROS exposes all general systems with separate status and description', async () => {
     const { SystemAssessment } = await server.ssrLoadModule('/resources/js/components/kunjungan/general-assessment.tsx');
     const html = renderToString(createElement(SystemAssessment, { doctor: true, prefix: 'review_of_systems', value: {}, onChange() {} }));
@@ -332,7 +354,15 @@ for (const clinicType of ['umum', 'gigi']) {
         assert.match(html, /aria-checked="true"[^>]*id="status_alergi-ada"/);
         assert.match(html, /id="riwayat_alergi"[^>]*>Penisilin/);
         assert.match(html, /min-w-0 col-span-full/, 'allergy details should span the full width in the compact tab');
-        assert.ok((html.match(/min-w-0 col-span-full/g) ?? []).length >= 2, 'systemic disease history should also span the full width in the compact tab');
+        assert.match(html, /<section[^>]*aria-labelledby="compact-vitals-title"[\s\S]*?<h4[^>]*>Tanda vital<\/h4><p[^>]*>Catat hasil pengukuran pada kunjungan ini.<\/p>[\s\S]*?Sebagian atau seluruh tanda vital belum dapat diukur[\s\S]*?<\/section>/);
+        if (clinicType === 'umum') {
+            assert.match(html, /<h4[^>]*>Nutrisi dan kebutuhan pasien<\/h4><p[^>]*>Lengkapi sesuai kondisi dan kebutuhan pasien.<\/p>/);
+            assert.match(html, /id="general-systems_notes"/);
+            assert.ok(html.indexOf('id="skrining_gizi-normal"') < html.indexOf('id="general-mobility-mandiri"'));
+            assert.ok(html.indexOf('id="general-general_condition-baik"') < html.indexOf('id="general-airway-bebas"'));
+        } else {
+            assert.match(html, /<h4[^>]*>Rincian nyeri gigi dan gusi<\/h4><p[^>]*>Catat lokasi/);
+        }
         assert.match(html, />Simpan draf</);
         assert.match(html, /Simpan &amp; kirim ke dokter/);
         assert.match(html, /<button[^>]*disabled=""[^>]*>[\s\S]*?Cetak/);
@@ -354,7 +384,7 @@ for (const clinicType of ['umum', 'gigi']) {
         assert.match(html, /Tekanan darah \(mmHg\)/);
         assert.match(html, /aria-label="Tekanan sistole"/);
         assert.match(html, /aria-label="Tekanan diastole"/);
-        assert.match(html, /Catatan Pengkajian/);
+        assert.match(html, /Catatan pengkajian/);
         assert.ok((html.match(/min-w-0 md:col-span-2/g) ?? []).length >= 1, 'the primary complaint should span the full form width');
         assert.match(html, /grid min-w-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-3/, 'six vital controls use two balanced rows');
         assert.doesNotMatch(html, /rounded-lg border border-neutral-200 bg-neutral-50\/50 p-3 sm:col-start-2 xl:col-start-2/, 'the last triage card should stay at the start of its row');
@@ -419,7 +449,7 @@ test('compact screening retains saved answers and requires clarification of unkn
     assert.match(html, /Riwayat penyakit yang pernah atau sedang dialami/);
     assert.match(html, /id="catatan_medis_gigi"[^>]*required=""/);
     assert.match(html, /id="lokasi_nyeri_gigi"[^>]*value="Geraham kiri bawah"/);
-    assert.match(html, /id="durasi_keluhan_gigi"[^>]*value="Saat mengunyah"/);
+    assert.match(html, /<textarea[^>]*id="durasi_keluhan_gigi"[^>]*>Saat mengunyah<\/textarea>/);
     assert.match(html, /aria-checked="true"[^>]*id="pemicu_nyeri_gigi-dingin"/);
     assert.equal((html.match(/id="skala_nyeri"/g) ?? []).length, 1);
     assert.equal((html.match(/id="catatan_medis_gigi"/g) ?? []).length, 1);
@@ -3426,8 +3456,31 @@ test('medical record odontogram shows examination chart beside findings without 
 test('oral observation starts unassessed and disease and medication details are conditional', async () => {
     const props = { visit: { id: 1, number: 'ORAL-1', status: 'screening', clinic: 'Poli Gigi', clinicType: 'gigi', doctor: 'Dokter', patient: { name: 'Pasien', medicalRecordNumber: 'RM-1', age: 30 }, screening: { status_riwayat_penyakit: 'tidak_ada', status_riwayat_obat: 'tidak_ada' }, medicationCategories: { antidiabetic: 'Obat diabetes' }, triage: null, printUrl: null, startedAt: null }, staff: [], canSelectStaff: false, currentStaff: 'Perawat' };
     const html = await renderPage('pelayanan/screening/show', props);
-    for (const key of ['lidah', 'pipi', 'bibir', 'palatum', 'gusi']) assert.match(html, new RegExp('id="mukosa-' + key + '"'));
-    assert.doesNotMatch(html, /id="risiko_medis_gigi-diabetes"|id="dental_medication_categories-antidiabetic"|id="kelainan_mukosa"/);
+    for (const key of ['lidah', 'pipi', 'bibir', 'palatum', 'gusi']) {
+        assert.match(html, new RegExp('id="mukosa-' + key + '-normal"'));
+        assert.match(html, new RegExp('id="mukosa-' + key + '-notes"'));
+    }
+    assert.match(htmlElementById(html, 'mukosa-quick-normal'), /aria-checked="false"/);
+    assert.doesNotMatch(htmlElementById(html, 'mukosa-quick-normal'), / disabled=""/);
+    assert.doesNotMatch(html, /id="risiko_medis_gigi-diabetes"|id="dental_medication_categories-antidiabetic"|Pengkajian sistem tubuh/);
+    assert.match(html, /Catatan tambahan \(bila diperlukan\)/);
+    assert.match(html, /<textarea[^>]*id="durasi_keluhan_gigi"/);
+    assert.ok(html.indexOf('id="lama_keluhan"') < html.indexOf('id="sumber_informasi"'));
+    assert.ok(html.indexOf('id="lokasi_nyeri_gigi"') < html.indexOf('id="skala_nyeri"'));
+    assert.ok(html.indexOf('id="skala_nyeri"') < html.indexOf('id="durasi_keluhan_gigi"'));
+    props.visit.screening.general_assessment = { systems: { respiratory: { status: 'positive', notes: 'Batuk berdahak' } } };
+    props.visit.screening.mukosa_mulut = { gusi: 'abnormal', palatum: 'belum_dinilai', catatan: { gusi: 'Gusi kemerahan' } };
+    const completed = await renderPage('pelayanan/screening/show', props);
+    assert.match(htmlElementById(completed, 'mukosa-quick-normal'), / disabled=""/);
+    props.visit.screening.mukosa_mulut = { lidah: 'normal', pipi: 'normal', bibir: 'normal', palatum: 'normal', gusi: 'normal' };
+    const normal = await renderPage('pelayanan/screening/show', props);
+    assert.match(htmlElementById(normal, 'mukosa-quick-normal'), /aria-checked="true"/);
+    const summary = completed.match(/<section[^>]*aria-label="Ringkasan observasi mukosa mulut"[\s\S]*?<\/section>/)?.[0];
+    assert.ok(summary?.includes('Gusi kemerahan'));
+    assert.match(summary.replaceAll('<!-- -->', ''), /Belum diamati: Lidah, Pipi, Bibir/);
+    assert.match(summary.replaceAll('<!-- -->', ''), /Belum dapat dinilai: Palatum/);
+    assert.match(completed, /Uraian temuan - Gusi/);
+    assert.doesNotMatch(completed.slice(completed.indexOf('</script>') + 9), /Batuk berdahak|Kardiovaskular/);
     for (const key of ['teh_kopi', 'alkohol', 'soda', 'merokok', 'satu_sisi', 'sirih_tembakau', 'benda_keras', 'bruksisme']) assert.match(html, new RegExp('aria-checked="false"[^>]*id="kebiasaan_gigi_opsi-' + key + '"'));
 });
 
@@ -3525,6 +3578,7 @@ for (const service of ['umum', 'gigi']) {
 
 test('dental handover highlights non-normal mucosa and shows dismissible nurse notes only when present', async () => {
     const props = examinationProps('gigi');
+    props.initialTab = 'odontogram';
     props.visit.screening = { dentalPainTriggers: [], dentalMedicalRisks: [], dentalInfectionHistory: [], ...props.visit.screening, dentalNotes: 'Konfirmasi pembengkakan gusi', summary: {
         'Observasi mukosa - Gusi': 'Abnormal', 'Observasi mukosa - Lidah': 'Normal',
         'Kelainan mukosa yang ditemukan': 'Gusi bengkak',

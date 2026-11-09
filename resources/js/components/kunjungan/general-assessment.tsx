@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/field';
@@ -53,6 +54,19 @@ export function SystemAssessment({ value, onChange, errors = {}, prefix, doctor 
     </div>;
 }
 
+function SystemSummary({ value, notes }: { value: SystemAnswers; notes: string }) {
+    const systems = Object.entries(nursingSystems);
+    const findings = systems.filter(([key]) => value[key]?.status === 'positive' || Boolean(value[key]?.notes?.trim()));
+    const unassessed = systems.filter(([key]) => !value[key]?.status || value[key].status === 'not_assessed');
+
+    return <section className="space-y-2 rounded-lg border border-neutral-200 p-4" aria-label="Ringkasan otomatis sistem tubuh">
+        <h4 className="text-sm font-semibold">Ringkasan sistem tubuh</h4>
+        {findings.map(([key, label]) => <p key={key} className="wrap-break-word whitespace-pre-wrap text-sm"><strong>{label}:</strong> {value[key]?.notes?.trim() || 'Uraian temuan belum diisi'}</p>)}
+        {notes.trim() && <p className="wrap-break-word whitespace-pre-wrap text-sm"><strong>Catatan pengkajian:</strong> {notes}</p>}
+        <p className="text-xs text-neutral-500">Belum dikaji: {unassessed.map(([, label]) => label).join(', ') || 'Tidak ada'}</p>
+    </section>;
+}
+
 type NursingSection = 'visit' | 'triage' | 'complaint' | 'history' | 'systems' | 'additional' | 'conclusion';
 const statusOptions: Array<[string, string]> = [['ada', 'Ada'], ['tidak_ada', 'Tidak ada'], ['belum_diketahui', 'Belum diketahui']];
 const groups: Record<Exclude<NursingSection, 'systems'>, Array<[string, string, Array<[string, string]>?]>> = {
@@ -65,7 +79,7 @@ const groups: Record<Exclude<NursingSection, 'systems'>, Array<[string, string, 
         ['airway', 'Jalan napas', [['bebas', 'Bebas'], ['perlu_penilaian', 'Perlu penilaian lanjut'], ['belum_dinilai', 'Belum dinilai']]],
         ['circulation', 'Sirkulasi', [['tanpa_kelainan', 'Tidak ditemukan kelainan setelah dikaji'], ['perlu_penilaian', 'Perlu penilaian lanjut'], ['belum_dinilai', 'Belum dinilai']]],
     ],
-    complaint: [['location', 'Lokasi keluhan'], ['character', 'Karakteristik'], ['pattern', 'Pola / frekuensi'], ['triggers', 'Faktor pemicu'], ['relief', 'Faktor pereda'], ['progression', 'Perkembangan keluhan', [['membaik', 'Membaik'], ['menetap', 'Menetap'], ['memburuk', 'Memburuk'], ['belum_diketahui', 'Belum diketahui']]], ['progression_notes', 'Rincian perkembangan keluhan']],
+    complaint: [['progression', 'Perkembangan keluhan', [['membaik', 'Membaik'], ['menetap', 'Menetap'], ['memburuk', 'Memburuk'], ['belum_diketahui', 'Belum diketahui']]], ['progression_notes', 'Rincian perkembangan keluhan']],
     history: [['hospitalization_status', 'Pernah dirawat inap', statusOptions], ['surgery_status', 'Pernah menjalani operasi', statusOptions]],
     additional: [
         ['mobility', 'Mobilitas', [['mandiri', 'Mandiri'], ['dibantu', 'Perlu bantuan'], ['terbatas', 'Terbatas'], ['belum_dinilai', 'Belum dinilai']]],
@@ -77,6 +91,11 @@ const groups: Record<Exclude<NursingSection, 'systems'>, Array<[string, string, 
         ['handover_follow_up', 'Komunikasi / tindak lanjut serah terima (bila diperlukan)'],
     ],
 };
+const complaintColumns: Array<typeof groups.complaint> = [
+    [['location', 'Lokasi keluhan'], ['triggers', 'Faktor pemicu'], ['relief', 'Faktor pereda']],
+    [['character', 'Karakteristik'], ['pattern', 'Pola / frekuensi']],
+];
+
 const legacyFields: Partial<Record<NursingSection, Array<[string, string]>>> = {
     visit: [['visit_purpose', 'Tujuan kunjungan sebelumnya']],
     complaint: [['onset', 'Awitan sebelumnya'], ['severity', 'Keparahan sebelumnya'], ['associated', 'Gejala penyerta sebelumnya']],
@@ -85,8 +104,8 @@ const legacyFields: Partial<Record<NursingSection, Array<[string, string]>>> = {
     conclusion: [['summary', 'Ringkasan sebelumnya'], ['doctor_notes', 'Catatan dokter sebelumnya']],
 };
 
-export function GeneralNursingAssessment({ value, onChange, complaint, errors = {}, section, informationSource, dental = false }: {
-    value: GeneralNursingData; onChange: (value: GeneralNursingData) => void; complaint: string; errors?: Record<string, string>; section?: NursingSection; informationSource?: string; dental?: boolean;
+export function GeneralNursingAssessment({ value, onChange, complaint, errors = {}, section, informationSource, nutritionField, dental = false }: {
+    value: GeneralNursingData; onChange: (value: GeneralNursingData) => void; complaint: string; errors?: Record<string, string>; section?: NursingSection; informationSource?: string; nutritionField?: ReactNode; dental?: boolean;
 }) {
     const parts: NursingSection[] = section ? [section] : ['visit', 'triage', 'complaint', 'history', 'systems', 'additional', 'conclusion'];
     const symptom = complaint.toLocaleLowerCase('id');
@@ -102,17 +121,35 @@ export function GeneralNursingAssessment({ value, onChange, complaint, errors = 
     const relevant = prompts.filter(([pattern]) => pattern.test(symptom));
     const read = (key: string) => typeof value[key] === 'string' ? value[key] as string : '';
     const set = (key: string, text: string) => { const detail = { special_needs_status: 'special_needs', needs_status: 'needs', initial_actions_status: 'initial_actions' }[key]; onChange({ ...value, [key]: text, ...(text === 'tidak_ada' && detail ? { [detail]: '' } : {}) }); };
+    const hasCompanionField = Boolean(informationSource && informationSource !== 'pasien');
+    const hasSpecialNeedsDetail = read('special_needs_status') === 'ada' || Boolean(read('special_needs'));
+    const renderField = ([key, label, options]: (typeof groups.complaint)[number]) => {
+        const tall = key === 'character' || key === 'pattern';
+        if (key === 'progression_notes' && (!read('progression') || read('progression') === 'membaik') && !read(key)) return null;
+        if (key === 'companion' && !hasCompanionField) return null;
+        const condition = { special_needs: 'special_needs_status', needs: 'needs_status', initial_actions: 'initial_actions_status' }[key];
+        if (condition && read(condition) !== 'ada' && !read(key)) return null;
+        const paired = ['general_condition', 'airway', 'hospitalization_status', 'surgery_status'].includes(key)
+            || (key === 'mobility' && Boolean(nutritionField))
+            || (key === 'arrival' && hasCompanionField)
+            || (key === 'special_needs_status' && hasSpecialNeedsDetail);
+        return options ? <div key={key} className={paired ? 'min-w-0' : 'min-w-0 md:col-span-2'}><ChoiceGroup label={label} name={`general-${key}`} options={options} single compact selected={options.some(([option]) => option === read(key)) ? [read(key)] : []} error={errors[`general_assessment.${key}`]} onChange={items => set(key, items[0] ?? '')} />{read(key) && !options.some(([option]) => option === read(key)) && <p className="mt-2 text-xs text-neutral-600">Catatan sebelumnya: {read(key)}</p>}</div> : <Field className={(condition && key !== 'special_needs') || ['handover_follow_up', 'progression_notes'].includes(key) ? 'md:col-span-2' : tall ? 'md:grid-rows-[auto_minmax(0,1fr)]' : undefined} key={key} htmlFor={`general-${key}`} label={label} error={errors[`general_assessment.${key}`]}>{['companion', 'location', 'triggers', 'relief'].includes(key) && !read(key).includes('\n') ? <Input id={`general-${key}`} maxLength={2000} placeholder={`Catat ${label.toLocaleLowerCase('id')}`} value={read(key)} onChange={event => set(key, event.target.value)} /> : <Textarea id={`general-${key}`} className={tall ? 'min-h-16 md:h-full' : undefined} rows={2} maxLength={2000} placeholder={`Catat ${label.toLocaleLowerCase('id')}`} value={read(key)} onChange={event => set(key, event.target.value)} />}</Field>;
+    };
     return <div className="space-y-4" aria-label={dental ? "Rincian pengkajian gigi dan mulut" : "Rincian pengkajian Poli Umum"}>{parts.map(part => <div key={part} className="space-y-4">
         {part === 'complaint' && relevant.length > 0 && <aside aria-label="Pertanyaan lanjutan sesuai keluhan" className="space-y-1 rounded-lg border border-neutral-200 p-3"><p className="text-sm font-medium">Pertanyaan lanjutan sesuai keluhan</p>{relevant.map(([, prompt]) => <p className="text-xs leading-5 text-neutral-600" key={prompt}>{prompt}</p>)}</aside>}
-        {part === 'conclusion' && !dental && <div className="space-y-2 rounded-lg border border-neutral-200 p-3" aria-label="Ringkasan otomatis sistem tubuh"><p className="text-sm font-medium">Ringkasan sistem tubuh</p>{Object.entries(nursingSystems).filter(([key]) => value.systems?.[key]?.status === 'positive').map(([key, label]) => <p key={key} className="whitespace-pre-wrap text-sm"><strong>{label}:</strong> {value.systems?.[key]?.notes || 'Uraian temuan belum diisi'}</p>)}<p className="text-xs text-neutral-500">Belum dikaji: {Object.entries(nursingSystems).filter(([key]) => !value.systems?.[key] || value.systems[key].status === 'not_assessed').map(([, label]) => label).join(', ') || 'Tidak ada'}</p></div>}
-        {part === 'systems' ? <SystemAssessment prefix="general_assessment.systems" value={value.systems ?? {}} errors={errors} onChange={systems => onChange({ ...value, systems })} /> : <div className="grid min-w-0 gap-4 md:grid-cols-2">{groups[part].map(([key, label, options]) => {
-            if (dental && part === 'complaint' && !['progression', 'progression_notes'].includes(key)) return null;
-            if (key === 'progression_notes' && (!read('progression') || read('progression') === 'membaik') && !read(key)) return null;
-            if (key === 'companion' && (!informationSource || informationSource === 'pasien')) return null;
-            const condition = { special_needs: 'special_needs_status', needs: 'needs_status', initial_actions: 'initial_actions_status' }[key];
-            if (condition && read(condition) !== 'ada' && !read(key)) return null;
-            return options ? <div key={key} className="min-w-0 md:col-span-2"><ChoiceGroup label={label} name={`general-${key}`} options={options} single compact selected={options.some(([option]) => option === read(key)) ? [read(key)] : []} error={errors[`general_assessment.${key}`]} onChange={items => set(key, items[0] ?? '')} />{read(key) && !options.some(([option]) => option === read(key)) && <p className="mt-2 text-xs text-neutral-600">Catatan sebelumnya: {read(key)}</p>}</div> : <Field className={condition || ['handover_follow_up', 'progression_notes'].includes(key) ? 'md:col-span-2' : undefined} key={key} htmlFor={`general-${key}`} label={label} error={errors[`general_assessment.${key}`]}>{['companion', 'location', 'pattern', 'triggers', 'relief'].includes(key) && !read(key).includes('\n') ? <Input id={`general-${key}`} maxLength={2000} placeholder={`Catat ${label.toLocaleLowerCase('id')}`} value={read(key)} onChange={event => set(key, event.target.value)} /> : <Textarea id={`general-${key}`} rows={2} maxLength={2000} placeholder={`Catat ${label.toLocaleLowerCase('id')}`} value={read(key)} onChange={event => set(key, event.target.value)} />}</Field>;
-        })}</div>}
+        {part === 'conclusion' && !dental && <SystemSummary value={value.systems ?? {}} notes={read('systems_notes')} />}
+        {part === 'systems' ? <>
+            <SystemAssessment prefix="general_assessment.systems" value={value.systems ?? {}} errors={errors} onChange={systems => onChange({ ...value, systems })} />
+            {!dental && <Field htmlFor="general-systems_notes" label="Catatan pengkajian sistem tubuh (bila diperlukan)" error={errors['general_assessment.systems_notes']}>
+                <Textarea id="general-systems_notes" rows={2} maxLength={2000} placeholder="Catat informasi tambahan yang berkaitan dengan pengkajian sistem tubuh" value={read('systems_notes')} onChange={event => set('systems_notes', event.target.value)} />
+            </Field>}
+        </> : <div className="grid min-w-0 gap-4 md:grid-cols-2">
+            {part === 'additional' && nutritionField}
+            {part === 'complaint' && !dental && complaintColumns.map((column, index) =>
+                <div key={column[0][0]} className={index === 0 ? 'grid min-w-0 content-start gap-4' : 'grid min-w-0 gap-4 md:auto-rows-fr'}>{column.map(renderField)}</div>,
+            )}
+            {groups[part].map(renderField)}
+        </div>}
         {(legacyFields[part] ?? []).some(([key]) => read(key)) && <details className="rounded-lg border border-neutral-200 p-3"><summary className="cursor-pointer text-xs font-medium">Catatan sebelumnya</summary><dl className="mt-3 grid gap-3 sm:grid-cols-2">{(legacyFields[part] ?? []).filter(([key]) => read(key)).map(([key, label]) => <div key={key}><dt className="text-xs text-neutral-500">{label}</dt><dd className="whitespace-pre-wrap text-sm">{read(key)}</dd></div>)}</dl></details>}
     </div>)}</div>;
 }
