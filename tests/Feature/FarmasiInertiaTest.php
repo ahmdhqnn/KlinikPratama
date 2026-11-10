@@ -84,6 +84,28 @@ class FarmasiInertiaTest extends TestCase
         $this->assertDatabaseHas('obat_batch', ['obat_id' => $medicine->id, 'status' => 'karantina', 'stok' => 1]);
     }
 
+    public function test_direct_dispensing_uses_the_exact_quantity_across_fractional_batches(): void
+    {
+        $pharmacist = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
+        $patient = Pasien::create(['no_rm' => 'RM-FRACTION', 'nama' => 'Pasien Uji']);
+        $medicine = Obat::create([
+            'kode' => 'OBT-FRACTION', 'nama' => 'Obat Uji', 'jenis' => 'obat', 'satuan_kecil' => 'tablet',
+            'stok' => 3.5, 'is_active' => true, 'boleh_diberikan_langsung' => true,
+        ]);
+        $earliest = ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 0.5, 'expired_at' => today()->addMonth()]);
+        $latest = ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 3, 'expired_at' => today()->addMonths(2)]);
+
+        $this->actingAs($pharmacist)->post(route('farmasi.pemberian-obat.store'), [
+            'pasien_id' => $patient->id, 'obat_id' => $medicine->id, 'jumlah' => 2,
+            'aturan_pakai' => 'Sesuai petunjuk.', 'dasar_pemberian' => 'Pemberian untuk pengujian.',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('obat_batch', ['id' => $earliest->id, 'stok' => 0]);
+        $this->assertDatabaseHas('obat_batch', ['id' => $latest->id, 'stok' => 1.5]);
+        $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'stok' => 1.5]);
+        $this->assertSame(2.0, (float) StokMutasi::where('referensi_type', 'FarmasiMandiri')->sum('jumlah'));
+    }
+
     public function test_zero_dispensed_quantity_stays_zero_after_saving_and_reloading(): void
     {
         $pharmacist = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);

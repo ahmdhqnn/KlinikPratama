@@ -10,7 +10,7 @@ class EnsureAdminRole
 {
     public function handle(Request $request, Closure $next): Response
     {
-        abort_unless($request->user()?->isAdmin(), 403, 'Unauthorized access.');
+        abort_unless($request->user()?->isAdmin(), 403, 'Akun Anda tidak memiliki akses ke layanan ini.');
 
         return $next($request);
     }

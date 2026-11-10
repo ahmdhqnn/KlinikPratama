@@ -1,7 +1,7 @@
 import { ActionButton } from '@/components/ui/action-button';
 import { DatePicker } from '@/components/ui/date-picker';
 import { FilterPanel } from '@/components/ui/filter-panel';
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { CalendarDays, ChevronDown, Clock3, Pencil, Plus } from 'lucide-react';
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -214,7 +214,7 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                                     <option value="">Semua hari</option>{days.map((day) => <option key={day} value={day}>{capitalize(day)}</option>)}
                                 </Select>
                             </Field>
-                            <div className="flex gap-3 "><Button type="submit"><CalendarDays className="size-4" />Filter jadwal</Button><Button asChild variant="secondary"><Link href="/pendaftaran/jadwal-praktik">Reset</Link></Button></div>
+                            <div className="flex gap-3 "><Button type="submit"><CalendarDays className="size-4" />Filter jadwal</Button></div>
                         </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">

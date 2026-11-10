@@ -93,6 +93,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('tindakan-perawat/cetak', [TindakanPerawatController::class, 'printReport'])->name('tindakan-perawat.cetak');
         Route::get('tindakan-perawat/export', [TindakanPerawatController::class, 'exportReport'])->name('tindakan-perawat.export');
         Route::get('tindakan-perawat', [TindakanPerawatController::class, 'report'])->name('tindakan-perawat');
+        Route::get('pemeriksaan', [DokterDashboardController::class, 'appointments'])->name('pemeriksaan');
+        Route::get('pemeriksaan/export', [DokterDashboardController::class, 'exportExaminations'])->name('pemeriksaan.export');
         Route::get('dokter/{jenis}/export', [DokterDashboardController::class, 'exportActivityReport'])->where('jenis', 'tindakan|obat')->name('dokter.export');
         Route::get('dokter/{jenis}', [DokterDashboardController::class, 'reports'])->where('jenis', 'tindakan|obat')->name('dokter');
     });
@@ -160,36 +162,36 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('terminologi-klinis/detail', [ClinicalTerminologyController::class, 'show'])->name('terminologi.show');
         Route::post('terminologi-klinis/import', [ClinicalTerminologyController::class, 'import'])->name('terminologi.import');
         Route::delete('terminologi-klinis', [ClinicalTerminologyController::class, 'destroy'])->name('terminologi.destroy');
-        Route::resource('depo-obat', DepoObatController::class)->middleware(EnsureModuleEnabled::class.':medicine_depots');
-        Route::resource('poliklinik', PoliklinikController::class);
+        Route::resource('depo-obat', DepoObatController::class)->except(['create', 'edit'])->middleware(EnsureModuleEnabled::class.':medicine_depots');
+        Route::resource('poliklinik', PoliklinikController::class)->except(['create', 'edit']);
         Route::post('poliklinik/{poliklinik}/ruang', [PoliklinikController::class, 'storeRuang'])->name('poliklinik.ruang.store');
         Route::delete('poliklinik/ruang/{ruang}', [PoliklinikController::class, 'destroyRuang'])->name('poliklinik.ruang.destroy');
 
         Route::middleware(EnsureModuleEnabled::class.':medical_treatments')->group(function (): void {
             Route::get('tindakan-terminologi', [TindakanController::class, 'searchTerminology'])->name('tindakan.terminologi');
-            Route::resource('tindakan', TindakanController::class);
+            Route::resource('tindakan', TindakanController::class)->except(['create', 'edit']);
             Route::post('tindakan/{tindakan}/bhp', [TindakanController::class, 'storeBhp'])->name('tindakan.bhp.store');
             Route::delete('tindakan/bhp/{bhp}', [TindakanController::class, 'destroyBhp'])->name('tindakan.bhp.destroy');
         });
 
         Route::middleware(EnsureModuleEnabled::class.':laboratory')->group(function (): void {
-            Route::resource('laboratorium', LaboratoriumController::class);
+            Route::resource('laboratorium', LaboratoriumController::class)->except(['create', 'edit']);
             Route::post('laboratorium/{laboratorium}/indikator', [LaboratoriumController::class, 'storeIndikator'])->name('laboratorium.indikator.store');
             Route::delete('laboratorium/indikator/{indikator}', [LaboratoriumController::class, 'destroyIndikator'])->name('laboratorium.indikator.destroy');
             Route::post('laboratorium/{laboratorium}/bhp', [LaboratoriumController::class, 'storeBhp'])->name('laboratorium.bhp.store');
             Route::delete('laboratorium/bhp/{bhp}', [LaboratoriumController::class, 'destroyBhp'])->name('laboratorium.bhp.destroy');
         });
 
-        Route::resource('nakes', NakesController::class);
+        Route::resource('nakes', NakesController::class)->except(['create', 'show', 'edit']);
 
-        Route::resource('obat', ObatController::class);
+        Route::resource('obat', ObatController::class)->except(['create', 'show', 'edit']);
         Route::get('obat-export', [ObatController::class, 'export'])->name('obat.export');
         Route::post('obat-import', [ObatController::class, 'import'])->name('obat.import');
         Route::get('obat-template', [ObatController::class, 'template'])->name('obat.template');
         Route::get('obat/{obat}/stok', [ObatController::class, 'stok'])->name('obat.stok');
         Route::post('obat/{obat}/tambah-stok', [ObatController::class, 'tambahStok'])->name('obat.tambah-stok');
 
-        Route::resource('alkes', AlkesController::class)->middleware(EnsureModuleEnabled::class.':medical_equipment');
+        Route::resource('alkes', AlkesController::class)->except(['create', 'edit'])->middleware(EnsureModuleEnabled::class.':medical_equipment');
     });
 
     // Pelayanan
@@ -298,6 +300,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('kunjungan', [LaporanController::class, 'kunjungan'])->name('kunjungan');
         Route::get('stok', [LaporanController::class, 'stok'])->name('stok');
         Route::get('laboratorium', [LaporanController::class, 'laboratorium'])->middleware(EnsureModuleEnabled::class.':laboratory')->name('laboratorium');
+        Route::get('stok/export', [LaporanController::class, 'exportStok'])->name('stok.export');
+        Route::get('laboratorium/export', [LaporanController::class, 'exportLaboratorium'])->middleware(EnsureModuleEnabled::class.':laboratory')->name('laboratorium.export');
         Route::get('kunjungan/export', [LaporanController::class, 'exportKunjungan'])->name('kunjungan.export');
     });
 
@@ -309,7 +313,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     });
 
     Route::middleware(EnsureAdminRole::class)->group(function () {
-        Route::resource('users', UserController::class);
+        Route::resource('users', UserController::class)->except(['create', 'show', 'edit']);
         Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
         Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
     });

@@ -11,7 +11,7 @@ import { FilterPanel } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { CalendarDays, Check, ClipboardCheck, Search, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
@@ -82,8 +82,7 @@ export default function DoctorTreatments({ filters, stats, actions }: Props) {
                             </Select>
                         </Field>
                         <div className="flex items-end gap-2">
-                            <Button type="submit"><Search className="size-4" />Terapkan</Button>
-                            <Button asChild variant="secondary"><Link href="/dokter/tindakan">Reset</Link></Button>
+                            <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
                         </div>
                     </form>
                 </FilterPanel>

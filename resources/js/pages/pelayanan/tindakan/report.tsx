@@ -83,7 +83,7 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
                     <Field htmlFor="nursing-procedure-report-search" label="Cari pasien, kunjungan, atau tindakan"><Input id="nursing-procedure-report-search" placeholder="Nama, No. RM, No. kunjungan, atau tindakan" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} /></Field>
                     <Field htmlFor="nursing-procedure-report-period" label="Periode tanggal kunjungan"><DateRangePicker id="nursing-procedure-report-period" from={filters.dari} onChange={(range) => setFilters({ ...filters, dari: range.from, sampai: range.to })} to={filters.sampai} /></Field>
                     <Field htmlFor="nursing-procedure-report-status" label="Status tindakan"><Select id="nursing-procedure-report-status" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">Semua status</option><option value="pending">Menunggu tindakan</option><option value="completed">Selesai</option></Select></Field>
-                    <div className="flex gap-2"><Button type="submit"><Search className="size-4" />Terapkan filter</Button><Button asChild variant="secondary"><Link href="/perawat/laporan-tindakan">Reset</Link></Button></div>
+                    <div className="flex gap-2"><Button type="submit"><Search className="size-4" />Terapkan filter</Button></div>
                 </form>
             </FilterPanel>}
 

@@ -45,6 +45,11 @@ class DepoObatController extends Controller
         ]);
     }
 
+    public function show(DepoObat $depoObat): RedirectResponse
+    {
+        return redirect()->route('master.depo-obat.index', ['search' => $depoObat->kode]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([

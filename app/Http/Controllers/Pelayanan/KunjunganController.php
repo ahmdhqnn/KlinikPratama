@@ -409,8 +409,8 @@ class KunjunganController extends Controller
         $allowedPaths = match ($role) {
             'admin' => [
                 '/pendaftaran/kunjungan-per-poli', '/pelayanan/kunjungan', '/pelayanan/antrian',
-                '/pelayanan/pasien', '/laporan/kunjungan', '/admin/laporan/pengkajian',
-                '/admin/laporan/tindakan-perawat', '/admin/laporan/dokter/tindakan', '/admin/laporan/dokter/obat',
+                '/pelayanan/pasien', '/laporan/kunjungan', '/pendaftaran/laporan-kunjungan', '/admin/laporan/pengkajian',
+                '/admin/laporan/tindakan-perawat', '/admin/laporan/pemeriksaan', '/admin/laporan/dokter/tindakan', '/admin/laporan/dokter/obat',
             ],
             'perawat' => [
                 '/pendaftaran/kunjungan-per-poli', '/pelayanan/kunjungan', '/pelayanan/pasien',

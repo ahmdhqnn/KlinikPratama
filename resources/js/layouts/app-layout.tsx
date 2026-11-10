@@ -76,44 +76,62 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
     admin: [
         { label: 'Ringkasan', items: [{ label: 'Dasbor', href: '/', icon: LayoutDashboard, exact: true }] },
         {
-            label: 'Operasional',
+            label: 'Pendaftaran & kunjungan',
             items: [
-                { label: 'Antrean', href: '/pelayanan/antrian', activePaths: ['/pelayanan/pemeriksaan', '/pelayanan/tindakan-perawat', '/pelayanan/farmasi'], icon: Activity },
-                { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
-                { label: 'Persuratan', href: '/persuratan', icon: FileText },
-                { label: 'Kunjungan', href: '/pelayanan/kunjungan', activePaths: ['/pendaftaran/kunjungan'], icon: ClipboardList },
-                { label: 'Pasien', href: '/pelayanan/pasien', icon: UsersRound },
+                { label: 'Antrean pasien', href: '/pelayanan/antrian', icon: Activity },
+                { label: 'Pendaftaran pasien', href: '/pendaftaran/pendaftaran-baru', activePaths: ['/pendaftaran/pendaftaran-lama'], icon: UserRoundPlus },
+                { label: 'Kunjungan poli', href: '/pendaftaran/kunjungan-per-poli', activePaths: ['/pendaftaran/kunjungan'], icon: BedDouble },
+                { label: 'Daftar kunjungan', href: '/pelayanan/kunjungan', icon: ClipboardList },
+                { label: 'Data pasien', href: '/pelayanan/pasien', activePaths: ['/pendaftaran/database-pasien'], icon: UsersRound },
+                { label: 'Kepesertaan', href: '/kepesertaan', icon: ShieldCheck },
+                { label: 'Jadwal praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
             ],
+        },
+        {
+            label: 'Pelayanan klinis',
+            items: [
+                { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
+                { label: 'Pemeriksaan dokter', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
+                { label: 'Tindakan perawat', href: '/pelayanan/tindakan-perawat', icon: ClipboardCheck },
+                { label: 'Persuratan', href: '/persuratan', icon: FileText },
+            ],
+        },
+        {
+            label: 'Farmasi & persediaan',
+            items: [
+                { label: 'Penyerahan obat', href: '/pelayanan/farmasi', icon: Pill },
+                { label: 'Obat langsung', href: '/farmasi/pemberian-obat', icon: FilePlus2 },
+                { label: 'Resep luar', href: '/farmasi/resep-luar', icon: FileText },
+                { label: 'Riwayat farmasi pasien', href: '/farmasi/pasien', icon: UsersRound },
+                { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes },
+            ],
+        },
+        {
+            label: 'Laporan',
+            items: [{
+                label: 'Pusat laporan', href: '/admin/laporan', icon: BarChart3,
+                activePaths: ['/laporan', '/farmasi/laporan', '/pendaftaran/laporan-kunjungan', '/pendaftaran/laporan-top-diagnosa'],
+            }],
         },
         {
             label: 'Data master',
             items: [
                 { label: 'Poliklinik', href: '/master/poliklinik', icon: Boxes },
-                { label: 'Tindakan medis', href: '/master/tindakan', module: 'medical_treatments', icon: HeartPulse },
-                { label: 'Terminologi klinis', href: '/master/terminologi-klinis', icon: ClipboardList },
-                { label: 'Laboratorium', href: '/master/laboratorium', module: 'laboratory', icon: Activity },
+                { label: 'Tenaga kesehatan & karyawan', href: '/master/nakes', icon: UsersRound },
                 { label: 'Obat & BHP', href: '/master/obat', icon: Pill },
                 { label: 'Depo obat', href: '/master/depo-obat', module: 'medicine_depots', icon: Pill },
                 { label: 'Alat kesehatan', href: '/master/alkes', module: 'medical_equipment', icon: HeartPulse },
-                { label: 'Tenaga kesehatan', href: '/master/nakes', icon: UsersRound },
+                { label: 'Tindakan medis', href: '/master/tindakan', module: 'medical_treatments', icon: HeartPulse },
+                { label: 'Terminologi klinis', href: '/master/terminologi-klinis', icon: ClipboardList },
+                { label: 'Laboratorium', href: '/master/laboratorium', module: 'laboratory', icon: Activity },
             ],
         },
         {
-            label: 'Pengelolaan',
+            label: 'Administrasi',
             items: [
-                { label: 'Kepesertaan', href: '/kepesertaan', icon: ShieldCheck },
-                { label: 'Jadwal praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
-                { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes },
-                { label: 'Pengguna', href: '/users', icon: UsersRound },
-                { label: 'Pengaturan', href: '/setting', icon: Settings },
-            ],
-        },
-        {
-            label: 'Laporan',
-            items: [
-                { label: 'Kunjungan', href: '/laporan/kunjungan', icon: ClipboardList },
-                { label: 'Stok', href: '/laporan/stok', icon: Boxes },
-                { label: 'Laboratorium', href: '/laporan/laboratorium', module: 'laboratory', icon: Activity },
+                { label: 'Manajemen pengguna', href: '/users', icon: UsersRound },
+                { label: 'Pengaturan klinik', href: '/setting', icon: Settings },
+                { label: 'Audit bantuan layanan', href: '/admin/audit-bantuan', icon: ShieldCheck },
             ],
         },
     ],
@@ -137,7 +155,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         {
             label: 'Laporan',
             items: [
-                { label: 'Laporan kunjungan', href: '/pendaftaran/laporan-kunjungan', icon: BarChart3 },
+                { label: 'Rincian kunjungan pendaftaran', href: '/pendaftaran/laporan-kunjungan', icon: BarChart3 },
                 { label: 'Diagnosis terbanyak', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
             ],
         },
@@ -159,7 +177,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Jadwal praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
             ],
         },
-        { label: 'Laporan', items: [{ label: 'Laporan pengkajian', href: '/perawat/laporan-pengkajian', icon: ClipboardCheck }, { label: 'Laporan tindakan', href: '/perawat/laporan-tindakan', icon: ClipboardCheck }, { label: 'Diagnosis terbanyak', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined }] },
+        { label: 'Laporan', items: [{ label: 'Laporan pengkajian awal', href: '/perawat/laporan-pengkajian', icon: ClipboardCheck }, { label: 'Laporan tindakan', href: '/perawat/laporan-tindakan', icon: ClipboardCheck }, { label: 'Diagnosis terbanyak', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined }] },
     ],
     dokter: [
         { label: 'Ringkasan', items: [{ label: 'Dasbor', href: '/dokter', icon: LayoutDashboard, exact: true }] },
@@ -181,7 +199,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             ],
         },
         { label: 'Laporan', items: [
-            { label: 'Laporan Pemeriksaan', href: '/dokter/laporan-pemeriksaan', icon: ClipboardCheck },
+            { label: 'Laporan pemeriksaan', href: '/dokter/laporan-pemeriksaan', icon: ClipboardCheck },
             { label: 'Laporan tindakan', href: '/dokter/laporan/tindakan', icon: ClipboardCheck },
             { label: 'Laporan obat', href: '/dokter/laporan/obat', icon: Pill },
             { label: 'Diagnosis terbanyak', href: '/dokter/laporan-top-diagnosa', icon: ChartNoAxesCombined },
@@ -193,14 +211,14 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             { label: 'Penyerahan obat', href: '/pelayanan/farmasi', icon: Pill },
             { label: 'Obat langsung', href: '/farmasi/pemberian-obat', icon: FilePlus2 },
             { label: 'Resep luar', href: '/farmasi/resep-luar', icon: FileText },
-            { label: 'Pasien', href: '/farmasi/pasien', icon: UsersRound },
+            { label: 'Riwayat farmasi pasien', href: '/farmasi/pasien', icon: UsersRound },
         ] },
         { label: 'Pengelolaan obat', items: [
-            { label: 'Obat & BHP', href: '/stok/persediaan', icon: Boxes },
+            { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes },
             { label: 'Data pasien', href: '/pelayanan/pasien', icon: UsersRound },
         ] },
         { label: 'Laporan', items: [
-            { label: 'Laporan obat', href: '/farmasi/laporan/penyerahan-obat', icon: ClipboardCheck },
+            { label: 'Laporan penyerahan obat', href: '/farmasi/laporan/penyerahan-obat', icon: ClipboardCheck },
             { label: 'Laporan obat langsung', href: '/farmasi/laporan/pemberian-langsung', icon: FileText },
             { label: 'Laporan resep luar', href: '/farmasi/laporan/resep-luar', icon: ClipboardList },
         ] },
@@ -226,12 +244,12 @@ function getPageTitle(component: string): string {
         'dashboard/index': 'Dasbor',
         'kepesertaan/index': 'Kepesertaan',
         'kepesertaan/show': 'Detail kepesertaan',
-        'stok/persediaan/index': 'Obat & BHP',
+        'stok/persediaan/index': 'Persediaan & batch',
         'stok/persediaan/show': 'Batch & kartu stok',
         'pendaftaran/dashboard': 'Dasbor pendaftaran',
         'pendaftaran/pendaftaran-baru': 'Pendaftaran pasien',
         'pendaftaran/pendaftaran-lama': 'Pendaftaran pasien',
-        'pendaftaran/laporan-kunjungan': 'Laporan kunjungan',
+        'pendaftaran/laporan-kunjungan': 'Rincian kunjungan pendaftaran',
         'pendaftaran/database-pasien': 'Pasien',
         'pendaftaran/kunjungan-per-poli': 'Kunjungan poli',
         'pendaftaran/laporan-top-diagnosa': 'Laporan diagnosis terbanyak',
@@ -270,13 +288,13 @@ function getPageTitle(component: string): string {
         'pelayanan/farmasi/show': 'Penyerahan obat',
         'farmasi/dashboard': 'Dasbor farmasi',
         'farmasi/resep-luar': 'Resep luar',
-        'farmasi/pasien': 'Pasien',
+        'farmasi/pasien': 'Riwayat farmasi pasien',
         'farmasi/pasien-kunjungan': 'Detail layanan pasien',
         'farmasi/pemberian-obat/form': 'Pemberian obat tanpa pemeriksaan',
         'farmasi/pemberian-obat/index': 'Obat langsung',
         'farmasi/pemberian-obat/cetak': 'Bukti pemberian obat',
         'farmasi/laporan': 'Laporan obat langsung',
-        'farmasi/laporan-penyerahan': 'Laporan obat',
+        'farmasi/laporan-penyerahan': 'Laporan penyerahan obat',
         'farmasi/laporan-resep-luar': 'Laporan resep luar',
         'laporan/kunjungan': 'Laporan kunjungan',
         'laporan/stok': 'Laporan stok',
@@ -490,13 +508,22 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         { label: 'Akun', items: [{ label: 'Profil saya', href: '/profile', icon: UserRound }] },
     ];
     const pathname = page.url.split(/[?#]/, 1)[0];
-    const doctorReportTitles: Record<string, string> = {
+    const reportTitles: Record<string, string> = {
+        '/admin/laporan/pemeriksaan': 'Laporan pemeriksaan dokter',
+        '/admin/laporan/pengkajian': 'Laporan pengkajian awal',
+        '/admin/laporan/dokter/tindakan': 'Laporan tindakan dokter',
+        '/admin/laporan/dokter/obat': 'Laporan resep dokter',
+        '/dokter/laporan-pemeriksaan': 'Laporan pemeriksaan',
+        '/perawat/laporan-pengkajian': 'Laporan pengkajian awal',
         '/dokter/laporan/tindakan': 'Laporan tindakan',
         '/dokter/laporan/obat': 'Laporan obat',
     };
-    const pageTitle = doctorReportTitles[pathname] ?? (pathname === '/dokter/laporan-pemeriksaan' ? 'Laporan Pemeriksaan' : pathname === '/perawat/laporan-pengkajian' ? 'Laporan pengkajian' : getPageTitle(page.component));
+    const pageTitle = reportTitles[pathname] ?? getPageTitle(page.component);
     const validHrefs = new Set(groups.flatMap((group) => group.items.map((item) => item.href)));
-    const breadcrumbs = getBreadcrumbItems(pathname, pageTitle, validHrefs);
+    const activeHref = activeNavigationHref(pathname, groups.flatMap((group) => group.items));
+    const breadcrumbs = activeHref === '/admin/laporan' && pathname !== activeHref
+        ? [{ label: 'Pusat laporan', href: activeHref }, { label: pageTitle }]
+        : getBreadcrumbItems(pathname, pageTitle, validHrefs);
     const searchResults = groups.flatMap((group) => group.items
         .filter((item) => `${item.label} ${group.label}`.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()))
         .map((item) => ({ ...item, group: group.label })))

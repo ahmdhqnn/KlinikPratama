@@ -137,7 +137,11 @@ class UserController extends Controller
             ],
         ]);
 
-        $data['is_active'] = $request->boolean('is_active');
+        $data['is_active'] = $request->boolean('is_active', $user->is_active);
+        if ($user->is($request->user()) && ($data['role'] !== $user->role || $data['is_active'] !== $user->is_active)) {
+            return back()->with('error', 'Peran dan status akun sendiri tidak dapat diubah.');
+        }
+
         DB::transaction(function () use ($data, $user): void {
             $user->update($data);
             $this->syncNakesProfile($user->fresh(), $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null);

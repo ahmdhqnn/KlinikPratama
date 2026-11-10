@@ -103,7 +103,7 @@ class AdminAssistanceAuditTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('events.total', 1)
                 ->where('events.data.0.label', 'Percobaan bantuan ditolak/gagal')
-                ->where('events.data.0.result', 'validation_or_workflow (HTTP 302)')
+                ->where('events.data.0.result', 'Validasi atau tahapan layanan')
                 ->where('events.data.0.reason', null)
                 ->missing('events.data.0.metadata')
                 ->missing('events.data.0.request_body'));

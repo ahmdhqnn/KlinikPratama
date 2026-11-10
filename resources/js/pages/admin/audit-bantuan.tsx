@@ -6,6 +6,7 @@ import { Pagination, type PaginationData } from '@/components/dashboard/paginati
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -45,15 +46,14 @@ export default function AssistanceAuditPage({ filters, actions, events }: Props)
             <div>
                 <p className="text-sm font-medium text-neutral-700">Administrasi dan akuntabilitas</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Audit bantuan layanan</h2>
-                <p className="mt-1 text-sm text-neutral-500">Riwayat tindakan bantuan yang dicatat oleh akun admin. Isi klinis dan data pasien tidak ditampilkan di halaman ini.</p>
+                <p className="mt-1 text-sm text-neutral-500">Riwayat bantuan layanan oleh admin dan peninjauan draf oleh dokter.</p>
             </div>
 
             <FilterPanel><form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" onSubmit={applyFilters}>
-                <Field htmlFor="audit-from" label="Dari tanggal"><Input id="audit-from" onChange={(event) => setFrom(event.target.value)} type="date" value={from} /></Field>
-                <Field htmlFor="audit-to" label="Sampai tanggal"><Input id="audit-to" onChange={(event) => setTo(event.target.value)} type="date" value={to} /></Field>
+                <Field htmlFor="audit-period" label="Periode kegiatan"><DateRangePicker id="audit-period" from={from} to={to} onChange={(range) => { setFrom(range.from); setTo(range.to); }} /></Field>
                 <Field htmlFor="audit-action" label="Jenis kegiatan"><Select id="audit-action" onChange={(event) => setAction(event.target.value)} value={action}><option value="">Semua kegiatan bantuan</option>{actions.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</Select></Field>
                 <Field htmlFor="audit-search" label="No. kunjungan"><Input id="audit-search" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nomor kunjungan" value={search} /></Field>
-                <Button className="sm:col-span-2 xl:col-span-4" type="submit"><Search className="size-4" />Terapkan filter</Button>
+                <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
             </form></FilterPanel>
 
             <Card className="overflow-hidden">
@@ -67,7 +67,7 @@ export default function AssistanceAuditPage({ filters, actions, events }: Props)
                             <TableCell>{event.actor}</TableCell>
                             <TableCell className="font-sans tabular-nums text-xs">{event.visitNumber ?? 'Tidak terhubung'}</TableCell>
                             <TableCell>{event.clinic ?? '—'}</TableCell>
-                            <TableCell className="max-w-xs whitespace-normal">{event.reason ?? 'Tidak dicatat pada event ini'}</TableCell>
+                            <TableCell className="max-w-xs whitespace-normal">{event.reason ?? 'Belum dicatat'}</TableCell>
                         </TableRow>) : <TableRow><TableCell colSpan={7}><Empty description="Coba ubah rentang tanggal atau jenis kegiatan." icon={<ClipboardCheck className="size-5" />} size="compact" title="Belum ada riwayat bantuan pada filter ini." /></TableCell></TableRow>}</TableBody>
                     </Table>
                 </div>

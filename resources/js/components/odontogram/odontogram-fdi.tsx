@@ -382,13 +382,12 @@ export function OdontogramFdi({
                                         type="button"
                                         aria-pressed={isFilterActive}
                                         onClick={() => setActiveTypeFilter((cur) => (cur === type ? null : type))}
-                                        className={`group flex flex-col items-center rounded-xl border p-2 transition-all ${
-                                            isFilterActive
+                                        className={`group flex flex-col items-center rounded-xl border p-2 transition-all ${isFilterActive
                                                 ? 'border-neutral-900 bg-neutral-100 shadow-xs ring-1 ring-neutral-900'
                                                 : isCurrentSelectedType
-                                                  ? 'border-neutral-400 bg-neutral-100/60'
-                                                  : 'border-neutral-200/80 bg-neutral-50/50 hover:border-neutral-300 hover:bg-neutral-100/70'
-                                        }`}
+                                                    ? 'border-neutral-400 bg-neutral-100/60'
+                                                    : 'border-neutral-200/80 bg-neutral-50/50 hover:border-neutral-300 hover:bg-neutral-100/70'
+                                            }`}
                                         title={`Klik untuk menyorot seluruh ${info.title} pada peta`}
                                     >
                                         <div className="flex h-24 w-full items-center justify-center">

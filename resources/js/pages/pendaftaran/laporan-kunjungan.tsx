@@ -68,11 +68,11 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
 
     return (
         <>
-            <Head title="Laporan kunjungan" />
+            <Head title="Rincian kunjungan pendaftaran" />
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Pendaftaran dan pelayanan</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Laporan kunjungan pasien</h2>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Rincian kunjungan pendaftaran</h2>
                     <p className="mt-1 text-sm text-neutral-500">Cari kunjungan, cetak nomor antrean, atau kelola kunjungan aktif.</p>
                 </div>
 
@@ -99,7 +99,6 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
-                                <Button asChild variant="secondary"><a href="/pendaftaran/laporan-kunjungan">Reset</a></Button>
                             </div>
                         </form></FilterPanel>
                 <Card className="overflow-hidden">

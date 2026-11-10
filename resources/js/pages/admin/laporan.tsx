@@ -22,7 +22,7 @@ export default function AdminReportsPage({ groups }: { groups: ReportGroup[] }) 
             <div>
                 <p className="text-sm font-medium text-neutral-700">Administrasi klinik</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pusat laporan</h2>
-                <p className="mt-1 text-sm text-neutral-500">Pilih jenis laporan sesuai alur. Data klinis, tindakan perawat, resep, dan penyerahan obat tetap dipisahkan menurut sumbernya.</p>
+                <p className="mt-1 text-sm text-neutral-500">Buka laporan pelayanan klinik, farmasi, atau persediaan.</p>
             </div>
 
             {groups.map((group) => <section aria-label={group.title} className="space-y-3" key={group.title}>
