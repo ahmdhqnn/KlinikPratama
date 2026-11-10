@@ -90,7 +90,7 @@ class RmeAuthFlowTest extends TestCase
             $this->post('/login', [
                 'email' => 'unknown@example.com',
                 'password' => 'wrong-password',
-            ])->assertSessionHasErrors('email');
+            ])->assertSessionHasErrors('credentials');
         }
 
         $this->post('/login', [

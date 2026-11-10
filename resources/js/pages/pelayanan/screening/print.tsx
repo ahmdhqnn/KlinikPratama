@@ -4,7 +4,6 @@ import { printWithFonts } from '@/lib/print-typography';
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 type Rows = Record<string, string>;
 
@@ -57,7 +56,7 @@ export default function ScreeningPrint({ document }: Props) {
 
     return <>
         <Head title={`Pengkajian awal · ${patient.name ?? document.visitNumber}`} />
-        <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-8 print:max-w-none print:p-0">
+        <div className="mx-auto max-w-4xl space-y-4 p-4 sm:p-8 print:max-w-none print:p-0">
             <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
                 <Button asChild variant="secondary">
                     <Link href={document.backUrl}>
@@ -66,7 +65,6 @@ export default function ScreeningPrint({ document }: Props) {
                     </Link>
                 </Button>
                 <div className="flex items-center gap-2">
-                    <ThemeToggle />
                     <Button onClick={() => void printWithFonts()} type="button">
                         <Printer className="size-4" />
                         Cetak dokumen
@@ -114,7 +112,7 @@ export default function ScreeningPrint({ document }: Props) {
                     Status belum dikaji / belum dicatat menunjukkan informasi belum tersedia dan tidak berarti hasilnya normal. Dokumen ini hanya memuat pengkajian pada episode dan poliklinik kunjungan ini.
                 </footer>
             </article>
-        </main>
+        </div>
     </>;
 }
 

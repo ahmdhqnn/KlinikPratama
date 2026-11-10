@@ -156,8 +156,8 @@ export function LetterSheet({ document: doc }: { document: DocumentData }) {
 
 export default function Cetak({ document }: { document: DocumentData }) {
     return <><Head title={`${titleOf(document)} · ${document.patient.name}`} />
-        <main className="letter-print-main mx-auto max-w-4xl space-y-4 p-4 sm:p-8">
-            <div className="letter-toolbar flex flex-wrap items-center justify-between gap-3 print:hidden"><Button onClick={() => returnToPreviousScreen(document.backUrl)} type="button" variant="secondary"><ArrowLeft className="size-4" />{document.backLabel}</Button><Button onClick={() => void printWithFonts()}><Printer className="size-4" />Cetak / simpan PDF</Button></div>
+        <div className="letter-print-main mx-auto max-w-4xl space-y-4 p-4 sm:p-8">
+            <div className="letter-toolbar flex flex-wrap items-center justify-between gap-3 print:hidden"><Button onClick={() => returnToPreviousScreen(document.backUrl)} type="button" variant="secondary"><ArrowLeft className="size-4" />{document.backLabel}</Button><Button onClick={() => void printWithFonts()}><Printer className="size-4" />Cetak dokumen</Button></div>
             <LetterSheet document={document} />
-        </main></>;
+        </div></>;
 }

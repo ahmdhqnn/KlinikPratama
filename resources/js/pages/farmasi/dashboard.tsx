@@ -10,11 +10,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 interface Props {
     followUp: FollowUpData;
+    externalTodayUrl?: string;
     stats: { waitingVisits: number; processingVisits: number; completedToday: number; lowStockMedicines: number; totalPharmacyVisits: number; externalToday: number };
     recentVisits: PaginationData & { data: DashboardVisit[] };
 }
 
-export default function PharmacyDashboard({ stats, recentVisits, followUp }: Props) {
+export default function PharmacyDashboard({ stats, recentVisits, followUp, externalTodayUrl = '/farmasi/resep-luar' }: Props) {
     useEffect(() => {
         const refresh = () => {
             if (document.visibilityState === 'visible') router.reload({ only: ['stats', 'recentVisits', 'followUp'], async: true });
@@ -40,18 +41,20 @@ export default function PharmacyDashboard({ stats, recentVisits, followUp }: Pro
                     <StatCard description="Resep yang diselesaikan hari ini" href="/pelayanan/farmasi" icon={<CheckCircle2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Penyerahan obat selesai" value={stats.completedToday} />
                     <StatCard description="Stok layak pakai mencapai batas minimum" href="/stok/persediaan" icon={<PackageSearch className="size-5" />} iconClassName={stats.lowStockMedicines > 0 ? 'bg-amber-50 text-amber-800' : 'bg-neutral-100 text-neutral-700'} label="Obat perlu perhatian" value={stats.lowStockMedicines} />
                 </section>
-                <FollowUp data={followUp} showUpcoming={false} />
+                <FollowUp data={followUp} showUpcoming={false}>
+                    <StatCard description="Kunjungan dengan resep untuk ditebus di luar klinik" href={externalTodayUrl} icon={<FileText className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Resep luar hari ini" value={stats.externalToday} />
+                </FollowUp>
 
                 <Card>
                     <CardHeader>
                         <CardTitle>Akses cepat</CardTitle>
-                        <CardDescription>Mulai layanan yang sering digunakan. Ada {stats.externalToday} resep luar dari kunjungan hari ini.</CardDescription>
+                        <CardDescription>Buka layanan farmasi yang sering digunakan.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         <QuickLink href="/pelayanan/farmasi" icon={<Pill className="size-4" />} label="Penyerahan obat" />
                         <QuickLink href="/farmasi/pemberian-obat" icon={<FilePlus2 className="size-4" />} label="Obat langsung" />
                         <QuickLink href="/farmasi/resep-luar" icon={<FileText className="size-4" />} label="Resep luar" />
-                        <QuickLink href="/farmasi/pasien" icon={<UsersRound className="size-4" />} label="Pasien" />
+                        <QuickLink href="/farmasi/pasien" icon={<UsersRound className="size-4" />} label="Riwayat farmasi pasien" />
                     </CardContent>
                 </Card>
 

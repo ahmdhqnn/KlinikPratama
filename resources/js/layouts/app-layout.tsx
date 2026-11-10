@@ -475,7 +475,6 @@ function AccountAvatar({ user }: { user: AppUser | null }) {
 
 export default function AppLayout({ children }: { children: ReactNode }) {
     const page = usePage<SharedPageProps>();
-    useEffect(() => router.on('httpException', () => { toast.error('Halaman belum dapat dibuka. Muat ulang atau coba kembali.'); }), []);
     useEffect(() => router.on('error', event => {
         const messages = Object.values(event.detail.errors).flat().filter(value => typeof value === 'string');
         if (messages.length) toast.error(messages[0]);
@@ -668,7 +667,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                             </ul>
                         )}
                     </div>
-                    <ThemeToggle className="shrink-0" />
+                    {!['persuratan/cetak', 'pelayanan/screening/print', 'pendaftaran/cetak-antrian', 'farmasi/pemberian-obat/cetak'].includes(page.component) && <ThemeToggle className="shrink-0" />}
                     <AccountMenu user={user} />
                 </header>
 

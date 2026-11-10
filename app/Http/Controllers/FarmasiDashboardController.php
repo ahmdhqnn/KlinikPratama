@@ -42,6 +42,7 @@ class FarmasiDashboardController extends Controller
 
         return Inertia::render('farmasi/dashboard', [
             'followUp' => [...app(VisitOverviewService::class)->summarize($activePharmacyVisits), 'href' => route('pelayanan.farmasi.index')],
+            'externalTodayUrl' => route('farmasi.resep-luar.index', ['tanggal' => $today]),
             'stats' => [
                 'waitingVisits' => $waitingVisits,
                 'processingVisits' => $processingVisits,

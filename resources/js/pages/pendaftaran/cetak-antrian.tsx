@@ -2,7 +2,6 @@ import { printWithFonts } from '@/lib/print-typography';
 import { Head } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { returnToPreviousScreen } from '@/lib/navigation';
 
 interface Ticket { isReservation: boolean; queueNumber: number; visitNumber: string; date: string; patient: string; medicalRecordNumber: string; clinic: string; doctor: string }
@@ -11,10 +10,10 @@ interface Clinic { name: string; address: string | null; phone: string | null; e
 export default function QueueTicket({ ticket, clinic, backUrl }: { ticket: Ticket; clinic: Clinic; backUrl: string }) {
     return <>
         <Head title={`Tiket Kunjungan ${ticket.visitNumber}`} />
-        <main className="mx-auto max-w-xl space-y-4 p-4 sm:p-6 print:max-w-none print:p-0">
+        <div className="mx-auto max-w-xl space-y-4 p-4 sm:p-6 print:max-w-none print:p-0">
             <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
                 <Button onClick={() => returnToPreviousScreen(backUrl)} type="button" variant="secondary"><ArrowLeft className="size-4" />Kembali</Button>
-                <div className="flex items-center gap-2"><ThemeToggle /><Button onClick={() => void printWithFonts()} type="button"><Printer className="size-4" />Cetak tiket</Button></div>
+                <Button onClick={() => void printWithFonts()} type="button"><Printer className="size-4" />Cetak tiket</Button>
             </div>
             <article className="queue-ticket rounded-xl border border-neutral-200 bg-surface p-6 text-neutral-950 shadow-sm sm:p-8 print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black print:shadow-none">
                 <header className="border-b-2 border-neutral-900 pb-4 text-center">
@@ -41,7 +40,7 @@ export default function QueueTicket({ ticket, clinic, backUrl }: { ticket: Ticke
                     <p>Bawa kartu identitas dan dokumen pemeriksaan sebelumnya. Urutan pelayanan mengikuti penilaian kondisi pasien oleh petugas.</p>
                 </footer>
             </article>
-        </main>
+        </div>
     </>;
 }
 
