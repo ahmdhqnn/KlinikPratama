@@ -179,6 +179,7 @@ class FarmasiInertiaTest extends TestCase
         $this->actingAs($pharmacist)->get(route('dashboard'))->assertRedirect(route('farmasi.dashboard'));
         $this->get(route('farmasi.dashboard'))->assertInertia(fn (Assert $page) => $page
             ->component('farmasi/dashboard')
+            ->where('externalTodayUrl', route('farmasi.resep-luar.index', ['tanggal' => today()->toDateString()]))
             ->where('stats.waitingVisits', 1)
             ->where('stats.processingVisits', 1)
             ->where('stats.completedToday', 0)

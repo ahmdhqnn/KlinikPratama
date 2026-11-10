@@ -1,3 +1,4 @@
+import { focusFirstInvalidField } from '@/lib/form-error-focus';
 import { identityPlaceholders } from '@/lib/form-placeholders';
 import { RegisteredPatientForm, type PatientResult } from '@/components/pendaftaran/registered-patient-form';
 import { MembershipIdentityFields } from '@/components/pasien/membership-identity-fields';
@@ -65,6 +66,12 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (registrationType === 'directory' && !form.data.kepesertaan_id) {
+            const formElement = event.currentTarget;
+            form.setError('kepesertaan_id', 'Pilih peserta dari hasil pencarian.');
+            window.requestAnimationFrame(() => focusFirstInvalidField(formElement));
+            return;
+        }
         form.transform((data) => ({ ...data, registration_type: registrationType === 'directory' ? 'directory' : 'manual' }));
         form.post('/pendaftaran/pendaftaran-baru');
     }
@@ -157,7 +164,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                 </Card>
 
                 <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
-                    <Button disabled={form.processing || !form.data.dokter_id || (registrationType === 'directory' && !form.data.kepesertaan_id)} type="submit"><UserRoundPlus className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan dan buat kunjungan'}</Button>
+                    <Button disabled={form.processing} type="submit"><UserRoundPlus className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan dan buat kunjungan'}</Button>
                 </div>
                     </form>}
                 </Tabs>

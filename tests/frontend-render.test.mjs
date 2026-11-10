@@ -1312,6 +1312,18 @@ for (const [name, controlProps] of [
     });
 }
 
+test('required select validates an empty option through its visible trigger', async () => {
+    const { Select } = await server.ssrLoadModule('/resources/js/components/ui/select.tsx');
+    const render = (value, disabled = false) => renderToString(createElement(Select, { id: 'clinic-select', value, required: true, disabled }, [
+        createElement('option', { key: 'empty', value: '' }, 'Pilih poli'),
+        createElement('option', { key: 'umum', value: 'umum' }, 'Poli Umum'),
+    ]));
+    assert.match(render(''), /<input[^>]*data-validation-target="clinic-select"[^>]*required/);
+    assert.match(render(''), /<button[^>]*id="clinic-select"/);
+    assert.doesNotMatch(render('umum'), /data-validation-target/);
+    assert.doesNotMatch(render('', true), /data-validation-target/);
+});
+
 test('calendar dates reject impossible values and retain leap-day and month navigation rules', async () => {
     const { fromDateKey, toDateKey, clampDate, calendarNavigationDate, isDateWithinBounds, isMonthWithinBounds } = await server.ssrLoadModule('/resources/js/lib/calendar.ts');
     for (const value of ['2026-02-29', '2026-02-31', '2026-13-01', '2026-00-10', '2026-01-00', 'not-a-date']) {
@@ -1379,6 +1391,31 @@ for (const page of ['index', 'history']) {
     });
 }
 
+test('error pages offer safe recovery and only show retry when available', async () => {
+    const missing = await renderPage('error', { status: 404, canRetry: false });
+    assert.match(missing, /Halaman tidak ditemukan/);
+    assert.match(missing, /href="\/"[^>]*><svg[^>]*lucide-house[^>]*>.*?<\/svg>Kembali ke beranda/);
+    assert.match(missing, /href="\/bantuan-akses"[^>]*>.*?<\/svg>Bantuan<\/a>/);
+    assert.doesNotMatch(missing, /Muat ulang halaman/);
+
+    const throttled = await renderPage('error', { status: 429, returnToLogin: true, retryAfter: 20 });
+    assert.match(throttled, /Coba lagi setelah 20 detik/);
+    assert.match(throttled, /href="\/login"[^>]*>.*?<\/svg>Kembali ke halaman masuk/);
+    assert.match(throttled, /href="\/bantuan-akses"[^>]*>.*?<\/svg>Bantuan<\/a>/);
+});
+
+test('pharmacy follow-up includes today’s external prescriptions alongside overdue visits', async () => {
+    const html = await renderPage('farmasi/dashboard', {
+        stats: { waitingVisits: 0, processingVisits: 0, completedToday: 0, lowStockMedicines: 0, totalPharmacyVisits: 3, externalToday: 2 },
+        followUp: { upcoming: 0, overdue: 1, href: '/pelayanan/farmasi' },
+        externalTodayUrl: '/farmasi/resep-luar?tanggal=2026-11-10',
+        recentVisits: pageOf([]),
+    });
+    assert.match(html, /Kunjungan tertunda/);
+    assert.match(html, /Resep luar hari ini/);
+    assert.match(html, /href="\/farmasi\/resep-luar\?tanggal=2026-11-10"/);
+});
+
 test('screening print returns to the nurse assessment queue and follows the shared correspondence document layout', async () => {
     const html = await renderPage('pelayanan/screening/print', { document: {
         clinic: { name: 'Klinik Uji', address: 'Jl. Contoh', phone: '021123', email: 'klinik@example.test', logoUrl: null },
@@ -1390,6 +1427,7 @@ test('screening print returns to the nurse assessment queue and follows the shar
     } });
     assert.match(html, /href="\/pelayanan\/screening"[^>]*>[\s\S]*?Kembali ke pengkajian awal/);
     assert.match(html, /Cetak dokumen/);
+    assert.doesNotMatch(html, /Aktifkan tema/);
     assert.match(html, /Klinik Uji/);
     assert.match(html, /Pengkajian awal perawat &amp; tanda vital/);
     assert.match(html, /Demam sejak kemarin/);
@@ -3192,6 +3230,8 @@ for (const kind of ['surat', 'resep_luar', 'rujukan_internal']) {
             backUrl: '/persuratan', backLabel: 'Kembali ke persuratan', content: 'Isi surat uji', items: [],
             fromClinic: 'Poli Umum', toClinic: 'Poli Gigi',
         } });
+        assert.match(html, /Cetak dokumen/);
+        assert.doesNotMatch(html, /Aktifkan tema/);
         const signatureImage = html.match(/<img[^>]*alt="Tanda tangan[^>]*>/)?.[0];
         assert.ok(signatureImage);
         assert.ok(signatureImage.includes(signature));

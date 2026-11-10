@@ -218,7 +218,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
 
                 {selectedPatient && (
                     <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
-                        <Button disabled={form.processing || !form.data.poliklinik_id || !form.data.dokter_id || Boolean(selectedPatient.eligibilityReason)} type="submit"><Check className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan kunjungan'}</Button>
+                        <Button disabled={form.processing || Boolean(selectedPatient.eligibilityReason)} type="submit"><Check className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan kunjungan'}</Button>
                     </div>
                 )}
             </form>

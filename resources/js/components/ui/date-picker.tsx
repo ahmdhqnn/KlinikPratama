@@ -138,16 +138,12 @@ export function DatePicker({
                 {name && <input disabled={disabled || readOnly} name={name} type="hidden" value={value} />}
                 <input
                     aria-hidden="true"
+                    data-validation-target={id ?? calendarId + "-trigger"}
                     disabled={disabled || readOnly}
                     className="pointer-events-none absolute size-px opacity-0"
                     max={effectiveMax}
                     min={min}
                     onChange={() => undefined}
-                    onInvalid={(event) => {
-                        event.preventDefault();
-                        setOpen(true);
-                        triggerRef.current?.focus();
-                    }}
                     required={required}
                     tabIndex={-1}
                     type="date"
@@ -162,7 +158,7 @@ export function DatePicker({
                         aria-label={ariaLabel ?? (id ? undefined : dateLabel)}
                         className={cn('flex h-10 min-w-0 w-full items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm shadow-sm outline-none transition hover:border-neutral-300 focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50', value ? 'text-neutral-950' : 'text-neutral-400', fieldControlInvalidClassName, className)}
                         disabled={disabled || readOnly}
-                        id={id}
+                        id={id ?? calendarId + "-trigger"}
                         onClick={() => {
                             if (!open) {
                                 const focusDate = clampDate(selectedDate ?? new Date(), min, effectiveMax);

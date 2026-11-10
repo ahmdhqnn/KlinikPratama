@@ -134,8 +134,8 @@ export function DateRangePicker({
     return (
         <PopoverPrimitive.Root modal open={open} onOpenChange={setOpen}>
             <div className="relative min-w-0 w-full">
-                <input disabled={disabled || readOnly} aria-hidden="true" className="pointer-events-none absolute size-px opacity-0" max={max} min={min} onChange={() => undefined} onInvalid={(event) => { event.preventDefault(); setOpen(true); triggerRef.current?.focus(); }} required={required} tabIndex={-1} type="date" value={from} />
-                <input disabled={disabled || readOnly} aria-hidden="true" className="pointer-events-none absolute size-px opacity-0" max={max} min={from || min} onChange={() => undefined} onInvalid={(event) => { event.preventDefault(); setOpen(true); triggerRef.current?.focus(); }} required={required} tabIndex={-1} type="date" value={to} />
+                <input disabled={disabled || readOnly} aria-hidden="true" className="pointer-events-none absolute size-px opacity-0" max={max} min={min} onChange={() => undefined} data-validation-target={id ?? calendarId + "-trigger"} required={required} tabIndex={-1} type="date" value={from} />
+                <input disabled={disabled || readOnly} aria-hidden="true" className="pointer-events-none absolute size-px opacity-0" max={max} min={from || min} onChange={() => undefined} data-validation-target={id ?? calendarId + "-trigger"} required={required} tabIndex={-1} type="date" value={to} />
                 <PopoverPrimitive.Trigger asChild>
                     <button
                         {...accessibility}
@@ -145,7 +145,7 @@ export function DateRangePicker({
                         aria-label={id ? undefined : displayName}
                         className={cn('flex h-10 min-w-0 w-full items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm shadow-sm outline-none transition hover:border-neutral-300 focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50', completeRange || from || to ? 'text-neutral-950' : 'text-neutral-400', fieldControlInvalidClassName, className)}
                         disabled={disabled || readOnly}
-                        id={id}
+                        id={id ?? calendarId + "-trigger"}
                         onClick={() => {
                             if (!open) {
                                 const selectedDate = clampDate(fromDateKey(from) ?? fromDateKey(to) ?? new Date(), min, max);

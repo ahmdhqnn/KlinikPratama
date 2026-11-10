@@ -34,7 +34,7 @@ export function Field({
 }) {
     return (
         <FieldContext.Provider value={{ errorId: error ? `${htmlFor}-error` : undefined, required }}>
-            <div className={cn('grid min-w-0 content-start gap-2', className)}>
+            <div className={cn('grid min-w-0 content-start gap-2', className)} data-field-invalid={error ? true : undefined} tabIndex={error ? -1 : undefined}>
                 <Label htmlFor={htmlFor}>
                     {label}{required && <span className="ml-1 text-red-600" aria-hidden="true">*</span>}
                 </Label>

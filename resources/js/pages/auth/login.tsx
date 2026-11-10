@@ -1,7 +1,16 @@
 import { identityPlaceholders } from '@/lib/form-placeholders';
-import { Head, useForm } from '@inertiajs/react';
-import { ArrowRight, BriefcaseMedical, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
-import { FormEvent } from 'react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import {
+    AlertCircle,
+    ArrowRight,
+    BriefcaseMedical,
+    Eye,
+    EyeOff,
+    LockKeyhole,
+    Mail,
+    ShieldCheck,
+} from 'lucide-react';
+import { FormEvent, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
@@ -9,6 +18,8 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
 
 interface LoginForm {
     email: string;
@@ -16,13 +27,16 @@ interface LoginForm {
     remember: boolean;
 }
 
-export default function LoginPage() {
-    const form = useForm<LoginForm>({ email: '', password: '', remember: false });
+export default function LoginPage({ email = '' }: { email?: string }) {
+    const form = useForm<LoginForm>({ email, password: '', remember: false });
+    const [showPassword, setShowPassword] = useState(false);
 
     function submit(event: FormEvent<HTMLFormElement>): void {
         event.preventDefault();
         form.post('/login', { onFinish: () => form.reset('password') });
     }
+
+    const authErrorMessage = usePage<{ errors: Record<string, string> }>().props.errors?.credentials;
 
     return (
         <>
@@ -76,6 +90,16 @@ export default function LoginPage() {
                         <Card>
                             <CardContent className="p-6 sm:p-8">
                                 <form className="space-y-5" onSubmit={submit}>
+                                    {authErrorMessage && (
+                                        <Alert variant="destructive" data-validation-summary tabIndex={-1}>
+                                            <AlertCircle className="size-4" />
+                                            <AlertTitle>Tidak dapat masuk</AlertTitle>
+                                            <AlertDescription className="mt-1">
+                                                {authErrorMessage}
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+
                                     <Field error={form.errors.email} htmlFor="email" label="Email">
                                         <div className="relative">
                                             <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
@@ -98,22 +122,35 @@ export default function LoginPage() {
                                             <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
                                             <Input
                                                 autoComplete="current-password"
-                                                className="pl-10"
+                                                className="pl-10 pr-10"
                                                 id="password"
                                                 name="password"
                                                 onChange={(event) => form.setData('password', event.target.value)}
                                                 placeholder="Masukkan kata sandi akun Anda"
                                                 required
-                                                type="password"
+                                                type={showPassword ? 'text' : 'password'}
                                                 value={form.data.password}
                                             />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition"
+                                                title={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                                                aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                                            >
+                                                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                                            </button>
                                         </div>
                                     </Field>
 
-                                    <Label className="flex cursor-pointer items-center gap-2.5 text-sm text-neutral-600">
-                                        <Checkbox checked={form.data.remember} name="remember" onCheckedChange={(checked) => form.setData('remember', (checked === true))} />
-                                        Ingat saya di perangkat ini
-                                    </Label>
+                                    <div className="flex items-center justify-between text-sm">
+                                        <Label className="flex cursor-pointer items-center gap-2.5 text-sm text-neutral-600">
+                                            <Checkbox checked={form.data.remember} name="remember" onCheckedChange={(checked) => form.setData('remember', (checked === true))} />
+                                            Ingat saya
+                                        </Label>
+
+                                        <Link className="text-xs font-medium text-neutral-700 underline-offset-4 hover:underline" href="/bantuan-akses">Lupa kata sandi?</Link>
+                                    </div>
 
                                     <Button className="w-full" disabled={form.processing} size="lg" type="submit">
                                         {form.processing ? 'Memeriksa akses…' : 'Masuk ke sistem'}

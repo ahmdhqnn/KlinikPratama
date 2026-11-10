@@ -1,6 +1,6 @@
 import { fieldControlInvalidClassName, useFieldControl } from '@/components/ui/field';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { Children, isValidElement, type ComponentProps, type ReactNode } from 'react';
+import { Children, isValidElement, useId, type ComponentProps, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +54,8 @@ export function Select({ className, children, value, defaultValue, onChange, id,
             disabled: child.props.disabled,
         }];
     });
+    const generatedId = useId();
+    const triggerId = id ?? generatedId;
     const selectedValue = value === undefined ? undefined : String(value);
     const selectedDefaultValue = defaultValue === undefined ? undefined : String(defaultValue);
 
@@ -66,13 +68,23 @@ export function Select({ className, children, value, defaultValue, onChange, id,
             required={required}
             value={selectedValue === undefined ? undefined : selectedValue === '' ? EMPTY_VALUE : selectedValue}
         >
+            {required && selectedValue === '' && !disabled && <input
+                aria-hidden="true"
+                className="pointer-events-none absolute size-px opacity-0"
+                data-validation-target={triggerId}
+                required
+                tabIndex={-1}
+                type="text"
+                value=""
+                onChange={() => undefined}
+            />}
             <SelectPrimitive.Trigger
                 className={cn(
                     'flex h-10 min-w-0 w-full items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm text-neutral-950 shadow-sm outline-none transition focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-neutral-400',
                     fieldControlInvalidClassName,
                     className,
                 )}
-                id={id}
+                id={triggerId}
                 {...props}
                 {...accessibility}
             >

@@ -11,16 +11,28 @@ use Inertia\Response;
 
 class LoginController extends Controller
 {
-    public function showLoginForm(): Response
+    public function showLoginForm(Request $request): Response
     {
-        return Inertia::render('auth/login');
+        $email = $request->old('email');
+
+        return Inertia::render('auth/login', ['email' => is_string($email) ? $email : '']);
+    }
+
+    public function assistance(): Response
+    {
+        return Inertia::render('auth/bantuan-akses');
     }
 
     public function login(Request $request): RedirectResponse
     {
         $credentials = $request->validate([
             'email' => ['required', 'email'],
-            'password' => ['required'],
+            'password' => ['required', 'string'],
+        ], [
+            'email.required' => 'Masukkan email akun Anda.',
+            'email.email' => 'Masukkan alamat email yang valid.',
+            'password.required' => 'Masukkan kata sandi akun Anda.',
+            'password.string' => 'Masukkan kata sandi yang valid.',
         ]);
 
         if (Auth::attempt([...$credentials, 'is_active' => true], $request->boolean('remember'))) {
@@ -37,8 +49,8 @@ class LoginController extends Controller
             return redirect()->intended($destination);
         }
 
-        return back()->withErrors([
-            'email' => 'Email atau password tidak valid.',
+        return redirect()->route('login')->withErrors([
+            'credentials' => 'Email atau kata sandi tidak cocok. Periksa kembali isian atau buka bantuan akses.',
         ])->onlyInput('email');
     }
 
