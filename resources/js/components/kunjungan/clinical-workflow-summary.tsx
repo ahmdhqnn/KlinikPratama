@@ -2,7 +2,7 @@ import { OdontogramRecord } from '@/components/odontogram/odontogram-record';
 import { dentalDiagnosisDescription, dentalSurfaceLabel } from '@/lib/dental-diagnosis';
 import type { ReactNode } from 'react';
 import { BodyExaminationRecord } from '@/components/anatomy/body-examination-record';
-import { hasBodyMapContent, type BodyMapData } from '@/lib/body-map';
+import { hasBodyMapContent, recordedAnnotationNote, type BodyMapData } from '@/lib/body-map';
 import { ClipboardPlus, Stethoscope } from 'lucide-react';
 import { ActionButton } from '@/components/ui/action-button';
 import { Badge } from '@/components/ui/badge';
@@ -88,7 +88,7 @@ export function GeneralExaminationSummary({ id = 'general-examination-summary', 
         .map(([system, value]) => ({ system, value: normalizeClinicalAnswer(value) }))
         .filter(({ value }) => value !== null);
     const findingCount = (bodyMap?.findings.length ?? 0) + recordedSystems.length;
-    const hasAnnotation = Boolean(bodyMap?.annotation.strokes.length || bodyMap?.annotation.note?.trim());
+    const hasAnnotation = Boolean(bodyMap?.annotation.strokes.length || bodyMap?.findings.some(finding => finding.annotationNote?.trim()) || recordedAnnotationNote(bodyMap));
 
     return (
         <WorkflowSummary

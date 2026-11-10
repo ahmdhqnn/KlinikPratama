@@ -1,6 +1,6 @@
 import { ClinicalFindingSigns } from './clinical-finding-signs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MapPin, Pencil, Plus, RotateCcw, Wind, ZoomIn } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,11 +15,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { ActionButton } from '@/components/ui/action-button';
 import { normalizeClinicalAnswer } from '@/lib/clinical-answer';
-import { annotationNarrative, bodyLocations, matchesExamLocation, detailedExamLocations, emptyBodyFinding, hasBodyFindingDraft, organLocations, type BodyFindingDraft, type BodyLocation, type BodyView } from '@/lib/body-examination';
+import { bodyLocations, matchesExamLocation, detailedExamLocations, emptyBodyFinding, hasBodyFindingDraft, organLocations, type BodyFindingDraft, type BodyLocation, type BodyView } from '@/lib/body-examination';
 import { HumanBodyModel } from './human-body-model';
 import { BodyAnnotationEditor } from './body-annotation';
 import { BodyFindingDetails } from './body-examination-record';
-import { createRecordedFinding, emptyBodyMap, findingLocation, type BodyMapData, type RecordedBodyFinding } from '@/lib/body-map';
+import { createRecordedFinding, emptyBodyMap, findingLocation, recordedAnnotationNote, type BodyMapData, type RecordedBodyFinding } from '@/lib/body-map';
 
 interface Props {
     systems: Record<string, string>;
@@ -44,8 +44,6 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
     const [view, setView] = useState<BodyView>('front');
     const [model, setModel] = useState<'male' | 'female'>(gender === 'P' ? 'female' : 'male');
     const [error, setError] = useState('');
-    const manualAnnotationNote = useRef(Boolean(bodyMap.annotation.note?.trim()));
-    const generatedAnnotationNote = useRef('');
     const [locationSearch, setLocationSearch] = useState('');
     const [expanded, setExpanded] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -54,21 +52,14 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
     const selected = findingLocation({ locationId: draft.locationId, mode, view });
     const preview = createRecordedFinding(draft, mode, view, model, editingId ?? '', compact ? 'quick' : tab);
     const existingFinding = bodyMap.findings.find((finding) => finding.id === editingId);
-    const findingChanged = Boolean(preview.finding && (!existingFinding || Object.entries(preview.finding).some(([key, value]) => value !== (key === 'entryMode' ? existingFinding.entryMode ?? 'interactive' : existingFinding[key as keyof RecordedBodyFinding] ?? ''))));
+    const findingChanged = Boolean(preview.finding && (!existingFinding || (preview.finding.annotationNote ?? '') !== (existingFinding.annotationNote ?? '') || Object.entries(preview.finding).some(([key, value]) => value !== (key === 'entryMode' ? existingFinding.entryMode ?? 'interactive' : existingFinding[key as keyof RecordedBodyFinding] ?? (key === 'pain' ? null : '')))));
     const pending = editingId ? findingChanged || !preview.finding : hasBodyFindingDraft(draft);
     const canApplyFinding = !disabled && Boolean(onBodyMapChange) && findingChanged && (!editingId || Boolean(existingFinding)) && (Boolean(editingId) || bodyMap.findings.length < 60);
     useEffect(() => { onPendingChange?.(pending); }, [pending, onPendingChange]);
     const oldNotes = Object.entries(systems).filter(([, value]) => normalizeClinicalAnswer(value));
     useEffect(() => { if (!draft.locationId && !hasBodyFindingDraft(draft)) { setEditingId(null); setLegacySystem(null); } }, [draft]);
 
-    const automaticNote = [...bodyMap.findings.filter(finding => !draft.locationId || finding.id !== editingId).map(finding => annotationNarrative({ ...emptyBodyFinding, locationLabel: findingLocation(finding)?.label ?? finding.locationLabel ?? 'Pemeriksaan umum', side: finding.side, detail: finding.detail, symptom: finding.symptom, finding: finding.finding })), ...(draft.locationId ? [annotationNarrative(draft)] : [])].filter(Boolean).join('\n\n');
-    useEffect(() => {
-        if (tab !== 'manual' || disabled || (!automaticNote && !generatedAnnotationNote.current) || automaticNote.length > 2000 || manualAnnotationNote.current || !onBodyMapChange) return;
-        const current = bodyMap.annotation.note;
-        if (current && current !== generatedAnnotationNote.current) return;
-        generatedAnnotationNote.current = automaticNote;
-        if (current !== automaticNote) onBodyMapChange({ ...bodyMap, annotation: { ...bodyMap.annotation, note: automaticNote } });
-    }, [tab, disabled, automaticNote, bodyMap, onBodyMapChange]);
+    const legacyAnnotationNote = recordedAnnotationNote(bodyMap);
 
     function update(field: keyof BodyFindingDraft, value: string): void {
         setError('');
@@ -136,7 +127,7 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
         const apply = () => {
             const location = findingLocation(finding);
             setCompact(finding.entryMode === 'quick'); setTab(finding.entryMode === 'quick' ? (location ? 'interactive' : tab) : finding.entryMode === 'manual' ? 'manual' : 'interactive'); setMode(finding.mode); setView(finding.view); setModel(finding.model); setEditingId(finding.id); setLegacySystem(null); setError('');
-            onDraftChange({ locationId: finding.locationId, locationLabel: location?.label ?? finding.locationLabel ?? '', category: finding.category, view: finding.view === 'back' ? 'belakang' : 'depan', side: finding.side, detail: finding.detail, method: finding.method, methodDetail: finding.methodDetail ?? '', symptom: finding.symptom, finding: finding.finding, pain: finding.pain === null ? '' : String(finding.pain) });
+            onDraftChange({ locationId: finding.locationId, locationLabel: location?.label ?? finding.locationLabel ?? '', category: finding.category, view: finding.view === 'back' ? 'belakang' : 'depan', side: finding.side, detail: finding.detail, method: finding.method, methodDetail: finding.methodDetail ?? '', symptom: finding.symptom, finding: finding.finding, annotationNote: finding.annotationNote, pain: finding.pain === null ? '' : String(finding.pain) });
         };
         if (pending) confirmAction('Kosongkan isian yang belum ditambahkan dan buka temuan ini?', apply, 'Buka temuan'); else apply();
     }
@@ -179,8 +170,7 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
                 <Field htmlFor={inputId('body-local-complaint')} label="Keluhan lokal pasien"><Input id={inputId('body-local-complaint')} disabled={disabled} maxLength={500} value={draft.symptom} onChange={(event) => update('symptom', event.target.value)} placeholder="Contoh: nyeri saat digerakkan" /></Field>
                 <ClinicalFindingSigns label="Opsi gejala lokal" value={draft.symptom} onChange={value => update('symptom', value)} suggestions={draft.category === 'Abdomen' ? ['Mual', 'Muntah', 'Kembung'] : ['Nyeri', 'Kesemutan', 'Gatal']} disabled={disabled} />
             </>}
-            {!compact && tab === 'manual' && <Field htmlFor={inputId('body-annotation-note')} label="Keterangan anotasi"><Textarea id={inputId('body-annotation-note')} rows={3} maxLength={2000} disabled={disabled} value={bodyMap.annotation.note} onChange={(event) => { manualAnnotationNote.current = true; onBodyMapChange?.({ ...bodyMap, annotation: { ...bodyMap.annotation, note: event.target.value } }); }} placeholder="Jelaskan tanda pada gambar, sisi tubuh, atau ukuran" /></Field>}
-            {compact && tab === 'manual' && bodyMap.annotation.note && <div className="space-y-1 rounded-lg bg-neutral-50 p-3"><p className="text-xs font-medium text-neutral-500">Keterangan anotasi</p><p className="whitespace-pre-wrap break-words text-sm text-neutral-700">{bodyMap.annotation.note}</p></div>}
+            {((!compact && tab === 'manual') || draft.annotationNote || existingFinding?.annotationNote) && <Field htmlFor={inputId('body-annotation-note')} label="Keterangan anotasi"><Textarea id={inputId('body-annotation-note')} rows={3} maxLength={2000} disabled={disabled} value={draft.annotationNote ?? ''} onChange={(event) => update('annotationNote', event.target.value)} placeholder="Jelaskan tanda pada gambar untuk temuan ini" /></Field>}
             <ClinicalFindingSigns label="Opsi temuan pemeriksaan" value={draft.finding} onChange={value => update('finding', value)} suggestions={draft.category === 'Abdomen' ? ['Nyeri tekan', 'Defensif muskular', 'Organomegali', 'Massa abnormal'] : draft.category === 'Thorax' ? ['Wheezing', 'Ronki', 'Retraksi', 'Nyeri tekan'] : ['Nyeri tekan', 'Pembengkakan', 'Kemerahan', 'Keterbatasan gerak']} disabled={disabled} />
             <Field htmlFor={inputId('body-objective-finding')} label="Temuan pemeriksaan" error={error || (pending ? preview.error : undefined)}><Textarea id={inputId('body-objective-finding')} disabled={disabled} maxLength={3000} rows={compact ? 5 : 4} value={draft.finding} onChange={(event) => update('finding', event.target.value)} placeholder="Tuliskan hasil pemeriksaan yang dinilai" /></Field>
             <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3 border-t border-neutral-200 pt-4">
@@ -205,7 +195,7 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
                             <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex gap-2" role="group" aria-label="Tampilan anatomi"><Button type="button" size="sm" disabled={disabled} variant={mode === 'organs' ? 'default' : 'secondary'} aria-pressed={mode === 'organs'} onClick={() => { if (mode !== 'organs') chooseLocation(null, 'organs', 'front'); }}>Organ</Button><Button type="button" size="sm" disabled={disabled} variant={mode === 'body' ? 'default' : 'secondary'} aria-pressed={mode === 'body'} onClick={() => { if (mode !== 'body') chooseLocation(null, 'body', view); }}>Seluruh tubuh</Button></div><Button type="button" size="sm" variant="ghost" disabled={!draft.locationId || disabled} onClick={() => chooseLocation(null)}>Lepas pilihan</Button></div>
                             <div className="grid grid-cols-2 gap-3"><Field htmlFor={inputId('body-view')} label="Sudut pandang"><Select id={inputId('body-view')} value={view} disabled={disabled || mode === 'organs'} onChange={(event) => chooseLocation(null, mode, event.target.value as BodyView)}><option value="front">Depan</option><option value="back">Belakang</option></Select></Field><Field htmlFor={inputId('body-model')} label="Model ilustrasi"><Select id={inputId('body-model')} disabled={disabled} value={model} onChange={(event) => setModel(event.target.value as 'male' | 'female')}><option value="male">Laki-laki</option><option value="female">Perempuan</option></Select></Field></div>
                             <HumanBodyModel mode={mode} model={model} view={view} selectedId={draft.locationId} disabled={disabled} onSelect={(location) => chooseLocation(location, mode, view, true)} />
-                            <p className="text-xs leading-5 text-neutral-500">Kanan/kiri mengikuti sisi pasien. {compact ? 'Lokasi dapat dipilih bila diperlukan. ' : ''}Klik kembali lokasi terpilih untuk melepas pilihan.</p>
+                            <p className="text-xs leading-5 text-neutral-500">Kanan/kiri mengikuti sisi pasien. {compact ? 'Isian ringkas tanpa pilihan lokasi disimpan sebagai teks. ' : ''}Klik kembali lokasi terpilih untuk melepas pilihan.</p>
                         </section>
                         {renderFindingForm()}
                     </div>}
@@ -221,12 +211,17 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
                 </TabsContent>
             </Tabs>
             {bodyMap.findings.length > 0 && <section className="space-y-3 border-t border-neutral-200 pt-5" aria-label="Temuan lokasi tercatat"><h3 className="flex items-center gap-2 text-sm font-semibold text-neutral-950"><MapPin aria-hidden="true" className="size-4" />Temuan pemeriksaan ({bodyMap.findings.length})</h3><div className="overflow-x-auto rounded-xl border border-neutral-200"><Table aria-label="Tabel temuan pemeriksaan fisik" className="min-w-[40rem] table-fixed"><TableHeader><TableRow><TableHead className="w-36">Lokasi</TableHead><TableHead>Temuan pemeriksaan</TableHead><TableHead className="w-36">Cara pencatatan</TableHead><TableHead className="w-28">Aksi</TableHead></TableRow></TableHeader><TableBody>{bodyMap.findings.map((finding) => <TableRow key={finding.id}><TableCell className="break-words font-medium">{findingLocation(finding)?.label ?? finding.locationLabel ?? 'Pemeriksaan fisik'}</TableCell><TableCell className="whitespace-normal break-words [&_p]:text-center [&_div]:justify-center"><BodyFindingDetails finding={finding} /></TableCell><TableCell><Badge>{finding.entryMode === 'quick' ? 'Isian ringkas' : finding.entryMode === 'manual' ? 'Gambar & anotasi' : 'Peta interaktif'}</Badge></TableCell><TableCell><div className="flex justify-center">{!disabled && <div className="flex gap-2"><ActionButton action="edit" label="Ubah temuan lokasi" type="button" onClick={() => editFinding(finding)} /><ActionButton action="delete" label="Hapus temuan lokasi" type="button" onClick={() => confirmAction('Hapus temuan pemeriksaan ini?', () => { onBodyMapChange?.({ ...bodyMap, findings: bodyMap.findings.filter((item) => item.id !== finding.id) }); if (editingId === finding.id) resetDraft(); })} /></div>}</div></TableCell></TableRow>)}</TableBody></Table></div></section>}
+            {legacyAnnotationNote && <section className="space-y-2 rounded-lg border border-neutral-200 p-4" aria-label="Keterangan anotasi">
+                <h3 className="text-sm font-semibold">Keterangan anotasi</h3>
+                {bodyMap.findings.length > 0 && <p className="text-xs text-neutral-500">Catatan untuk seluruh peta.</p>}
+                <p className="whitespace-pre-wrap break-words text-sm">{legacyAnnotationNote}</p>
+            </section>}
             {oldNotes.length > 0 && <section className="space-y-3 border-t border-neutral-200 pt-5" aria-label="Catatan pemeriksaan sebelumnya"><h3 className="text-sm font-semibold text-neutral-950">Catatan pemeriksaan sebelumnya</h3><div className="grid gap-3 lg:grid-cols-2">{oldNotes.map(([system, value]) => <article className="min-w-0 rounded-xl border border-neutral-200 p-4" key={system}><div className="flex items-center justify-between gap-2"><h4 className="text-sm font-semibold text-neutral-900">{system}</h4>{!disabled && <ActionButton action="edit" label={'Ubah temuan ' + system} onClick={() => {
                 const apply = () => { setCompact(false); setTab('manual'); setLegacySystem(system); setEditingId(null); setMode('body'); setError(''); onDraftChange({ ...emptyBodyFinding, locationId: 'other', locationLabel: system, category: ['Kepala dan leher', 'Thorax', 'Abdomen', 'Ekstremitas', 'Neurologis', 'Kulit'].includes(system) ? system : 'Lainnya', finding: value }); };
                 if (pending) confirmAction('Kosongkan isian yang belum ditambahkan dan buka catatan ini?', apply, 'Buka catatan'); else apply();
             }} />}</div><p className="mt-2 whitespace-pre-wrap break-words text-sm text-neutral-700">{value}</p></article>)}</div></section>}
             {Object.entries(errors).filter(([key]) => key.startsWith('pemeriksaan_fisik_terstruktur.')).map(([key, message]) => <p role="alert" className="text-sm text-red-600" key={key}>{message}</p>)}
-            <Dialog open={expanded} onOpenChange={setExpanded}><DialogContent className="max-w-4xl"><DialogHeader><DialogTitle>Anotasi lokasi tubuh</DialogTitle><DialogDescription>Goresan dan keterangan disimpan bersama pemeriksaan fisik.</DialogDescription></DialogHeader><div className="max-h-[75vh] overflow-auto p-1"><BodyAnnotationEditor value={bodyMap.annotation} showNote={false} disabled={disabled} onChange={(annotation) => onBodyMapChange?.({ ...bodyMap, annotation })} /></div></DialogContent></Dialog>
+            <Dialog open={expanded} onOpenChange={setExpanded}><DialogContent className="max-w-4xl"><DialogHeader><DialogTitle>Anotasi lokasi tubuh</DialogTitle><DialogDescription>Goresan disimpan bersama pemeriksaan fisik. Tulis keterangan pada temuan yang bersangkutan.</DialogDescription></DialogHeader><div className="max-h-[75vh] overflow-auto p-1"><BodyAnnotationEditor value={bodyMap.annotation} showNote={false} disabled={disabled} onChange={(annotation) => onBodyMapChange?.({ ...bodyMap, annotation })} /></div></DialogContent></Dialog>
         </CardContent>
     </Card>;
 }

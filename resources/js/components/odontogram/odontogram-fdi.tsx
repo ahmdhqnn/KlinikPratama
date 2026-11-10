@@ -11,6 +11,7 @@ export interface DentalFinding {
 
 export interface OdontogramProps {
     recordView?: boolean;
+    printView?: boolean;
     dentition: 'adult' | 'primary';
     findings: DentalFinding[];
     selectedTooth: string;
@@ -172,6 +173,7 @@ export const FINDING_CLASSES: Record<string, string> = {
 
 export function OdontogramFdi({
     recordView = false,
+    printView = false,
     dentition,
     findings,
     selectedTooth,
@@ -180,7 +182,7 @@ export function OdontogramFdi({
     findingLabels = {},
     surfaceLabels = {},
 }: OdontogramProps) {
-    const [model, setModel] = useState<'arch' | 'front'>(recordView ? 'front' : 'arch');
+    const [model, setModel] = useState<'arch' | 'front'>(recordView && !printView ? 'front' : 'arch');
     const [hoveredTooth, setHoveredTooth] = useState<string | null>(null);
     const [activeTypeFilter, setActiveTypeFilter] = useState<ToothType | null>(null);
     const teethList = dentition === 'adult' ? ADULT_TEETH : PRIMARY_TEETH;
@@ -217,13 +219,13 @@ export function OdontogramFdi({
     }
 
     return (
-        <div className="odontogram-fdi min-w-0 space-y-5">
+        <div className={`odontogram-fdi min-w-0 ${printView ? 'odontogram-print' : 'space-y-5'}`}>
             {/* Layout Utama: 2 Kolom Seimbang (Lengkung Gigi di Kiri, Visualisasi Tipe & Oklusi di Kanan) */}
-            {(<div role="group" aria-label="Model peta gigi" className="flex flex-wrap gap-2"><Button type="button" size="sm" variant={model === 'arch' ? 'default' : 'secondary'} aria-pressed={model === 'arch'} onClick={() => setModel('arch')}>Peta FDI</Button><Button type="button" size="sm" variant={model === 'front' ? 'default' : 'secondary'} aria-pressed={model === 'front'} onClick={() => setModel('front')}>Gigi & gusi</Button>{!recordView && <Button type="button" size="sm" variant="ghost" disabled={disabled || !selectedTooth} onClick={() => onSelect('')}>Lepas pilihan</Button>}</div>)}
+            {!printView && (<div role="group" aria-label="Model peta gigi" className="flex flex-wrap gap-2"><Button type="button" size="sm" variant={model === 'arch' ? 'default' : 'secondary'} aria-pressed={model === 'arch'} onClick={() => setModel('arch')}>Peta FDI</Button><Button type="button" size="sm" variant={model === 'front' ? 'default' : 'secondary'} aria-pressed={model === 'front'} onClick={() => setModel('front')}>Gigi & gusi</Button>{!recordView && <Button type="button" size="sm" variant="ghost" disabled={disabled || !selectedTooth} onClick={() => onSelect('')}>Lepas pilihan</Button>}</div>)}
             <div className="min-w-0">
                 {/* Panel Kiri: Peta Lengkung Gigi FDI (Dental Arch) - 7 Kolom */}
                 <div hidden={model !== 'arch'} className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 transition-colors sm:p-5">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-3">
+                    <div className={printView ? 'rme-print-map-heading' : 'mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-3'}>
                         <div>
                             <div className="flex items-center gap-2">
                                 <h4 className="text-base font-bold tracking-tight text-neutral-900">
@@ -249,23 +251,23 @@ export function OdontogramFdi({
                     </div>
 
                     {/* SVG Diagram Lengkung Gigi */}
-                    <div className="relative mx-auto flex items-center justify-center overflow-hidden">
+                    <div className={printView ? 'rme-print-map-stage' : 'relative mx-auto flex items-center justify-center overflow-hidden'}>
                         <svg
                             aria-label={`Peta odontogram FDI ${dentition === 'adult' ? 'permanen 32 gigi' : 'desidui 20 gigi'}`}
                             className="odontogram-fdi-map h-auto w-full max-w-[530px] select-none"
                             role="group"
-                            viewBox="0 0 520 720"
+                            viewBox="0 -24 520 768"
                         >
                             {/* Garis Pembagi Kuadran (Midline & Bidang Oklusal) */}
-                            <line className="arch-divider" x1="260" y1="50" x2="260" y2="670" />
-                            <line className="arch-divider" x1="70" y1="360" x2="450" y2="360" />
+                            <line className="arch-divider" x1="260" y1="76" x2="260" y2="644" />
+                            <line className="arch-divider" x1="80" y1="360" x2="124" y2="360" />
+                            <line className="arch-divider" x1="396" y1="360" x2="440" y2="360" />
 
-                            {/* Label Kuadran Medis */}
-                            <g className="arch-label" fontSize="13" fontWeight="700" textAnchor="middle">
-                                <text x="260" y="28">Rahang atas</text>
-                                <text x="260" y="704">Rahang bawah</text>
-                                <text x="135" y="354">Kanan pasien</text>
-                                <text x="385" y="354">Kiri pasien</text>
+                            <g className="arch-label" textAnchor="middle" dominantBaseline="central">
+                                <text x="260" y="-6">Rahang atas</text>
+                                <text x="260" y="726">Rahang bawah</text>
+                                <text x="186" y="360">Kanan pasien</text>
+                                <text x="334" y="360">Kiri pasien</text>
                             </g>
 
                             {/* Elemen Setiap Gigi pada Lengkung */}
@@ -350,7 +352,7 @@ export function OdontogramFdi({
                 </div>
 
                 {/* Panel Kanan: Visualisasi Tipe Gigi (Atas) & Oklusi Rahang Mulut (Bawah) - 5 Kolom */}
-                {(<div hidden={model !== 'front'} className={model === 'front' ? 'flex min-w-0 flex-col gap-5' : 'hidden'}>
+                {!printView && (<div hidden={model !== 'front'} className={model === 'front' ? 'flex min-w-0 flex-col gap-5' : 'hidden'}>
                     {/* Bagian Kanan Atas: 4 Tipe Anatomi Gigi (Akar & Mahkota) Sesuai Referensi Gambar */}
                     <div className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 sm:p-5">
                         <div className="mb-3 flex items-center justify-between border-b border-neutral-100 pb-2.5">
@@ -571,7 +573,7 @@ export function OdontogramFdi({
             </div>)}
 
             {/* Legenda menggunakan palet yang sama dengan peta dan gambar gigi. */}
-            <div aria-label="Legenda status klinis odontogram" className="flex flex-wrap items-center justify-center gap-2 text-sm">
+            <div aria-label="Legenda status klinis odontogram" className={printView ? 'rme-print-map-legend' : 'flex flex-wrap items-center justify-center gap-2 text-sm'}>
                 {[
                     { label: 'Belum dicatat', class: 'tooth-unrecorded' },
                     { label: 'Sehat', class: 'tooth-sound' },

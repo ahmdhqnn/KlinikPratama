@@ -213,7 +213,12 @@ class GeneralAssessmentAlignmentTest extends TestCase
         $this->assertTrue(app(ClinicalNoteRecorder::class)->verify($exam->fresh()));
         $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien))->assertInertia(fn (Assert $page) => $page
             ->where('visits.0.examination.generalClinicalSummary.Respirasi', 'Negatif setelah dikaji — Batuk membaik')
-            ->where('visits.0.examination.generalClinicalSummary.Status akhir', 'pulang'));
+            ->where('visits.0.examination.generalClinicalSummary.Status akhir', 'pulang')
+            ->where('visits.0.screening.summary.Pengkajian sistem - Respirasi', 'Positif / abnormal — Batuk berdahak')
+            ->missing('visits.0.examination.generalClinicalSummary.Konstitusional')
+            ->where('visits.0.examination.generalClinicalSummary.Riwayat sosial', 'Tidak merokok')
+            ->where('visits.0.examination.versions.0.generalClinicalSummary.Konstitusional', 'Negatif setelah dikaji')
+            ->missing('visits.0.examination.versions.0.generalClinicalSummary.Kardiovaskular'));
     }
 
     #[TestWith(['umum'])]

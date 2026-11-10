@@ -182,22 +182,17 @@ test('annotation narrative uses recorded data and custom sign inputs start behin
     assert.doesNotMatch(html, /<input/);
 });
 
-test('automatic annotation updates generated notes while protecting manual notes', async () => {
+test('draft findings do not write annotation notes automatically', async () => {
     const { default: ts } = await import('typescript');
     const source = readFileSync(new URL('../resources/js/components/anatomy/physical-examination-workspace.tsx', import.meta.url), 'utf8');
     const ast = ts.createSourceFile('workspace.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    let callback;
-    function collect(node) { if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect' && node.arguments[0]?.getText(ast).includes('generatedAnnotationNote')) callback = node.arguments[0].getText(ast); ts.forEachChild(node, collect); }
-    collect(ast);
-    const code = ts.transpileModule(`const run = ${callback}; run();`, { compilerOptions: { target: ts.ScriptTarget.ESNext } }).outputText;
-    const changes = [];
-    const scope = { tab: 'manual', disabled: false, automaticNote: 'Lokasi pemeriksaan: Ulu hati.', manualAnnotationNote: { current: false }, generatedAnnotationNote: { current: '' }, bodyMap: { annotation: { strokes: [], note: '' }, findings: [] }, onBodyMapChange(value) { changes.push(value); } };
-    runInNewContext(code, { ...scope });
-    assert.equal(changes[0].annotation.note, scope.automaticNote);
-    runInNewContext(code, { ...scope, manualAnnotationNote: { current: true } });
-    assert.equal(changes.length, 1, 'manual edits must not be overwritten');
-    runInNewContext(code, { ...scope, automaticNote: '', bodyMap: { annotation: { strokes: [], note: scope.automaticNote } } });
-    assert.equal(changes[1].annotation.note, '', 'cancelled unsaved findings must not leave an automatic narrative');
+    function check(node) {
+        if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect') {
+            assert.doesNotMatch(node.getText(ast), /onBodyMapChange/);
+        }
+        ts.forEachChild(node, check);
+    }
+    check(ast);
 });
 
 test('clinical drafts save sequentially and retain edits after validation or network failure', async () => {
@@ -1345,7 +1340,7 @@ test('date controls preserve partial periods and exclude disabled fields from na
 
 test('medical record fills available width, displays dental anthropometry and prints collapsed visit content', async () => {
     const screening = { systolic: 120, diastolic: 80, pulse: 80, temperature: 36.5, oxygenSaturation: 98, weight: 60, height: 160, bmi: 23.44, respiration: 18, complaint: 'Nyeri gigi', medicalHistory: null, familyHistory: null, allergyHistory: 'Tidak ada alergi', fallRisk: null, painScale: 0, dentalPainLocation: 'Geraham', dentalPainTriggers: [], dentalPainDuration: null, dentalMedicalRisks: ['belum_diketahui'], dentalInfectionHistory: [], dentalNotes: null };
-    const visit = { id: 1, number: 'K-001', clinic: 'Poli Gigi', clinicType: 'gigi', doctor: 'Dokter Gigi', date: '24/10/2026', status: 'screening', screening, examination: null, prescriptions: [], treatments: [], odontogram: [], attachments: [] };
+    const visit = { id: 1, number: 'K-001', clinic: 'Poli Gigi', clinicType: 'gigi', doctor: 'Dokter Gigi', date: '24/10/2026', status: 'screening', screening, examination: null, prescriptions: [], treatments: [], odontogram: [{ toothFdi: '46', surface: 'O', findingCode: 'caries', notes: null }, { toothFdi: '55', surface: 'O', findingCode: 'restored', notes: null }], attachments: [] };
     const html = await renderPage('pelayanan/pasien/rekam-medis', {
         patient: { id: 7, name: 'Pasien Uji', medicalRecordNumber: 'RM-007', nik: null, gender: 'P', age: 30, bloodType: null, allergies: 'Tidak ada alergi' },
         visits: [visit, { ...visit, id: 2, number: 'K-002', status: 'batal' }, { ...visit, id: 3, number: 'K-003', status: 'menunggu', isReservation: true }], backUrl: '/pelayanan/pasien/7', canSelectClinic: false,
@@ -1354,7 +1349,13 @@ test('medical record fills available width, displays dental anthropometry and pr
     for (const expected of ['xl:grid-cols-4', 'Tempat, tanggal lahir', 'Alamat', 'Unit kerja', 'Berat / tinggi', '60 kg', '160 cm', 'Pengkajian awal berlangsung', 'Kunjungan dibatalkan', 'Reservasi', 'Belum dapat diketahui', 'aria-controls="medical-record-visit-1"', 'id="medical-record-visit-2"', 'Cetak rekam medis kunjungan K-001', 'Cetak kunjungan ini']) {
         assert.ok(html.includes(expected), expected);
     }
-    assert.equal((html.match(/print:block hidden/g) ?? []).length, 3, 'collapsed visits remain available for printing');
+    const print = html.match(/<article[^>]*aria-label="Dokumen cetak rekam medis"[\s\S]*?<\/article>/)?.[0];
+    assert.ok(print);
+    assert.match(print, /rme-print-identity-heading/);
+    assert.match(print, /Peta odontogram FDI permanen 32 gigi/);
+    assert.match(print, /Peta odontogram FDI desidui 20 gigi/);
+    assert.doesNotMatch(print, /<button|Model peta gigi/);
+    assert.equal((html.match(/class="rme-print-episode"/g) ?? []).length, 3, 'collapsed visits have separate print episodes');
     assert.match(html.match(/<button[^>]*aria-label="Cetak rekam medis kunjungan K-001"[^>]*>/)?.[0] ?? '', /disabled=""/);
     assert.match(html.match(/<button[^>]*title="Cetak tersedia setelah seluruh pemeriksaan pada halaman ini difinalisasi dokter."[^>]*>/)?.[0] ?? '', /disabled=""/);
     assert.doesNotMatch(html, /bg-emerald-50|xl:col-span-4|lg:grid-cols-2/);
@@ -2290,16 +2291,27 @@ test('medical record renders current and historical body selections with matchin
     const previous = structuredClone(current);
     previous.annotation.note = 'Anotasi versi final';
     previous.findings[0].finding = 'Benjolan versi final';
-    const examination = { anamnesis: 'Benjolan', physicalExamination: 'Keadaan umum baik', physicalSystems: {}, bodyMap: current, diagnoses: [], versions: [{ version: 1, kind: 'finalized', actor: 'Dokter Uji', recordedAt: '25/10/2026', physicalSystems: {}, bodyMap: previous, odontogram: [] }], signedAt: '25/10/2026', signedBy: 'Dokter Uji', integrityValid: true };
+    const examination = { anamnesis: 'Benjolan', physicalExamination: 'Keadaan umum baik', physicalSystems: {}, generalClinicalSummary: { Konstitusional: 'Belum dikaji', 'Riwayat sosial': null, 'Kondisi akhir': 'Pasien stabil' }, bodyMap: current, diagnoses: [], versions: [{ version: 1, kind: 'finalized', actor: 'Dokter Uji', recordedAt: '25/10/2026', physicalSystems: {}, bodyMap: previous, odontogram: [] }], signedAt: '25/10/2026', signedBy: 'Dokter Uji', integrityValid: true };
     const html = await renderPage('pelayanan/pasien/rekam-medis', {
         patient: { id: 7, name: 'Pasien Uji', medicalRecordNumber: 'RM-007', gender: 'P', age: 30 },
-        visits: [{ id: 1, number: 'K-001', clinic: 'Poli Umum', clinicType: 'umum', doctor: 'Dokter Uji', date: '25/10/2026', status: 'selesai', screening: null, examination, prescriptions: [], treatments: [], odontogram: [] }],
+        visits: [{ id: 1, number: 'K-001', clinic: 'Poli Umum', clinicType: 'umum', doctor: 'Dokter Uji', date: '25/10/2026', status: 'selesai', screening: { summary: { 'Pengkajian sistem - Respirasi': 'Positif / abnormal: batuk berdahak' }, dentalPainTriggers: [], dentalMedicalRisks: [], dentalInfectionHistory: [] }, examination, prescriptions: [], treatments: [], odontogram: [] }],
         backUrl: '/pelayanan/pasien/7', canSelectClinic: false, filters: { search: '', poliklinik_id: '', status: '', dari: '', sampai: '' }, clinics: [], pagination: singlePage,
     });
     assert.match(html, /Tanda merah: benjolan dahi kanan/);
     assert.match(html, /Anotasi versi final/);
     assert.match(html, /Benjolan versi final/);
-    assert.equal((html.match(/data-annotation-id="draw-1"/g) ?? []).length, 2);
+    const print = html.match(/<article[^>]*aria-label="Dokumen cetak rekam medis"[\s\S]*?<\/article>/)?.[0];
+    assert.ok(print);
+    assert.match(print, /rme-print-table/);
+    assert.match(print, /Peta tubuh pemeriksaan/);
+    assert.match(print, /aria-label="Penanda temuan 1"/);
+    assert.match(print, /1\. Kepala dan wajah/);
+    assert.match(print, /Pengkajian awal perawat/);
+    assert.match(print, /Positif \/ abnormal: batuk berdahak/);
+    assert.match(print, /Kondisi akhir[\s\S]*?Pasien stabil/);
+    assert.doesNotMatch(html.replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''), /Konstitusional|Riwayat sosial/);
+    assert.doesNotMatch(print, /<button|Lihat detail|Riwayat versi pemeriksaan/);
+    assert.equal((html.replace(print, '').match(/data-annotation-id="draw-1"/g) ?? []).length, 2);
     assert.ok(html.indexOf('Ringkasan pemeriksaan fisik') < html.indexOf('Finalisasi &amp; riwayat koreksi'));
     assert.match(html, /Lihat riwayat versi pemeriksaan/);
     assert.doesNotMatch(html, /<script>|Hapus goresan|<textarea/);
@@ -2316,8 +2328,67 @@ test('physical summary shows only recorded map findings or annotations when narr
 
     const annotationOnly = { ...mapOnly, findings: [], annotation: { strokes: [], note: 'Lokasi nyeri ditandai pada gambar' } };
     const annotationHtml = renderToString(createElement(GeneralExaminationSummary, { ...props, bodyMap: annotationOnly }));
-    assert.match(annotationHtml, /Anotasi tersimpan|Lokasi nyeri ditandai pada gambar/);
+    assert.match(annotationHtml, /Lokasi nyeri ditandai pada gambar/);
+    assert.doesNotMatch(annotationHtml, /Peta tubuh|body-model-reference/);
     assert.doesNotMatch(annotationHtml, /temuan dicatat|Temuan per sistem|<dt[^>]*>Ringkasan pemeriksaan fisik<\/dt>/);
+});
+
+test('a selected finding appears once when a previous version copied it into the annotation note', async () => {
+    const { GeneralExaminationSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
+    const { annotationNarrative, emptyBodyFinding } = await server.ssrLoadModule('/resources/js/lib/body-examination.ts');
+    const { createRecordedFinding, emptyBodyMap, findingLocation } = await server.ssrLoadModule('/resources/js/lib/body-map.ts');
+    const draft = { ...emptyBodyFinding, locationId: 'lungs', category: 'Thorax', finding: 'Ronki halus pada pemeriksaan' };
+    const { finding } = createRecordedFinding(draft, 'organs', 'front', 'male', 'selected-quick', 'quick');
+    const note = annotationNarrative({ ...draft, locationLabel: findingLocation(finding).label });
+    const bodyMap = { ...emptyBodyMap(), findings: [finding], annotation: { strokes: [], note } };
+    const html = renderToString(createElement(GeneralExaminationSummary, { anamnesis: null, physicalExam: null, physicalSystems: {}, bodyMap, hasUnsavedChanges: false, onReview() {} }));
+    assert.equal((html.match(/Ronki halus pada pemeriksaan/g) ?? []).length, 1);
+    assert.match(html, /Tampilkan lokasi pada peta/);
+    assert.match(html, /Belum ada keterangan anotasi untuk temuan ini/);
+    assert.doesNotMatch(html, /Anotasi tersimpan|Catatan untuk seluruh peta|body-model-reference/);
+});
+
+test('the annotation panel below the map follows the selected pin or finding', async () => {
+    const { default: ts } = await import('typescript');
+    const source = readFileSync(new URL('../resources/js/components/anatomy/body-examination-record.tsx', import.meta.url), 'utf8');
+    const ast = ts.createSourceFile('record.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const component = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'BodyExaminationRecord');
+    const code = ts.transpileModule(component.getText(ast).replace(/^export /, ''), { compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ESNext } }).outputText;
+    const { annotationNarrative, emptyBodyFinding } = await server.ssrLoadModule('/resources/js/lib/body-examination.ts');
+    const lib = await server.ssrLoadModule('/resources/js/lib/body-map.ts');
+    const lungs = lib.createRecordedFinding({ ...emptyBodyFinding, locationId: 'lungs', category: 'Thorax', finding: 'Ronki', annotationNote: 'Tanda paru' }, 'organs', 'front', 'male', 'lungs-1').finding;
+    const throat = lib.createRecordedFinding({ ...emptyBodyFinding, locationId: 'ent_throat', detail: 'Tenggorokan / tonsil', finding: 'Faring hiperemis', annotationNote: 'Tanda tenggorokan' }, 'organs', 'front', 'male', 'throat-1').finding;
+    const note = annotationNarrative({ ...emptyBodyFinding, locationLabel: lib.findingLocation(lungs).label, finding: lungs.finding }) + '\n\nLokasi pemeriksaan: Tenggorokan / tonsil.';
+    const data = { ...lib.emptyBodyMap(), findings: [lungs, throat], annotation: { strokes: [], note } };
+    assert.equal(lib.recordedAnnotationNote(data), '');
+    assert.equal(lib.recordedAnnotationNote({ ...data, annotation: { ...data.annotation, note: note + '\n\nCatatan umum dokter' } }), 'Catatan umum dokter');
+
+    const state = ['', ''];
+    let hook = 0;
+    const render = runInNewContext(code + '\nBodyExaminationRecord;', {
+        React: { createElement }, ...lib,
+        useState: () => { const index = hook++; return [state[index], value => { state[index] = value; }]; },
+        MapPin: 'i', Button: 'button', Badge: 'span', HumanBodyModel: 'body-map', BodyFindingDetails: 'finding-details',
+    });
+    function nodes(node) {
+        if (Array.isArray(node)) return node.flatMap(nodes);
+        if (!node?.props) return [];
+        return [node, ...nodes(node.props.children)];
+    }
+    function renderNodes() {
+        hook = 0;
+        return nodes(render({ data }));
+    }
+    function selectedNote(tree) {
+        return tree.find(node => node.props['aria-live'] === 'polite').props.children[1].props.children;
+    }
+    let tree = renderNodes();
+    assert.equal(selectedNote(tree), 'Tanda paru');
+    tree.find(node => node.type === 'body-map').props.onSelect({ id: 'ent_throat' });
+    tree = renderNodes();
+    assert.equal(selectedNote(tree), 'Tanda tenggorokan');
+    tree.find(node => node.props['aria-label'] === 'Tampilkan lokasi ' + lib.findingLocation(lungs).label).props.onClick();
+    assert.equal(selectedNote(renderNodes()), 'Tanda paru');
 });
 
 test('medical record displays annotation without an empty physical narrative card', async () => {
@@ -2519,7 +2590,7 @@ for (const tab of ['interactive', 'manual']) {
         const record = renderToString(createElement(BodyExaminationRecord, { data: { ...emptyBodyMap(), findings: [finding] } }));
         assert.match(record, /Pemeriksaan fisik/);
         assert.match(record, /Temuan pemeriksaan naratif dokter/);
-        assert.doesNotMatch(record, /aria-pressed="true"|Tampilkan lokasi pada peta/);
+        assert.doesNotMatch(record, /aria-pressed="true"|Tampilkan lokasi pada peta|Peta tubuh|body-model-reference/);
     });
 }
 
@@ -2634,7 +2705,7 @@ test('compact mapped finding reopens in compact mode on its matching interactive
     const { emptyBodyFinding, bodyLocations } = await server.ssrLoadModule('/resources/js/lib/body-examination.ts');
     const { createRecordedFinding, findingLocation } = await server.ssrLoadModule('/resources/js/lib/body-map.ts');
     const region = bodyLocations('back').find((item) => item.id === 'back-elbow-kanan');
-    const { finding } = createRecordedFinding({ ...emptyBodyFinding, locationId: region.id, locationLabel: region.label, category: region.category, side: region.side, finding: 'Temuan siku kanan' }, 'body', 'back', 'female', 'mapped-compact', 'quick');
+    const { finding } = createRecordedFinding({ ...emptyBodyFinding, locationId: region.id, locationLabel: region.label, category: region.category, side: region.side, finding: 'Temuan siku kanan', annotationNote: 'Tanda siku kanan' }, 'body', 'back', 'female', 'mapped-compact', 'quick');
     const state = {};
     const edit = await examinationWorkspaceHandler('editFinding', { disabled: false, pending: false, tab: 'manual', findingLocation, setCompact: (value) => state.compact = value, setTab: (value) => state.tab = value, setMode: (value) => state.mode = value, setView: (value) => state.view = value, setModel: (value) => state.model = value, setEditingId: (value) => state.editingId = value, setLegacySystem() {}, setError() {}, onDraftChange: (value) => state.draft = value });
     edit(finding);
@@ -2647,15 +2718,20 @@ test('compact mapped finding reopens in compact mode on its matching interactive
     assert.equal(state.draft.side, 'kanan');
     assert.equal(state.draft.finding, finding.finding);
     assert.equal(state.editingId, finding.id);
+    assert.equal(state.draft.annotationNote, 'Tanda siku kanan');
+    edit({ ...finding, id: 'another-finding', annotationNote: 'Tanda lain' });
+    assert.equal(state.draft.annotationNote, 'Tanda lain');
+    edit({ ...finding, id: 'without-note', annotationNote: undefined });
+    assert.equal(state.draft.annotationNote, undefined);
 });
 
 test('updating compact body findings preserves annotations and other findings without duplicating the edited record', async () => {
     const { emptyBodyFinding, bodyLocations } = await server.ssrLoadModule('/resources/js/lib/body-examination.ts');
     const { createRecordedFinding, emptyBodyMap } = await server.ssrLoadModule('/resources/js/lib/body-map.ts');
     const region = bodyLocations('back').find((item) => item.id === 'back-elbow-kanan');
-    const draft = { ...emptyBodyFinding, locationId: region.id, locationLabel: region.label, category: region.category, side: region.side, finding: 'Temuan baru siku kanan' };
-    const original = createRecordedFinding({ ...draft, finding: 'Temuan sebelum koreksi' }, 'body', 'back', 'female', 'mapped-compact', 'quick').finding;
-    const other = createRecordedFinding({ ...emptyBodyFinding, finding: 'Temuan umum tetap tersedia' }, 'body', 'front', 'female', 'general-compact', 'quick').finding;
+    const draft = { ...emptyBodyFinding, locationId: region.id, locationLabel: region.label, category: region.category, side: region.side, finding: 'Temuan siku kanan', annotationNote: '' };
+    const original = createRecordedFinding({ ...draft, annotationNote: 'Keterangan siku yang akan dikosongkan' }, 'body', 'back', 'female', 'mapped-compact', 'quick').finding;
+    const other = createRecordedFinding({ ...emptyBodyFinding, finding: 'Temuan umum tetap tersedia', annotationNote: 'Keterangan temuan lainnya' }, 'body', 'front', 'female', 'general-compact', 'quick').finding;
     const bodyMap = { ...emptyBodyMap(), findings: [original, other], annotation: { strokes: [{ id: 'mark-1', tool: 'pen', color: '#dc2626', width: 2, points: [{ x: 10, y: 20 }] }], note: 'Keterangan gambar tetap tersedia' } };
     const saved = [];
     const confirmations = [];
@@ -2674,7 +2750,9 @@ test('updating compact body findings preserves annotations and other findings wi
     assert.equal(saved[0].findings[0].locationId, region.id);
     assert.equal(saved[0].findings[1], other);
     assert.equal(saved[0].annotation, bodyMap.annotation);
-    assert.equal(bodyMap.findings[0].finding, 'Temuan sebelum koreksi');
+    assert.equal(saved[0].findings[0].annotationNote, undefined);
+    assert.equal(saved[0].findings[1].annotationNote, 'Keterangan temuan lainnya');
+    assert.equal(bodyMap.findings[0].annotationNote, 'Keterangan siku yang akan dikosongkan');
     assert.equal(resets, 1);
 });
 

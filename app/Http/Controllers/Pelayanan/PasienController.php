@@ -586,14 +586,13 @@ class PasienController extends Controller
                         'familyHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_keluarga, 'Belum dicatat'),
                         'allergyHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $visit->pemeriksaan->riwayat_alergi, 'Belum dicatat'),
                         'physicalExamination' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $visit->pemeriksaan->pemeriksaan_fisik,
-                        'generalClinicalSummary' => [
-                            ...collect(is_array($effectiveNote) ? ($effectiveNote['supporting_exams'] ?? []) : ($visit->pemeriksaan->supporting_exams ?? []))->mapWithKeys(fn ($value, $key): array => ['Penunjang - '.(['laboratory' => 'Laboratorium', 'rapid' => 'Pemeriksaan cepat', 'radiology' => 'Radiologi', 'results' => 'Hasil'][$key] ?? $key) => $value])->all(),
-                            ...GeneralAssessment::systemSummary(is_array($effectiveNote) ? ($effectiveNote['review_of_systems'] ?? null) : $visit->pemeriksaan->review_of_systems, GeneralAssessment::ROS),
-                            'Riwayat sosial' => is_array($effectiveNote) ? ($effectiveNote['riwayat_sosial'] ?? null) : $visit->pemeriksaan->riwayat_sosial,
-                            'Kondisi akhir' => is_array($effectiveNote) ? ($effectiveNote['kondisi_akhir'] ?? null) : $visit->pemeriksaan->kondisi_akhir,
-                            'Status akhir' => is_array($effectiveNote) ? ($effectiveNote['disposisi'] ?? null) : $visit->pemeriksaan->disposisi,
-                            'Klarifikasi dokter atas pengkajian perawat' => $effectiveNote['nursing_review']['clarification'] ?? null,
-                        ],
+                        'generalClinicalSummary' => $this->recordedGeneralClinicalSummary($effectiveNote ?? [
+                            'supporting_exams' => $visit->pemeriksaan->supporting_exams,
+                            'review_of_systems' => $visit->pemeriksaan->review_of_systems,
+                            'riwayat_sosial' => $visit->pemeriksaan->riwayat_sosial,
+                            'kondisi_akhir' => $visit->pemeriksaan->kondisi_akhir,
+                            'disposisi' => $visit->pemeriksaan->disposisi,
+                        ]),
                         'physicalSystems' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik_terstruktur'] ?? []) : ($visit->pemeriksaan->pemeriksaan_fisik_terstruktur ?? []),
                         'bodyMap' => is_array($effectiveNote) ? ($effectiveNote['body_map'] ?? null) : $visit->pemeriksaan->body_map,
                         'extraoralExamination' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_ekstraoral'] ?? null) : $visit->pemeriksaan->pemeriksaan_ekstraoral, 'Belum diperiksa'),
@@ -623,13 +622,7 @@ class PasienController extends Controller
                             'familyHistory' => $clinicalAnswer($version->payload['riwayat_penyakit_keluarga'] ?? null, 'Belum dicatat'),
                             'allergyHistory' => $clinicalAnswer($version->payload['riwayat_alergi'] ?? null, 'Belum dicatat'),
                             'physicalExamination' => $version->payload['pemeriksaan_fisik'] ?? null,
-                            'generalClinicalSummary' => [
-                                ...collect($version->payload['supporting_exams'] ?? [])->mapWithKeys(fn ($value, $key): array => ['Penunjang - '.(['laboratory' => 'Laboratorium', 'rapid' => 'Pemeriksaan cepat', 'radiology' => 'Radiologi', 'results' => 'Hasil'][$key] ?? $key) => $value])->all(),
-                                ...GeneralAssessment::systemSummary($version->payload['review_of_systems'] ?? null, GeneralAssessment::ROS),
-                                'Riwayat sosial' => $version->payload['riwayat_sosial'] ?? null,
-                                'Kondisi akhir' => $version->payload['kondisi_akhir'] ?? null,
-                                'Status akhir' => $version->payload['disposisi'] ?? null,
-                            ],
+                            'generalClinicalSummary' => $this->recordedGeneralClinicalSummary($version->payload),
                             'physicalSystems' => $version->payload['pemeriksaan_fisik_terstruktur'] ?? [],
                             'bodyMap' => $version->payload['body_map'] ?? null,
                             'nonPharmacological' => $version->payload['non_farmakologis'] ?? null,
@@ -691,6 +684,22 @@ class PasienController extends Controller
                 ];
             })->all(),
         ])->toResponse($request)->header('Cache-Control', 'private, no-store');
+    }
+
+    private function recordedGeneralClinicalSummary(array $note): array
+    {
+        $systems = $note['review_of_systems'] ?? [];
+        $labels = array_intersect_key(GeneralAssessment::ROS, $systems);
+        $supportingLabels = ['laboratory' => 'Laboratorium', 'rapid' => 'Pemeriksaan cepat', 'radiology' => 'Radiologi', 'results' => 'Hasil'];
+
+        return array_filter([
+            ...collect($note['supporting_exams'] ?? [])->mapWithKeys(fn ($value, $key): array => ['Penunjang - '.($supportingLabels[$key] ?? $key) => $value])->all(),
+            ...GeneralAssessment::systemSummary($systems, $labels),
+            'Riwayat sosial' => $note['riwayat_sosial'] ?? null,
+            'Kondisi akhir' => $note['kondisi_akhir'] ?? null,
+            'Status akhir' => $note['disposisi'] ?? null,
+            'Klarifikasi dokter atas pengkajian perawat' => $note['nursing_review']['clarification'] ?? null,
+        ], fn ($value): bool => ClinicalAnswer::normalize($value) !== null);
     }
 
     private function authorizeDoctorPatient(Pasien $pasien): void
