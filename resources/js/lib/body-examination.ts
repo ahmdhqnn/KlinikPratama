@@ -3,10 +3,10 @@ import { normalizeClinicalAnswer } from '@/lib/clinical-answer';
 export const physicalExamSystems = ['Kepala dan leher', 'Thorax', 'Abdomen', 'Ekstremitas', 'Neurologis', 'Kulit', 'Lainnya'] as const;
 export type BodyView = 'front' | 'back';
 export interface BodyLocation { id: string; label: string; category: string; side?: string; x: number; y: number; width: number; height: number; }
-export interface BodyFindingDraft { locationId: string; locationLabel: string; category: string; view: string; side: string; detail: string; method: string; methodDetail?: string; symptom: string; finding: string; pain: string; }
+export interface BodyFindingDraft { locationId: string; locationLabel: string; category: string; view: string; side: string; detail: string; method: string; methodDetail?: string; symptom: string; finding: string; annotationNote?: string; pain: string; }
 export const emptyBodyFinding: BodyFindingDraft = { locationId: '', locationLabel: '', category: 'Thorax', view: '', side: '', detail: '', method: '', symptom: '', finding: '', pain: '' };
 export function hasBodyFindingDraft(draft: BodyFindingDraft): boolean {
-    return [draft.locationId === 'other' ? draft.locationLabel : '', draft.detail, draft.method, draft.methodDetail ?? '', draft.symptom, draft.finding, draft.pain].some((value) => value.trim() !== '');
+    return [draft.locationId === 'other' ? draft.locationLabel : '', draft.detail, draft.method, draft.methodDetail ?? '', draft.symptom, draft.finding, draft.annotationNote ?? '', draft.pain].some((value) => value.trim() !== '');
 }
 export function appendBodyFinding(systems: Record<string, string>, draft: BodyFindingDraft): { systems: Record<string, string>; error?: string } {
     if (!draft.locationLabel || !physicalExamSystems.some((system) => system === draft.category)) return { systems, error: 'Pilih lokasi dan kategori pemeriksaan.' };

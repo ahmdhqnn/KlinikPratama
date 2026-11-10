@@ -70,7 +70,7 @@ class BodyMapPayload implements ValidationRule
                 $finding[$field] = trim($finding[$field] ?? '');
             }
             $finding['finding'] = trim($finding['finding']);
-            foreach (['methodDetail', 'locationLabel'] as $field) {
+            foreach (['methodDetail', 'locationLabel', 'annotationNote'] as $field) {
                 if (array_key_exists($field, $finding)) {
                     $finding[$field] = trim($finding[$field] ?? '');
                 }
@@ -90,11 +90,12 @@ class BodyMapPayload implements ValidationRule
 
     private function validFinding(mixed $finding): bool
     {
-        if (! is_array($finding) || ! $this->keys($finding, ['id', 'locationId', 'mode', 'view', 'model', 'category', 'side', 'detail', 'method', 'symptom', 'finding', 'pain', 'entryMode', 'locationLabel', 'methodDetail'])
+        if (! is_array($finding) || ! $this->keys($finding, ['id', 'locationId', 'mode', 'view', 'model', 'category', 'side', 'detail', 'method', 'symptom', 'finding', 'pain', 'entryMode', 'locationLabel', 'methodDetail', 'annotationNote'])
             || ! $this->id($finding['id'] ?? null)
             || ! in_array($finding['entryMode'] ?? 'interactive', ['interactive', 'manual', 'quick'], true)
             || ! $this->text($finding['locationLabel'] ?? null, 150)
             || ! $this->text($finding['methodDetail'] ?? null, 250)
+            || ! $this->text($finding['annotationNote'] ?? null, 2000)
             || ! in_array($finding['mode'] ?? null, ['organs', 'body'], true)
             || ! in_array($finding['view'] ?? null, ['front', 'back'], true)
             || ! in_array($finding['model'] ?? null, ['male', 'female'], true)

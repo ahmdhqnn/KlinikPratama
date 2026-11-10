@@ -1,4 +1,4 @@
-import { bodyLocations, organLocations, physicalExamSystems, type BodyFindingDraft } from './body-examination';
+import { annotationNarrative, emptyBodyFinding, bodyLocations, organLocations, physicalExamSystems, type BodyFindingDraft } from './body-examination';
 import { normalizeClinicalAnswer } from './clinical-answer';
 
 export type BodyModel = 'male' | 'female';
@@ -19,6 +19,7 @@ export interface RecordedBodyFinding {
     methodDetail?: string;
     symptom: string;
     finding: string;
+    annotationNote?: string;
     pain: number | null;
 }
 export type AnnotationTool = 'pen' | 'line' | 'arrow' | 'ellipse';
@@ -39,13 +40,36 @@ export function createRecordedFinding(draft: BodyFindingDraft, mode: BodyMode, v
     if ((!location && !isOther && !isGeneral) || (isOther && !normalizeClinicalAnswer(draft.locationLabel)) || (!isGeneral && !physicalExamSystems.some((system) => system === draft.category))) return { error: 'Pilih lokasi dan sistem pemeriksaan.' };
     if (entryMode !== 'quick' && draft.method === 'Lainnya' && !draft.methodDetail?.trim()) return { error: 'Tuliskan metode pemeriksaan lainnya.' };
     if (draft.finding.length > 3000 || draft.locationLabel.length > 150) return { error: 'Lokasi maksimal 150 karakter dan temuan maksimal 3.000 karakter.' };
+    const annotationNote = draft.annotationNote?.trim();
+    if (annotationNote && annotationNote.length > 2000) return { error: 'Keterangan anotasi maksimal 2.000 karakter.' };
     if (!normalizeClinicalAnswer(draft.finding)) return { error: 'Isi temuan pemeriksaan yang benar-benar dinilai.' };
     if (entryMode !== 'quick' && draft.pain !== '' && !/^([0-9]|10)$/.test(draft.pain)) return { error: 'Skala nyeri harus berupa angka bulat 0 sampai 10.' };
-    return { finding: { id, entryMode, locationId: isGeneral ? 'general' : location?.id ?? 'other', ...(isOther ? { locationLabel: draft.locationLabel.trim() } : {}), mode: isGeneral ? 'body' : mode, view: isGeneral || mode === 'organs' ? 'front' : view, model, category: isGeneral ? 'Lainnya' : draft.category, side: isGeneral ? '' : location?.side ?? (entryMode === 'quick' ? '' : draft.side), detail: entryMode === 'quick' ? '' : draft.detail.trim(), method: entryMode === 'quick' ? '' : draft.method, methodDetail: entryMode !== 'quick' && draft.method === 'Lainnya' ? (draft.methodDetail ?? '').trim() : '', symptom: entryMode === 'quick' ? '' : draft.symptom.trim(), finding: draft.finding.trim(), pain: entryMode === 'quick' || draft.pain === '' ? null : Number(draft.pain) } };
+    return { finding: { id, entryMode, locationId: isGeneral ? 'general' : location?.id ?? 'other', ...(isOther ? { locationLabel: draft.locationLabel.trim() } : {}), mode: isGeneral ? 'body' : mode, view: isGeneral || mode === 'organs' ? 'front' : view, model, category: isGeneral ? 'Lainnya' : draft.category, side: isGeneral ? '' : location?.side ?? (entryMode === 'quick' ? '' : draft.side), detail: entryMode === 'quick' ? '' : draft.detail.trim(), method: entryMode === 'quick' ? '' : draft.method, methodDetail: entryMode !== 'quick' && draft.method === 'Lainnya' ? (draft.methodDetail ?? '').trim() : '', symptom: entryMode === 'quick' ? '' : draft.symptom.trim(), finding: draft.finding.trim(), ...(annotationNote ? { annotationNote } : {}), pain: entryMode === 'quick' || draft.pain === '' ? null : Number(draft.pain) } };
 }
 export function hasBodyMapContent(data?: BodyMapData | null): boolean {
     return Boolean(data?.findings.length || data?.annotation.strokes.length || data?.annotation.note?.trim());
 }
+export function recordedAnnotationNote(data?: BodyMapData | null): string {
+    const note = data?.annotation.note?.trim().replace(/\r\n/g, '\n') ?? '';
+    if (!note || !data?.findings.length) return note;
+
+    // Old drafts could leave either a complete copy or only the first lines of a finding.
+    const generated = data.findings.map(finding => annotationNarrative({
+        ...emptyBodyFinding,
+        locationLabel: findingLocation(finding)?.label ?? finding.locationLabel ?? 'Pemeriksaan umum',
+        side: finding.side,
+        detail: finding.detail,
+        symptom: finding.symptom,
+        finding: finding.finding,
+    }).replace(/\r\n/g, '\n'));
+    if (note === generated.join('\n\n')) return '';
+
+    return note.split(/\n[ \t]*\n/).filter(block => {
+        if (generated.some(text => text === block || text.startsWith(block + '\n'))) return false;
+        return !data.findings.some(finding => finding.detail.trim() && block === `Lokasi pemeriksaan: ${finding.detail.trim()}.`);
+    }).join('\n\n');
+}
+
 // Older notes contain explicit location labels. Only recover those exact labels;
 // free-text symptoms are never used to infer a body selection.
 export function legacyBodyFindings(systems: Record<string, string>, model: BodyModel): RecordedBodyFinding[] {

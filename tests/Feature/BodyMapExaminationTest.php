@@ -48,6 +48,11 @@ class BodyMapExaminationTest extends TestCase
     {
         $visit = $this->visit();
         $map = $this->bodyMap();
+        $map['findings'][0]['annotationNote'] = 'Tanda merah pada dahi';
+        $map['findings'][] = [...$map['findings'][0],
+            'id' => 'finding-neck', 'locationId' => 'front-neck', 'detail' => 'Leher', 'finding' => 'Temuan leher',
+            'annotationNote' => 'Tanda biru pada leher',
+        ];
         $this->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'pemeriksaan', 'body_map' => $map])->assertSessionHasNoErrors();
         $this->assertSame($map, $visit->pemeriksaan->fresh()->body_map);
         $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page->where('visit.examination.bodyMap', $map));
