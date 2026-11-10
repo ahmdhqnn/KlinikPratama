@@ -25,9 +25,11 @@ export function DateRangeFilter({ from: initialFrom, to: initialTo, route, expor
     }
 
     return (
-        <FilterPanel><div className="flex flex-col gap-4 sm:flex-row sm:items-end"><form className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={filterReport}>
+        <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}>
+            <form className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={filterReport}>
             <Field htmlFor="report-period" label={periodLabel}><DateRangePicker id="report-period" from={from} onChange={(range) => { setFrom(range.from); setTo(range.to); }} to={to} /></Field>
-            <Button  type="submit"><Search className="size-4" />Filter data</Button>
-        </form>{exportUrl && <Button asChild  variant="secondary"><a href={exportUrl}><Download className="size-4" />Export Excel</a></Button>}</div></FilterPanel>
+            <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
+        </form>
+        </FilterPanel>
     );
 }

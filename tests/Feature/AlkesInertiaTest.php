@@ -37,7 +37,10 @@ class AlkesInertiaTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->actingAs($admin)->get(route('master.alkes.index', ['search' => 'ALK-001']))
+        $this->actingAs($admin)->get(route('master.alkes.show', $item))
+            ->assertRedirect(route('master.alkes.index', ['search' => 'ALK-001']));
+
+        $this->get(route('master.alkes.index', ['search' => 'ALK-001']))
             ->assertInertia(fn (Assert $page) => $page
                 ->component('master/alkes/index')
                 ->has('items.data', 1)

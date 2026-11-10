@@ -125,7 +125,7 @@ export default function VisitQueue({ visits, todayVisits, today, queueUrl, servi
                     <Field htmlFor="queue-clinic" label="Poliklinik"><Select id="queue-clinic" value={filters.clinicId} onChange={(event) => setFilters({ ...filters, clinicId: event.target.value })}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>
                     <Field htmlFor="queue-status" label="Status"><Select id="queue-status" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">Semua status</option>{Object.entries(visitStatusFilterLabels).map(([status, label]) => <option key={status} value={status}>{label}</option>)}</Select></Field>
                     <Field htmlFor="queue-date" label="Tanggal kunjungan"><DatePicker id="queue-date" value={filters.date} onChange={(event) => setFilters({ ...filters, date: event.target.value })} /></Field>
-                    <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit"><Search className="size-4" />Terapkan filter</Button><Button type="button" variant="secondary" onClick={() => { setFilters({ search: '', date: '', status: '', clinicId: '' }); router.get(queueUrl); }}>Reset</Button></div>
+                    <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit"><Search className="size-4" />Terapkan filter</Button></div>
                 </form></FilterPanel>
                 <QueueTable icon={<CalendarDays className="size-5" />} title="Daftar kunjungan pasien" description="Riwayat, kunjungan aktif, dan reservasi sesuai filter" visits={visits} />
             </div>

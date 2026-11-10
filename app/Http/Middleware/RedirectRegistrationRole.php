@@ -15,14 +15,14 @@ class RedirectRegistrationRole
         }
 
         if ($request->user()?->role === 'pendaftaran' && ($request->routeIs('pelayanan.pasien.rekam-medis') || $request->routeIs('pelayanan.screening.print'))) {
-            abort(403, 'Unauthorized access.');
+            abort(403, 'Akun Anda tidak memiliki akses ke layanan ini.');
         }
 
         if ($request->user()?->role === 'pendaftaran' && $request->routeIs('pelayanan.pasien.index')) {
             return redirect()->route('pendaftaran.database-pasien');
         }
         if ($request->user()?->role === 'pendaftaran' && $request->routeIs('pelayanan.pasien.destroy', 'pelayanan.pasien.gabung')) {
-            abort(403, 'Unauthorized access.');
+            abort(403, 'Akun Anda tidak memiliki akses ke layanan ini.');
         }
 
         if ($request->user()?->role === 'pendaftaran'
@@ -35,7 +35,7 @@ class RedirectRegistrationRole
                 return redirect()->route('perawat.dashboard');
             }
 
-            abort(403, 'Unauthorized access.');
+            abort(403, 'Akun Anda tidak memiliki akses ke layanan ini.');
         }
 
         if ($request->user()?->role === 'dokter' && $request->routeIs('dashboard')) {
@@ -43,7 +43,7 @@ class RedirectRegistrationRole
         }
 
         if ($request->user()?->role === 'dokter' && ! $this->isAllowedForDoctor($request)) {
-            abort(403, 'Unauthorized access.');
+            abort(403, 'Akun Anda tidak memiliki akses ke layanan ini.');
         }
 
         if ($request->user()?->role === 'farmasi' && ! $this->isAllowedForPharmacy($request)) {
@@ -51,7 +51,7 @@ class RedirectRegistrationRole
                 return redirect()->route('farmasi.dashboard');
             }
 
-            abort(403, 'Unauthorized access.');
+            abort(403, 'Akun Anda tidak memiliki akses ke layanan ini.');
         }
 
         return $next($request);

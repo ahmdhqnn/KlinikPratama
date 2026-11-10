@@ -1,6 +1,6 @@
 import { VisitActionButtons } from '@/components/dashboard/visit-action-buttons';
 import { FilterPanel } from '@/components/ui/filter-panel';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { Search, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
@@ -49,7 +49,6 @@ export default function DoctorPatients({ search, patients }: Props) {
                             <Input id="patient-search" onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, No. RM, atau NIK" value={query} />
                         </Field>
                         <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
-                        <Button asChild variant="secondary"><Link href="/dokter/pasien">Reset</Link></Button>
                     </form>
                 </FilterPanel>
                 <Card className="overflow-hidden">

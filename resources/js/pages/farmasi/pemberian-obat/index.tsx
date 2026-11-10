@@ -35,7 +35,7 @@ export default function DirectMedicineIndex({ stats, search: initialSearch, toda
             <StatCard label="Seluruh pemberian" value={stats.all} description="Riwayat pemberian obat langsung" icon={<CalendarDays className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
         </section>
         <RecordList title="Pemberian obat hari ini" description="Obat langsung yang telah diserahkan hari ini." records={todayRecords} />
-        <FilterPanel><form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={apply}><Field className="w-full sm:max-w-md" htmlFor="direct-index-search" label="Cari pasien, transaksi, atau obat"><Input id="direct-index-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama, No. RM, nomor transaksi, atau obat" value={search} /></Field><Button type="submit"><Search className="size-4" />Terapkan filter</Button><Button asChild variant="secondary"><Link href="/farmasi/pemberian-obat">Reset</Link></Button></form></FilterPanel>
+        <FilterPanel><form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={apply}><Field className="w-full sm:max-w-md" htmlFor="direct-index-search" label="Cari pasien, transaksi, atau obat"><Input id="direct-index-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama, No. RM, nomor transaksi, atau obat" value={search} /></Field><Button type="submit"><Search className="size-4" />Terapkan filter</Button></form></FilterPanel>
         <RecordList title="Semua pemberian obat" description={`${records.total.toLocaleString('id-ID')} catatan sesuai filter.`} records={records} />
     </div></>;
 }

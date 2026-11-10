@@ -67,6 +67,7 @@ class PersediaanController extends Controller
             ]),
             'depotsEnabled' => $depotsEnabled,
             'depots' => $depotsEnabled ? DepoObat::where('is_active', true)->orderBy('nama')->get(['id', 'nama']) : [],
+            'batchBalance' => (float) $obat->batches->sum('stok'),
             'movements' => $this->pageData($movements), 'today' => today()->toDateString(),
         ]);
     }

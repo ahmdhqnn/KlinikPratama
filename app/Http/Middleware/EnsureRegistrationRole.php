@@ -34,7 +34,7 @@ class EnsureRegistrationRole
         }
 
         if (! in_array($request->user()->role, ['admin', 'pendaftaran'], true)) {
-            abort(403, 'Unauthorized access.');
+            abort(403, 'Akun Anda tidak memiliki akses ke layanan ini.');
         }
 
         return $next($request);

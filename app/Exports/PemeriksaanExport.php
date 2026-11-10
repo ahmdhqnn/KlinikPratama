@@ -5,21 +5,28 @@ namespace App\Exports;
 use App\DateRangeFilter;
 use App\DoctorExaminationReport;
 use Illuminate\Database\Eloquent\Builder;
-use Maatwebsite\Excel\Concerns\{FromQuery, WithHeadings, WithMapping, WithStyles};
+use Maatwebsite\Excel\Concerns\FromQuery;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
+use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class PemeriksaanExport implements FromQuery, WithHeadings, WithMapping, WithStyles
+class PemeriksaanExport implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
-    public function __construct(private int $doctorId, private DateRangeFilter $period, private string $search = '') {}
+    public function __construct(private ?int $doctorId, private DateRangeFilter $period, private string $search = '') {}
 
     public function query(): Builder
     {
-        return (new DoctorExaminationReport)->query($this->doctorId, $this->period, $this->search);
+        return (new DoctorExaminationReport)->query($this->doctorId, $this->period, $this->search)
+            ->when($this->doctorId === null, fn (Builder $query) => $query->with('pemeriksaan.dokter'));
     }
 
     public function headings(): array
     {
-        return ['Tanggal', 'No. Kunjungan', 'No. RM', 'Pasien', 'Poliklinik', 'Status Pemeriksaan', 'Waktu Finalisasi', 'Diagnosis', 'Kontrol Berikutnya'];
+        $headings = ['Tanggal', 'No. Kunjungan', 'No. RM', 'Pasien', 'Poliklinik', 'Status Pemeriksaan', 'Waktu Finalisasi', 'Diagnosis', 'Kontrol Berikutnya'];
+
+        return $this->doctorId === null ? [...$headings, 'Dokter Pemeriksa'] : $headings;
     }
 
     public function map($visit): array
@@ -31,6 +38,7 @@ class PemeriksaanExport implements FromQuery, WithHeadings, WithMapping, WithSty
             $visit->poliklinik?->nama, $exam->signed_at ? 'Final' : 'Draf', $exam->signed_at?->format('d/m/Y H:i'),
             $exam->diagnosa->map(fn ($diagnosis) => $diagnosis->kode_icd10.' - '.$diagnosis->nama_diagnosa)->implode('; '),
             $exam->kontrol_berikutnya?->format('d/m/Y'),
+            ...($this->doctorId === null ? [$exam->dokter?->nama] : []),
         ]);
     }
 

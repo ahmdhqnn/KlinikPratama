@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class FarmasiMandiriExport implements FromQuery, WithHeadings, WithMapping, WithStyles
+class FarmasiMandiriExport implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
     /** @param array{dari?: string|null, sampai?: string|null, search?: string|null} $filters */
     public function __construct(private array $filters) {}

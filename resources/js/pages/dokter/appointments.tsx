@@ -2,7 +2,7 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import { Input } from '@/components/ui/input';
 import { VisitActionButtons } from '@/components/dashboard/visit-action-buttons';
 import { FilterPanel } from '@/components/ui/filter-panel';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { Activity, CalendarDays, ClipboardCheck, Clock3, Download, FileText, Search, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
@@ -28,9 +28,10 @@ interface Visit {
     isReservation?: boolean;
     triage?: string | null;
     priority?: string | null;
-    examinationUrl: string;
-    recordUrl: string;
+    examinationUrl: string | null;
+    recordUrl: string | null;
     letterUrl: string | null;
+    doctor?: string | null;
     diagnoses: string;
     finalizedAt: string | null;
 }
@@ -38,15 +39,16 @@ interface Visit {
 interface Props {
     filters: { dari: string; sampai: string; search: string };
     isReport: boolean;
+    isAdmin?: boolean;
+    pageUrl?: string;
     exportUrl: string | null;
     stats: { total: number; today?: number; waiting?: number; completed?: number; draft?: number; final?: number; patients?: number };
     visits: PaginationData & { data: Visit[] };
 }
 
-export default function DoctorAppointments({ filters, visits, isReport, exportUrl, stats }: Props) {
+export default function DoctorAppointments({ filters, visits, isReport, isAdmin = false, pageUrl = isReport ? '/dokter/laporan-pemeriksaan' : '/dokter/kunjungan', exportUrl, stats }: Props) {
     const [dates, setDates] = useState(filters);
-    const pageUrl = isReport ? '/dokter/laporan-pemeriksaan' : '/dokter/kunjungan';
-    const title = isReport ? 'Laporan pemeriksaan' : 'Daftar kunjungan pasien';
+    const title = isAdmin ? 'Laporan pemeriksaan dokter' : isReport ? 'Laporan pemeriksaan' : 'Daftar kunjungan pasien';
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -58,9 +60,9 @@ export default function DoctorAppointments({ filters, visits, isReport, exportUr
             <Head title={title} />
             <div className="space-y-6">
                 <div>
-                    <p className="text-sm font-medium text-neutral-700">Praktik dokter</p>
+                    <p className="text-sm font-medium text-neutral-700">{isAdmin ? 'Pelayanan klinis' : 'Praktik dokter'}</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{title}</h2>
-                    <p className="mt-1 text-sm text-neutral-500">{isReport ? 'Pemeriksaan pasien yang Anda tangani, sesuai layanan dan periode yang dipilih.' : 'Kunjungan pasien yang terdaftar untuk pelayanan Anda.'}</p>
+                    <p className="mt-1 text-sm text-neutral-500">{isAdmin ? 'Pemeriksaan draf dan final dari seluruh dokter sesuai filter.' : isReport ? 'Pemeriksaan pasien yang Anda tangani sesuai filter.' : 'Kunjungan pasien yang terdaftar untuk pelayanan Anda.'}</p>
                 </div>
                 <section aria-label={isReport ? 'Ringkasan laporan pemeriksaan' : 'Ringkasan kunjungan dokter'} className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>section]:h-full [&>section>div]:h-full">
                     <StatCard label={isReport ? 'Total pemeriksaan' : 'Total kunjungan'} value={stats.total} description={isReport ? 'Sesuai filter laporan' : 'Seluruh kunjungan Anda'} icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
@@ -74,7 +76,7 @@ export default function DoctorAppointments({ filters, visits, isReport, exportUr
                         <Field htmlFor="doctor-appointments-period" label="Periode kunjungan">
                             <DateRangePicker id="doctor-appointments-period" from={dates.dari} onChange={(range) => setDates({ ...dates, dari: range.from, sampai: range.to })} to={dates.sampai} />
                         </Field>
-                        <Button type="submit"><Search className="size-4" />Terapkan filter</Button><Button asChild variant="secondary"><Link href={pageUrl}>Reset</Link></Button>
+                        <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
                     </form>
                 </FilterPanel>
                 <Card className="overflow-hidden">
@@ -93,6 +95,7 @@ export default function DoctorAppointments({ filters, visits, isReport, exportUr
                                         <TableHead>Tanggal</TableHead>
                                         <TableHead>Pasien</TableHead>
                                         <TableHead>Poliklinik</TableHead>
+                                        {isAdmin && <TableHead>Dokter pemeriksa</TableHead>}
                                         <TableHead className="text-center">Status</TableHead>
                                         <TableHead className="text-center">{isReport ? 'Diagnosis' : 'Prioritas'}</TableHead>
                                         <TableHead className="text-center">Aksi</TableHead>
@@ -105,11 +108,12 @@ export default function DoctorAppointments({ filters, visits, isReport, exportUr
                                             <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
+                                            {isAdmin && <TableCell>{visit.doctor ?? 'Belum tercatat'}</TableCell>}
                                             <TableCell className="text-center">{isReport ? <div><span className="font-medium">{visit.finalizedAt ? 'Final' : 'Draf'}</span>{visit.finalizedAt && <p className="mt-1 text-xs text-neutral-500">{visit.finalizedAt}</p>}</div> : <StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} />}</TableCell>
                                             <TableCell className="text-center">{isReport ? <p className="max-w-xs whitespace-normal">{visit.diagnoses || 'Belum dicatat'}</p> : <PriorityBadge triage={visit.triage} priority={visit.priority} />}</TableCell>
-                                            <TableCell className="text-center"><VisitActionButtons letterUrl={visit.letterUrl} patient={visit.patient} primary={{ href: visit.examinationUrl, label: visit.canExamine ? (visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan') : visit.status === 'batal' ? 'Kunjungan dibatalkan' : visit.isReservation ? 'Sesuai jadwal kunjungan' : 'Menunggu pengkajian perawat', disabled: !visit.canExamine, title: visit.canExamine ? undefined : visit.status === 'batal' ? 'Kunjungan dibatalkan dan tidak dapat diperiksa.' : visit.isReservation ? 'Pemeriksaan dapat dimulai pada tanggal kunjungan.' : 'Pemeriksaan dokter dapat dimulai setelah pengkajian perawat dikirim.', type: 'examination' }} recordLabel="Rekam medis" recordUrl={visit.recordUrl} /></TableCell>
+                                            <TableCell className="text-center"><VisitActionButtons letterUrl={visit.letterUrl} patient={visit.patient} showLetterAction={!isAdmin} primary={!visit.examinationUrl ? undefined : isAdmin ? { href: visit.examinationUrl, label: 'Lihat pemeriksaan', type: 'detail' } : { href: visit.examinationUrl, label: visit.canExamine ? (visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan') : visit.status === 'batal' ? 'Kunjungan dibatalkan' : visit.isReservation ? 'Sesuai jadwal kunjungan' : 'Menunggu pengkajian perawat', disabled: !visit.canExamine, title: visit.canExamine ? undefined : visit.status === 'batal' ? 'Kunjungan dibatalkan dan tidak dapat diperiksa.' : visit.isReservation ? 'Pemeriksaan dapat dimulai pada tanggal kunjungan.' : 'Pemeriksaan dokter dapat dimulai setelah pengkajian perawat dikirim.', type: 'examination' }} recordLabel="Rekam medis" recordUrl={visit.recordUrl} /></TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada kunjungan pada rentang tanggal ini." /></TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={isAdmin ? 8 : 7}><Empty size="compact" title="Belum ada kunjungan pada rentang tanggal ini." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

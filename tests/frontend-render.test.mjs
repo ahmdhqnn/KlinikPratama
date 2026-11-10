@@ -659,6 +659,10 @@ test('dashboard summaries and day bars navigate to their related menus', async (
     assert.ok(globalDashboard.includes('href="/pendaftaran/kunjungan-per-poli?tanggal=2026-10-22"'));
     assert.ok(globalDashboard.includes('href="/laporan/kunjungan?dari=2026-10-21&amp;sampai=2026-10-21"'));
 
+    assert.match(globalDashboard, /Akses cepat/);
+    assert.match(globalDashboard, /href="\/farmasi\/pemberian-obat"/);
+    assert.doesNotMatch(globalDashboard, /aria-label="[^"]+: 0\. Lihat daftar terkait"/);
+
     const registrationDashboard = await renderPage('pendaftaran/dashboard', {
         today: '2026-10-22',
         stats: { visitsToday: 3, totalVisits: 18, waitingScreening: 1, inProgress: 1 },
@@ -830,7 +834,7 @@ test('pharmacy handover report remains separate from direct medicine dispensing'
         exportUrl: '/farmasi/laporan/penyerahan-obat/export',
     });
     assert.match(html, /berdasarkan resep dokter/);
-    assert.match(html, /Laporan obat/);
+    assert.match(html, /Laporan penyerahan obat/);
     assert.match(html, /Ekspor Excel/);
 });
 
@@ -1635,7 +1639,7 @@ async function renderRoleNavigation(role, url, clinicType = null) {
 }
 
 for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
-    ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Operasional', 'Data master', 'Pengelolaan', 'Laporan', 'Akun'], 18],
+    ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Pendaftaran &amp; kunjungan', 'Pelayanan klinis', 'Farmasi &amp; persediaan', 'Laporan', 'Data master', 'Administrasi', 'Akun'], 26],
     ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 9],
     ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
     ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
@@ -1667,6 +1671,14 @@ for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
         assert.ok(activeLinks[0].includes('href="' + primary + '"'));
     });
 }
+
+test('admin shared reports keep the report hub selected and available in the breadcrumb', async () => {
+    const html = await renderRoleNavigation('admin', '/farmasi/laporan/penyerahan-obat?search=obat');
+    const navigation = html.match(/<nav\b[^>]*aria-label="Navigasi utama"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+    const breadcrumb = html.match(/<nav\b[^>]*aria-label="Breadcrumb"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+    assert.match(navigation, /<a[^>]*aria-current="page"[^>]*href="\/admin\/laporan"/);
+    assert.match(breadcrumb, /href="\/admin\/laporan"/);
+});
 
 test('doctor breadcrumbs omit links from other role menus while admin retains its own parent links', async () => {
     const doctor = await renderRoleNavigation('dokter', '/pelayanan/pasien/7/rekam-medis', 'gigi');

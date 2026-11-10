@@ -5,13 +5,17 @@ namespace App\Http\Controllers;
 use App\ClinicalAuditRecorder;
 use App\DateRangeFilter;
 use App\Exports\KunjunganExport;
+use App\Exports\OperationalReportExport;
 use App\Models\Kunjungan;
 use App\Models\LabHasil;
 use App\Models\Obat;
+use App\Models\ObatBatch;
 use App\Models\Poliklinik;
 use App\VisitQueryService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -64,24 +68,15 @@ class LaporanController extends Controller
 
     public function stok(Request $request): Response
     {
-        $filters = $request->validate([
-            'jenis' => ['nullable', 'in:obat,bhp'],
-            'stok_rendah' => ['nullable', 'boolean'],
-        ]);
-
-        $stockCondition = "(SELECT COALESCE(SUM(stok), 0) FROM obat_batch WHERE obat_batch.obat_id = obat.id AND status = 'tersedia' AND expired_at > ? AND stok > 0) <= obat.stok_minimum";
-        $obat = Obat::withSum(['batches as usable_stock' => fn ($query) => $query->usable()], 'stok')
-            ->when($filters['jenis'] ?? null, fn ($query, string $type) => $query->where('jenis', $type))
-            ->when($request->boolean('stok_rendah'), fn ($query) => $query->whereRaw($stockCondition, [today()->toDateString()]))
-            ->orderBy('nama')
-            ->paginate(10)
-            ->withQueryString();
-
-        $totalItem = Obat::count();
-        $stokRendahCount = Obat::whereRaw($stockCondition, [today()->toDateString()])->count();
+        $filters = $this->stockFilters($request);
+        $items = $this->stockQuery($filters);
+        $obat = (clone $items)->paginate(10)->withQueryString();
+        $totalItem = (clone $items)->count();
+        $stokRendahCount = $this->stockQuery([...$filters, 'stok_rendah' => true])->count();
 
         return Inertia::render('laporan/stok', [
             'filters' => ['type' => $filters['jenis'] ?? '', 'lowStockOnly' => $request->boolean('stok_rendah')],
+            'exportUrl' => route('laporan.stok.export', $filters),
             'stats' => ['totalItems' => $totalItem, 'lowStockItems' => $stokRendahCount],
             'medicines' => $this->pagination($obat, fn (Obat $medicine): array => [
                 'id' => $medicine->id,
@@ -101,13 +96,13 @@ class LaporanController extends Controller
         $period = DateRangeFilter::fromRequest($request);
         $dari = $period->from ?? '';
         $sampai = $period->to ?? '';
-        $hasilLab = $period->apply(LabHasil::with(['laboratorium', 'kunjungan.pasien', 'petugas']), 'created_at')
-            ->latest()
+        $hasilLab = $this->laboratoryQuery($period)
             ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('laporan/laboratorium', [
             'filters' => ['from' => $dari, 'to' => $sampai],
+            'exportUrl' => route('laporan.laboratorium.export', ['dari' => $dari, 'sampai' => $sampai]),
             'results' => $this->pagination($hasilLab, fn (LabHasil $result): array => [
                 'id' => $result->id,
                 'date' => $result->created_at?->format('d/m/Y H:i'),
@@ -132,6 +127,71 @@ class LaporanController extends Controller
             new KunjunganExport($from, $to, $filters['poliklinik_id'] ?? null, $filters['status'] ?? null),
             'laporan-kunjungan-'.date('Y-m-d').'.xlsx'
         );
+    }
+
+    public function exportStok(Request $request, ClinicalAuditRecorder $audit): BinaryFileResponse
+    {
+        $filters = $this->stockFilters($request);
+        $audit->record($request, 'inventory_report.export', metadata: $filters);
+
+        return Excel::download(new OperationalReportExport(
+            $this->stockQuery($filters),
+            ['Kode', 'Nama item', 'Jenis', 'Satuan', 'Stok fisik', 'Stok layak pakai', 'Stok minimum', 'Status'],
+            fn (Obat $item): array => [
+                $item->kode, $item->nama, strtoupper($item->jenis), $item->satuan_kecil,
+                (float) $item->stok, (float) $item->usable_stock, (float) $item->stok_minimum,
+                (float) $item->usable_stock <= 0 ? 'Habis' : ((float) $item->usable_stock <= (float) $item->stok_minimum ? 'Kritis' : 'Aman'),
+            ],
+        ), 'laporan-stok-'.today()->toDateString().'.xlsx');
+    }
+
+    public function exportLaboratorium(Request $request, ClinicalAuditRecorder $audit): BinaryFileResponse
+    {
+        $period = DateRangeFilter::fromRequest($request);
+        $audit->record($request, 'laboratory_report.export', metadata: ['from' => $period->from, 'to' => $period->to]);
+
+        return Excel::download(new OperationalReportExport(
+            $this->laboratoryQuery($period)->with('detail.indikator'),
+            ['No. Kunjungan', 'Tanggal', 'Pasien', 'Pemeriksaan', 'Petugas', 'Status', 'Indikator', 'Hasil', 'Satuan', 'Keterangan'],
+            function (LabHasil $result): array {
+                $identity = [
+                    $result->kunjungan?->no_kunjungan, $result->created_at?->format('d/m/Y H:i'),
+                    $result->kunjungan?->pasien?->nama, $result->laboratorium?->nama,
+                    $result->petugas?->nama, $result->status,
+                ];
+
+                return $result->detail->isEmpty()
+                    ? [[...$identity, null, null, null, null]]
+                    : $result->detail->map(fn ($detail): array => [...$identity, $detail->indikator?->nama, $detail->nilai, $detail->indikator?->satuan, $detail->keterangan])->all();
+            },
+        ), 'laporan-laboratorium-'.today()->toDateString().'.xlsx');
+    }
+
+    private function stockFilters(Request $request): array
+    {
+        return $request->validate([
+            'jenis' => ['nullable', 'in:obat,bhp'],
+            'stok_rendah' => ['nullable', 'boolean'],
+        ]);
+    }
+
+    private function stockQuery(array $filters): Builder
+    {
+        return Obat::withSum(['batches as usable_stock' => fn (Builder $query) => $query->usable()], 'stok')
+            ->when($filters['jenis'] ?? null, fn (Builder $query, string $type) => $query->where('jenis', $type))
+            ->when($filters['stok_rendah'] ?? false, fn (Builder $query) => $query->where(
+                ObatBatch::query()->usable()
+                    ->whereColumn('obat_batch.obat_id', 'obat.id')->selectRaw('COALESCE(SUM(stok), 0)'),
+                '<=',
+                DB::raw('obat.stok_minimum'),
+            ))
+            ->orderBy('nama')->orderBy('id');
+    }
+
+    private function laboratoryQuery(DateRangeFilter $period): Builder
+    {
+        return $period->apply(LabHasil::with(['laboratorium', 'kunjungan.pasien', 'petugas']), 'created_at')
+            ->latest()->latest('id');
     }
 
     private function pagination(LengthAwarePaginator $paginator, callable $map): array

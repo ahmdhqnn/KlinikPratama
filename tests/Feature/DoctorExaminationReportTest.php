@@ -81,6 +81,45 @@ class DoctorExaminationReportTest extends TestCase
                 return true;
             });
         }
+
+        $admin = User::factory()->create(['role' => 'admin']);
+        $filters = ['search' => '=Pasien gigi', 'dari' => today()->toDateString(), 'sampai' => today()->toDateString()];
+        $this->actingAs($admin)->get(route('admin.laporan.pemeriksaan', $filters))
+            ->assertInertia(fn (Assert $page) => $page->component('dokter/appointments')
+                ->where('isAdmin', true)
+                ->where('pageUrl', route('admin.laporan.pemeriksaan'))
+                ->where('exportUrl', route('admin.laporan.pemeriksaan.export', ['dari' => $filters['dari'], 'sampai' => $filters['sampai'], 'search' => $filters['search']]))
+                ->where('visits.total', 4)->where('stats.draft', 2)->where('stats.final', 2)
+                ->where('visits.data.0.doctor', 'Dokter lain')
+                ->where('visits.data.0.letterUrl', null));
+
+        $this->get(route('admin.laporan.pemeriksaan.export', $filters))->assertOk();
+        Excel::assertDownloaded('laporan-pemeriksaan-'.today()->format('Y-m-d').'.xlsx', function (PemeriksaanExport $export): bool {
+            $rows = $export->query()->get();
+            $this->assertCount(4, $rows);
+            $this->assertSame('Dokter lain', $export->map($rows->first())[9]);
+
+            return true;
+        });
+    }
+
+    public function test_admin_examination_report_keeps_historical_rows_when_related_data_is_archived(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $clinic = Poliklinik::create(['kode' => 'ARCHIVE', 'nama' => 'Poli Arsip', 'jenis' => 'umum', 'is_active' => true]);
+        $patient = Pasien::create(['no_rm' => 'RM-ARCHIVE', 'nama' => 'Pasien Arsip']);
+        $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-ARCHIVE', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => 'selesai']);
+        Pemeriksaan::create(['kunjungan_id' => $visit->id, 'signed_at' => now()]);
+        $patient->delete();
+        $clinic->delete();
+
+        $this->actingAs($admin)->get(route('admin.laporan.pemeriksaan'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('visits.total', 1)
+                ->where('visits.data.0.patient', 'Pasien tidak tersedia')
+                ->where('visits.data.0.clinic', 'Poliklinik tidak tersedia')
+                ->where('visits.data.0.recordUrl', null)
+                ->where('visits.data.0.examinationUrl', null));
     }
 
     public function test_nurse_cannot_access_doctor_reports(): void

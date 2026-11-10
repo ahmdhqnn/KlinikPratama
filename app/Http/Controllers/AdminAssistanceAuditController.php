@@ -83,7 +83,12 @@ class AdminAssistanceAuditController extends Controller
                         'clinic' => $event->clinic_name,
                         'reason' => $metadata['reason'] ?? $metadata['assistance_reason'] ?? null,
                         'result' => $event->action === 'admin_assistance.attempt_rejected'
-                            ? ($metadata['failure_kind'] ?? 'unknown').' (HTTP '.(int) ($metadata['status'] ?? 0).')'
+                            ? match ($metadata['failure_kind'] ?? null) {
+                                'access_denied' => 'Akses ditolak',
+                                'server_error' => 'Gangguan sistem',
+                                'validation_or_workflow' => 'Validasi atau tahapan layanan',
+                                default => 'Penyebab belum tercatat',
+                            }
                             : null,
                     ];
                 })->values(),

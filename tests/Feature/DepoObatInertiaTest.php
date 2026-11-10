@@ -30,7 +30,10 @@ class DepoObatInertiaTest extends TestCase
         ]);
         $depot = DepoObat::create(['kode' => 'FAR', 'nama' => 'Depo Farmasi', 'deskripsi' => 'Utama', 'is_active' => true]);
 
-        $this->actingAs($admin)->get(route('master.depo-obat.index', ['search' => 'FAR']))
+        $this->actingAs($admin)->get(route('master.depo-obat.show', $depot))
+            ->assertRedirect(route('master.depo-obat.index', ['search' => 'FAR']));
+
+        $this->get(route('master.depo-obat.index', ['search' => 'FAR']))
             ->assertInertia(fn (Assert $page) => $page
                 ->component('master/depo-obat/index')
                 ->has('depots.data', 1)

@@ -47,6 +47,11 @@ class AlkesController extends Controller
         ]);
     }
 
+    public function show(Alkes $alke): RedirectResponse
+    {
+        return redirect()->route('master.alkes.index', ['search' => $alke->kode]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([

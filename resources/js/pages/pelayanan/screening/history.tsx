@@ -43,7 +43,7 @@ interface Props {
 
 export default function ScreeningHistory({ filters: initialFilters, canSelectClinic, clinics, screenings, isReport, serviceName, exportUrl, baseUrl = '/perawat/laporan-pengkajian' }: Props) {
     const [filters, setFilters] = useState(initialFilters);
-    const title = isReport ? 'Laporan pengkajian' : 'Pengkajian saya';
+    const title = isReport ? 'Laporan pengkajian awal' : 'Pengkajian saya';
     const pageUrl = isReport ? baseUrl : '/pelayanan/screening/riwayat';
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
@@ -61,7 +61,7 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
             <div>
                 <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{title}</h2>
-                <p className="mt-1 text-sm text-neutral-500">Pengkajian pasien yang Anda tangani di {serviceName}, termasuk draf dan pengkajian terkirim.</p>
+                <p className="mt-1 text-sm text-neutral-500">{canSelectClinic ? "Riwayat pengkajian awal lintas poliklinik, termasuk draf dan pengkajian terkirim." : 'Riwayat pengkajian yang Anda tangani di ' + serviceName + ', termasuk draf dan pengkajian terkirim.'}</p>
             </div>
             <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}><form className={`grid gap-4 sm:items-end ${canSelectClinic ? 'sm:grid-cols-2 xl:grid-cols-2' : 'sm:grid-cols-2'}`} onSubmit={applyFilters}>
                         <Field htmlFor="screening-history-search" label="Cari pasien">
@@ -75,7 +75,7 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                                 <option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                             </Select>
                         </Field>}
-                        <div className="flex gap-2"><Button type="submit"><Search className="size-4" />Terapkan filter</Button><Button asChild variant="secondary"><Link href={pageUrl}>Reset</Link></Button></div>
+                        <div className="flex gap-2"><Button type="submit"><Search className="size-4" />Terapkan filter</Button></div>
                     </form></FilterPanel>
             <Card className="overflow-hidden">
                 <CardHeader className="border-b border-neutral-100">

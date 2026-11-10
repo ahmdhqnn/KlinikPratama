@@ -6,9 +6,11 @@ import { CardContent } from '@/components/ui/card';
 
 export function FilterPanel({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
     const { url, props } = usePage();
-    const [path, query = ''] = url.split('?');
+    const [path, query = ''] = url.split('#', 1)[0].split('?');
     const params = new URLSearchParams(query);
     const active = [...params].some(([key, value]) => value !== '' && value !== '0' && key !== 'scope' && key !== 'tab' && !key.endsWith('page'));
+    const context = new URLSearchParams([...params].filter(([key]) => key === 'scope' || key === 'tab'));
+    const resetHref = context.size ? path + '?' + context.toString() : path;
     const [open, setOpen] = useState(active);
     const panelId = useId();
     const errors = Object.values(props.errors ?? {});
@@ -23,7 +25,7 @@ export function FilterPanel({ children, actions }: { children: ReactNode; action
         <div className="flex flex-wrap items-center justify-end gap-3">
             <div className="flex flex-wrap items-center gap-2">
                 {actions}
-                {active && <Button asChild size="sm" variant="ghost"><Link href={path} preserveScroll replace><X className="size-4" />Reset filter</Link></Button>}
+                {active && <Button asChild size="sm" variant="ghost"><Link href={resetHref} preserveScroll replace><X className="size-4" />Reset filter</Link></Button>}
                 <Button aria-controls={panelId} aria-expanded={open} onClick={() => setOpen(!open)} size="sm" type="button" variant="secondary">
                     <SlidersHorizontal className="size-4" />Filter{active && <span className="size-2 rounded-full bg-neutral-500" aria-label="Filter aktif" />}<ChevronDown className={`size-4 transition-transform ${open ? 'rotate-180' : ''}`} />
                 </Button>

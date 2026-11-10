@@ -67,7 +67,7 @@ class PersediaanRecorder
             foreach ($batches as $batch) {
                 $taken = min($quantity, (float) $batch->stok);
                 $this->change($medicine, $batch, -$taken, 'keluar', $actor, 'Pemberian obat langsung kepada pasien '.$patient->no_rm, $referenceType, $referenceId);
-                $quantity -= (int) $taken;
+                $quantity = round($quantity - $taken, 2);
                 if ($quantity <= 0) {
                     break;
                 }
