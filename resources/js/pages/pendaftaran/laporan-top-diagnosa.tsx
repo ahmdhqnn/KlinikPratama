@@ -5,10 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Head, router } from '@inertiajs/react';
-import { Activity, ClipboardList, Download, Search } from 'lucide-react';
+import { Activity, ClipboardList, Download } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 interface Diagnosis {
@@ -51,7 +51,7 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
                             <Field htmlFor="registration-diagnoses-period" label="Periode diagnosis">
                                 <DateRangePicker id="registration-diagnoses-period" from={filters.tanggalMulai} onChange={(range) => setFilters({ ...filters, tanggalMulai: range.from, tanggalSelesai: range.to })} to={filters.tanggalSelesai} />
                             </Field>
-                            <Button type="submit"><Search className="size-4" />Tampilkan laporan</Button>
+                            <FilterSubmit />
                         </form></FilterPanel>
                 <div className="grid gap-4 sm:grid-cols-2">
                     <StatCard label="Jenis diagnosis" value={summary.diagnosisCount} description="Diagnosis yang tercatat pada periode laporan." icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
@@ -67,7 +67,7 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[760px]">
-                                <TableHeader><tr><TableHead className="w-24 text-center">Peringkat</TableHead><TableHead>Kode ICD-10</TableHead><TableHead>Nama diagnosis</TableHead><TableHead className="text-center">Kasus</TableHead><TableHead>Persentase</TableHead></tr></TableHeader>
+                                <TableHeader><TableRow><TableHead className="w-24 text-center">Peringkat</TableHead><TableHead>Kode ICD-10</TableHead><TableHead>Nama diagnosis</TableHead><TableHead className="text-center">Kasus</TableHead><TableHead>Persentase</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {diagnoses.data.length > 0 ? diagnoses.data.map((diagnosis) => (
                                         <TableRow key={`${diagnosis.code}-${diagnosis.name}`}>

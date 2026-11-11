@@ -1,9 +1,9 @@
 import { Button } from '@/components/ui/button';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Field } from '@/components/ui/field';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { router } from '@inertiajs/react';
-import { Download, Search } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 interface Props {
@@ -28,7 +28,7 @@ export function DateRangeFilter({ from: initialFrom, to: initialTo, route, expor
         <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}>
             <form className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={filterReport}>
             <Field htmlFor="report-period" label={periodLabel}><DateRangePicker id="report-period" from={from} onChange={(range) => { setFrom(range.from); setTo(range.to); }} to={to} /></Field>
-            <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
+            <FilterSubmit />
         </form>
         </FilterPanel>
     );

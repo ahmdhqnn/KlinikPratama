@@ -3,14 +3,25 @@
 namespace App;
 
 use App\Models\Kunjungan;
+use Illuminate\Database\Eloquent\Builder;
 
 class NurseQueueCounts
 {
     /** @return array{assessment: int, treatments: int} */
     public function forClinic(int $clinicId): array
     {
-        $visits = Kunjungan::query()->where('poliklinik_id', $clinicId);
+        return $this->counts(Kunjungan::query()->where('poliklinik_id', $clinicId));
+    }
 
+    /** @return array{assessment: int, treatments: int} */
+    public function forAllClinics(): array
+    {
+        return $this->counts(Kunjungan::query());
+    }
+
+    /** @return array{assessment: int, treatments: int} */
+    private function counts(Builder $visits): array
+    {
         return [
             'assessment' => (clone $visits)
                 ->whereDate('tanggal', today())

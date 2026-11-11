@@ -3,7 +3,7 @@ import { Link } from '@inertiajs/react';
 import { PriorityBadge } from '@/components/dashboard/priority-badge';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Empty } from '@/components/ui/empty';
-import { Table, TableBody, TableCell, TableHead, TableHeader } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export interface DashboardVisit {
     id: number;
@@ -30,17 +30,17 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
     return (
         <div className="overflow-x-auto">
             <Table className="min-w-[760px]">
-                <TableHeader><tr>
+                <TableHeader><TableRow>
                     <TableHead className="text-center">No. kunjungan</TableHead>
                     <TableHead className="text-center">Pasien</TableHead>
                     <TableHead className="text-center">Poliklinik</TableHead>
                     <TableHead className="text-center">Prioritas</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
-                </tr></TableHeader>
+                </TableRow></TableHeader>
                 <TableBody>
                     {visits.length > 0 ? visits.map((visit) => (
-                        <tr className="transition-colors hover:bg-neutral-50/80" key={visit.id}>
+                        <TableRow key={visit.id}>
                             <TableCell className="text-center whitespace-nowrap font-sans tabular-nums text-xs text-neutral-600">
                                 <Link className="font-medium text-neutral-900 underline-offset-4 hover:underline" href={visit.actionUrl}>{visit.number}</Link>
                             </TableCell>
@@ -66,11 +66,11 @@ export function VisitTable({ visits }: { visits: DashboardVisit[] }) {
                                     {visit.showLetterAction && (visit.letterUrl ? <ActionButton asChild action="issue" label={`Terbitkan surat untuk ${visit.patient}`}><Link href={visit.letterUrl} /></ActionButton> : <ActionButton action="issue" disabled label={`Surat belum dapat diterbitkan untuk ${visit.patient}`} title="Surat dapat diterbitkan setelah pemeriksaan difinalisasi dan diverifikasi." />)}
                                 </div>
                             </TableCell>
-                        </tr>
+                        </TableRow>
                     )) : (
-                        <tr>
+                        <TableRow className="hover:bg-transparent">
                             <TableCell className="text-center" colSpan={6}><Empty description="Kunjungan yang sesuai akan tampil di daftar ini." size="compact" title="Belum ada kunjungan" /></TableCell>
-                        </tr>
+                        </TableRow>
                     )}
                 </TableBody>
             </Table>

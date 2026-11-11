@@ -191,7 +191,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     const numeric = (name: ScalarField, label: string, unit: string, required = false, step = '1', max = 300, visibleInCompact = false) => (required || visibleInCompact || showOptional(name)) && <Field error={form.errors[name]} htmlFor={name} label={`${label} (${unit})`} required={required && !(isDental ? form.data.dental_vitals_unmeasurable : form.data.vitals_unmeasurable)}><Input id={name} inputMode="decimal" min="0" max={max} onChange={(event) => update(name, event.target.value)} placeholder="Hasil pengukuran" step={step} type="number" value={form.data[name]} /></Field>;
     const single = (name: ScalarField, label: string, options: Option[], required = true) => <ChoiceGroup error={form.errors[name]} label={label} name={name} options={options} required={required} compact={!required} selected={form.data[name] ? [form.data[name]] : []} onChange={(value) => update(name, value[0] ?? '')} single />;
     const bloodPressure = () => <Field htmlFor="td_sistole" label="Tekanan darah (mmHg)" required={!(isDental ? form.data.dental_vitals_unmeasurable : form.data.vitals_unmeasurable)} error={[form.errors.td_sistole, form.errors.td_diastole].filter(Boolean).join(' ')}>
-        <div role="group" aria-label="Tekanan darah dalam milimeter raksa" className="flex h-10 min-w-0 items-center overflow-hidden rounded-lg border border-neutral-200 bg-surface shadow-sm focus-within:ring-2 focus-within:ring-neutral-400">
+        <div role="group" aria-label="Tekanan darah dalam milimeter raksa" className="flex h-10 min-w-0 items-center overflow-hidden rounded-lg border border-neutral-200 bg-surface focus-within:ring-2 focus-within:ring-neutral-400">
             <Input className="h-full min-w-0 rounded-none border-0 text-center shadow-none focus-visible:ring-0" aria-label="Tekanan sistole" id="td_sistole" inputMode="numeric" min="0" max="300" onChange={(event) => update('td_sistole', event.target.value)} placeholder="Sistole" step="1" type="number" value={form.data.td_sistole} />
             <span className="shrink-0 text-neutral-500" aria-hidden="true">/</span>
             <Input className="h-full min-w-0 rounded-none border-0 text-center shadow-none focus-visible:ring-0" aria-label="Tekanan diastole" id="td_diastole" inputMode="numeric" min="0" max="200" onChange={(event) => update('td_diastole', event.target.value)} placeholder="Diastole" step="1" type="number" value={form.data.td_diastole} />
@@ -508,14 +508,14 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                     </div>
                 </CardContent>
             </Card>
-            {visit.submitted && <div className="rounded-xl border border-neutral-200 bg-surface p-4 text-sm"><strong>{visit.reviewedAt ? 'Telah ditinjau dokter' : 'Menunggu evaluasi dokter'}</strong><p>Dikirim: {visit.submittedAt ?? 'Waktu tidak tercatat'} · {visit.submittedBy ?? currentStaff ?? 'Petugas pengkajian'} · Penerima: {visit.doctor}</p>{visit.reviewedAt && <p>Ditinjau dan ditandatangani dokter: {visit.reviewedAt}</p>}</div>}
+            {visit.submitted && <div className="rounded-xl bg-surface p-4 text-sm"><strong>{visit.reviewedAt ? 'Telah ditinjau dokter' : 'Menunggu evaluasi dokter'}</strong><p>Dikirim: {visit.submittedAt ?? 'Waktu tidak tercatat'} · {visit.submittedBy ?? currentStaff ?? 'Petugas pengkajian'} · Penerima: {visit.doctor}</p>{visit.reviewedAt && <p>Ditinjau dan ditandatangani dokter: {visit.reviewedAt}</p>}</div>}
             {visit.submitted && <div role="status" className="rounded-xl border border-neutral-200 bg-neutral-100 p-4 text-sm text-neutral-800"><strong>Pengkajian sudah dikirim.</strong> {editable ? 'Anda dapat memperbarui catatan sebelum dokter mulai.' : 'Pengkajian tersedia untuk dibaca dan dicetak.'}</div>}
             {visit.patient.allergyHistory && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"><strong>Riwayat alergi tersimpan:</strong> {visit.patient.allergyHistory}<p className="mt-1 text-xs">Konfirmasi kembali dengan pasien. Riwayat sebelumnya tetap tersedia untuk membantu pengkajian.</p></div>}
             {Object.keys(form.errors).length > 0 && <div data-validation-summary tabIndex={-1} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"><strong>Pengkajian belum dapat disimpan.</strong><ul className="mt-2 list-inside list-disc">{Object.entries(form.errors).map(([name, error]) => <li key={name}>{error}</li>)}</ul></div>}
             <ScreeningVersionHistory versions={visit.versions} />
             {!assessmentStarted && <p role="status" className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm">Klik Mulai pengkajian untuk membuka isian pasien.</p>}
             <Tabs value={mode} onValueChange={value => { setMode(value); if (!isDental) setExpanded({ complaint: true, triage: true, vitals: true, history: true, ringkas: true, dental: value === 'lengkap', additional: value === 'lengkap', anthropometry: value === 'lengkap', systems: value === 'lengkap', nutrition: value === 'lengkap', attachments: false }); }} className="space-y-4">
-                <div className="rounded-xl border border-neutral-200 bg-surface">
+                <div className="rounded-xl bg-surface">
                     <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                         <div>
                             <h3 className="text-sm font-semibold text-neutral-900">Pengkajian pasien</h3>
@@ -537,8 +537,8 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                 </TabsContent>
             </Tabs>
             {section('attachments', 'Berkas pendukung', 'Tambahkan hasil pemeriksaan atau dokumen lain yang membantu dokter.', <VisitAttachments attachments={visit.attachments} uploadUrl={canFill ? visit.attachmentUploadUrl : undefined} disabled={!canFill || form.processing || starting} onPendingChange={setAttachmentPending} />)}
-            {visit.submitted && <div className="rounded-xl border border-neutral-200 bg-surface p-4">{text('revision_reason', 'Alasan revisi pengkajian terkirim', true, true)}</div>}
-            <footer className="rounded-xl border border-neutral-200 bg-surface p-4 shadow-sm sm:sticky sm:bottom-3 sm:z-10 sm:p-5">
+            {visit.submitted && <div className="rounded-xl bg-surface p-4">{text('revision_reason', 'Alasan revisi pengkajian terkirim', true, true)}</div>}
+            <footer className="rounded-xl bg-surface p-4 sm:sticky sm:bottom-3 sm:z-10 sm:p-5">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div className="min-w-0 text-xs leading-5 text-neutral-500" aria-live="polite">
                         <p>{visit.submitted ? (editable ? 'Simpan perubahan pengkajian sebelum dokter memulai pemeriksaan.' : 'Pengkajian terkunci.') : 'Kirim pengkajian awal kepada dokter setelah semua isian wajib lengkap.'}</p>
@@ -579,7 +579,7 @@ function AssessmentHeading({ id, title, description, level = 4 }: { id?: string;
 }
 
 function AssessmentSection({ id, title, description, open, onToggle, children }: { id: string; title: string; description: string; open: boolean; onToggle: () => void; children: ReactNode }) {
-    return <details className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-surface" open={open} id={`section-${id}`}>
+    return <details className="min-w-0 overflow-hidden rounded-xl bg-surface" open={open} id={`section-${id}`}>
         <summary
             className="flex cursor-pointer list-none items-start justify-between gap-4 rounded-xl p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 sm:px-5 [&::-webkit-details-marker]:hidden"
             onClick={(event) => { event.preventDefault(); onToggle(); }}

@@ -70,7 +70,7 @@ export default function RegistrationDashboard({ stats, followUp, today, schedule
                     <CardHeader className="border-b border-neutral-100"><CardTitle>Jadwal praktik hari ini</CardTitle><CardDescription>Dokter yang praktik di seluruh poli.</CardDescription></CardHeader>
                     <CardContent className="flex-1 space-y-3 pt-5 sm:pt-6">
                         <div className="max-h-80 space-y-3 overflow-y-auto">
-                            {schedules.length ? schedules.map((schedule) => <div className="rounded-xl border border-neutral-200 p-3" key={`${schedule.doctorId}-${schedule.id}`}><p className="font-medium">{schedule.clinic}</p><p className="mt-1 text-sm text-neutral-600">{schedule.doctor}</p><p className="mt-2 text-sm tabular-nums text-neutral-500">{schedule.start} - {schedule.end}</p></div>) : <Empty size="compact" title="Tidak ada jadwal praktik hari ini" />}
+                            {schedules.length ? schedules.map((schedule) => <div className="rounded-xl bg-neutral-100/60 p-3" key={`${schedule.doctorId}-${schedule.id}`}><p className="font-medium">{schedule.clinic}</p><p className="mt-1 text-sm text-neutral-600">{schedule.doctor}</p><p className="mt-2 text-sm tabular-nums text-neutral-500">{schedule.start} - {schedule.end}</p></div>) : <Empty size="compact" title="Tidak ada jadwal praktik hari ini" />}
                         </div>
                     </CardContent>
                     <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pendaftaran/jadwal-praktik"><CalendarDays className="size-4" />Lihat jadwal</Link></Button></div>
@@ -87,7 +87,7 @@ export default function RegistrationDashboard({ stats, followUp, today, schedule
                                 <TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell>
                                 <TableCell><StatusBadge status={visit.status} examinationStarted={visit.examinationStarted} /></TableCell>
                                 <TableCell><div className="flex justify-center gap-2"><ActionButton asChild action="detail" label={`Detail ${visit.number}`}><Link href={visit.detailUrl} /></ActionButton><ActionButton asChild action="print" label={`Cetak tiket ${visit.number}`}><a href={visit.ticketUrl} /></ActionButton></div></TableCell>
-                            </TableRow>) : <TableRow><TableCell colSpan={7}><Empty size="compact" title="Belum ada kunjungan hari ini" /></TableCell></TableRow>}</TableBody>
+                            </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada kunjungan hari ini" /></TableCell></TableRow>}</TableBody>
                         </Table>
                     </CardContent>
                     <Pagination pagination={visits} />

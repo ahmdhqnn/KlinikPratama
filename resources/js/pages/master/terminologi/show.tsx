@@ -1,6 +1,6 @@
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { Badge } from '@/components/ui/badge';
@@ -52,7 +52,7 @@ export default function ClinicalTerminologyShow({ catalog, codes, search: initia
                 </div>
                 <FilterPanel><form className="grid gap-3  sm:grid-cols-2 lg:grid-cols-4" onSubmit={applySearch}>
                             <Input aria-label="Cari kode atau uraian" onChange={(event) => setSearch(event.target.value)} placeholder="Cari kode atau uraian" value={search} />
-                            <Button type="submit"><Search className="size-4" />Cari</Button>
+                            <FilterSubmit />
                         </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
@@ -63,8 +63,8 @@ export default function ClinicalTerminologyShow({ catalog, codes, search: initia
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[760px]">
-                                <TableHeader><tr><TableHead>Kode</TableHead><TableHead>Uraian</TableHead><TableHead>Jenis</TableHead><TableHead>Status</TableHead></tr></TableHeader>
-                                <TableBody>{codes.data.length ? codes.data.map((code) => <TableRow key={code.code}><TableCell className="font-sans tabular-nums text-xs font-semibold text-neutral-900">{code.code}</TableCell><TableCell className="max-w-3xl whitespace-normal">{code.display}</TableCell><TableCell className="capitalize">{code.type ?? 'Belum diisi'}</TableCell><TableCell><Badge variant={code.active ? 'complete' : 'default'}>{code.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell></TableRow>) : <TableRow><TableCell colSpan={4}><Empty description="Coba kata kunci lain atau periksa katalog terpilih." size="compact" title="Kode tidak ditemukan" /></TableCell></TableRow>}</TableBody>
+                                <TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Uraian</TableHead><TableHead>Jenis</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                                <TableBody>{codes.data.length ? codes.data.map((code) => <TableRow key={code.code}><TableCell className="font-sans tabular-nums text-xs font-semibold text-neutral-900">{code.code}</TableCell><TableCell className="max-w-3xl whitespace-normal">{code.display}</TableCell><TableCell className="capitalize">{code.type ?? 'Belum diisi'}</TableCell><TableCell><Badge variant={code.active ? 'complete' : 'default'}>{code.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={4}><Empty description="Coba kata kunci lain atau periksa katalog terpilih." size="compact" title="Kode tidak ditemukan" /></TableCell></TableRow>}</TableBody>
                             </Table>
                         </div>
                         <Pagination pagination={codes} />

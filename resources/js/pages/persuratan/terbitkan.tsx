@@ -39,7 +39,7 @@ export default function IssueLetter({ visit, templates, today }: Props) {
                     </div>
                 </CardHeader>
                 <CardContent className="pt-5">
-                    <dl className="grid overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50/60 sm:grid-cols-2 lg:grid-cols-4">
+                    <dl className="grid overflow-hidden rounded-xl bg-neutral-50/60 sm:grid-cols-2 lg:grid-cols-4">
                         <Info label="Pasien" value={visit.patient} detail={`No. RM ${visit.medicalRecordNumber}`} />
                         <Info label="No. kunjungan" value={visit.number} detail={visit.date} />
                         <Info label="Poliklinik" value={visit.clinic} detail="Tempat pelayanan" />
@@ -68,5 +68,5 @@ export default function IssueLetter({ visit, templates, today }: Props) {
 }
 
 function Info({ label, value, detail }: { label: string; value: string; detail: string }) {
-    return <div className="min-w-0 border-b border-neutral-200 p-4 last:border-b-0 sm:border-r sm:last:border-r-0 lg:border-b-0"><dt className="text-xs font-medium text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm font-semibold text-neutral-900">{value}</dd><dd className="mt-1 break-words text-xs text-neutral-500">{detail}</dd></div>;
+    return <div className="min-w-0 border-b border-neutral-100 p-4 last:border-b-0 sm:border-r sm:last:border-r-0 lg:border-b-0"><dt className="text-xs font-medium text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm font-semibold text-neutral-900">{value}</dd><dd className="mt-1 break-words text-xs text-neutral-500">{detail}</dd></div>;
 }

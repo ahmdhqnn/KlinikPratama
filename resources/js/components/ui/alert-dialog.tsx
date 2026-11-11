@@ -13,7 +13,7 @@ export function AlertDialogContent({ className, ...props }: ComponentProps<typeo
             <DialogPrimitive.Content
                 aria-describedby={props['aria-describedby']}
                 aria-labelledby={props['aria-labelledby']}
-                className={cn('fixed left-1/2 top-1/2 z-[90] grid max-h-[90dvh] overflow-y-auto w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-5 rounded-2xl border border-neutral-200 bg-surface p-5 shadow-2xl shadow-inverse/25 outline-none sm:p-6', className)}
+                className={cn('fixed left-1/2 top-1/2 z-[90] grid max-h-[90dvh] overflow-y-auto w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-5 rounded-2xl border border-neutral-200 bg-surface p-5 outline-none sm:p-6', className)}
                 role="alertdialog"
                 {...props}
             />

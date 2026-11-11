@@ -383,7 +383,7 @@ export function OdontogramFdi({
                                         aria-pressed={isFilterActive}
                                         onClick={() => setActiveTypeFilter((cur) => (cur === type ? null : type))}
                                         className={`group flex flex-col items-center rounded-xl border p-2 transition-all ${isFilterActive
-                                                ? 'border-neutral-900 bg-neutral-100 shadow-xs ring-1 ring-neutral-900'
+                                                ? 'border-neutral-900 bg-neutral-100 ring-1 ring-neutral-900'
                                                 : isCurrentSelectedType
                                                     ? 'border-neutral-400 bg-neutral-100/60'
                                                     : 'border-neutral-200/80 bg-neutral-50/50 hover:border-neutral-300 hover:bg-neutral-100/70'
@@ -585,7 +585,7 @@ export function OdontogramFdi({
                 ].map((item) => (
                     <span
                         key={item.label}
-                        className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-surface px-3 py-1.5 text-sm font-medium text-neutral-700 shadow-2xs"
+                        className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-surface px-3 py-1.5 text-sm font-medium text-neutral-700"
                     >
                         <span aria-hidden="true" className={`tooth-status-dot size-3 rounded-full border ${item.class}`} />
                         {item.label}

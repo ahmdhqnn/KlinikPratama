@@ -1,11 +1,10 @@
 import { ActionButton } from '@/components/ui/action-button';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { Activity, CalendarDays, Clock3, ClipboardCheck, Search, Stethoscope } from 'lucide-react';
+import { Activity, CalendarDays, Clock3, ClipboardCheck, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/status-badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
@@ -83,7 +82,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[1120px]">
-                                <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                                <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {recentVisits.data.length > 0 ? recentVisits.data.map((visit) => (
                                         <TableRow key={visit.id}>
@@ -98,8 +97,8 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                 </TableBody>
                             </Table>
                         </div>
+                        <Pagination pagination={recentVisits} />
                     </CardContent>
-                    <Pagination pagination={recentVisits} />
                 </Card>
                 <FilterPanel><form className={`grid gap-4 sm:items-end ${access.selectClinic ? 'sm:grid-cols-2 xl:grid-cols-2' : 'sm:grid-cols-2'}`} onSubmit={applyFilters}>
                             {access.selectClinic && <Field htmlFor="visits-by-clinic" label="Poliklinik">
@@ -117,7 +116,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                     {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                 </Select>
                             </Field>
-                            <Button disabled={clinics.length === 0} type="submit"><Search className="size-4" />Terapkan filter</Button>
+                            <FilterSubmit disabled={clinics.length === 0} />
                         </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
@@ -129,7 +128,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[1120px]">
-                                <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                                <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {visits.data.length > 0 ? visits.data.map((visit) => (
                                         <TableRow key={visit.id}>
@@ -144,8 +143,8 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                 </TableBody>
                             </Table>
                         </div>
+                        <Pagination pagination={visits} />
                     </CardContent>
-                    <Pagination pagination={visits} />
                 </Card>
             </div>
         </>

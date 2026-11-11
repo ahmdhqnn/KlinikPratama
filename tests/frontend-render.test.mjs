@@ -881,9 +881,9 @@ test('navigation does not match unrelated prefixes or select a dashboard for unk
 
 test('nurse sidebar shows actionable queue badges and hides empty counts', async () => {
     const { default: Layout } = await server.ssrLoadModule('/resources/js/layouts/app-layout.tsx');
-    async function renderFor(role, nurseQueues) {
+    async function renderFor(role, nurseQueues, adminQueues = null) {
         const result = await createInertiaApp({
-            page: { component: 'dashboard/index', props: { errors: {}, flash: {}, modules: {}, nurseQueues, auth: { user: { id: 1, name: 'Petugas Uji', email: 'staff@example.test', role, roleLabel: role, photoUrl: null } } }, url: '/perawat/dashboard', version: null, clearHistory: false, encryptHistory: false },
+            page: { component: 'dashboard/index', props: { errors: {}, flash: {}, modules: {}, nurseQueues, adminQueues, auth: { user: { id: 1, name: 'Petugas Uji', email: 'staff@example.test', role, roleLabel: role, photoUrl: null } } }, url: '/perawat/dashboard', version: null, clearHistory: false, encryptHistory: false },
             resolve: () => () => createElement(Layout, null, createElement('p', null, 'Halaman uji')),
             render: renderToString,
             setup: ({ App, props }) => createElement(App, props),
@@ -899,6 +899,14 @@ test('nurse sidebar shows actionable queue badges and hides empty counts', async
     assert.doesNotMatch(empty, /memerlukan layanan|>99\+<\/span>/);
     const otherRole = await renderFor('admin', { assessment: 3, treatments: 105 });
     assert.doesNotMatch(otherRole, /memerlukan layanan|>99\+<\/span>/);
+    const admin = await renderFor('admin', null, { assessment: 7, treatments: 105, examinations: 4, handovers: 2 });
+    assert.match(admin, /aria-label="Pengkajian awal, 7 memerlukan layanan"/);
+    assert.match(admin, /aria-label="Pemeriksaan dokter, 4 memerlukan layanan"/);
+    assert.match(admin, /aria-label="Tindakan perawat, 105 memerlukan layanan"/);
+    assert.match(admin, /aria-label="Penyerahan obat, 2 memerlukan layanan"/);
+    assert.match(admin, />99\+<\/span>/);
+    const emptyAdmin = await renderFor('admin', null, { assessment: 0, treatments: 0, examinations: 0, handovers: 0 });
+    assert.doesNotMatch(emptyAdmin, /memerlukan layanan/);
 });
 
 test('registered patient preview presents full saved identity and honest missing values', async () => {

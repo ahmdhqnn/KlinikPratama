@@ -44,7 +44,7 @@ export default function DoctorStock({ medicines }: Props) {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[680px]">
-                                <TableHeader><tr><TableHead>Kode</TableHead><TableHead>Nama obat</TableHead><TableHead>Satuan</TableHead><TableHead className="text-center">Stok tersedia</TableHead><TableHead className="text-center">Stok minimum</TableHead></tr></TableHeader>
+                                <TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Nama obat</TableHead><TableHead>Satuan</TableHead><TableHead className="text-center">Stok tersedia</TableHead><TableHead className="text-center">Stok minimum</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {medicines.data.length > 0 ? medicines.data.map((medicine) => (
                                         <TableRow key={medicine.id}>

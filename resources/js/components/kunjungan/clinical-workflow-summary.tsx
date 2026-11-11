@@ -52,7 +52,7 @@ export function DentalExaminationSummary({ id = 'dental-examination-summary', an
                 {normalizeClinicalAnswer(extraoralExam) && <SummaryValue label="Pemeriksaan ekstraoral" value={extraoralExam} />}
             </dl>}
             {findings.length > 0 ? (
-                <OdontogramRecord compact findings={findings}><div className="overflow-x-auto rounded-xl border border-neutral-200">
+                <OdontogramRecord compact findings={findings}><div className="overflow-x-auto rounded-xl border border-neutral-100">
                     <Table aria-label="Ringkasan temuan odontogram" className="min-w-[26rem] table-fixed">
                         <TableHeader><TableRow>
                             <TableHead className="w-24 px-5 py-4 text-center">Gigi FDI</TableHead>
@@ -107,9 +107,9 @@ export function GeneralExaminationSummary({ id = 'general-examination-summary', 
                 {normalizeClinicalAnswer(physicalExam) && <SummaryValue label="Ringkasan pemeriksaan fisik" value={physicalExam} />}
             </dl>}
             {hasBodyMapContent(bodyMap) && <BodyExaminationRecord data={bodyMap} />}
-            {recordedSystems.length > 0 && <div className="space-y-3 border-t border-neutral-200 pt-4">
+            {recordedSystems.length > 0 && <div className="space-y-3 border-t border-neutral-100 pt-4">
                 <h3 className="text-sm font-semibold text-neutral-900">Temuan per sistem</h3>
-                <div className="overflow-x-auto rounded-xl border border-neutral-200"><Table aria-label="Temuan pemeriksaan per sistem" className="min-w-[32rem]"><TableHeader><TableRow><TableHead>Sistem</TableHead><TableHead>Temuan</TableHead></TableRow></TableHeader><TableBody>{recordedSystems.map(({ system, value }) => <TableRow key={system}><TableCell className="font-medium">{system}</TableCell><TableCell className="whitespace-pre-wrap break-words">{value}</TableCell></TableRow>)}</TableBody></Table></div>
+                <div className="overflow-x-auto rounded-xl border border-neutral-100"><Table aria-label="Temuan pemeriksaan per sistem" className="min-w-[32rem]"><TableHeader><TableRow><TableHead>Sistem</TableHead><TableHead>Temuan</TableHead></TableRow></TableHeader><TableBody>{recordedSystems.map(({ system, value }) => <TableRow key={system}><TableCell className="font-medium">{system}</TableCell><TableCell className="whitespace-pre-wrap break-words">{value}</TableCell></TableRow>)}</TableBody></Table></div>
             </div>}
             {!normalizeClinicalAnswer(physicalExam) && !hasBodyMapContent(bodyMap) && recordedSystems.length === 0 && <Empty size="compact" title="Belum ada temuan fisik tersimpan" description="Catat temuan pada tab Pemeriksaan fisik." />}
         </WorkflowSummary>
@@ -133,7 +133,7 @@ export function DiagnosisSummary({ id = 'diagnosis-summary', diagnoses, differen
             unsavedMessage="Ada isian diagnosis yang belum disimpan. Simpan di tab Diagnosis agar masuk ke ringkasan ini."
         >
             {orderedDiagnoses.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-neutral-200">
+                <div className="overflow-x-auto rounded-xl border border-neutral-100">
                     <Table aria-label="Ringkasan diagnosis tercatat" className="min-w-[36rem] table-fixed">
                         <TableHeader><TableRow>
                             <TableHead className="w-24 px-5 py-4 text-center">Kode</TableHead>

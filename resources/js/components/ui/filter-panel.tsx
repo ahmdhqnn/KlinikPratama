@@ -1,8 +1,18 @@
 import { Link, usePage } from '@inertiajs/react';
-import { ChevronDown, SlidersHorizontal, X } from 'lucide-react';
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
+import { useEffect, useId, useState, type ComponentProps, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+
+export function FilterSubmit({ className, disabled }: Pick<ComponentProps<typeof Button>, 'className' | 'disabled'>) {
+    return (
+        <Button className={cn('w-full sm:w-auto sm:justify-self-start', className)} disabled={disabled} type="submit">
+            <Search aria-hidden="true" className="size-4" />
+            Terapkan filter
+        </Button>
+    );
+}
 
 export function FilterPanel({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
     const { url, props } = usePage();
@@ -23,7 +33,7 @@ export function FilterPanel({ children, actions }: { children: ReactNode; action
 
     return <section aria-label="Filter data" className="space-y-3">
         <div className="flex flex-wrap items-center justify-end gap-3">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
                 {actions}
                 {active && <Button asChild size="sm" variant="ghost"><Link href={resetHref} preserveScroll replace><X className="size-4" />Reset filter</Link></Button>}
                 <Button aria-controls={panelId} aria-expanded={open} onClick={() => setOpen(!open)} size="sm" type="button" variant="secondary">
@@ -31,7 +41,7 @@ export function FilterPanel({ children, actions }: { children: ReactNode; action
                 </Button>
             </div>
         </div>
-        <CardContent className="rounded-xl border border-neutral-200 bg-surface p-5 sm:p-6 [&_form]:items-end [&_form>button]:w-full sm:[&_form>button]:w-auto sm:[&_form>button]:justify-self-start" hidden={!open} id={panelId}>
+        <CardContent className="rounded-xl bg-surface p-5 sm:p-6 sm:[&_form]:items-end" hidden={!open} id={panelId}>
             {children}
             {errors.length > 0 && <div className="mt-3 space-y-1 text-sm text-red-600" role="alert">{errors.map((error, index) => <p key={index}>{String(error)}</p>)}</div>}
         </CardContent>

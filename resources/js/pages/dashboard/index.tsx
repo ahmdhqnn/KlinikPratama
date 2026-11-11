@@ -1,4 +1,5 @@
 import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
+import { StatCard } from '@/components/dashboard/stat-card';
 import { visitStatusFilterLabels } from '@/components/dashboard/status-badge';
 import { Head, Link } from '@inertiajs/react';
 import {
@@ -14,7 +15,6 @@ import {
     Stethoscope,
     UsersRound,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -43,42 +43,15 @@ function formatWeekday(date: string): string {
     return new Intl.DateTimeFormat('id-ID', { weekday: 'short' }).format(localDate);
 }
 
-function StatCard({
-    label,
-    value,
-    detail,
-    icon,
-    accent,
-    href,
-}: {
-    label: string;
-    value: string;
-    detail: string;
-    icon: ReactNode;
-    accent: string;
-    href: string;
-}) {
-    return (
-        <Link
-            aria-label={`${label}: ${value}. ${detail}`}
-            className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2"
-            href={href}
-        >
-            <Card className="min-w-0 transition-colors group-hover:border-neutral-300">
-                <CardContent className="flex min-h-32 items-center justify-between gap-4 p-5 sm:p-6">
-                    <div className="min-w-0">
-                        <p className="text-sm font-medium text-neutral-500">{label}</p>
-                        <p className="mt-3 truncate text-2xl font-semibold tracking-tight text-neutral-950 sm:text-3xl">{value}</p>
-                        <p className="mt-2 text-xs text-neutral-500">{detail}</p>
-                    </div>
-                    <span className={`flex size-12 shrink-0 items-center justify-center rounded-xl ${accent}`}>
-                        {icon}
-                    </span>
-                </CardContent>
-            </Card>
-        </Link>
-    );
-}
+const visitBarTones = [
+    'bg-neutral-950',
+    'bg-neutral-950/90',
+    'bg-neutral-950/80',
+    'bg-neutral-950/70',
+    'bg-neutral-950/60',
+    'bg-neutral-950/[0.52]',
+    'bg-neutral-950/[0.46]',
+] as const;
 
 export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRegister, followUp }: DashboardProps) {
     const activeStatuses = Object.entries(visitStatusFilterLabels).filter(([status]) => (visitStatuses[status] ?? 0) > 0);
@@ -117,36 +90,36 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
 
                 <section aria-label="Ringkasan klinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard
-                        accent="bg-neutral-900 text-neutral-50"
-                        detail="Data pasien terdaftar"
+                        iconClassName="bg-neutral-100 text-neutral-700"
+                        description="Data pasien terdaftar"
                         icon={<UsersRound className="size-5" />}
                         label="Total pasien"
                         href={canRegister ? '/pelayanan/pasien' : '/laporan/kunjungan'}
-                        value={formatNumber(stats.totalPatients)}
+                        value={stats.totalPatients}
                     />
                     <StatCard
-                        accent="bg-neutral-900 text-neutral-50"
-                        detail="Seluruh kunjungan tercatat hari ini"
+                        iconClassName="bg-neutral-100 text-neutral-700"
+                        description="Seluruh kunjungan tercatat hari ini"
                         icon={<CalendarCheck2 className="size-5" />}
                         label="Kunjungan hari ini"
                         href={canRegister ? `/pendaftaran/kunjungan-per-poli?tanggal=${today}` : todayReportUrl}
-                        value={formatNumber(stats.visitsToday)}
+                        value={stats.visitsToday}
                     />
                     <StatCard
-                        accent="bg-neutral-900 text-neutral-50"
-                        detail="Akumulasi bulan berjalan"
+                        iconClassName="bg-neutral-100 text-neutral-700"
+                        description="Akumulasi bulan berjalan"
                         icon={<ClipboardList className="size-5" />}
                         label="Kunjungan bulan ini"
                         href={`/laporan/kunjungan?dari=${today.slice(0, 7)}-01&sampai=${today}`}
-                        value={formatNumber(stats.visitsThisMonth)}
+                        value={stats.visitsThisMonth}
                     />
                     <StatCard
-                        accent="bg-neutral-900 text-neutral-50"
-                        detail="Obat telah diserahkan hari ini"
+                        iconClassName="bg-neutral-100 text-neutral-700"
+                        description="Obat telah diserahkan hari ini"
                         icon={<Pill className="size-5" />}
                         label="Resep diserahkan"
                         href={todayReportUrl}
-                        value={formatNumber(stats.prescriptionsToday)}
+                        value={stats.prescriptionsToday}
                     />
                 </section>
                 <FollowUp data={followUp} />
@@ -194,13 +167,13 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                         <CardContent className="flex h-72 min-w-0 flex-col justify-between gap-4">
                             {visitsByDay.length > 0 ? (
                                 <div className="grid min-h-0 flex-1 grid-cols-7 items-end gap-1 border-b border-neutral-100 pb-2 sm:gap-3">
-                                    {visitsByDay.map((day) => (
+                                    {visitsByDay.map((day, index) => (
                                         <Link aria-label={`${formatNumber(day.jumlah)} kunjungan pada ${day.tanggal}. Lihat laporan`} className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2 rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" href={`/laporan/kunjungan?dari=${day.tanggal}&sampai=${day.tanggal}`} key={day.tanggal}>
                                             <span className="text-xs font-medium text-neutral-500">{formatNumber(day.jumlah)}</span>
                                             <div className="flex min-h-0 w-full flex-1 items-end justify-center">
                                                 <div
                                                     aria-label={`${formatNumber(day.jumlah)} kunjungan`}
-                                                    className="w-full max-w-10 rounded-t-md bg-neutral-950 transition-all group-hover:bg-neutral-700"
+                                                    className={`w-full max-w-12 rounded-lg transition-colors group-hover:bg-neutral-950 group-focus-visible:bg-neutral-950 ${visitBarTones[index % visitBarTones.length]}`}
                                                     style={{ height: `${(day.jumlah / peakVisits) * 100}%` }}
                                                 />
                                             </div>

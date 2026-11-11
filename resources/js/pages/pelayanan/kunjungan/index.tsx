@@ -1,7 +1,7 @@
 import { ActionButton } from '@/components/ui/action-button';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { Activity, CalendarDays, Clock3, ClipboardCheck, Plus, Search, Stethoscope } from 'lucide-react';
+import { Activity, CalendarDays, Clock3, ClipboardCheck, Plus, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -77,7 +77,7 @@ export default function VisitsIndex({ visits, todayVisits, stats, filters: initi
                     <Field htmlFor="visit-date-filter" label="Tanggal kunjungan"><DatePicker id="visit-date-filter" onChange={(event) => setFilters({ ...filters, date: event.target.value })} value={filters.date} /></Field>
                     <Field htmlFor="visit-status-filter" label="Status"><Select id="visit-status-filter" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}><option value="">Semua status</option>{statuses.map((status) => <option key={status} value={status}>{visitStatusFilterLabels[status]}</option>)}</Select></Field>
                     {canSelectClinic && <Field htmlFor="visit-clinic-filter" label="Poliklinik"><Select id="visit-clinic-filter" onChange={(event) => setFilters({ ...filters, clinicId: event.target.value })} value={filters.clinicId}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>}
-                    <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit"><Search className="size-4" />Terapkan filter</Button></div>
+                    <div className="flex flex-wrap gap-2 sm:col-span-2"><FilterSubmit /></div>
                 </form></FilterPanel>
                 <VisitList icon={<CalendarDays className="size-5" />} title="Daftar kunjungan pasien" description={`${new Intl.NumberFormat('id-ID').format(visits.total)} kunjungan sesuai filter poli, tanggal, dan status.`} visits={visits} canManageVisits={canManageVisits} onCancel={cancelVisit} />
             </div>

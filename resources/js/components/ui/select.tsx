@@ -80,7 +80,7 @@ export function Select({ className, children, value, defaultValue, onChange, id,
             />}
             <SelectPrimitive.Trigger
                 className={cn(
-                    'flex h-10 min-w-0 w-full items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm text-neutral-950 shadow-sm outline-none transition focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-neutral-400',
+                    'clinic-canvas-control flex h-10 min-w-0 w-full items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm text-neutral-950 outline-none transition focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-neutral-400',
                     fieldControlInvalidClassName,
                     className,
                 )}
@@ -94,7 +94,7 @@ export function Select({ className, children, value, defaultValue, onChange, id,
                 </SelectPrimitive.Icon>
             </SelectPrimitive.Trigger>
             <SelectPrimitive.Portal>
-            <SelectPrimitive.Content className="z-[95] max-h-72 overflow-hidden rounded-xl border border-neutral-200 bg-surface shadow-lg shadow-inverse/10 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" position="popper" sideOffset={5}>
+            <SelectPrimitive.Content className="z-[95] max-h-72 overflow-hidden rounded-xl border border-neutral-200 bg-surface data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" position="popper" sideOffset={5}>
                     <SelectPrimitive.Viewport className="p-1">
                         {options.map((option, index) => (
                             <SelectPrimitive.Item

@@ -65,8 +65,10 @@ export default function PharmacyDashboard({ stats, recentVisits, followUp, exter
                             <div><CardTitle>Siap dilayani hari ini</CardTitle><CardDescription className="mt-1">Resep yang menunggu atau sedang diproses. Yang paling lama menunggu ditampilkan lebih dulu.</CardDescription></div>
                         </div>
                     </CardHeader>
-                    <VisitTable visits={recentVisits.data} />
-                    <Pagination pagination={recentVisits} />
+                    <CardContent className="p-0">
+                        <VisitTable visits={recentVisits.data} />
+                        <Pagination pagination={recentVisits} />
+                    </CardContent>
                     <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/farmasi">Lihat penyerahan obat</Link></Button></div>
                 </Card>
             </div>

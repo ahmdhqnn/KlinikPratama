@@ -3,7 +3,7 @@ import { FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const sizeClasses = {
-    default: 'flex min-h-44 flex-col items-center justify-center gap-2.5 rounded-2xl border border-neutral-200/80 bg-gradient-to-b from-surface to-neutral-50 px-5 py-8 text-center',
+    default: 'flex min-h-44 flex-col items-center justify-center gap-2.5 rounded-2xl bg-neutral-50/60 px-5 py-8 text-center',
     compact: 'flex min-h-0 flex-col items-center justify-center gap-2.5 px-5 py-6 text-center',
 };
 
@@ -27,7 +27,7 @@ export function Empty({
     return (
         <div className={cn(sizeClasses[size], className)} role="status">
             {icon !== null && (
-                <span className="flex size-10 items-center justify-center rounded-full bg-neutral-900 text-neutral-50 shadow-sm shadow-inverse/15">
+                <span className="flex size-10 items-center justify-center rounded-full bg-neutral-900 text-neutral-50">
                     {icon === undefined ? <FileText aria-hidden="true" className="size-[18px]" /> : icon}
                 </span>
             )}

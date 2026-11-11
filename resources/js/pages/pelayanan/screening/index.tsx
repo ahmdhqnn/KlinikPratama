@@ -1,13 +1,12 @@
 import { StatCard } from '@/components/dashboard/stat-card';
 import { DatePicker } from '@/components/ui/date-picker';
 import { ActionButton } from '@/components/ui/action-button';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { Activity, CalendarDays, Clock3, ClipboardCheck, HeartPulse, Search } from 'lucide-react';
+import { Activity, CalendarDays, Clock3, ClipboardCheck, HeartPulse } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
@@ -104,7 +103,7 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
                                 <option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                             </Select>
                         </Field>}
-                        <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
+                        <FilterSubmit />
                     </form>
                 </FilterPanel>
                 <VisitList title="Daftar kunjungan pasien" description={`${new Intl.NumberFormat('id-ID').format(visits.total)} kunjungan sesuai filter. Pengkajian yang sudah dikirim dapat diperbarui selama dokter belum mulai memeriksa.`} icon={<CalendarDays className="size-5" />} visits={visits} />
@@ -116,7 +115,7 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
 function VisitList({ title, description, icon, visits }: { title: string; description: string; icon: ReactNode; visits: Props['visits'] }) {
     return <Card className="overflow-hidden">
         <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700">{icon}</span><div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div></div></CardHeader>
-        <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[1040px]"><TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Status pengkajian</TableHead><TableHead>Status kunjungan</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader><TableBody>
+        <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[1040px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Status pengkajian</TableHead><TableHead>Status kunjungan</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
             {visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}>
                 <TableCell className="font-sans tabular-nums text-xs text-neutral-600">{visit.number}</TableCell>
                 <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>

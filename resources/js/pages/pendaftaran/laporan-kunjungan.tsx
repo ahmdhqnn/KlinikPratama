@@ -1,7 +1,7 @@
 import { ActionButton } from '@/components/ui/action-button';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
-import { CalendarDays, Search, Download } from 'lucide-react';
+import { CalendarDays, Download } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/status-badge';
@@ -98,7 +98,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                 </Field>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                                <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
+                                <FilterSubmit />
                             </div>
                         </form></FilterPanel>
                 <Card className="overflow-hidden">
@@ -111,7 +111,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[1100px]">
-                                <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                                <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {visits.data.length > 0 ? visits.data.map((visit) => (
                                         <TableRow key={visit.id}>
