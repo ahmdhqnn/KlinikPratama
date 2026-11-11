@@ -55,7 +55,7 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                 </section>
                 <section aria-label="Jadwal dan tindakan perawat" className="grid items-stretch gap-4 lg:grid-cols-2 [&>a>section]:h-full [&>a>section>div]:h-full">
                     <Link aria-label={`Jadwal praktik hari ini di ${clinicName}. Lihat jadwal`} className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2" href="/pendaftaran/jadwal-praktik">
-                        <Card className="min-w-0 transition-colors group-hover:border-neutral-300">
+                        <Card className="min-w-0 transition-colors">
                             <CardContent className="flex min-h-32 items-center justify-between gap-4 p-5 sm:p-6">
                                 <div className="min-w-0">
                                     <p className="text-sm font-medium text-neutral-500">Jadwal praktik hari ini · {clinicName}</p>
@@ -91,8 +91,10 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                             <div><CardTitle>Siap dilayani hari ini</CardTitle><CardDescription className="mt-1">Pasien yang menunggu pengkajian awal atau tindakan perawat. Yang paling lama menunggu ditampilkan lebih dulu.</CardDescription></div>
                         </div>
                     </CardHeader>
-                    <VisitTable visits={visits.data} />
-                    <Pagination pagination={visits} />
+                    <CardContent className="p-0">
+                        <VisitTable visits={visits.data} />
+                        <Pagination pagination={visits} />
+                    </CardContent>
                     <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/screening">Antrean pengkajian</Link></Button><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/tindakan-perawat">Antrean tindakan</Link></Button></div>
                 </Card>
             </div>

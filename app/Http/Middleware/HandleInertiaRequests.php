@@ -46,6 +46,7 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'modules' => config('clinic.modules'),
+            'adminQueues' => fn (): ?array => $this->adminQueues($request),
             'nurseQueues' => fn (): ?array => $this->nurseQueues($request),
             'doctorQueues' => fn (): ?array => $this->doctorQueues($request),
             'pharmacyQueues' => fn (): ?array => $this->pharmacyQueues($request),
@@ -61,6 +62,21 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn (): ?string => $request->session()->get('success'),
                 'error' => fn (): ?string => $request->session()->get('error'),
             ],
+        ];
+    }
+
+    /** @return array{assessment: int, treatments: int, examinations: int, handovers: int}|null */
+    private function adminQueues(Request $request): ?array
+    {
+        if ($request->user()?->role !== 'admin') {
+            return null;
+        }
+
+        return [
+            ...app(NurseQueueCounts::class)->forAllClinics(),
+            'examinations' => Kunjungan::query()->whereDate('tanggal', today())
+                ->where('status', 'pemeriksaan')->whereDoesntHave('pemeriksaan')->count(),
+            'handovers' => $this->pendingHandovers(),
         ];
     }
 
@@ -98,7 +114,12 @@ class HandleInertiaRequests extends Middleware
             return null;
         }
 
-        return ['handovers' => Kunjungan::query()->where('status', 'farmasi')
-            ->whereDoesntHave('farmasi', fn (Builder $records) => $records->where('status', 'selesai'))->count()];
+        return ['handovers' => $this->pendingHandovers()];
+    }
+
+    private function pendingHandovers(): int
+    {
+        return Kunjungan::query()->where('status', 'farmasi')
+            ->whereDoesntHave('farmasi', fn (Builder $records) => $records->where('status', 'selesai'))->count();
     }
 }

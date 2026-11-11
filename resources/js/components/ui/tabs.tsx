@@ -34,7 +34,7 @@ export function Tabs({ value, onValueChange, className, children, ...props }: Om
 }
 
 export function TabsList({ className, ...props }: ComponentProps<'div'>) {
-    return <div aria-orientation="horizontal" className={cn('flex overflow-x-auto border-b border-neutral-100', className)} role="tablist" {...props} />;
+    return <div aria-orientation="horizontal" className={cn('flex overflow-x-auto border-b border-neutral-300', className)} role="tablist" {...props} />;
 }
 
 export function TabsTrigger({ value, className, onKeyDown, ...props }: ComponentProps<'button'> & { value: string }) {

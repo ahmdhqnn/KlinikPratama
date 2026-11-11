@@ -246,6 +246,34 @@ body {
     background-color: var(--clinic-canvas);
 }
 
+input[data-password-toggle]::-ms-reveal {
+    display: none;
+}
+
+/* Cover the browser's autofill tint while keeping the field's focus ring. */
+:is(input, textarea, select):is(:autofill, :-webkit-autofill) {
+    color: var(--clinic-neutral-950);
+    -webkit-text-fill-color: currentColor;
+    caret-color: var(--clinic-neutral-950);
+    box-shadow:
+        inset 0 0 0 100vmax var(--clinic-surface),
+        var(--tw-inset-ring-shadow, 0 0 #0000),
+        var(--tw-ring-offset-shadow, 0 0 #0000),
+        var(--tw-ring-shadow, 0 0 #0000);
+}
+
+/* Canvas controls use their surface fill; controls inside panels keep their outline. */
+:where(.clinic-app) .clinic-canvas-control:not(:where(.bg-surface *, [aria-invalid="true"], :focus-visible)) {
+    border-color: transparent;
+}
+
+@media screen {
+    :where(.clinic-app, .bg-surface) .border-neutral-100:is(.border-t, .border-b, .border-l, .border-r, .border-x, .border-y),
+    :where(.clinic-app, .bg-surface) .divide-neutral-100 > :not(:last-child) {
+        border-color: var(--clinic-neutral-300);
+    }
+}
+
 [x-cloak] {
     display: none !important;
 }
@@ -255,15 +283,24 @@ body {
     width: 6px;
     height: 6px;
 }
-::-webkit-scrollbar-track {
-    background: var(--clinic-canvas);
+::-webkit-scrollbar,
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+    background: transparent;
 }
 ::-webkit-scrollbar-thumb {
     background: var(--clinic-neutral-400);
     border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--clinic-neutral-500);
+    background: var(--clinic-neutral-600);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--clinic-neutral-400) transparent;
+    }
 }
 
 /* Sidebar active states */

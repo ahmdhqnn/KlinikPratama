@@ -18,7 +18,7 @@ export function StatCard({
     href?: string;
 }) {
     const card = (
-        <Card className={href ? 'h-full min-w-0 transition-colors group-hover:border-neutral-300' : 'h-full min-w-0'}>
+        <Card className={href ? 'h-full min-w-0 transition-colors group-hover:bg-neutral-50' : 'h-full min-w-0'}>
             <CardContent className="flex min-h-32 h-full items-center justify-between gap-4 p-5 sm:p-6">
                 <div className="min-w-0">
                     <p className="text-sm font-medium text-neutral-500 print:text-neutral-600">{label}</p>
@@ -27,7 +27,7 @@ export function StatCard({
                     </p>
                     <p className="mt-2 text-xs text-neutral-500 print:text-neutral-600">{description}</p>
                 </div>
-                <span className={`flex size-12 shrink-0 items-center justify-center rounded-xl border border-neutral-200/70 ${iconClassName}`}>
+                <span className={`flex size-12 shrink-0 items-center justify-center rounded-xl ${iconClassName}`}>
                     {icon}
                 </span>
             </CardContent>

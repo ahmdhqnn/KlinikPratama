@@ -1,8 +1,8 @@
 import { DatePicker } from '@/components/ui/date-picker';
 import { ActionButton } from '@/components/ui/action-button';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { ClipboardCheck, Download, Search } from 'lucide-react';
+import { ClipboardCheck, Download } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { PriorityBadge } from '@/components/dashboard/priority-badge';
@@ -75,7 +75,7 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                                 <option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                             </Select>
                         </Field>}
-                        <div className="flex gap-2"><Button type="submit"><Search className="size-4" />Terapkan filter</Button></div>
+                        <div className="flex gap-2"><FilterSubmit /></div>
                     </form></FilterPanel>
             <Card className="overflow-hidden">
                 <CardHeader className="border-b border-neutral-100">
@@ -87,7 +87,7 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <Table className="min-w-[850px]">
-                            <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Petugas</TableHead><TableHead className="text-center">Prioritas</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                            <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Petugas</TableHead><TableHead className="text-center">Prioritas</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                             <TableBody>
                                 {screenings.data.length ? screenings.data.map((record) => <TableRow key={record.id}>
                                     <TableCell className="font-sans tabular-nums text-xs">{record.visitNumber}</TableCell>
@@ -97,7 +97,7 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                                     <TableCell>{record.staff}<p className="mt-1 text-xs text-neutral-500">{record.isDraft ? 'Draf pengkajian' : 'Pengkajian terkirim'}</p></TableCell>
                                     <TableCell className="text-center"><PriorityBadge triage={record.triage} priority={record.priority} /></TableCell>
                                     <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2"><ActionButton disabledReason="Data ini belum dapat diubah pada tahap pelayanan saat ini." disabled={!record.editUrl} asChild action="screening" label="Perbarui pengkajian"><Link href={record.editUrl ?? ''} /></ActionButton><ActionButton disabledReason="Dokumen belum tersedia untuk dicetak." disabled={!record.printUrl} asChild action="print" label="Cetak pengkajian"><a href={record.printUrl ?? ''} /></ActionButton><ActionButton disabledReason="Detail kunjungan belum tersedia." disabled={!record.visitUrl} asChild action="detail" label="Lihat kunjungan"><Link href={record.visitUrl ?? ''} /></ActionButton></div></TableCell>
-                                </TableRow>) : <TableRow><TableCell colSpan={7}><Empty size="compact" title="Belum ada catatan pengkajian pada filter ini." /></TableCell></TableRow>}
+                                </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada catatan pengkajian pada filter ini." /></TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </div>

@@ -15,7 +15,7 @@ export default function QueueTicket({ ticket, clinic, backUrl }: { ticket: Ticke
                 <Button onClick={() => returnToPreviousScreen(backUrl)} type="button" variant="secondary"><ArrowLeft className="size-4" />Kembali</Button>
                 <Button onClick={() => void printWithFonts()} type="button"><Printer className="size-4" />Cetak tiket</Button>
             </div>
-            <article className="queue-ticket rounded-xl border border-neutral-200 bg-surface p-6 text-neutral-950 shadow-sm sm:p-8 print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black print:shadow-none">
+            <article className="queue-ticket rounded-xl border border-neutral-200 bg-surface p-6 text-neutral-950 sm:p-8 print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black print:shadow-none">
                 <header className="border-b-2 border-neutral-900 pb-4 text-center">
                     {clinic.logoUrl && <img alt="Logo klinik" className="mx-auto mb-3 max-h-14 max-w-20 object-contain" src={clinic.logoUrl} />}
                     <h1 className="text-lg font-bold uppercase tracking-wide">{clinic.name}</h1>

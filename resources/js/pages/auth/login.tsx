@@ -44,7 +44,7 @@ export default function LoginPage({ email = '' }: { email?: string }) {
             <main className="grid min-h-screen bg-surface lg:grid-cols-[minmax(0,1fr)_minmax(28rem,0.9fr)]">
                 <section className="relative hidden overflow-hidden bg-inverse px-12 py-10 text-on-inverse lg:flex lg:flex-col lg:justify-between xl:px-20">
                     <div className="relative flex items-center gap-3">
-                        <span className="flex size-11 items-center justify-center rounded-xl bg-on-inverse/15 text-on-inverse shadow-lg shadow-inverse/30">
+                        <span className="flex size-11 items-center justify-center rounded-xl bg-on-inverse/15 text-on-inverse">
                             <BriefcaseMedical className="size-6" />
                         </span>
                         <span>
@@ -122,7 +122,8 @@ export default function LoginPage({ email = '' }: { email?: string }) {
                                             <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
                                             <Input
                                                 autoComplete="current-password"
-                                                className="pl-10 pr-10"
+                                                className="pl-10 pr-12"
+                                                data-password-toggle
                                                 id="password"
                                                 name="password"
                                                 onChange={(event) => form.setData('password', event.target.value)}
@@ -133,12 +134,12 @@ export default function LoginPage({ email = '' }: { email?: string }) {
                                             />
                                             <button
                                                 type="button"
-                                                onClick={() => setShowPassword(!showPassword)}
-                                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition"
+                                                onClick={() => setShowPassword((visible) => !visible)}
+                                                className="absolute right-1 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-950 focus-visible:outline-2 focus-visible:outline-neutral-500"
                                                 title={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
                                                 aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
                                             >
-                                                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                                                {showPassword ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
                                             </button>
                                         </div>
                                     </Field>

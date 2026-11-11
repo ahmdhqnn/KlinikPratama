@@ -1,9 +1,9 @@
 import { StatCard } from '@/components/dashboard/stat-card';
 import { Input } from '@/components/ui/input';
 import { VisitActionButtons } from '@/components/dashboard/visit-action-buttons';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
-import { Activity, CalendarDays, ClipboardCheck, Clock3, Download, FileText, Search, UsersRound } from 'lucide-react';
+import { Activity, CalendarDays, ClipboardCheck, Clock3, Download, FileText, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { PriorityBadge } from '@/components/dashboard/priority-badge';
@@ -76,7 +76,7 @@ export default function DoctorAppointments({ filters, visits, isReport, isAdmin 
                         <Field htmlFor="doctor-appointments-period" label="Periode kunjungan">
                             <DateRangePicker id="doctor-appointments-period" from={dates.dari} onChange={(range) => setDates({ ...dates, dari: range.from, sampai: range.to })} to={dates.sampai} />
                         </Field>
-                        <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
+                        <FilterSubmit />
                     </form>
                 </FilterPanel>
                 <Card className="overflow-hidden">
@@ -90,7 +90,7 @@ export default function DoctorAppointments({ filters, visits, isReport, isAdmin 
                         <div className="overflow-x-auto">
                             <Table className="min-w-[850px]">
                                 <TableHeader>
-                                    <tr>
+                                    <TableRow>
                                         <TableHead>No. kunjungan</TableHead>
                                         <TableHead>Tanggal</TableHead>
                                         <TableHead>Pasien</TableHead>
@@ -99,7 +99,7 @@ export default function DoctorAppointments({ filters, visits, isReport, isAdmin 
                                         <TableHead className="text-center">Status</TableHead>
                                         <TableHead className="text-center">{isReport ? 'Diagnosis' : 'Prioritas'}</TableHead>
                                         <TableHead className="text-center">Aksi</TableHead>
-                                    </tr>
+                                    </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {visits.data.length > 0 ? visits.data.map((visit) => (

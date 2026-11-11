@@ -1,10 +1,9 @@
 import { ActionButton } from '@/components/ui/action-button';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { Boxes, Package, Search, TriangleAlert } from 'lucide-react';
+import { Boxes, Package, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -24,7 +23,7 @@ export default function Inventory({ medicines, filters, stats }: { medicines: Pa
         <FilterPanel><form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:items-center" onSubmit={(event) => { event.preventDefault(); router.get('/stok/persediaan', { search, jenis: type }, { preserveState: true, replace: true }); }}>
             <Input aria-label="Cari obat atau BHP" placeholder="Cari nama atau kode" value={search} onChange={(event) => setSearch(event.target.value)} />
             <Select className="w-full" aria-label="Jenis persediaan" value={type} onChange={(event) => setType(event.target.value)}><option value="">Obat & BHP</option><option value="obat">Obat</option><option value="bhp">BHP</option></Select>
-            <Button className="w-full sm:w-auto" type="submit" variant="secondary"><Search className="size-4" />Cari</Button>
+            <FilterSubmit />
         </form></FilterPanel>
         <Card className="overflow-hidden">
             <CardHeader className="border-b border-neutral-100">
@@ -37,7 +36,7 @@ export default function Inventory({ medicines, filters, stats }: { medicines: Pa
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                <div className="overflow-x-auto"><Table className="min-w-[800px]"><TableHeader><TableRow><TableHead className="text-center">Item persediaan</TableHead><TableHead className="text-center">Jenis</TableHead><TableHead className="text-center">Total fisik</TableHead><TableHead className="text-center">Layak pakai</TableHead><TableHead className="text-center">Batas minimum</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>{medicines.data.length ? medicines.data.map((medicine) => <TableRow key={medicine.id}><TableCell className="text-center"><p className="font-medium">{medicine.name}</p><p className="font-sans tabular-nums text-xs text-neutral-500">{medicine.code}</p></TableCell><TableCell className="text-center uppercase">{medicine.type}</TableCell><TableCell className="text-center">{formatNumber(medicine.stock)} {medicine.unit}</TableCell><TableCell className="text-center"><Badge variant={medicine.usable <= medicine.minimum ? 'warning' : 'default'}>{formatNumber(medicine.usable)} {medicine.unit}</Badge></TableCell><TableCell className="text-center">{formatNumber(medicine.minimum)} {medicine.unit}</TableCell><TableCell className="text-center"><ActionButton asChild action="stock" label="Batch & kartu stok"><Link href={medicine.url} /></ActionButton></TableCell></TableRow>) : <TableRow><TableCell className="text-center" colSpan={6}><Empty title="Persediaan belum tersedia" size="compact" /></TableCell></TableRow>}</TableBody></Table></div>
+                <div className="overflow-x-auto"><Table className="min-w-[800px]"><TableHeader><TableRow><TableHead className="text-center">Item persediaan</TableHead><TableHead className="text-center">Jenis</TableHead><TableHead className="text-center">Total fisik</TableHead><TableHead className="text-center">Layak pakai</TableHead><TableHead className="text-center">Batas minimum</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>{medicines.data.length ? medicines.data.map((medicine) => <TableRow key={medicine.id}><TableCell className="text-center"><p className="font-medium">{medicine.name}</p><p className="font-sans tabular-nums text-xs text-neutral-500">{medicine.code}</p></TableCell><TableCell className="text-center uppercase">{medicine.type}</TableCell><TableCell className="text-center">{formatNumber(medicine.stock)} {medicine.unit}</TableCell><TableCell className="text-center"><Badge variant={medicine.usable <= medicine.minimum ? 'warning' : 'default'}>{formatNumber(medicine.usable)} {medicine.unit}</Badge></TableCell><TableCell className="text-center">{formatNumber(medicine.minimum)} {medicine.unit}</TableCell><TableCell className="text-center"><ActionButton asChild action="stock" label="Batch & kartu stok"><Link href={medicine.url} /></ActionButton></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={6}><Empty title="Persediaan belum tersedia" size="compact" /></TableCell></TableRow>}</TableBody></Table></div>
                 <Pagination pagination={medicines} />
             </CardContent>
         </Card>

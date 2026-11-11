@@ -1,9 +1,9 @@
 import { identityPlaceholders } from '@/lib/form-placeholders';
 import { ReligionSelect } from '@/components/pasien/religion-select';
 import { ActionButton } from '@/components/ui/action-button';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { Download, FileSpreadsheet, Plus, Search, ShieldCheck, UsersRound } from 'lucide-react';
+import { Download, FileSpreadsheet, Plus, ShieldCheck, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { Button } from '@/components/ui/button';
@@ -142,12 +142,12 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
                 <FilterPanel actions={permissions.managePatients && <div className="flex flex-wrap gap-2"><Button asChild size="sm" variant="secondary"><Link href="/kepesertaan"><FileSpreadsheet className="size-4" />Impor kepesertaan</Link></Button><Button asChild size="sm" variant="secondary"><a href="/pelayanan/pasien-export"><Download className="size-4" />Ekspor semua pasien</a></Button><Button onClick={() => setMergeOpen(true)} size="sm" variant="secondary">Gabung RM</Button></div>}><form className="grid gap-4 md:grid-cols-2 md:items-end" onSubmit={applyFilters}>
                             <Field htmlFor="patient-search" label="Cari pasien"><Input id="patient-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama, No. RM, NIK, NIP, atau telepon" value={filters.search} /></Field>
                             <Field htmlFor="patient-membership-filter" label="Kategori peserta"><Select id="patient-membership-filter" onChange={(event) => setFilters({ ...filters, kategori: event.target.value })} value={filters.kategori}><option value="">Semua kategori</option>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
-                            <Button type="submit"><Search className="size-4" />Cari pasien</Button>
+                            <FilterSubmit />
                         </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UsersRound className="size-5" /></span><div><CardTitle>Pasien terdaftar</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(patients.total)} pasien ditemukan.</CardDescription></div></div></CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto"><Table className="min-w-[1120px]"><TableHeader><tr><TableHead>No. RM</TableHead><TableHead>Pasien</TableHead><TableHead>JK / Umur</TableHead><TableHead>Kontak</TableHead><TableHead>Alamat</TableHead><TableHead>Kepesertaan</TableHead><TableHead className="text-center">Aksi</TableHead></tr></TableHeader>
+                        <div className="overflow-x-auto"><Table className="min-w-[1120px]"><TableHeader><TableRow><TableHead>No. RM</TableHead><TableHead>Pasien</TableHead><TableHead>JK / Umur</TableHead><TableHead>Kontak</TableHead><TableHead>Alamat</TableHead><TableHead>Kepesertaan</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                             <TableBody>{patients.data.length ? patients.data.map((patient) => <TableRow key={patient.id}>
                                 <TableCell><Link className="font-sans tabular-nums text-xs font-semibold text-neutral-700 hover:underline" href={`/pelayanan/pasien/${patient.id}`}>{patient.medicalRecordNumber}</Link></TableCell>
                                 <TableCell><div className="font-medium text-neutral-900">{patient.name}</div>{patient.nip && <div className="font-sans tabular-nums text-xs text-neutral-500">NIP: {patient.nip}</div>}{patient.nik && <div className="font-sans tabular-nums text-xs text-neutral-400">NIK: {patient.nik}</div>}</TableCell>

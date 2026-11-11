@@ -2,17 +2,16 @@ import { Pagination, type PaginationData } from '@/components/dashboard/paginati
 import { StatCard } from '@/components/dashboard/stat-card';
 import { VisitActionButtons } from '@/components/dashboard/visit-action-buttons';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Head, router } from '@inertiajs/react';
-import { CalendarDays, Check, ClipboardCheck, Search, Stethoscope } from 'lucide-react';
+import { CalendarDays, Check, ClipboardCheck, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 interface ActionRow {
@@ -82,7 +81,7 @@ export default function DoctorTreatments({ filters, stats, actions }: Props) {
                             </Select>
                         </Field>
                         <div className="flex items-end gap-2">
-                            <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
+                            <FilterSubmit />
                         </div>
                     </form>
                 </FilterPanel>
@@ -121,7 +120,7 @@ export default function DoctorTreatments({ filters, stats, actions }: Props) {
                                             <TableCell className="text-center"><Badge className="whitespace-nowrap">{action.statusLabel}</Badge></TableCell>
                                             <TableCell className="text-center"><VisitActionButtons letterUrl={action.letterUrl} patient={action.patient} primary={{ href: action.detailUrl, label: `Buka pemeriksaan ${action.number}`, type: 'examination' }} recordUrl={action.recordUrl} /></TableCell>
                                         </TableRow>
-                                    )) : <TableRow><TableCell className="text-center" colSpan={9}><Empty size="compact" title="Belum ada tindakan pada pilihan ini." description="Tindakan akan tampil setelah dicatat pada pemeriksaan." /></TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={9}><Empty size="compact" title="Belum ada tindakan pada pilihan ini." description="Tindakan akan tampil setelah dicatat pada pemeriksaan." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>

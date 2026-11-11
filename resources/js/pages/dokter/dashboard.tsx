@@ -69,10 +69,10 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
                             <CardTitle>Kunjungan saya hari ini</CardTitle>
                             <CardDescription>Pasien yang ditugaskan kepada Anda hari ini.</CardDescription>
                         </CardHeader>
-                        <div className="flex min-w-0 flex-1 flex-col">
+                        <CardContent className="flex min-w-0 flex-1 flex-col p-0">
                             <div className="flex-1"><VisitTable visits={recentVisits.data} /></div>
                             <Pagination pagination={recentVisits} />
-                        </div>
+                        </CardContent>
                         <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/dokter/kunjungan">Lihat semua kunjungan</Link></Button></div>
                     </Card>
                 </section>

@@ -73,7 +73,7 @@ export default function ScreeningPrint({ document }: Props) {
             </div>
 
             <ScreeningVersionHistory versions={document.versions} />
-            <article className="clinical-sheet min-h-[10in] rounded-xl border border-neutral-200 bg-surface p-6 text-neutral-950 shadow-sm sm:p-12 print:min-h-0 print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black print:shadow-none">
+            <article className="clinical-sheet min-h-[10in] rounded-xl border border-neutral-200 bg-surface p-6 text-neutral-950 sm:p-12 print:min-h-0 print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black print:shadow-none">
                 <ClinicalDocumentHeader clinic={clinic} />
 
                 <div className="mt-7 flex flex-wrap items-start justify-between gap-3">

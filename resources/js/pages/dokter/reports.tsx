@@ -7,11 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Head, router } from '@inertiajs/react';
-import { ClipboardCheck, Download, FileText, Pill, Search, UsersRound } from 'lucide-react';
+import { ClipboardCheck, Download, FileText, Pill, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 type ReportType = 'tindakan' | 'obat';
@@ -78,7 +78,7 @@ export default function DoctorReports({ type, baseUrl = `/dokter/laporan/${type}
                     <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={applyFilters}>
                         <Field htmlFor="doctor-report-search" label="Cari pasien atau catatan"><Input id="doctor-report-search" onChange={(event) => setValues({ ...values, search: event.target.value })} placeholder="Nama, No. RM, atau nama catatan" value={values.search} /></Field>
                         <Field htmlFor="doctor-report-period" label="Periode kunjungan"><DateRangePicker from={values.dari} id="doctor-report-period" onChange={(range) => setValues({ ...values, dari: range.from, sampai: range.to })} to={values.sampai} /></Field>
-                        <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
+                        <FilterSubmit />
                     </form>
                 </FilterPanel>
                 <Card className="overflow-hidden">
@@ -97,7 +97,7 @@ export default function DoctorReports({ type, baseUrl = `/dokter/laporan/${type}
                                     <TableCell className="whitespace-nowrap text-center">{row.date}</TableCell><TableCell className="text-center font-sans tabular-nums text-xs">{row.number}</TableCell><TableCell className="text-center"><p className="font-medium">{row.patient}</p><p className="text-xs text-neutral-500">{row.medicalRecordNumber}</p></TableCell><TableCell className="text-center">{row.clinic}</TableCell>
                                     <TableCell className="max-w-56 text-center"><span className="line-clamp-2">{row.name}</span>{row.external && <span className="mt-1 block text-xs text-neutral-500">Resep luar</span>}</TableCell><TableCell className="text-center tabular-nums">{row.quantity}</TableCell>{type === 'tindakan' ? <><TableCell className="text-center">{row.executionRole === 'perawat' ? 'Perawat' : 'Dokter'}</TableCell><TableCell className="text-center"><Badge className="whitespace-nowrap">{row.statusLabel}</Badge></TableCell></> : <><TableCell className="max-w-48 text-center"><span className="block truncate" title={row.instruction || 'Belum dicatat'}>{row.instruction || 'Belum dicatat'}</span></TableCell><TableCell className="text-center"><Badge className="whitespace-nowrap">{row.statusLabel}</Badge></TableCell></>}
                                     <TableCell className="text-center"><VisitActionButtons letterUrl={row.letterUrl} patient={row.patient} primary={row.detailUrl ? { href: row.detailUrl, label: `Lihat pemeriksaan ${row.number}`, type: 'detail' } : undefined} recordUrl={row.recordUrl} showLetterAction={!isAdmin} /></TableCell>
-                                </TableRow>) : <TableRow><TableCell className="text-center" colSpan={9}><Empty size="compact" title={detail.empty} /></TableCell></TableRow>}
+                                </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={9}><Empty size="compact" title={detail.empty} /></TableCell></TableRow>}
                             </TableBody>
                         </Table></div>
                         <Pagination pagination={rows} />

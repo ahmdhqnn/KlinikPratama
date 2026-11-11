@@ -2,16 +2,15 @@ import { Pagination, type PaginationData } from '@/components/dashboard/paginati
 import { StatCard } from '@/components/dashboard/stat-card';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { VisitActionButtons } from '@/components/dashboard/visit-action-buttons';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Head, router } from '@inertiajs/react';
-import { Activity, CalendarDays, ClipboardCheck, Clock3, Search, Stethoscope } from 'lucide-react';
+import { Activity, CalendarDays, ClipboardCheck, Clock3, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 
 interface Visit {
@@ -82,7 +81,7 @@ export default function ExaminationsIndex({ visits, todayVisits, date: initialDa
                         <Field htmlFor="examination-visit-date" label="Tanggal kunjungan">
                             <DatePicker id="examination-visit-date" onChange={(event) => setDate(event.target.value)} value={date} />
                         </Field>
-                        <Button type="submit"><Search className="size-4" />Terapkan filter</Button>
+                        <FilterSubmit />
                     </form>
                 </FilterPanel>
                 <VisitList

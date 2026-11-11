@@ -1,10 +1,9 @@
 import { ActionButton } from '@/components/ui/action-button';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { Search, UsersRound } from 'lucide-react';
+import { UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
@@ -58,7 +57,7 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                                     <option value="">Semua</option><option value="L">Laki-laki</option><option value="P">Perempuan</option>
                                 </Select>
                             </Field>
-                            <Button type="submit"><Search className="size-4" />Cari pasien</Button>
+                            <FilterSubmit />
                         </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
@@ -70,7 +69,7 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[980px]">
-                                <TableHeader><tr><TableHead>No. RM</TableHead><TableHead>Nama</TableHead><TableHead>JK</TableHead><TableHead>Tanggal lahir</TableHead><TableHead>Telepon</TableHead><TableHead>Kepesertaan</TableHead><TableHead>Terdaftar</TableHead><TableHead>Aksi</TableHead></tr></TableHeader>
+                                <TableHeader><TableRow><TableHead>No. RM</TableHead><TableHead>Nama</TableHead><TableHead>JK</TableHead><TableHead>Tanggal lahir</TableHead><TableHead>Telepon</TableHead><TableHead>Kepesertaan</TableHead><TableHead>Terdaftar</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {patients.data.length > 0 ? patients.data.map((patient) => (
                                         <TableRow key={patient.id}>

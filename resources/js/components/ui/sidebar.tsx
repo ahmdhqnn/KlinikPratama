@@ -7,7 +7,7 @@ export function Sidebar({ className, ...props }: ComponentProps<'aside'>) {
 }
 
 export function SidebarHeader({ className, ...props }: ComponentProps<'div'>) {
-    return <div className={cn('flex h-[4.5rem] shrink-0 items-center border-b border-neutral-100 px-5', className)} {...props} />;
+    return <div className={cn('flex h-[4.5rem] shrink-0 items-center border-b border-neutral-200 px-5', className)} {...props} />;
 }
 
 export function SidebarContent({ className, ...props }: ComponentProps<'nav'>) {
@@ -19,7 +19,7 @@ export function SidebarGroup({ className, ...props }: ComponentProps<'section'>)
 }
 
 export function SidebarGroupLabel({ className, ...props }: ComponentProps<'h2'>) {
-    return <h2 className={cn('px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400', className)} {...props} />;
+    return <h2 className={cn('px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500', className)} {...props} />;
 }
 
 export function SidebarMenu({ className, ...props }: ComponentProps<'ul'>) {
@@ -37,5 +37,5 @@ export function SidebarMenuButton({ className, isActive = false, asChild = false
 }
 
 export function SidebarFooter({ className, ...props }: ComponentProps<'div'>) {
-    return <div className={cn('shrink-0 border-t border-neutral-100 p-3', className)} {...props} />;
+    return <div className={cn('shrink-0 border-t border-neutral-200 p-3', className)} {...props} />;
 }

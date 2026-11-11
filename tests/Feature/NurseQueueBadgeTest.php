@@ -53,7 +53,14 @@ class NurseQueueBadgeTest extends TestCase
         Pemeriksaan::create(['kunjungan_id' => $foreignTreatment->id, 'dokter_id' => $doctor->id, 'signed_at' => now()]);
         TindakanKunjungan::create(['kunjungan_id' => $foreignTreatment->id, 'nama_tindakan_manual' => 'Tindakan Lain', 'execution_role' => 'perawat', 'execution_status' => 'pending']);
 
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $this->actingAs($admin)->get(route('profile.show'))->assertInertia(fn (Assert $page) => $page
+            ->where('adminQueues.assessment', 3)->where('adminQueues.treatments', 2)
+            ->where('adminQueues.examinations', 0)->where('adminQueues.handovers', 0)
+            ->where('nurseQueues', null));
+
         $this->actingAs($user)->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->where('adminQueues', null)
             ->where('nurseQueues.assessment', 2)->where('nurseQueues.treatments', 1)
             ->where('stats.menunggu_ttv', 2)->where('stats.menunggu_tindakan', 1)
             ->where('stats.triase_darurat', 1)
@@ -74,6 +81,9 @@ class NurseQueueBadgeTest extends TestCase
         $waiting->update(['status' => 'pemeriksaan']);
         $treatment->update(['execution_status' => 'completed']);
         $treatmentVisit->update(['status' => 'selesai']);
+        $this->actingAs($admin)->get(route('profile.show'))->assertInertia(fn (Assert $page) => $page
+            ->where('adminQueues.assessment', 2)->where('adminQueues.treatments', 1));
+        $this->actingAs($user);
         $this->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
             ->where('nurseQueues.assessment', 1)->where('nurseQueues.treatments', 0)
             ->where('stats.menunggu_ttv', 1)->where('stats.menunggu_tindakan', 0)
@@ -87,6 +97,31 @@ class NurseQueueBadgeTest extends TestCase
 
         DB::table('jadwal_khusus_dokter')->insert(['dokter_id' => $doctor->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today()->toDateString(), 'is_active' => false, 'alasan' => 'Dokter berhalangan']);
         $this->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page->has('schedules', 0));
+    }
+
+    public function test_admin_badges_count_waiting_examinations_and_pending_pharmacy_handovers(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $clinic = Poliklinik::create(['kode' => 'QUEUE', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $patient = Pasien::create(['no_rm' => 'RM-ADMIN', 'nama' => 'Pasien Uji']);
+        $doctor = Nakes::create(['kode' => 'DOCTOR', 'nama' => 'Dokter Uji', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
+        $visit = fn (string $number, string $status, string $date) => Kunjungan::create([
+            'no_kunjungan' => $number, 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id,
+            'tanggal' => $date, 'status' => $status,
+        ]);
+        $waiting = $visit('WAIT', 'pemeriksaan', today()->toDateString());
+        $visit('OLD-WAIT', 'pemeriksaan', today()->subDay()->toDateString());
+        $started = $visit('STARTED', 'pemeriksaan', today()->toDateString());
+        Pemeriksaan::create(['kunjungan_id' => $started->id, 'dokter_id' => $doctor->id]);
+        $pharmacy = $visit('PHARMACY', 'farmasi', today()->subDay()->toDateString());
+        $visit('FINISHED', 'selesai', today()->toDateString());
+
+        $this->actingAs($admin)->get(route('profile.show'))->assertInertia(fn (Assert $page) => $page
+            ->where('adminQueues.examinations', 1)->where('adminQueues.handovers', 1));
+        Pemeriksaan::create(['kunjungan_id' => $waiting->id, 'dokter_id' => $doctor->id]);
+        $pharmacy->update(['status' => 'selesai']);
+        $this->get(route('profile.show'))->assertInertia(fn (Assert $page) => $page
+            ->where('adminQueues.examinations', 0)->where('adminQueues.handovers', 0));
     }
 
     public function test_unassigned_nurse_can_open_profile_without_leaking_another_clinics_badges(): void

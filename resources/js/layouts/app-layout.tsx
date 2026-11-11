@@ -53,6 +53,7 @@ interface AppUser {
 interface SharedPageProps extends PageProps {
     modules?: Partial<Record<'laboratory' | 'medicine_depots' | 'medical_equipment' | 'medical_treatments', boolean>>;
     nurseQueues?: { assessment: number; treatments: number } | null;
+    adminQueues?: { assessment: number; treatments: number; examinations: number; handovers: number } | null;
     doctorQueues?: { examinations: number } | null;
     pharmacyQueues?: { handovers: number } | null;
     auth: { user: AppUser | null };
@@ -384,7 +385,7 @@ function SidebarContents({
         <>
             <SidebarHeader className={`${isCollapsed ? 'justify-center px-2' : ''} ${headerClassName ?? ''}`}>
                 <Link aria-label="Klinik Pratama — beranda" className={`flex min-w-0 items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`} href="/" onClick={onNavigate}>
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-neutral-50 shadow-sm shadow-inverse/20">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-neutral-50">
                         <BriefcaseMedical aria-hidden="true" className="size-5" />
                     </span>
                     {!isCollapsed && <span className="min-w-0">
@@ -447,7 +448,7 @@ function AccountMenu({ user, isSidebar = false, isCollapsed = false }: { user: A
                 )}
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
-                <DropdownMenu.Content align="end" className="z-50 min-w-56 rounded-xl border border-neutral-200 bg-surface p-1.5 shadow-xl shadow-inverse/10" side={isSidebar ? 'right' : 'bottom'} sideOffset={8}>
+                <DropdownMenu.Content align="end" className="z-50 min-w-56 rounded-xl border border-neutral-200 bg-surface p-1.5" side={isSidebar ? 'right' : 'bottom'} sideOffset={8}>
                     <div className="px-3 py-2">
                         <p className="truncate text-sm font-semibold text-neutral-900">{name}</p>
                         <p className="truncate text-xs text-neutral-500">{user?.email ?? ''}</p>
@@ -480,7 +481,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         if (messages.length) toast.error(messages[0]);
     }), []);
 
-    const { auth, flash, modules, nurseQueues, doctorQueues, pharmacyQueues } = page.props;
+    const { auth, flash, modules, adminQueues, nurseQueues, doctorQueues, pharmacyQueues } = page.props;
+    const adminBadges: Record<string, number | undefined> = {
+        '/pelayanan/screening': adminQueues?.assessment,
+        '/pelayanan/pemeriksaan': adminQueues?.examinations,
+        '/pelayanan/tindakan-perawat': adminQueues?.treatments,
+        '/pelayanan/farmasi': adminQueues?.handovers,
+    };
     const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -501,7 +508,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                             ? pharmacyQueues?.handovers
                             : undefined;
 
-                return { ...item, label, badge: badge ?? undefined };
+                return { ...item, label, badge: (user?.role === 'admin' ? adminBadges[item.href] : badge) ?? undefined };
             }),
         })).filter((group) => group.items.length > 0),
         { label: 'Akun', items: [{ label: 'Profil saya', href: '/profile', icon: UserRound }] },
@@ -543,13 +550,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (user?.role !== 'perawat' && user?.role !== 'dokter' && user?.role !== 'farmasi') {
+        const queueProps: Record<string, string> = { admin: 'adminQueues', perawat: 'nurseQueues', dokter: 'doctorQueues', farmasi: 'pharmacyQueues' };
+        const queueProp = queueProps[user?.role ?? ''];
+        if (!queueProp) {
             return;
         }
 
         const refreshQueues = () => {
             if (document.visibilityState === 'visible') {
-                router.reload({ only: user?.role === 'perawat' ? ['nurseQueues'] : user?.role === 'dokter' ? ['doctorQueues'] : ['pharmacyQueues'], async: true });
+                router.reload({ only: [queueProp], async: true });
             }
         };
         const interval = window.setInterval(refreshQueues, 30_000);
@@ -572,8 +581,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     }, [flash.error, flash.success]);
 
     return (
-        <div className="min-h-screen bg-canvas text-neutral-900">
-            <Sidebar className={`fixed inset-y-4 left-4 z-40 hidden h-[calc(100vh-2rem)] overflow-hidden rounded-2xl border border-neutral-200 shadow-lg shadow-inverse/[0.06] print:hidden transition-[width] duration-200 lg:flex ${sidebarCollapsed ? 'w-[4.5rem]' : 'w-[17rem]'}`}>
+        <div className="clinic-app min-h-screen bg-canvas text-neutral-900">
+            <Sidebar className={`fixed inset-y-4 left-4 z-40 hidden h-[calc(100vh-2rem)] overflow-hidden rounded-2xl bg-surface print:hidden transition-[width] duration-200 lg:flex ${sidebarCollapsed ? 'w-[4.5rem]' : 'w-[17rem]'}`}>
                 <SidebarContents groups={groups} isCollapsed={sidebarCollapsed} onNavigate={() => setMobileNavigationOpen(false)} pathname={pathname} user={user} />
             </Sidebar>
 
@@ -588,6 +597,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
             <div className={`min-h-screen transition-[padding] duration-200 print:min-h-0 print:!pl-0 ${sidebarCollapsed ? 'lg:pl-[6.5rem]' : 'lg:pl-[19rem]'}`}>
                 <header className="sticky top-0 z-30 flex min-h-16 flex-wrap items-center gap-2 bg-canvas px-3 py-3 print:hidden sm:h-16 sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-0 lg:top-4 lg:mt-4 lg:h-[4.5rem] lg:px-8 lg:before:pointer-events-none lg:before:absolute lg:before:inset-x-0 lg:before:-top-4 lg:before:h-4 lg:before:bg-canvas lg:before:content-['']">
+                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full -z-10 h-4 bg-linear-to-b from-canvas to-transparent sm:h-6 lg:h-8" />
                     <Button
                         aria-label="Buka navigasi"
                         className="lg:hidden"
@@ -620,7 +630,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                             aria-controls="global-search-results"
                             aria-expanded={searchOpen && searchQuery.trim().length > 0}
                             autoComplete="off"
-                            className="h-10 w-full rounded-lg border border-neutral-200 bg-surface pl-9 pr-3 text-sm text-neutral-900 shadow-sm outline-none transition placeholder:text-neutral-400 focus-visible:border-neutral-400 focus-visible:ring-4 focus-visible:ring-neutral-500/10 sm:w-56 sm:pr-12 lg:w-64"
+                            className="h-10 w-full rounded-lg bg-surface pl-9 pr-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus-visible:ring-4 focus-visible:ring-neutral-500/10 sm:w-56 sm:pr-12 lg:w-64"
                             id="global-navigation-search"
                             onBlur={() => setSearchOpen(false)}
                             onChange={(event) => {
@@ -644,9 +654,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                             role="combobox"
                             value={searchQuery}
                         />
-                        <kbd aria-hidden="true" className="pointer-events-none absolute right-2 hidden rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 lg:block">Ctrl K</kbd>
+                        <kbd aria-hidden="true" className="pointer-events-none absolute right-2 hidden rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 lg:block">Ctrl K</kbd>
                         {searchOpen && searchQuery.trim().length > 0 && (
-                            <ul aria-label={searchResults.length > 0 ? 'Hasil pencarian menu' : 'Status pencarian menu'} className="absolute right-0 top-full z-50 mt-2 max-h-80 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-neutral-200 bg-surface p-1.5 shadow-xl shadow-inverse/10" id="global-search-results" role={searchResults.length > 0 ? 'listbox' : 'list'}>
+                            <ul aria-label={searchResults.length > 0 ? 'Hasil pencarian menu' : 'Status pencarian menu'} className="absolute right-0 top-full z-50 mt-2 max-h-80 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-neutral-200 bg-surface p-1.5" id="global-search-results" role={searchResults.length > 0 ? 'listbox' : 'list'}>
                                 {searchResults.length > 0 ? searchResults.map((result) => (
                                     <li key={result.href} role="option" aria-selected="false">
                                         <Link

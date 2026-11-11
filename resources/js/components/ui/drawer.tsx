@@ -19,7 +19,7 @@ export function DrawerContent({ className, children, side = 'left', ...props }: 
         <DialogPrimitive.Portal>
             <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-inverse/50 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
             <DialogPrimitive.Content
-                className={cn('fixed z-50 flex flex-col border-neutral-200 bg-surface shadow-2xl outline-none transition-transform duration-200 ease-out data-[state=closed]:duration-200 data-[state=open]:duration-300', placement, className)}
+                className={cn('fixed z-50 flex flex-col border-neutral-200 bg-surface outline-none transition-transform duration-200 ease-out data-[state=closed]:duration-200 data-[state=open]:duration-300', placement, className)}
                 {...props}
             >
                 {children}

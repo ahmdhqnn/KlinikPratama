@@ -8,12 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Head, Link, router } from '@inertiajs/react';
-import { Activity, ArrowLeft, CalendarDays, Check, ClipboardCheck, Download, Printer, Search } from 'lucide-react';
+import { Activity, ArrowLeft, CalendarDays, Check, ClipboardCheck, Download, Printer } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 interface ProcedureRow {
@@ -83,7 +83,7 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
                     <Field htmlFor="nursing-procedure-report-search" label="Cari pasien, kunjungan, atau tindakan"><Input id="nursing-procedure-report-search" placeholder="Nama, No. RM, No. kunjungan, atau tindakan" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} /></Field>
                     <Field htmlFor="nursing-procedure-report-period" label="Periode tanggal kunjungan"><DateRangePicker id="nursing-procedure-report-period" from={filters.dari} onChange={(range) => setFilters({ ...filters, dari: range.from, sampai: range.to })} to={filters.sampai} /></Field>
                     <Field htmlFor="nursing-procedure-report-status" label="Status tindakan"><Select id="nursing-procedure-report-status" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">Semua status</option><option value="pending">Menunggu tindakan</option><option value="completed">Selesai</option></Select></Field>
-                    <div className="flex gap-2"><Button type="submit"><Search className="size-4" />Terapkan filter</Button></div>
+                    <div className="flex gap-2"><FilterSubmit /></div>
                 </form>
             </FilterPanel>}
 
@@ -97,7 +97,7 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
                 <CardContent className="p-0 print:px-0">
                     <div className="overflow-x-auto print:overflow-visible">
                         <Table className={printMode ? 'min-w-[1120px] print:min-w-0' : 'min-w-[980px]'}>
-                            <TableHeader><tr><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Tindakan</TableHead>{printMode && <TableHead>Instruksi dan hasil</TableHead>}<TableHead>Pelaksana</TableHead><TableHead>Status</TableHead>{!printMode && <TableHead className="print:hidden">Aksi</TableHead>}</tr></TableHeader>
+                            <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Tindakan</TableHead>{printMode && <TableHead>Instruksi dan hasil</TableHead>}<TableHead>Pelaksana</TableHead><TableHead>Status</TableHead>{!printMode && <TableHead className="print:hidden">Aksi</TableHead>}</TableRow></TableHeader>
                             <TableBody>{procedures.data.length ? procedures.data.map((procedure) => <TableRow className="align-top" key={procedure.id}>
                                 <TableCell className="whitespace-nowrap font-sans tabular-nums text-xs text-neutral-600">{procedure.visitNumber}</TableCell>
                                 <TableCell className="whitespace-nowrap text-neutral-600">{procedure.date}</TableCell>
@@ -107,7 +107,7 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
                                 <TableCell className="min-w-36">{procedure.status === 'completed' ? <><p className="font-medium text-neutral-800">{procedure.performedBy || 'Belum dicatat'}</p><p className="mt-0.5 text-xs text-neutral-500">{procedure.performedAt || 'Waktu belum dicatat'}</p></> : <span className="text-neutral-500">Belum dilaksanakan</span>}</TableCell>
                                 <TableCell><Badge>{procedure.status === 'completed' ? 'Selesai' : 'Menunggu tindakan'}</Badge></TableCell>
                                 {!printMode && <TableCell className="print:hidden"><div className="flex justify-center"><ActionButton disabledReason="Detail kunjungan belum tersedia." disabled={!procedure.visitUrl} asChild action="detail" label="Lihat pelaksanaan"><Link href={procedure.visitUrl ?? ''} /></ActionButton></div></TableCell>}
-                            </TableRow>) : <TableRow><TableCell colSpan={printMode ? 7 : 8}><Empty size="compact" title="Belum ada tindakan sesuai filter." description="Ubah periode atau kata pencarian untuk melihat catatan tindakan lainnya." /></TableCell></TableRow>}</TableBody>
+                            </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={printMode ? 7 : 8}><Empty size="compact" title="Belum ada tindakan sesuai filter." description="Ubah periode atau kata pencarian untuk melihat catatan tindakan lainnya." /></TableCell></TableRow>}</TableBody>
                         </Table>
                     </div>
                     {!printMode && <Pagination pagination={procedures} />}

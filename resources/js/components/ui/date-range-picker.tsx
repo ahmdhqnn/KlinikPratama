@@ -143,7 +143,7 @@ export function DateRangePicker({
                         aria-controls={calendarId}
                         aria-haspopup="dialog"
                         aria-label={id ? undefined : displayName}
-                        className={cn('flex h-10 min-w-0 w-full items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm shadow-sm outline-none transition hover:border-neutral-300 focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50', completeRange || from || to ? 'text-neutral-950' : 'text-neutral-400', fieldControlInvalidClassName, className)}
+                        className={cn('clinic-canvas-control flex h-10 min-w-0 w-full items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm outline-none transition hover:border-neutral-300 focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50', completeRange || from || to ? 'text-neutral-950' : 'text-neutral-400', fieldControlInvalidClassName, className)}
                         disabled={disabled || readOnly}
                         id={id ?? calendarId + "-trigger"}
                         onClick={() => {
@@ -171,7 +171,7 @@ export function DateRangePicker({
                             sideOffset={8}
                             collisionPadding={16}
                             onOpenAutoFocus={(event) => { event.preventDefault(); calendarRef.current?.querySelector<HTMLButtonElement>(`[data-date="${activeDateKey}"]`)?.focus(); }}
-                            className="z-[95] w-[min(20rem,calc(100vw-2rem))] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto overscroll-contain rounded-xl border border-neutral-200 bg-surface p-3 shadow-xl shadow-inverse/15 outline-none"
+                            className="z-[95] w-[min(20rem,calc(100vw-2rem))] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto overscroll-contain rounded-xl border border-neutral-200 bg-surface p-3 outline-none"
                             id={calendarId}
                         >
                             <div className="mb-3 flex items-center justify-between gap-2">

@@ -1,13 +1,12 @@
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
-import { FilterPanel } from '@/components/ui/filter-panel';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Head, router } from '@inertiajs/react';
-import { Activity, Search } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 interface Diagnosis {
@@ -42,7 +41,7 @@ export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
                             <Field htmlFor="doctor-diagnoses-period" label="Periode diagnosis">
                                 <DateRangePicker id="doctor-diagnoses-period" from={dates.dari} onChange={(range) => setDates({ dari: range.from, sampai: range.to })} to={dates.sampai} />
                             </Field>
-                            <Button type="submit"><Search className="size-4" />Tampilkan</Button>
+                            <FilterSubmit />
                         </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
@@ -54,7 +53,7 @@ export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[620px]">
-                                <TableHeader><tr><TableHead className="w-24">Peringkat</TableHead><TableHead>ICD-10</TableHead><TableHead>Diagnosis</TableHead><TableHead className="text-center">Jumlah kasus</TableHead></tr></TableHeader>
+                                <TableHeader><TableRow><TableHead className="w-24">Peringkat</TableHead><TableHead>ICD-10</TableHead><TableHead>Diagnosis</TableHead><TableHead className="text-center">Jumlah kasus</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {diagnoses.data.length > 0 ? diagnoses.data.map((diagnosis, index) => (
                                         <TableRow key={`${diagnosis.code}-${diagnosis.name}`}>

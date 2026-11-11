@@ -10,7 +10,7 @@ export function TableHeader({ className, ...props }: HTMLAttributes<HTMLTableSec
 }
 
 export function TableBody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-    return <tbody className={cn('divide-y divide-neutral-100 print:divide-neutral-300', className)} {...props} />;
+    return <tbody className={cn('divide-y divide-neutral-200 print:divide-neutral-300', className)} {...props} />;
 }
 
 export function TableFooter({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
