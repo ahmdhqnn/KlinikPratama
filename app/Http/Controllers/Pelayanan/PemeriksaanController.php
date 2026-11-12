@@ -302,6 +302,7 @@ class PemeriksaanController extends Controller
                     'familyHistory' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $kunjungan->pemeriksaan->riwayat_penyakit_keluarga),
                     'allergyHistory' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $kunjungan->pemeriksaan->riwayat_alergi),
                     'physicalExam' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $kunjungan->pemeriksaan->pemeriksaan_fisik),
+                    'odontogramSummary' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['ringkasan_odontogram'] ?? null) : $kunjungan->pemeriksaan->ringkasan_odontogram),
                     'physicalSystems' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik_terstruktur'] ?? []) : ($kunjungan->pemeriksaan->pemeriksaan_fisik_terstruktur ?? []),
                     'bodyMap' => is_array($effectiveNote) ? ($effectiveNote['body_map'] ?? null) : $kunjungan->pemeriksaan->body_map,
                     'riwayat_obat' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['riwayat_obat'] ?? null) : $kunjungan->pemeriksaan->riwayat_obat),
@@ -333,6 +334,7 @@ class PemeriksaanController extends Controller
                         'recordedAt' => $version->recorded_at?->locale('id')->isoFormat('D MMMM Y HH:mm'),
                         'anamnesis' => $version->payload['anamnesis'] ?? null,
                         'physicalExam' => $version->payload['pemeriksaan_fisik'] ?? null,
+                        'odontogramSummary' => $version->payload['ringkasan_odontogram'] ?? null,
                         'bodyMap' => $version->payload['body_map'] ?? null,
                         'notes' => $version->payload['catatan'] ?? null,
                         'education' => $version->payload['edukasi'] ?? null,
@@ -1229,6 +1231,7 @@ class PemeriksaanController extends Controller
             'kebiasaan_gigi' => ['sometimes', Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'riwayat_alergi' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'pemeriksaan_fisik' => ['sometimes', 'nullable', 'string'],
+            'ringkasan_odontogram' => ['sometimes', Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'pemeriksaan_fisik_terstruktur' => ['sometimes', Rule::excludeIf(! $isGeneralClinic), 'nullable', 'array'],
             'pemeriksaan_fisik_terstruktur.*' => ['nullable', 'string', 'max:3000'],
             'body_map' => ['sometimes', Rule::excludeIf(! $isGeneralClinic), 'nullable', new BodyMapPayload],
@@ -1244,7 +1247,7 @@ class PemeriksaanController extends Controller
             'riwayat_obat', 'riwayat_perawatan_gigi', 'kebiasaan_gigi',
             'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu',
             'riwayat_penyakit_keluarga', 'riwayat_alergi', 'pemeriksaan_fisik',
-            'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'body_map',
+            'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'ringkasan_odontogram', 'body_map',
             'diagnosis_banding', 'catatan', 'edukasi', 'non_farmakologis', 'kontrol_berikutnya',
         ]));
         if ($fields === []) {
@@ -1658,6 +1661,7 @@ class PemeriksaanController extends Controller
             'riwayat_penyakit_keluarga' => ['nullable', 'string', 'max:10000'],
             'riwayat_alergi' => ['nullable', 'string', 'max:5000'],
             'pemeriksaan_fisik' => ['nullable', 'string', 'max:10000'],
+            'ringkasan_odontogram' => [Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'pemeriksaan_fisik_terstruktur' => [Rule::excludeIf(! $isGeneralClinic), 'nullable', 'array'],
             'pemeriksaan_fisik_terstruktur.*' => ['nullable', 'string', 'max:3000'],
             'body_map' => ['sometimes', Rule::excludeIf(! $isGeneralClinic), 'nullable', new BodyMapPayload],
@@ -1674,7 +1678,7 @@ class PemeriksaanController extends Controller
         if ($section !== null) {
             $sectionFields = match ($section) {
                 'anamnesis' => ['review_of_systems', 'riwayat_sosial', 'riwayat_obat', 'riwayat_perawatan_gigi', 'kebiasaan_gigi', 'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu', 'riwayat_penyakit_keluarga', 'riwayat_alergi'],
-                'pemeriksaan' => ['supporting_exams', 'pemeriksaan_fisik', 'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'body_map'],
+                'pemeriksaan' => ['supporting_exams', 'pemeriksaan_fisik', 'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'ringkasan_odontogram', 'body_map'],
                 'diagnosis' => ['diagnosis_banding'],
                 'rencana' => ['kondisi_akhir', 'disposisi', 'kontrol_berikutnya', 'catatan', 'edukasi', 'non_farmakologis'],
             };

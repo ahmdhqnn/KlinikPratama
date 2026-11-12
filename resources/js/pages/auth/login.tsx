@@ -1,9 +1,9 @@
+import { ClinicBrand } from '@/components/clinic-brand';
 import { identityPlaceholders } from '@/lib/form-placeholders';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import {
     AlertCircle,
     ArrowRight,
-    BriefcaseMedical,
     Eye,
     EyeOff,
     LockKeyhole,
@@ -41,17 +41,9 @@ export default function LoginPage({ email = '' }: { email?: string }) {
     return (
         <>
             <Head title="Masuk" />
-            <main className="grid min-h-screen bg-surface lg:grid-cols-[minmax(0,1fr)_minmax(28rem,0.9fr)]">
-                <section className="relative hidden overflow-hidden bg-inverse px-12 py-10 text-on-inverse lg:flex lg:flex-col lg:justify-between xl:px-20">
-                    <div className="relative flex items-center gap-3">
-                        <span className="flex size-11 items-center justify-center rounded-xl bg-on-inverse/15 text-on-inverse">
-                            <BriefcaseMedical className="size-6" />
-                        </span>
-                        <span>
-                            <span className="block text-base font-semibold">Klinik Pratama</span>
-                            <span className="block text-xs text-on-inverse/70">Sistem rekam medis elektronik</span>
-                        </span>
-                    </div>
+            <main className="grid min-h-dvh bg-canvas lg:grid-cols-[minmax(0,1fr)_minmax(28rem,0.9fr)]">
+                <section className="relative my-4 ml-4 hidden min-w-0 flex-col justify-between gap-10 rounded-2xl bg-inverse px-8 py-8 text-on-inverse shadow-sm lg:flex xl:px-12">
+                    <ClinicBrand inverse />
                     <div className="relative max-w-xl pb-10">
                         <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-on-inverse/15 bg-on-inverse/5 px-3 py-1.5 text-xs font-medium text-on-inverse/80">
                             <ShieldCheck className="size-4" />
@@ -72,14 +64,11 @@ export default function LoginPage({ email = '' }: { email?: string }) {
                     </div>
                     <p className="relative text-xs text-on-inverse/55">© {new Date().getFullYear()} Klinik Pratama</p>
                 </section>
-
-                <section className="relative flex min-h-screen items-center justify-center px-5 py-12 sm:px-8">
+                <section className="relative flex min-h-dvh items-center justify-center px-5 py-12 sm:px-8">
                     <ThemeToggle className="absolute right-5 top-5 sm:right-8 sm:top-8" />
                     <div className="w-full max-w-md">
                         <div className="mb-8 lg:hidden">
-                            <span className="flex size-11 items-center justify-center rounded-xl bg-neutral-600 text-neutral-50">
-                                <BriefcaseMedical className="size-6" />
-                            </span>
+                            <ClinicBrand />
                         </div>
                         <div className="mb-8 space-y-2">
                             <p className="text-sm font-semibold text-neutral-700">Portal staf</p>

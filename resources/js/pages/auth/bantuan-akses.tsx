@@ -1,5 +1,6 @@
+import { ClinicBrand } from '@/components/clinic-brand';
 import { Head, Link } from '@inertiajs/react';
-import { BriefcaseMedical, House, KeyRound, LogIn } from 'lucide-react';
+import { House, KeyRound, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -11,8 +12,7 @@ export default function AccessHelp() {
                 <div className="w-full max-w-xl space-y-5">
                     <header className="flex items-center">
                         <Link href="/login" className="flex items-center gap-3 rounded-lg text-sm font-semibold text-neutral-950">
-                            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-900 text-neutral-50"><BriefcaseMedical aria-hidden="true" className="size-5" /></span>
-                            Klinik Pratama
+                            <ClinicBrand />
                         </Link>
                     </header>
                     <Card>

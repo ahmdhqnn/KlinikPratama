@@ -586,6 +586,7 @@ class PasienController extends Controller
                         'familyHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_penyakit_keluarga'] ?? null) : $visit->pemeriksaan->riwayat_penyakit_keluarga, 'Belum dicatat'),
                         'allergyHistory' => $clinicalAnswer(is_array($effectiveNote) ? ($effectiveNote['riwayat_alergi'] ?? null) : $visit->pemeriksaan->riwayat_alergi, 'Belum dicatat'),
                         'physicalExamination' => is_array($effectiveNote) ? ($effectiveNote['pemeriksaan_fisik'] ?? null) : $visit->pemeriksaan->pemeriksaan_fisik,
+                        'odontogramSummary' => is_array($effectiveNote) ? ($effectiveNote['ringkasan_odontogram'] ?? null) : $visit->pemeriksaan->ringkasan_odontogram,
                         'generalClinicalSummary' => $this->recordedGeneralClinicalSummary($effectiveNote ?? [
                             'supporting_exams' => $visit->pemeriksaan->supporting_exams,
                             'review_of_systems' => $visit->pemeriksaan->review_of_systems,
@@ -622,6 +623,7 @@ class PasienController extends Controller
                             'familyHistory' => $clinicalAnswer($version->payload['riwayat_penyakit_keluarga'] ?? null, 'Belum dicatat'),
                             'allergyHistory' => $clinicalAnswer($version->payload['riwayat_alergi'] ?? null, 'Belum dicatat'),
                             'physicalExamination' => $version->payload['pemeriksaan_fisik'] ?? null,
+                            'odontogramSummary' => $version->payload['ringkasan_odontogram'] ?? null,
                             'generalClinicalSummary' => $this->recordedGeneralClinicalSummary($version->payload),
                             'physicalSystems' => $version->payload['pemeriksaan_fisik_terstruktur'] ?? [],
                             'bodyMap' => $version->payload['body_map'] ?? null,

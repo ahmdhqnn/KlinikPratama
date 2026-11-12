@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/button';
-import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export interface DentalFinding {
@@ -221,10 +220,10 @@ export function OdontogramFdi({
     return (
         <div className={`odontogram-fdi min-w-0 ${printView ? 'odontogram-print' : 'space-y-5'}`}>
             {/* Layout Utama: 2 Kolom Seimbang (Lengkung Gigi di Kiri, Visualisasi Tipe & Oklusi di Kanan) */}
-            {!printView && (<div role="group" aria-label="Model peta gigi" className="flex flex-wrap gap-2"><Button type="button" size="sm" variant={model === 'arch' ? 'default' : 'secondary'} aria-pressed={model === 'arch'} onClick={() => setModel('arch')}>Peta FDI</Button><Button type="button" size="sm" variant={model === 'front' ? 'default' : 'secondary'} aria-pressed={model === 'front'} onClick={() => setModel('front')}>Gigi & gusi</Button>{!recordView && <Button type="button" size="sm" variant="ghost" disabled={disabled || !selectedTooth} onClick={() => onSelect('')}>Lepas pilihan</Button>}</div>)}
+            {!printView && (<div role="group" aria-label="Model peta gigi" className="flex flex-wrap items-center gap-2"><Button type="button" size="sm" variant={model === 'arch' ? 'default' : 'secondary'} aria-pressed={model === 'arch'} onClick={() => setModel('arch')}>Peta FDI</Button><Button type="button" size="sm" variant={model === 'front' ? 'default' : 'secondary'} aria-pressed={model === 'front'} onClick={() => setModel('front')}>Gigi & gusi</Button>{!recordView && <Button type="button" size="sm" className="ml-auto" variant="ghost" disabled={disabled || !selectedTooth} onClick={() => onSelect('')}>Lepas pilihan</Button>}</div>)}
             <div className="min-w-0">
                 {/* Panel Kiri: Peta Lengkung Gigi FDI (Dental Arch) - 7 Kolom */}
-                <div hidden={model !== 'arch'} className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 transition-colors sm:p-5">
+                <div hidden={model !== 'arch'} className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 transition-colors sm:p-5 xl:min-h-[51rem]">
                     <div className={printView ? 'rme-print-map-heading' : 'mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-3'}>
                         <div>
                             <div className="flex items-center gap-2">
@@ -254,7 +253,7 @@ export function OdontogramFdi({
                     <div className={printView ? 'rme-print-map-stage' : 'relative mx-auto flex items-center justify-center overflow-hidden'}>
                         <svg
                             aria-label={`Peta odontogram FDI ${dentition === 'adult' ? 'permanen 32 gigi' : 'desidui 20 gigi'}`}
-                            className="odontogram-fdi-map h-auto w-full max-w-[530px] select-none"
+                            className="odontogram-fdi-map h-auto w-[440px] max-w-full shrink-0 select-none"
                             role="group"
                             viewBox="0 -24 520 768"
                         >
@@ -352,7 +351,7 @@ export function OdontogramFdi({
                 </div>
 
                 {/* Panel Kanan: Visualisasi Tipe Gigi (Atas) & Oklusi Rahang Mulut (Bawah) - 5 Kolom */}
-                {!printView && (<div hidden={model !== 'front'} className={model === 'front' ? 'flex min-w-0 flex-col gap-5' : 'hidden'}>
+                {!printView && (<div hidden={model !== 'front'} className={model === 'front' ? 'flex min-w-0 flex-col gap-5 xl:min-h-[51rem] xl:justify-center' : 'hidden'}>
                     {/* Bagian Kanan Atas: 4 Tipe Anatomi Gigi (Akar & Mahkota) Sesuai Referensi Gambar */}
                     <div className="min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 sm:p-5">
                         <div className="mb-3 flex items-center justify-between border-b border-neutral-100 pb-2.5">
@@ -406,7 +405,7 @@ export function OdontogramFdi({
                     </div>
 
                     {/* Bagian Kanan Bawah: Tampilan Senyum / Oklusi Rahang & Gigi Sesuai Referensi Gambar */}
-                    <div className="flex-1 min-w-0 rounded-xl border border-neutral-200 bg-surface p-4 sm:p-5">
+                    <div className="flex min-w-0 flex-1 flex-col rounded-xl border border-neutral-200 bg-surface p-4 sm:p-5">
                         <div className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 pb-3">
                             <div>
                                 <h4 className="text-sm font-bold tracking-tight text-neutral-900">
@@ -422,10 +421,10 @@ export function OdontogramFdi({
                         </div>
 
                         {/* SVG Ilustrasi Lengkap Mulut / Oklusi Rahang Atas & Bawah */}
-                        <div className="relative mx-auto flex items-center justify-center overflow-hidden py-1">
+                        <div className="relative mx-auto flex w-full flex-1 items-center justify-center overflow-hidden py-1">
                             <svg
                                 aria-label="Visual oklusi gigi dan gingiva rahang tampak anterior"
-                                className="h-auto w-full max-w-[460px] select-none"
+                                className="h-auto w-[440px] max-w-full select-none"
                                 viewBox="0 0 540 330"
                             >
                                 {/* Gingiva Rahang Atas (Gusi Atas) */}
@@ -528,47 +527,20 @@ export function OdontogramFdi({
             </div>
 
             {/* Panel Ringkasan Gigi Terpilih (Active Tooth Detail Banner) */}
-            {!recordView && (<div className="flex flex-col justify-between gap-3 rounded-xl border border-neutral-200/90 bg-neutral-50/70 p-3.5 transition-colors sm:flex-row sm:items-center">
+            {!recordView && (<div className="flex min-h-20 items-center justify-between gap-3 rounded-xl border border-neutral-200/90 bg-neutral-50/70 p-3.5 sm:h-20">
                 <div className="flex min-w-0 items-center gap-3">
-                    <div aria-label={activeMeta ? `Gigi FDI ${activeMeta.fdi}` : 'Belum ada gigi dipilih'} className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900 font-sans tabular-nums text-base font-extrabold text-neutral-50 dark:bg-neutral-100 dark:text-neutral-950" role="img">
-                        {activeMeta ? activeMeta.fdi : <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 5C9.5 3 6 3 4.5 5.5 2.5 9 5 13 5.5 16c.3 2 1.2 5 2.5 5 1.5 0 1-7 4-7s2.5 7 4 7c1.3 0 2.2-3 2.5-5 .5-3 3-7 1-10.5C18 3 14.5 3 12 5Z" /></svg>}
-                    </div>
-                    <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="break-words text-sm font-semibold text-neutral-900">
-                                {activeMeta ? activeMeta.name : disabled ? 'Ringkasan temuan gigi' : 'Pilih gigi pada peta atau gambar'}
-                            </span>
-                            {activeMeta && (
-                                <span className="text-xs text-neutral-500">
-                                    · {activeMeta.quadrantLabel}
-                                </span>
-                            )}
-                        </div>
-                        <p className="mt-0.5 text-xs text-neutral-600">
-                            {activeFindings.length > 0 ? (
-                                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-neutral-800">
-                                    <strong className="font-semibold">{activeFindings.length} temuan pada gigi ini:</strong>
-                                    {activeFindings.map((finding) => (
-                                        <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-neutral-700" key={`${finding.surface}-${finding.findingCode}`}>
-                                            {findingLabels[finding.findingCode] ?? finding.findingCode} · {surfaceLabels[finding.surface] ?? finding.surface}{finding.notes ? ` · ${finding.notes}` : ''}
-                                        </span>
-                                    ))}
-                                </span>
-                            ) : (
-                                <span>{activeMeta ? 'Belum ada temuan tercatat pada gigi ini.' : disabled ? 'Rincian temuan tersedia pada tabel odontogram.' : 'Pilih gigi pada peta untuk melihat rincian temuan.'}</span>
-                            )}
-                        </p>
+                    <div aria-label={activeMeta ? `Gigi FDI ${activeMeta.fdi}` : 'Belum ada gigi dipilih'} className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900 font-sans tabular-nums text-base font-extrabold text-neutral-50 dark:bg-neutral-100 dark:text-neutral-950" role="img">{activeMeta?.fdi ?? <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 5C9.5 3 6 3 4.5 5.5 2.5 9 5 13 5.5 16c.3 2 1.2 5 2.5 5 1.5 0 1-7 4-7s2.5 7 4 7c1.3 0 2.2-3 2.5-5 .5-3 2-7 1-10.5C18 3 14.5 3 12 5Z" /></svg>}</div>
+                    <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-neutral-900">{activeMeta ? `${activeMeta.name} · ${activeMeta.quadrantLabel}` : disabled ? 'Ringkasan temuan gigi' : 'Pilih gigi pada peta atau gambar'}</p>
+                        {activeFindings.length ? <details className="relative text-xs text-neutral-600">
+                            <summary className="cursor-pointer truncate">{activeFindings.length} temuan tercatat · Lihat rincian</summary>
+                            <div className="absolute left-0 top-full z-20 mt-2 max-h-64 w-[min(26rem,80vw)] overflow-y-auto rounded-lg border border-neutral-200 bg-surface p-3 shadow-lg">
+                                {activeFindings.map(finding => <p className="break-words py-1" key={`${finding.surface}-${finding.findingCode}`}>{findingLabels[finding.findingCode] ?? finding.findingCode} · {surfaceLabels[finding.surface] ?? finding.surface}{finding.notes ? ` · ${finding.notes}` : ''}</p>)}
+                            </div>
+                        </details> : <p className="truncate text-xs text-neutral-600">{activeMeta ? 'Belum ada temuan tercatat pada gigi ini.' : disabled ? 'Rincian tersedia pada tabel odontogram.' : 'Pilih gigi pada peta untuk melihat rincian temuan.'}</p>}
                     </div>
                 </div>
-
-                <div className="flex items-center gap-2 sm:self-center">
-                    {selectedMeta && (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-neutral-100 px-2 py-1 text-xs font-semibold text-neutral-700">
-                            <Check className="size-3.5" />
-                            Gigi {selectedMeta.fdi} terpilih
-                        </span>
-                    )}
-                </div>
+                {selectedMeta && <span className="hidden shrink-0 rounded-md bg-neutral-100 px-2 py-1 text-xs font-semibold text-neutral-700 sm:inline">Gigi {selectedMeta.fdi} terpilih</span>}
             </div>)}
 
             {/* Legenda menggunakan palet yang sama dengan peta dan gambar gigi. */}

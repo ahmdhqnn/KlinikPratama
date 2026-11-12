@@ -254,7 +254,7 @@ class ScreeningController extends Controller
             'normal' => 'Normal', 'tidak_normal' => 'Tidak normal', 'sadar' => 'Sadar', 'menurun' => 'Menurun',
             'tidak_sadar' => 'Tidak sadar', 'terganggu' => 'Terganggu', 'rendah' => 'Rendah', 'sedang' => 'Sedang',
             'tinggi' => 'Tinggi', 'ada' => 'Ada riwayat', 'tidak_ada' => 'Tidak ada (telah dikaji)',
-            'belum_diketahui' => 'Belum dapat diketahui', 'pasien' => 'Pasien sendiri', 'keluarga' => 'Keluarga',
+            'belum_diketahui' => 'Belum dapat diketahui', 'belum_dikonfirmasi' => 'Belum dapat dikonfirmasi', 'pasien' => 'Pasien sendiri', 'keluarga' => 'Keluarga',
             'pendamping' => 'Pendamping', 'tidak_dapat_diperoleh' => 'Belum dapat diperoleh',
             'hipertensi' => 'Hipertensi', 'diabetes' => 'Diabetes melitus', 'penyakit_jantung' => 'Penyakit jantung',
             'gangguan_pembekuan' => 'Gangguan pembekuan darah', 'antikoagulan' => 'Obat antikoagulan',
@@ -264,16 +264,15 @@ class ScreeningController extends Controller
             'merah' => 'Merah - perlu respons segera', 'kuning' => 'Kuning - perlu penilaian lanjut', 'hijau' => 'Hijau - prioritas rutin',
             'darurat' => 'Respons darurat', 'segera' => 'Penilaian segera',
         ];
-        $choice = static fn (?string $value): string => $choiceLabels[$value] ?? (filled($value) ? $value : 'Belum dikaji');
-        $choices = static fn (?array $values): string => $values ? implode(', ', array_map($choice, $values)) : 'Belum dikaji';
-        $presentRows = static fn (array $rows): array => array_map(static fn (mixed $value): mixed => filled($value) ? $value : 'Belum dikaji / belum dicatat', $rows);
+        $choice = static fn (?string $value): ?string => filled($value) ? ($choiceLabels[$value] ?? $value) : null;
+        $choices = static fn (?array $values): ?string => $values ? implode(', ', array_filter(array_map($choice, $values))) : null;
+        $presentRows = static fn (array $rows): array => array_filter($rows, static fn (mixed $value): bool => filled($value));
         $joinValues = static fn (?string ...$values): ?string => ($joined = implode(' — ', array_filter($values, static fn (?string $value): bool => filled($value)))) !== '' ? $joined : null;
 
-        $generalRows = $kunjungan->poliklinik?->jenis === 'umum' ? $screening->generalAssessmentSummary() : GeneralAssessment::handoverSummary($screening->general_assessment);
+        $generalRows = $kunjungan->poliklinik?->jenis === 'umum' ? GeneralAssessment::nursingSummary($screening->general_assessment, includeUnassessed: false) : GeneralAssessment::handoverSummary($screening->general_assessment);
         $generalPrintRows = [];
-        foreach ($generalRows as $label => $value) {
-            $legacy = str_contains($label, '(catatan sebelumnya)');
-            $generalPrintRows[str_replace('(catatan sebelumnya)', '(catatan lama)', $label)] = filled($value) ? $value : ($legacy ? 'Tidak tercatat pada catatan lama' : 'Belum dikaji / belum dicatat');
+        foreach ($presentRows($generalRows) as $label => $value) {
+            $generalPrintRows[str_replace('(catatan sebelumnya)', '(catatan lama)', $label)] = $value;
         }
 
         return Inertia::render('pelayanan/screening/print', [
@@ -313,12 +312,21 @@ class ScreeningController extends Controller
                             $screening->handoverSummary()['Nama penyakit'],
                             $screening->handoverSummary()['Keterangan riwayat penyakit'],
                         ),
+                        'Status penggunaan obat' => match ($screening->status_riwayat_obat) {
+                            'ada' => 'Ada obat yang digunakan',
+                            'tidak_ada' => 'Tidak menggunakan obat',
+                            'belum_diketahui' => 'Belum dapat diketahui',
+                            default => null,
+                        },
                         'Obat yang digunakan' => $screening->riwayat_obat,
                         'Kategori obat yang dilaporkan' => $screening->handoverSummary()['Kategori obat yang dilaporkan'] ?? null,
                         'Riwayat penyakit keluarga' => $screening->riwayat_penyakit_keluarga,
                         'Status alergi' => filled($screening->status_alergi) ? $choice($screening->status_alergi) : null,
                         'Riwayat alergi' => $screening->riwayat_alergi,
                         'Jenis / reaksi alergi' => $joinValues($screening->alergi_jenis, $screening->alergi_reaksi),
+                        'Tingkat keparahan alergi' => $screening->alergi_keparahan,
+                        'Catatan verifikasi alergi' => $screening->alergi_verifikasi,
+                        'Kondisi khusus, operasi, atau rawat inap yang relevan' => $screening->riwayat_kondisi_khusus,
                     ]),
                     'vitals' => $presentRows([
                         'Waktu pencatatan TTV' => $screening->vitals_measured_at?->format('d/m/Y H:i'),
@@ -347,20 +355,20 @@ class ScreeningController extends Controller
                         'Risiko jatuh' => filled($screening->risiko_jatuh_visual) ? $choice($screening->risiko_jatuh_visual) : null,
                         'Skala nyeri' => $screening->skala_nyeri !== null ? $screening->skala_nyeri.' / 10' : null,
                         'Status pengukuran TTV' => $screening->vitalMeasurementSummary(),
-                        'Kebutuhan respons awal' => filled($screening->kesimpulan_triase) ? $choice($screening->kesimpulan_triase).' · '.$choice($screening->prioritas_layanan) : null,
+                        'Kebutuhan respons awal' => filled($screening->kesimpulan_triase) ? implode(' · ', array_filter([$choice($screening->kesimpulan_triase), $choice($screening->prioritas_layanan)])) : null,
                         'Catatan penapisan' => $screening->catatan_triase,
                     ]),
                     'dental' => $kunjungan->poliklinik?->jenis === 'gigi' ? $presentRows([
-                        'Kondisi kesehatan yang perlu diketahui dokter gigi' => $screening->risiko_medis_gigi ? $choices($screening->risiko_medis_gigi) : null,
+                        'Kondisi kesehatan yang perlu diketahui dokter gigi' => $screening->risiko_medis_gigi ? implode(', ', array_map(fn (string $value): string => $value === 'lainnya' && filled($screening->risiko_medis_gigi_lainnya) ? $screening->risiko_medis_gigi_lainnya : $choice($value), $screening->risiko_medis_gigi)) : null,
                         ...$screening->dentalObservationSummary(),
-                        ...array_filter($screening->handoverSummary(), fn ($value, $key): bool => str_starts_with($key, 'Observasi mukosa') || in_array($key, ['Kelainan mukosa yang ditemukan', 'Kebiasaan gigi dan mulut yang dilaporkan', 'Status penggunaan obat'], true), ARRAY_FILTER_USE_BOTH),
-                        ...array_intersect_key($screening->handoverSummary(), array_flip(['Keterangan tanda bahaya lainnya', 'Keterangan kondisi sistemik lainnya', 'Keterangan pemicu lainnya', 'Keterangan infeksi lainnya', 'Keterangan obat lainnya', 'Tingkat keparahan alergi jika diketahui', 'Catatan verifikasi alergi', 'Karakter dan penjalaran nyeri', 'Hal yang mengurangi nyeri', 'Dampak nyeri pada aktivitas atau tidur', 'Kondisi khusus, operasi, atau rawat inap yang relevan', 'Observasi awal mulut dan rahang', 'Perawatan mulut dan kebiasaan sehari-hari'])),
+                        ...array_filter($screening->handoverSummary(), fn ($value, $key): bool => str_starts_with($key, 'Observasi mukosa') || in_array($key, ['Kelainan mukosa yang ditemukan', 'Kebiasaan gigi dan mulut yang dilaporkan'], true), ARRAY_FILTER_USE_BOTH),
+                        ...array_intersect_key($screening->handoverSummary(), array_flip(['Keterangan tanda bahaya lainnya', 'Keterangan kondisi sistemik lainnya', 'Keterangan pemicu lainnya', 'Keterangan infeksi lainnya', 'Keterangan obat lainnya', 'Karakter dan penjalaran nyeri', 'Hal yang mengurangi nyeri', 'Dampak nyeri pada aktivitas atau tidur', 'Observasi awal mulut dan rahang', 'Perawatan mulut dan kebiasaan sehari-hari'])),
                         'Riwayat perawatan gigi' => $screening->riwayat_perawatan_gigi,
                         'Kebiasaan terkait gigi dan mulut' => $screening->kebiasaan_gigi,
                         'Lokasi keluhan / nyeri' => $screening->lokasi_nyeri_gigi,
-                        'Pemicu keluhan' => $screening->pemicu_nyeri_gigi ? $choices($screening->pemicu_nyeri_gigi) : null,
+                        'Pemicu keluhan' => $screening->pemicu_nyeri_gigi ? implode(', ', array_map(fn (string $value): string => $value === 'lainnya' && filled($screening->pemicu_nyeri_gigi_lainnya) ? $screening->pemicu_nyeri_gigi_lainnya : $choice($value), $screening->pemicu_nyeri_gigi)) : null,
                         'Pola / lama keluhan' => $screening->durasi_keluhan_gigi,
-                        'Riwayat infeksi atau bengkak' => $screening->riwayat_infeksi_gigi ? $choices($screening->riwayat_infeksi_gigi) : null,
+                        'Riwayat infeksi atau bengkak' => $screening->riwayat_infeksi_gigi ? implode(', ', array_map(fn (string $value): string => $value === 'infeksi_lain' && filled($screening->riwayat_infeksi_gigi_lainnya) ? $screening->riwayat_infeksi_gigi_lainnya : $choice($value), $screening->riwayat_infeksi_gigi)) : null,
                         'Catatan untuk dokter gigi' => $screening->catatan_medis_gigi,
                     ]) : [],
                     'general' => $generalPrintRows,

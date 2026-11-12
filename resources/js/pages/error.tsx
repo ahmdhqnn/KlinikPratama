@@ -1,5 +1,6 @@
+import { ClinicBrand } from '@/components/clinic-brand';
 import { Head } from '@inertiajs/react';
-import { ArrowLeft, BriefcaseMedical, CircleAlert, CircleHelp, FileQuestion, House, ListChecks, LogIn, RotateCw, ShieldAlert, Timer, Wrench } from 'lucide-react';
+import { ArrowLeft, CircleAlert, CircleHelp, FileQuestion, House, ListChecks, LogIn, RotateCw, ShieldAlert, Timer, Wrench } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -79,8 +80,7 @@ export default function ErrorPage({ status, message, canRetry, retryAfter, retur
                 <div className="w-full max-w-2xl space-y-5">
                     <header className="flex items-center">
                         <a className="flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4" href={home}>
-                            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-900 text-neutral-50"><BriefcaseMedical aria-hidden="true" className="size-5" /></span>
-                            <span><span className="block text-sm font-semibold text-neutral-950">Klinik Pratama</span><span className="block text-xs text-neutral-600">Sistem rekam medis elektronik</span></span>
+                            <ClinicBrand />
                         </a>
                     </header>
                     <Card aria-labelledby="error-title">

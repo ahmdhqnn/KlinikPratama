@@ -1,10 +1,10 @@
+import { ClinicBrand, clinicBrand } from '@/components/clinic-brand';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
     BarChart3,
     BedDouble,
     Boxes,
-    BriefcaseMedical,
     CalendarDays,
     ChartNoAxesCombined,
     ClipboardList,
@@ -384,14 +384,8 @@ function SidebarContents({
     return (
         <>
             <SidebarHeader className={`${isCollapsed ? 'justify-center px-2' : ''} ${headerClassName ?? ''}`}>
-                <Link aria-label="Klinik Pratama — beranda" className={`flex min-w-0 items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`} href="/" onClick={onNavigate}>
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-neutral-50">
-                        <BriefcaseMedical aria-hidden="true" className="size-5" />
-                    </span>
-                    {!isCollapsed && <span className="min-w-0">
-                        <span className="block truncate text-sm font-bold tracking-tight text-neutral-950">Klinik Pratama</span>
-                        <span className="block truncate text-xs text-neutral-500">Rekam medis elektronik</span>
-                    </span>}
+                <Link aria-label={`${clinicBrand.name} — beranda`} className={`flex min-w-0 items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`} href="/" onClick={onNavigate}>
+                    <ClinicBrand iconOnly={isCollapsed} />
                 </Link>
             </SidebarHeader>
 

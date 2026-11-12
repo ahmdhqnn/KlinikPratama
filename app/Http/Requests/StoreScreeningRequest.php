@@ -29,7 +29,7 @@ class StoreScreeningRequest extends FormRequest
             $this->merge(['general_assessment' => $general]);
         }
         if ($this->route('kunjungan')?->poliklinik?->jenis === 'gigi') {
-            if (in_array($this->input('status_riwayat_penyakit'), ['tidak_ada', 'belum_diketahui'], true) && ! $this->filled('risiko_medis_gigi')) {
+            if (in_array($this->input('status_riwayat_penyakit'), ['tidak_ada', 'belum_diketahui'], true) && in_array($this->input('risiko_medis_gigi'), [null, []], true)) {
                 $this->merge(['risiko_medis_gigi' => [$this->input('status_riwayat_penyakit')], 'risiko_medis_gigi_lainnya' => null]);
             }
             if (in_array($this->input('status_riwayat_obat'), ['tidak_ada', 'belum_diketahui'], true)) {
@@ -142,7 +142,7 @@ class StoreScreeningRequest extends FormRequest
         foreach (array_keys(Screening::ORAL_AREAS) as $site) {
             $rules['mukosa_mulut.'.$site] = ['nullable', Rule::in(['normal', 'abnormal', 'belum_dinilai'])];
         }
-        $rules['kelainan_mukosa'] = [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:2000'];
+        $rules['kelainan_mukosa'] = [Rule::excludeIf(! $isDental), 'nullable', 'string', 'max:13000'];
         $rules['kebiasaan_gigi_opsi'] = [Rule::excludeIf(! $isDental), 'nullable', 'array', 'max:11'];
         $rules['kebiasaan_gigi_opsi.*'] = ['required', 'string', 'distinct', Rule::in(array_keys(Screening::ORAL_HABITS))];
 
@@ -194,7 +194,7 @@ class StoreScreeningRequest extends FormRequest
             if (array_intersect(['tidak_ada', 'belum_diketahui'], $habits) && count($habits) > 1) {
                 $validator->errors()->add('kebiasaan_gigi_opsi', 'Pilihan tidak ada atau belum diketahui harus dipilih sendiri.');
             }
-            if ($final && ! $this->filled('kelainan_mukosa')) {
+            if ($final && ! $this->hasNarrativeDetail('kelainan_mukosa')) {
                 foreach (Screening::ORAL_AREAS as $site => $label) {
                     if ($this->input('mukosa_mulut.'.$site) === 'abnormal' && ! $this->filled('mukosa_mulut.catatan.'.$site)) {
                         $validator->errors()->add('mukosa_mulut.catatan.'.$site, 'Jelaskan temuan abnormal pada '.mb_strtolower($label).'.');
@@ -215,7 +215,7 @@ class StoreScreeningRequest extends FormRequest
             if (array_intersect(['none', 'unknown'], $flags) && count($flags) > 1) {
                 $validator->errors()->add('dental_red_flags', 'Pilihan tidak ditemukan atau belum dapat dinilai harus dipilih sendiri.');
             }
-            if ($final && ($this->input('extraoral_symmetry') === 'asymmetric' || $this->input('extraoral_swelling') === 'present' || array_diff($flags, ['none']) !== []) && ! $this->filled('extraoral_notes')) {
+            if ($final && ($this->input('extraoral_symmetry') === 'asymmetric' || $this->input('extraoral_swelling') === 'present' || array_diff($flags, ['none']) !== []) && ! $this->hasNarrativeDetail('extraoral_notes')) {
                 $validator->errors()->add('extraoral_notes', 'Jelaskan lokasi, sisi, temuan / kendala, serta tindak lanjut atau komunikasi kepada dokter.');
             }
             foreach (['pemicu_nyeri_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi'] as $field) {
@@ -234,6 +234,13 @@ class StoreScreeningRequest extends FormRequest
         }];
     }
 
+    private function hasNarrativeDetail(string $field): bool
+    {
+        $value = $this->input($field);
+
+        return is_string($value) && trim(preg_replace('/^(?:Ringkasan pilihan — |Ringkasan otomatis\. )[^\r\n]*(?:\r?\n|$)/u', '', $value) ?? '') !== '';
+    }
+
     /** @return array<string, string> */
     public function messages(): array
     {
@@ -241,6 +248,7 @@ class StoreScreeningRequest extends FormRequest
             'required' => ':attribute wajib diisi sebelum meneruskan pasien.',
             'in' => 'Pilih jawaban :attribute yang tersedia.',
             'konfirmasi_riwayat.accepted' => 'Konfirmasi riwayat pasien setelah melakukan pengkajian.',
+            'risiko_medis_gigi.required' => 'Pilih minimal satu penyakit atau kondisi yang dilaporkan. Jika belum dapat diketahui, ubah status riwayat penyakit.',
             'assistance_reason.required' => 'Alasan bantuan admin wajib diisi.',
             'assistance_reason.min' => 'Alasan bantuan admin minimal 10 karakter.',
             'petugas_id.exists' => 'Pilih petugas aktif yang ditugaskan di poli ini.',
@@ -266,7 +274,7 @@ class StoreScreeningRequest extends FormRequest
             'nyeri_dada' => 'Nyeri dada', 'kejang' => 'Kejang',
             'nadi_teraba' => 'Keterabaan nadi', 'pola_pernapasan' => 'Pola pernapasan', 'kesadaran' => 'Kesadaran',
             'kondisi_psikiatri' => 'Kondisi psikiatri', 'risiko_jatuh_visual' => 'Risiko jatuh visual',
-            'risiko_medis_gigi' => 'Riwayat penyakit yang pernah atau sedang dialami',
+            'risiko_medis_gigi' => 'Penyakit atau kondisi yang dilaporkan',
         ];
     }
 }
