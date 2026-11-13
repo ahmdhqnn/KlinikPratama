@@ -290,7 +290,9 @@ class Screening extends Model
                 default => $this->riwayat_obat,
             },
             'Kategori obat yang dilaporkan' => $this->dental_medication_categories
-                ? implode(', ', array_intersect_key(self::dentalMedicationCategories(), array_flip($this->dental_medication_categories)))
+                ? implode(', ', array_map(fn (string $category): string => $category === 'other' && filled($this->dental_medication_categories_other)
+                    ? $this->dental_medication_categories_other
+                    : (self::dentalMedicationCategories()[$category] ?? $category), $this->dental_medication_categories))
                 : null,
             'Status alergi saat ini' => $choice($this->status_alergi),
             'Jenis / reaksi alergi' => $join($this->alergi_jenis, $this->alergi_reaksi),

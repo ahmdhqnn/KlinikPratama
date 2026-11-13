@@ -22,7 +22,7 @@ class GeneralAssessment
         'hospitalization_status' => 'Riwayat rawat inap', 'surgery_status' => 'Riwayat operasi', 'special_needs_status' => 'Status kebutuhan khusus', 'needs_status' => 'Status masalah perawat', 'initial_actions_status' => 'Status tindakan awal',
         'visit_purpose' => 'Tujuan kunjungan (catatan sebelumnya)', 'companion' => 'Pendamping pasien',
         'arrival' => 'Kondisi kedatangan', 'general_condition' => 'Kondisi umum',
-        'systems_notes' => 'Catatan pengkajian sistem tubuh',
+        'complaint_notes' => 'Catatan rincian keluhan', 'systems_notes' => 'Catatan pengkajian sistem tubuh',
         'airway' => 'Jalan napas', 'circulation' => 'Sirkulasi',
         'red_flags' => 'Tanda bahaya / hasil penilaian',
         'onset' => 'Awitan keluhan (catatan sebelumnya)', 'location' => 'Lokasi keluhan',
@@ -109,23 +109,27 @@ class GeneralAssessment
         ];
     }
 
-    public static function systemSummary(?array $values, array $systems): array
+    public static function systemSummary(?array $values, array $systems, bool $includeUnassessed = true): array
     {
         $statuses = ['positive' => 'Positif / abnormal', 'negative' => 'Negatif setelah dikaji', 'not_assessed' => 'Belum dikaji', 'not_relevant' => 'Tidak relevan pada kunjungan ini'];
 
-        return collect($systems)->mapWithKeys(fn (string $label, string $key): array => [
-            $label => ($statuses[$values[$key]['status'] ?? 'not_assessed'] ?? 'Belum dikaji').(filled($values[$key]['notes'] ?? null) ? ' — '.$values[$key]['notes'] : ''),
-        ])->all();
+        return collect($systems)
+            ->filter(fn (string $label, string $key): bool => $includeUnassessed
+                || in_array($values[$key]['status'] ?? null, ['positive', 'negative', 'not_relevant'], true)
+                || filled($values[$key]['notes'] ?? null))
+            ->mapWithKeys(fn (string $label, string $key): array => [
+                $label => ($statuses[$values[$key]['status'] ?? 'not_assessed'] ?? 'Belum dikaji').(filled($values[$key]['notes'] ?? null) ? ' — '.$values[$key]['notes'] : ''),
+            ])->all();
     }
 
-    public static function nursingSummary(?array $values): array
+    public static function nursingSummary(?array $values, bool $includeUnassessed = true): array
     {
         $choices = ['ada' => 'Ada', 'tidak_ada' => 'Tidak ada', 'belum_diketahui' => 'Belum diketahui', 'mandiri' => 'Mandiri', 'dibantu' => 'Dibantu', 'kursi_roda' => 'Kursi roda', 'lainnya' => 'Lainnya', 'baik' => 'Baik', 'cukup' => 'Cukup', 'lemah' => 'Lemah', 'belum_dinilai' => 'Belum dinilai', 'bebas' => 'Bebas', 'perlu_penilaian' => 'Perlu penilaian lanjut', 'tanpa_kelainan' => 'Tidak ditemukan kelainan setelah dikaji', 'terbatas' => 'Terbatas', 'membaik' => 'Membaik', 'menetap' => 'Menetap', 'memburuk' => 'Memburuk'];
         $coded = ['hospitalization_status', 'surgery_status', 'special_needs_status', 'needs_status', 'initial_actions_status', 'arrival', 'general_condition', 'airway', 'circulation', 'mobility', 'progression'];
 
         return [
             ...collect(self::FIELDS)->mapWithKeys(fn (string $label, string $key): array => [$label => in_array($key, $coded, true) ? ($choices[$values[$key] ?? ''] ?? ($values[$key] ?? null)) : ($values[$key] ?? null)])->all(),
-            ...collect(self::systemSummary($values['systems'] ?? null, self::SYSTEMS))->mapWithKeys(fn (string $value, string $label): array => ['Pengkajian sistem - '.$label => $value])->all(),
+            ...collect(self::systemSummary($values['systems'] ?? null, self::SYSTEMS, $includeUnassessed))->mapWithKeys(fn (string $value, string $label): array => ['Pengkajian sistem - '.$label => $value])->all(),
         ];
     }
 }

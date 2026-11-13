@@ -24,6 +24,37 @@ class GeneralAssessmentAlignmentTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_general_narrative_notes_and_confirmed_absence_reach_print_and_doctor(): void
+    {
+        [$nurse, $doctor, $visit] = $this->context();
+        $complaint = 'Ringkasan otomatis. Keluhan utama: Batuk sejak kemarin. Lama keluhan: 1 hari.';
+        $systems = 'Ringkasan otomatis. Sistem Respirasi abnormal (Batuk berdahak).';
+        $additional = 'Ringkasan otomatis. Riwayat penggunaan obat: Parasetamol menurut pasien. Sistem Respirasi abnormal (Batuk berdahak).';
+        $noSpecial = 'Tidak ada kondisi khusus, operasi, rawat inap, atau kehamilan yang relevan setelah dikonfirmasi.';
+        $noFamily = 'Tidak ada riwayat penyakit keluarga yang relevan setelah dikonfirmasi.';
+        $payload = $this->payload();
+        $payload['general_assessment']['complaint_notes'] = $complaint;
+        $payload['general_assessment']['systems_notes'] = $systems;
+        $payload['pemeriksaan_fisik'] = $additional;
+        $payload['riwayat_kondisi_khusus'] = $noSpecial;
+        $payload['riwayat_penyakit_keluarga'] = $noFamily;
+
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
+        $screening = $visit->fresh()->screening;
+        $this->assertSame($complaint, $screening->general_assessment['complaint_notes']);
+        $this->assertSame($additional, $screening->pemeriksaan_fisik);
+        $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('document.sections.general.Catatan rincian keluhan', $complaint)
+            ->where('document.sections.general.Catatan pengkajian sistem tubuh', $systems)
+            ->where('document.sections.additional.Observasi awal', $additional)
+            ->where('document.sections.history.Riwayat penyakit keluarga', $noFamily)
+            ->where('document.sections.history.Kondisi khusus, operasi, atau rawat inap yang relevan', $noSpecial));
+        $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.screening.summary.Catatan rincian keluhan', $complaint)
+            ->where('visit.screening.summary.Catatan pengkajian sistem tubuh', $systems)
+            ->where('visit.screening.summary.Observasi awal', $additional));
+    }
+
     public function test_assessment_must_start_and_server_records_times_only_when_observations_are_saved(): void
     {
         [$nurse, , $visit] = $this->context();
@@ -250,7 +281,8 @@ class GeneralAssessmentAlignmentTest extends TestCase
         $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
             ->missing('document.sections.previousVisit')
             ->where('document.sections.general.Tujuan kunjungan (catatan lama)', 'Berobat')
-            ->where('document.sections.general.Awitan keluhan (catatan lama)', 'Tidak tercatat pada catatan lama')
+            ->missing('document.sections.general.Awitan keluhan (catatan lama)')
+            ->missing('document.sections.general.Pengkajian sistem - Kardiovaskular')
             ->where('document.sections', fn ($sections) => collect($sections)->filter(fn ($rows) => is_array($rows) || $rows instanceof Collection)->every(fn ($rows) => collect($rows)->every(fn ($value) => filled($value)))));
 
         $otherClinic = Poliklinik::create(['kode' => 'OTHER-PRINT', 'nama' => 'Poli Gigi Lain', 'jenis' => 'gigi', 'is_active' => true]);

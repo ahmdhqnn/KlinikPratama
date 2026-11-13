@@ -31,6 +31,7 @@ class ClinicalNoteRecorder
             'riwayat_penyakit_keluarga' => ClinicalAnswer::normalize($examination->riwayat_penyakit_keluarga),
             'riwayat_alergi' => ClinicalAnswer::normalize($examination->riwayat_alergi),
             'pemeriksaan_fisik' => ClinicalAnswer::normalize($examination->pemeriksaan_fisik),
+            'ringkasan_odontogram' => ClinicalAnswer::normalize($examination->ringkasan_odontogram),
             'pemeriksaan_fisik_terstruktur' => $examination->pemeriksaan_fisik_terstruktur ?? [],
             'body_map' => $examination->body_map,
             'pemeriksaan_ekstraoral' => ClinicalAnswer::normalize($examination->pemeriksaan_ekstraoral),

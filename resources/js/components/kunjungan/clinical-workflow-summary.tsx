@@ -21,6 +21,7 @@ interface DentalExaminationSummaryProps extends SummaryProps {
     id?: string;
     anamnesis: string | null | undefined;
     intraoralExam: string | null | undefined;
+    odontogramSummary?: string | null;
     extraoralExam: string | null | undefined;
     findings: Array<{ toothFdi: string; surface: string; findingCode: string; detailSummary?: string | null; notes: string | null }>;
     options: { surfaces: Record<string, string>; findings: Record<string, string> };
@@ -33,7 +34,7 @@ interface DiagnosisSummaryProps extends SummaryProps {
     codeSystems: Array<{ value: string; label: string }>;
 }
 
-export function DentalExaminationSummary({ id = 'dental-examination-summary', anamnesis, intraoralExam, extraoralExam, findings, options, hasUnsavedChanges, onReview }: DentalExaminationSummaryProps) {
+export function DentalExaminationSummary({ id = 'dental-examination-summary', anamnesis, intraoralExam, odontogramSummary, extraoralExam, findings, options, hasUnsavedChanges, onReview }: DentalExaminationSummaryProps) {
     return (
         <WorkflowSummary
             counts={<><Badge>{new Set(findings.map((finding) => finding.toothFdi)).size} gigi</Badge><Badge>{findings.length} temuan</Badge></>}
@@ -46,9 +47,10 @@ export function DentalExaminationSummary({ id = 'dental-examination-summary', an
             title="Ringkasan pemeriksaan & odontogram"
             unsavedMessage="Ada isian anamnesis atau pemeriksaan gigi yang belum disimpan. Simpan di tab Anamnesis atau Pemeriksaan & odontogram agar masuk ke ringkasan ini."
         >
-            {(normalizeClinicalAnswer(anamnesis) || normalizeClinicalAnswer(intraoralExam) || normalizeClinicalAnswer(extraoralExam)) && <dl className="grid gap-4 sm:grid-cols-2">
+            {(normalizeClinicalAnswer(anamnesis) || normalizeClinicalAnswer(intraoralExam) || normalizeClinicalAnswer(odontogramSummary) || normalizeClinicalAnswer(extraoralExam)) && <dl className="grid gap-4 sm:grid-cols-2">
                 {normalizeClinicalAnswer(anamnesis) && <SummaryValue className="sm:col-span-2" label="Keluhan utama" value={anamnesis} />}
                 {normalizeClinicalAnswer(intraoralExam) && <SummaryValue label="Pemeriksaan intraoral" value={intraoralExam} />}
+                {normalizeClinicalAnswer(odontogramSummary) && <SummaryValue label="Ringkasan odontogram kunjungan" value={odontogramSummary} />}
                 {normalizeClinicalAnswer(extraoralExam) && <SummaryValue label="Pemeriksaan ekstraoral" value={extraoralExam} />}
             </dl>}
             {findings.length > 0 ? (
@@ -65,7 +67,9 @@ export function DentalExaminationSummary({ id = 'dental-examination-summary', an
                                 <TableCell className="px-5 py-4 text-center align-middle font-sans tabular-nums font-semibold">{finding.toothFdi}</TableCell>
                                 <TableCell className="break-words px-5 py-4 text-center align-middle">{options.surfaces[finding.surface] ?? finding.surface}</TableCell>
                                 <TableCell className="break-words px-5 py-4 text-center align-middle">{options.findings[finding.findingCode] ?? finding.findingCode}</TableCell>
-                                <TableCell className="whitespace-pre-wrap break-words px-5 py-4 text-center align-middle">{[finding.detailSummary, normalizeClinicalAnswer(finding.notes)].filter(Boolean).join('\n') || optionalAnswers.notRecorded}</TableCell>
+                                <TableCell className="break-words px-4 py-3 text-left align-top">{finding.detailSummary || normalizeClinicalAnswer(finding.notes)
+                                    ? <details className="group min-w-0"><summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden"><span className="line-clamp-2 group-open:hidden">{[finding.detailSummary, normalizeClinicalAnswer(finding.notes)].filter(Boolean).join(' · ')}</span><span className="text-xs text-neutral-500 group-open:hidden">Lihat lengkap</span><span className="hidden text-xs text-neutral-500 group-open:inline">Tutup</span></summary><p className="mt-2 whitespace-pre-wrap">{[finding.detailSummary, normalizeClinicalAnswer(finding.notes)].filter(Boolean).join('\n')}</p></details>
+                                    : optionalAnswers.notRecorded}</TableCell>
                             </TableRow>
                         ))}</TableBody>
                     </Table>

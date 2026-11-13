@@ -154,7 +154,7 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
         </div>;
     }
     function renderFindingForm() {
-        return <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 p-4 sm:p-5" aria-label={compact ? 'Input pemeriksaan ringkas' : 'Input temuan lokasi tubuh'}>
+        return <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 p-4 sm:p-5 xl:min-h-[48rem]" aria-label={compact ? 'Input pemeriksaan ringkas' : 'Input temuan lokasi tubuh'}>
             <div className="flex items-center gap-3"><span aria-label={selected?.id === 'lungs' ? 'Sistem Respirasi' : 'Lokasi pemeriksaan'} role="img" className="rounded-xl bg-neutral-100 p-3 text-neutral-700">{selected?.id === 'lungs' ? <Wind className="size-5" /> : <MapPin className="size-5" />}</span><div className="min-w-0"><h3 className="font-semibold text-neutral-950">{selected?.label || draft.locationLabel || (compact ? 'Pemeriksaan fisik' : 'Pilih lokasi pemeriksaan')}</h3><p className="text-sm text-neutral-500">Catat temuan sesuai hasil pemeriksaan.</p></div></div>
             {!compact && renderLocationPicker()}
             {!compact && <>
@@ -190,8 +190,8 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
                 <TabsList aria-label="Cara pemeriksaan fisik"><TabsTrigger value="interactive"><MapPin className="size-4" />Peta interaktif</TabsTrigger><TabsTrigger value="manual"><Pencil className="size-4" />Gambar & anotasi</TabsTrigger></TabsList>
                 {pending && <p role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">Temuan belum ditambahkan. Tambahkan atau kosongkan isian sebelum menyimpan pemeriksaan.</p>}
                 <TabsContent value="interactive" className="pt-5">
-                    {tab === 'interactive' && <div className="grid min-w-0 items-start gap-5 xl:grid-cols-2">
-                        <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 bg-neutral-50/50 p-4 sm:p-5" aria-label="Diagram anatomi tubuh">
+                    {tab === 'interactive' && <div className="grid min-w-0 items-stretch gap-5 xl:grid-cols-2">
+                        <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 bg-neutral-50/50 p-4 sm:p-5 xl:min-h-[48rem]" aria-label="Diagram anatomi tubuh">
                             <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex gap-2" role="group" aria-label="Tampilan anatomi"><Button type="button" size="sm" disabled={disabled} variant={mode === 'organs' ? 'default' : 'secondary'} aria-pressed={mode === 'organs'} onClick={() => { if (mode !== 'organs') chooseLocation(null, 'organs', 'front'); }}>Organ</Button><Button type="button" size="sm" disabled={disabled} variant={mode === 'body' ? 'default' : 'secondary'} aria-pressed={mode === 'body'} onClick={() => { if (mode !== 'body') chooseLocation(null, 'body', view); }}>Seluruh tubuh</Button></div><Button type="button" size="sm" variant="ghost" disabled={!draft.locationId || disabled} onClick={() => chooseLocation(null)}>Lepas pilihan</Button></div>
                             <div className="grid grid-cols-2 gap-3"><Field htmlFor={inputId('body-view')} label="Sudut pandang"><Select id={inputId('body-view')} value={view} disabled={disabled || mode === 'organs'} onChange={(event) => chooseLocation(null, mode, event.target.value as BodyView)}><option value="front">Depan</option><option value="back">Belakang</option></Select></Field><Field htmlFor={inputId('body-model')} label="Model ilustrasi"><Select id={inputId('body-model')} disabled={disabled} value={model} onChange={(event) => setModel(event.target.value as 'male' | 'female')}><option value="male">Laki-laki</option><option value="female">Perempuan</option></Select></Field></div>
                             <HumanBodyModel mode={mode} model={model} view={view} selectedId={draft.locationId} disabled={disabled} onSelect={(location) => chooseLocation(location, mode, view, true)} />
@@ -201,8 +201,8 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
                     </div>}
                 </TabsContent>
                 <TabsContent value="manual" className="pt-5">
-                    {tab === 'manual' && <div className="grid min-w-0 items-start gap-5 xl:grid-cols-2">
-                        <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 p-4 sm:p-5" aria-label="Gambar dan alat anotasi">
+                    {tab === 'manual' && <div className="grid min-w-0 items-stretch gap-5 xl:grid-cols-2">
+                        <section className="min-w-0 space-y-4 rounded-xl border border-neutral-200 p-4 sm:p-5 xl:min-h-[48rem]" aria-label="Gambar dan alat anotasi">
                             <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="rounded-xl bg-neutral-100 p-3 text-neutral-700"><Pencil className="size-5" /></span><div className="min-w-0"><h3 className="font-semibold text-neutral-950">Gambar tubuh</h3><p className="text-sm text-neutral-500">Tandai lokasi temuan pada gambar.</p></div></div><Button size="icon" type="button" variant="secondary" title="Perbesar gambar" aria-label="Perbesar gambar" onClick={() => setExpanded(true)}><ZoomIn className="size-4" /></Button></div>
                             <BodyAnnotationEditor value={bodyMap.annotation} showNote={false} disabled={disabled} onChange={(annotation) => onBodyMapChange?.({ ...bodyMap, annotation })} />
                         </section>

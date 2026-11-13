@@ -450,6 +450,27 @@ input[data-password-toggle]::-ms-reveal {
     .clinical-sheet .overflow-hidden { overflow:visible!important; }
     .clinical-sheet th, .clinical-sheet td { padding:2mm; overflow-wrap:anywhere; }
     .clinical-sheet h3 { break-after:avoid; }
+    .screening-print-document { background:#fff; color:#111; font-size:9.5pt; line-height:1.35; print-color-adjust:exact; }
+    .screening-print-document h1 { margin:3mm 0 1mm; font-size:14pt; break-after:avoid; }
+    .screening-print-identity { margin:3mm 0; border:1px solid #444; background:#fff; break-inside:avoid; }
+    .screening-print-identity-heading { border-bottom:1px solid #444; background:#fff; padding:2mm; }
+    .screening-print-identity-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .screening-print-visit-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+    .screening-print-identity :is(dt) { font-size:8pt; }
+    .screening-print-identity :is(dd,h2,strong) { overflow-wrap:anywhere; }
+    .screening-print-identity-grid, .screening-print-visit-grid { background:#444; }
+    .screening-print-visit-grid { border-top:1px solid #444; }
+    .screening-print-identity-grid > div, .screening-print-visit-grid > div { background:#fff; padding:1.4mm 2mm; }
+    .screening-print-table { width:100%; table-layout:fixed; border-collapse:collapse; margin:0 0 3mm; }
+    .screening-print-label { width:31%; }
+    .screening-print-table thead { display:table-header-group; break-inside:avoid; }
+    .screening-print-table tr { break-inside:avoid; }
+    .screening-print-table .screening-print-long-row { break-inside:auto; }
+    .screening-print-table th, .screening-print-table td { border:1px solid #444; background:#fff; padding:1.4mm 2mm; text-align:left; vertical-align:top; overflow-wrap:anywhere; }
+    .screening-print-table thead th { border-bottom:1.5pt solid #111; font-weight:700; }
+    .screening-print-table tbody th { font-weight:600; }
+    .screening-print-table td { white-space:pre-wrap; orphans:2; widows:2; }
+    .screening-print-signatures { break-inside:avoid; }
 }
 
 .clinical-document-head .clinical-license { font-size:8.5pt; }

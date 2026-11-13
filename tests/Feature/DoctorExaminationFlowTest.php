@@ -24,6 +24,22 @@ class DoctorExaminationFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_dental_odontogram_summary_saves_separately_from_intraoral_findings(): void
+    {
+        [$doctor, $visit, $examination] = $this->examinationWithSections('gigi');
+
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.store', $visit), [
+            'section' => 'pemeriksaan',
+            'ringkasan_odontogram' => 'Gigi 26: karies oklusal; gigi lain yang diperiksa sesuai catatan odontogram.',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('Temuan awal', $examination->fresh()->pemeriksaan_fisik);
+        $this->assertSame('Gigi 26: karies oklusal; gigi lain yang diperiksa sesuai catatan odontogram.', $examination->fresh()->ringkasan_odontogram);
+
+        $this->get(route('pelayanan.pemeriksaan.show', $visit))
+            ->assertInertia(fn (Assert $page) => $page->where('visit.examination.odontogramSummary', $examination->fresh()->ringkasan_odontogram));
+    }
+
     public function test_doctor_examination_keeps_unanswered_optional_history_and_notes_empty(): void
     {
         $user = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
