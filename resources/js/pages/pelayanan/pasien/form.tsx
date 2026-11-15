@@ -54,10 +54,10 @@ export default function PatientForm({ patient }: Props) {
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (patient) {
-            form.put(`/pelayanan/pasien/${patient.id}`, { onSuccess: () => form.setDefaults() });
+            form.put(`/pelayanan/pasien/${patient.id}`, { preserveScroll: true, onSuccess: () => form.setDefaults() });
         } else {
             form.transform((data) => ({ ...data, registration_type: registrationType }));
-            form.post('/pelayanan/pasien');
+            form.post('/pelayanan/pasien', { preserveScroll: 'errors' });
         }
     }
 

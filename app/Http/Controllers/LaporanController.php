@@ -7,7 +7,6 @@ use App\DateRangeFilter;
 use App\Exports\KunjunganExport;
 use App\Exports\OperationalReportExport;
 use App\Models\Kunjungan;
-use App\Models\LabHasil;
 use App\Models\Obat;
 use App\Models\ObatBatch;
 use App\Models\Poliklinik;
@@ -91,30 +90,6 @@ class LaporanController extends Controller
         ]);
     }
 
-    public function laboratorium(Request $request): Response
-    {
-        $period = DateRangeFilter::fromRequest($request);
-        $dari = $period->from ?? '';
-        $sampai = $period->to ?? '';
-        $hasilLab = $this->laboratoryQuery($period)
-            ->paginate(10)
-            ->withQueryString();
-
-        return Inertia::render('laporan/laboratorium', [
-            'filters' => ['from' => $dari, 'to' => $sampai],
-            'exportUrl' => route('laporan.laboratorium.export', ['dari' => $dari, 'sampai' => $sampai]),
-            'results' => $this->pagination($hasilLab, fn (LabHasil $result): array => [
-                'id' => $result->id,
-                'date' => $result->created_at?->format('d/m/Y H:i'),
-                'visitNumber' => $result->kunjungan?->no_kunjungan ?? 'Belum diisi',
-                'patient' => $result->kunjungan?->pasien?->nama ?? 'Belum diisi',
-                'test' => $result->laboratorium?->nama ?? 'Belum diisi',
-                'staff' => $result->petugas?->nama,
-                'status' => $result->status,
-            ]),
-        ]);
-    }
-
     public function exportKunjungan(Request $request, ClinicalAuditRecorder $audit): BinaryFileResponse
     {
         $period = DateRangeFilter::fromRequest($request);
@@ -145,28 +120,6 @@ class LaporanController extends Controller
         ), 'laporan-stok-'.today()->toDateString().'.xlsx');
     }
 
-    public function exportLaboratorium(Request $request, ClinicalAuditRecorder $audit): BinaryFileResponse
-    {
-        $period = DateRangeFilter::fromRequest($request);
-        $audit->record($request, 'laboratory_report.export', metadata: ['from' => $period->from, 'to' => $period->to]);
-
-        return Excel::download(new OperationalReportExport(
-            $this->laboratoryQuery($period)->with('detail.indikator'),
-            ['No. Kunjungan', 'Tanggal', 'Pasien', 'Pemeriksaan', 'Petugas', 'Status', 'Indikator', 'Hasil', 'Satuan', 'Keterangan'],
-            function (LabHasil $result): array {
-                $identity = [
-                    $result->kunjungan?->no_kunjungan, $result->created_at?->format('d/m/Y H:i'),
-                    $result->kunjungan?->pasien?->nama, $result->laboratorium?->nama,
-                    $result->petugas?->nama, $result->status,
-                ];
-
-                return $result->detail->isEmpty()
-                    ? [[...$identity, null, null, null, null]]
-                    : $result->detail->map(fn ($detail): array => [...$identity, $detail->indikator?->nama, $detail->nilai, $detail->indikator?->satuan, $detail->keterangan])->all();
-            },
-        ), 'laporan-laboratorium-'.today()->toDateString().'.xlsx');
-    }
-
     private function stockFilters(Request $request): array
     {
         return $request->validate([
@@ -186,12 +139,6 @@ class LaporanController extends Controller
                 DB::raw('obat.stok_minimum'),
             ))
             ->orderBy('nama')->orderBy('id');
-    }
-
-    private function laboratoryQuery(DateRangeFilter $period): Builder
-    {
-        return $period->apply(LabHasil::with(['laboratorium', 'kunjungan.pasien', 'petugas']), 'created_at')
-            ->latest()->latest('id');
     }
 
     private function pagination(LengthAwarePaginator $paginator, callable $map): array

@@ -54,7 +54,7 @@ export default function ScreeningPrint({ document }: Props) {
 
     return <>
         <Head title={`Pengkajian awal · ${patient.name ?? document.visitNumber}`} />
-        <div className="mx-auto max-w-4xl space-y-4 p-4 sm:p-8 print:max-w-none print:p-0">
+        <div className="mx-auto w-full max-w-[210mm] space-y-4 print:max-w-none">
             <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
                 <Button asChild variant="secondary">
                     <Link href={document.backUrl}>
@@ -71,7 +71,7 @@ export default function ScreeningPrint({ document }: Props) {
             </div>
 
             <ScreeningVersionHistory versions={document.versions} />
-            <article className="clinical-sheet screening-print-document min-h-[10in] rounded-xl border border-neutral-200 bg-surface p-6 text-neutral-950 shadow-sm sm:p-10 print:min-h-0 print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black print:shadow-none">
+            <article className="clinical-sheet screening-print-document print-preview-paper min-h-[10in] bg-surface p-6 text-neutral-950 sm:p-10 print:min-h-0 print:rounded-none print:border-0 print:bg-white print:p-0 print:text-black print:shadow-none">
                 <ClinicalDocumentHeader clinic={clinic} />
 
                 <h1 className="mt-6 text-center text-lg font-bold uppercase tracking-tight text-neutral-950 print:text-black">Pengkajian awal perawat &amp; tanda vital</h1>

@@ -33,6 +33,11 @@ export const emptyBodyMap = (): BodyMapData => ({ version: 1, findings: [], anno
 export function findingLocation(finding: Pick<RecordedBodyFinding, 'locationId' | 'mode' | 'view'>) {
     return (finding.mode === 'organs' ? organLocations : bodyLocations(finding.view)).find((location) => location.id === finding.locationId);
 }
+export function examinationAnnotationNote(locationLabel: string, finding: string): string {
+    const note = annotationNarrative({ ...emptyBodyFinding, locationLabel: locationLabel.trim(), finding });
+    return note.slice(0, 2000).replace(/[\uD800-\uDBFF]$/, '').trimEnd();
+}
+
 export function createRecordedFinding(draft: BodyFindingDraft, mode: BodyMode, view: 'front' | 'back', model: BodyModel, id: string, entryMode: ExaminationEntryMode = 'interactive'): { finding?: RecordedBodyFinding; error?: string } {
     const location = findingLocation({ locationId: draft.locationId, mode, view });
     const isOther = draft.locationId === 'other';

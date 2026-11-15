@@ -48,9 +48,9 @@ export default function VisitForm({ patient, visit, patients, patientSearchUrl, 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (visit) {
-            form.put(`/pelayanan/kunjungan/${visit.id}`);
+            form.put(`/pelayanan/kunjungan/${visit.id}`, { preserveScroll: 'errors' });
         } else {
-            form.post('/pelayanan/kunjungan');
+            form.post('/pelayanan/kunjungan', { preserveScroll: 'errors' });
         }
     }
 

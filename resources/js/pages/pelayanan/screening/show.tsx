@@ -157,6 +157,13 @@ function assessmentNarratives(data: ScreeningValues, dental: boolean) {
     };
 }
 
+export function dentalNursingAssessment(assessment: GeneralNursingData): GeneralNursingData {
+    const fields = ['general_condition', 'progression', 'progression_notes', 'needs_status', 'needs',
+        'initial_actions_status', 'initial_actions', 'handover_follow_up'] as const;
+
+    return Object.fromEntries(fields.map((key) => [key, assessment[key]]).filter(([, value]) => value !== undefined));
+}
+
 export default function ScreeningForm({ visit, staff, canSelectStaff, currentStaff }: Props) {
     const values = Object.fromEntries(scalarFields.map((key) => [key, visit.screening[key] == null ? '' : String(visit.screening[key])])) as Record<ScalarField, string>;
     if (visit.editable) {
@@ -193,7 +200,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         complaint_notes: manualNarrative(String(originalGeneral.complaint_notes ?? '')),
         systems_notes: manualNarrative(String(originalGeneral.systems_notes ?? '')),
     } : originalGeneral;
-    const { systems: _savedSystems, ...dentalGeneral } = savedGeneral;
+    const dentalGeneral = dentalNursingAssessment(originalGeneral);
     const form = useForm<ScreeningValues>({ ...values, general_assessment: visit.clinicType === 'gigi' ? dentalGeneral : savedGeneral, vitals_unmeasurable: visit.screening.vitals_unmeasurable === true, status_riwayat_obat: values.status_riwayat_obat || (list('dental_medication_categories').includes('none') ? 'tidak_ada' : values.riwayat_obat || list('dental_medication_categories').some(v => !['unknown', 'none'].includes(v)) ? 'ada' : ''), mukosa_mulut: typeof visit.screening.mukosa_mulut === 'object' && !Array.isArray(visit.screening.mukosa_mulut) ? visit.screening.mukosa_mulut as MucosaAnswers ?? {} : {}, kebiasaan_gigi_opsi: list('kebiasaan_gigi_opsi'), dental_vitals_unmeasurable: visit.screening.dental_vitals_unmeasurable === true, dental_medication_categories: list('dental_medication_categories'), dental_red_flags: list('dental_red_flags'), pemicu_nyeri_gigi: list('pemicu_nyeri_gigi'), risiko_medis_gigi: list('risiko_medis_gigi'), riwayat_infeksi_gigi: list('riwayat_infeksi_gigi'), konfirmasi_riwayat: false, assistance_reason: '' });
     const [expanded, setExpanded] = useState<Record<Section, boolean>>({ triage: true, complaint: true, history: true, vitals: true, anthropometry: false, dental: false, additional: false, ringkas: true, systems: false, nutrition: false, attachments: false });
     const [attachmentPending, setAttachmentPending] = useState(false);

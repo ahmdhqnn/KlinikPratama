@@ -51,7 +51,6 @@ interface AppUser {
 }
 
 interface SharedPageProps extends PageProps {
-    modules?: Partial<Record<'laboratory' | 'medicine_depots' | 'medical_equipment' | 'medical_treatments', boolean>>;
     nurseQueues?: { assessment: number; treatments: number } | null;
     adminQueues?: { assessment: number; treatments: number; examinations: number; handovers: number } | null;
     doctorQueues?: { examinations: number } | null;
@@ -65,7 +64,6 @@ interface NavigationItem extends NavigationTarget {
     href: string;
     icon: typeof LayoutDashboard;
     badge?: number;
-    module?: 'laboratory' | 'medicine_depots' | 'medical_equipment' | 'medical_treatments';
 }
 
 interface NavigationGroup {
@@ -120,11 +118,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Poliklinik', href: '/master/poliklinik', icon: Boxes },
                 { label: 'Tenaga kesehatan & karyawan', href: '/master/nakes', icon: UsersRound },
                 { label: 'Obat & BHP', href: '/master/obat', icon: Pill },
-                { label: 'Depo obat', href: '/master/depo-obat', module: 'medicine_depots', icon: Pill },
-                { label: 'Alat kesehatan', href: '/master/alkes', module: 'medical_equipment', icon: HeartPulse },
-                { label: 'Tindakan medis', href: '/master/tindakan', module: 'medical_treatments', icon: HeartPulse },
                 { label: 'Terminologi klinis', href: '/master/terminologi-klinis', icon: ClipboardList },
-                { label: 'Laboratorium', href: '/master/laboratorium', module: 'laboratory', icon: Activity },
             ],
         },
         {
@@ -231,7 +225,6 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             items: [
                 { label: 'Laporan kunjungan', href: '/laporan/kunjungan', icon: ClipboardList },
                 { label: 'Laporan stok', href: '/laporan/stok', icon: Boxes },
-                { label: 'Laporan laboratorium', href: '/laporan/laboratorium', module: 'laboratory', icon: Activity },
             ],
         },
     ],
@@ -299,7 +292,6 @@ function getPageTitle(component: string): string {
         'farmasi/laporan-resep-luar': 'Laporan resep luar',
         'laporan/kunjungan': 'Laporan kunjungan',
         'laporan/stok': 'Laporan stok',
-        'laporan/laboratorium': 'Laporan laboratorium',
         'users/index': 'Manajemen pengguna',
         'profile/show': 'Profil saya',
         'setting/index': 'Pengaturan klinik',
@@ -307,12 +299,6 @@ function getPageTitle(component: string): string {
         'master/terminologi/show': 'Detail terminologi klinis',
         'master/poliklinik/index': 'Poliklinik',
         'master/poliklinik/show': 'Ruang poliklinik',
-        'master/depo-obat/index': 'Depo obat',
-        'master/alkes/index': 'Alat kesehatan',
-        'master/tindakan/index': 'Tindakan medis',
-        'master/tindakan/show': 'BHP tindakan',
-        'master/laboratorium/index': 'Laboratorium',
-        'master/laboratorium/show': 'Pengaturan laboratorium',
         'master/nakes/index': 'Tenaga kesehatan & karyawan',
         'master/obat/index': 'Obat & BHP',
         'master/obat/stok': 'Kartu stok obat',
@@ -333,9 +319,7 @@ const breadcrumbLabels: Record<string, string> = {
     'pemberian-obat': 'Obat langsung',
     'resep-luar': 'Resep luar',
     'rekam-medis': 'Rekam medis',
-    'depo-obat': 'Depo obat',
     nakes: 'Tenaga kesehatan',
-    alkes: 'Alat kesehatan',
     dokter: 'Dokter',
     laporan: 'Laporan',
     master: 'Data master',
@@ -475,7 +459,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         if (messages.length) toast.error(messages[0]);
     }), []);
 
-    const { auth, flash, modules, adminQueues, nurseQueues, doctorQueues, pharmacyQueues } = page.props;
+    const { auth, flash, adminQueues, nurseQueues, doctorQueues, pharmacyQueues } = page.props;
     const adminBadges: Record<string, number | undefined> = {
         '/pelayanan/screening': adminQueues?.assessment,
         '/pelayanan/pemeriksaan': adminQueues?.examinations,
@@ -490,7 +474,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const groups: NavigationGroup[] = [
         ...(navigationByRole[user?.role ?? ''] ?? []).map((group) => ({
             ...group,
-            items: group.items.filter((item) => !item.module || modules?.[item.module] === true).map((item) => {
+            items: group.items.map((item) => {
                 const label = user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
                     ? user.clinicType === 'gigi' ? 'Pemeriksaan Gigi & Mulut' : user.clinicType === 'umum' ? 'Pemeriksaan Umum' : item.label
                     : item.label;
@@ -671,7 +655,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                             </ul>
                         )}
                     </div>
-                    {!['persuratan/cetak', 'pelayanan/screening/print', 'pendaftaran/cetak-antrian', 'farmasi/pemberian-obat/cetak'].includes(page.component) && <ThemeToggle className="shrink-0" />}
+                    <ThemeToggle className="shrink-0" />
                     <AccountMenu user={user} />
                 </header>
 

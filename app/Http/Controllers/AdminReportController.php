@@ -36,16 +36,6 @@ class AdminReportController extends Controller
             ],
         ];
 
-        if (config('clinic.modules.laboratory', false)) {
-            $groups[] = [
-                'title' => 'Penunjang',
-                'description' => 'Laporan modul yang sedang aktif di klinik.',
-                'reports' => [
-                    ['title' => 'Laboratorium', 'description' => 'Hasil pemeriksaan laboratorium.', 'href' => route('laporan.laboratorium')],
-                ],
-            ];
-        }
-
         return Inertia::render('admin/laporan', ['groups' => $groups]);
     }
 }

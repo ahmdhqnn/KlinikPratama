@@ -343,6 +343,21 @@ input[data-password-toggle]::-ms-reveal {
 .alert-warning { @apply bg-yellow-50 text-yellow-800 border border-yellow-200; }
 .alert-info    { @apply bg-blue-50 text-blue-800 border border-blue-200; }
 
+/* Document previews */
+.print-preview-paper {
+    border: 1px solid var(--color-neutral-200);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-sm);
+}
+
+@media print {
+    .print-preview-paper {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+}
+
 /* Print styles */
 @media print {
     :root.dark {
@@ -397,8 +412,8 @@ input[data-password-toggle]::-ms-reveal {
         @bottom-left { content: "Rekam medis rawat jalan - rahasia"; font-family: var(--font-sans); font-size: 8pt; }
         @bottom-right { content: "Halaman " counter(page) " / " counter(pages); font-family: var(--font-sans); font-size: 8pt; }
     }
-    body:has(.rme-print-document) { background: #fff !important; }
-    .rme-print-document { page: rme-record; background: #fff; color: #111; font-size: 9.5pt; line-height: 1.35; }
+    body:has(.rme-print-document) { page: rme-record; background: #fff !important; }
+    .rme-print-document { background: #fff; color: #111; font-size: 9.5pt; line-height: 1.35; }
     .rme-print-episode + .rme-print-episode { break-before: page; }
     .rme-print-document { print-color-adjust: exact; }
     .rme-print-document h1 { margin: 3mm 0 1mm; text-align: center; font-size: 14pt; font-weight: 700; text-transform: uppercase; break-after: avoid; }

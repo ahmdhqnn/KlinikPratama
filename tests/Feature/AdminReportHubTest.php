@@ -32,13 +32,11 @@ class AdminReportHubTest extends TestCase
 
     public function test_admin_can_open_every_report_listed_in_the_hub(): void
     {
-        config(['clinic.modules.laboratory' => true]);
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $this->actingAs($admin);
 
         $hub = $this->get(route('admin.laporan.index'))->assertOk()->viewData('page');
         $reports = collect($hub['props']['groups'])->flatMap(fn (array $group) => $group['reports']);
-        $this->assertContains(route('laporan.laboratorium'), $reports->pluck('href')->all());
 
         foreach ($reports as $report) {
             $this->get($report['href'])->assertOk();

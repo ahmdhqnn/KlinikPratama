@@ -21,7 +21,7 @@ final class VisitQueryService
         return $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'tanggal' => ['nullable', 'date_format:Y-m-d'],
-            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,tindakan,farmasi,kasir,selesai,batal'],
+            'status' => ['nullable', 'in:'.implode(',', Kunjungan::STATUSES)],
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
         ]);
     }

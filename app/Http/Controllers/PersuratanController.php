@@ -41,7 +41,7 @@ class PersuratanController extends Controller
         $doctorId = $isAdmin ? null : $this->doctorId($user);
         $eligibleVisits = Kunjungan::query()
             ->when(! $isAdmin, fn (Builder $query) => $query->where('dokter_id', $doctorId))
-            ->whereIn('status', ['tindakan', 'farmasi', 'kasir', 'selesai'])
+            ->whereIn('status', Kunjungan::POST_EXAMINATION_STATUSES)
             ->whereHas('pemeriksaan', fn (Builder $query) => $query->whereNotNull('signed_at'))
             ->with(['pasien', 'poliklinik'])
             ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
@@ -387,7 +387,7 @@ class PersuratanController extends Controller
     {
         abort_unless($user->role === 'dokter', 403);
         abort_unless($visit->dokter_id === $this->doctorId($user), 404);
-        abort_unless(in_array($visit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true), 422, 'Surat hanya dapat diterbitkan setelah pemeriksaan selesai.');
+        abort_unless(in_array($visit->status, Kunjungan::POST_EXAMINATION_STATUSES, true), 422, 'Surat hanya dapat diterbitkan setelah pemeriksaan selesai.');
         $examination = $visit->pemeriksaan;
         abort_unless($examination?->signed_at && $notes->verify($examination), 422, 'Pemeriksaan final belum tersedia atau perlu diverifikasi.');
     }

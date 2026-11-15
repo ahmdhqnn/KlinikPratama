@@ -1,9 +1,7 @@
 # Environment files
 .env
-.env.backup
-.env.*.backup
-.env.production
-.env.local
+.env.*
+!.env.example
 
 # IDE & Editor files
 .idea/
@@ -37,13 +35,9 @@ _ide_helper.php
 
 # Storage files
 /storage/*.key
-/storage/logs/
 /storage/cache/
 /storage/sessions/
 /storage/pail
-/storage/framework/cache/
-/storage/framework/sessions/
-/storage/framework/views/
 
 # Test files
 /storage/framework/testing/
@@ -57,7 +51,9 @@ AGENTS.md
 CLAUDE.md
 
 # Local databases
-database.sqlite
+*.sqlite
+*.sqlite-*
+*.sqlite.bak
 *.db
 
 # Misc files
@@ -77,8 +73,6 @@ Homestead.yaml
 ehthumbs.db
 
 # Local development
-/.env.local
-/.env.*.local
 /local/
 /temp/
 

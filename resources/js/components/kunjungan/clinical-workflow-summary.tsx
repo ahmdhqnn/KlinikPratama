@@ -110,7 +110,7 @@ export function GeneralExaminationSummary({ id = 'general-examination-summary', 
                 {normalizeClinicalAnswer(anamnesis) && <SummaryValue label="Keluhan utama" value={anamnesis} />}
                 {normalizeClinicalAnswer(physicalExam) && <SummaryValue label="Ringkasan pemeriksaan fisik" value={physicalExam} />}
             </dl>}
-            {hasBodyMapContent(bodyMap) && <BodyExaminationRecord data={bodyMap} />}
+            {hasBodyMapContent(bodyMap) && <BodyExaminationRecord data={bodyMap} diagnosisSummary />}
             {recordedSystems.length > 0 && <div className="space-y-3 border-t border-neutral-100 pt-4">
                 <h3 className="text-sm font-semibold text-neutral-900">Temuan per sistem</h3>
                 <div className="overflow-x-auto rounded-xl border border-neutral-100"><Table aria-label="Temuan pemeriksaan per sistem" className="min-w-[32rem]"><TableHeader><TableRow><TableHead>Sistem</TableHead><TableHead>Temuan</TableHead></TableRow></TableHeader><TableBody>{recordedSystems.map(({ system, value }) => <TableRow key={system}><TableCell className="font-medium">{system}</TableCell><TableCell className="whitespace-pre-wrap break-words">{value}</TableCell></TableRow>)}</TableBody></Table></div>

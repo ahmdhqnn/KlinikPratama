@@ -3,14 +3,12 @@
 namespace App\Http\Controllers\Stok;
 
 use App\Http\Controllers\Controller;
-use App\Models\DepoObat;
 use App\Models\Obat;
 use App\Models\ObatBatch;
 use App\Models\StokMutasi;
 use App\PersediaanRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -45,8 +43,7 @@ class PersediaanController extends Controller
 
     public function show(Obat $obat): Response
     {
-        $depotsEnabled = config('clinic.modules.medicine_depots', false);
-        $obat->load($depotsEnabled ? 'batches.depo' : 'batches');
+        $obat->load('batches');
         $movements = $obat->stokMutasi()->with(['batch', 'actor'])->latest('id')->paginate(10)->withQueryString()
             ->through(fn (StokMutasi $movement): array => [
                 'id' => $movement->id, 'date' => $movement->created_at->format('d/m/Y H:i'), 'type' => $movement->jenis,
@@ -61,12 +58,10 @@ class PersediaanController extends Controller
             'batches' => $obat->batches->map(fn (ObatBatch $batch): array => [
                 'id' => $batch->id, 'number' => $batch->nomor_batch, 'expiry' => $batch->expired_at?->toDateString(),
                 'stock' => (float) $batch->stok, 'status' => $batch->status, 'source' => $batch->sumber,
-                'depot' => $depotsEnabled ? $batch->depo?->nama : null, 'reference' => $batch->referensi,
+                'reference' => $batch->referensi,
                 'expired' => $batch->expired_at?->lte(today()) ?? false,
                 'nearExpiry' => $batch->expired_at?->between(today()->addDay(), today()->addDays(90)) ?? false,
             ]),
-            'depotsEnabled' => $depotsEnabled,
-            'depots' => $depotsEnabled ? DepoObat::where('is_active', true)->orderBy('nama')->get(['id', 'nama']) : [],
             'batchBalance' => (float) $obat->batches->sum('stok'),
             'movements' => $this->pageData($movements), 'today' => today()->toDateString(),
         ]);
@@ -103,17 +98,6 @@ class PersediaanController extends Controller
         return back()->with('success', 'Saldo karantina telah diverifikasi ke batch fisik.');
     }
 
-    public function transfer(Request $request, ObatBatch $batch, PersediaanRecorder $inventory): RedirectResponse
-    {
-        $data = $request->validate([
-            'depo_id' => $this->depotRules(), 'jumlah' => ['required', 'numeric', 'min:0.01', 'max:99999999.99', 'decimal:0,2'],
-            'alasan' => ['required', 'string', 'min:5', 'max:1000'],
-        ]);
-        $inventory->transfer($batch, $data, $request->user());
-
-        return back()->with('success', 'Mutasi antar depo tercatat; saldo total tetap sama.');
-    }
-
     public function returnDispensing(Request $request, StokMutasi $mutasi, PersediaanRecorder $inventory): RedirectResponse
     {
         $data = $request->validate(['jumlah' => ['required', 'integer', 'min:1', 'max:99999999'], 'alasan' => ['required', 'string', 'min:5', 'max:1000']]);
@@ -122,15 +106,9 @@ class PersediaanController extends Controller
         return back()->with('success', 'Obat retur masuk karantina untuk pemeriksaan farmasi.');
     }
 
-    private function depotRules(): array
-    {
-        return ['required', 'integer', Rule::exists('depo_obat', 'id')->where('is_active', true)->whereNull('deleted_at')];
-    }
-
     private function batchRules(): array
     {
         return [
-            'depo_id' => config('clinic.modules.medicine_depots', false) ? $this->depotRules() : ['exclude'],
             'nomor_batch' => ['required', 'string', 'max:100'],
             'expired_at' => ['required', 'date_format:Y-m-d', 'after:today'],
             'jumlah' => ['required', 'numeric', 'min:0.01', 'max:99999999.99', 'decimal:0,2'],

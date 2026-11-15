@@ -45,7 +45,6 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
-            'modules' => config('clinic.modules'),
             'adminQueues' => fn (): ?array => $this->adminQueues($request),
             'nurseQueues' => fn (): ?array => $this->nurseQueues($request),
             'doctorQueues' => fn (): ?array => $this->doctorQueues($request),

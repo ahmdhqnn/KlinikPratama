@@ -38,7 +38,7 @@ class DokterDashboardController extends Controller
         $menungguPemeriksaan = (clone $base)->whereDate('tanggal', $today)
             ->where('status', 'pemeriksaan')->count();
         $selesaiHariIni = (clone $base)->whereDate('tanggal', $today)
-            ->whereIn('status', ['tindakan', 'farmasi', 'kasir', 'selesai'])->count();
+            ->whereIn('status', Kunjungan::POST_EXAMINATION_STATUSES)->count();
         $jadwalHariIni = $this->schedule->doctorSchedule($dokterId, $today);
         $totalKunjungan = $this->doctorVisits()->count();
 
@@ -273,7 +273,7 @@ class DokterDashboardController extends Controller
             ->whereHas('kunjungan', fn (Builder $query) => $query->where('dokter_id', $this->dokterId()))
             ->withCount(['kunjungan as jumlah_kunjungan' => fn (Builder $query) => $query->where('dokter_id', $this->dokterId())])
             ->with(['kunjungan' => fn ($query) => $query->where('dokter_id', $this->dokterId())
-                ->whereIn('status', ['tindakan', 'farmasi', 'kasir', 'selesai'])
+                ->whereIn('status', Kunjungan::POST_EXAMINATION_STATUSES)
                 ->whereHas('pemeriksaan', fn (Builder $examinations) => $examinations->whereNotNull('signed_at'))
                 ->with('pemeriksaan.clinicalNoteVersions')->latest('tanggal')->latest('id')->limit(1)])
             ->when($request->filled('search'), fn (Builder $query) => $query->where(function (Builder $nested) use ($request): void {
@@ -385,7 +385,7 @@ class DokterDashboardController extends Controller
     private function letterUrl(?Kunjungan $visit, ClinicalNoteRecorder $notes): ?string
     {
         $examination = $visit?->pemeriksaan;
-        if (! $visit || ! in_array($visit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true)
+        if (! $visit || ! in_array($visit->status, Kunjungan::POST_EXAMINATION_STATUSES, true)
             || ! $examination?->signed_at || ! $notes->verify($examination)) {
             return null;
         }

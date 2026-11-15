@@ -4,10 +4,10 @@ import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
 import { ClipboardCheck, Download } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { type PaginationData } from '@/components/dashboard/pagination';
 import { PriorityBadge } from '@/components/dashboard/priority-badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ReportTableCard } from '@/components/dashboard/report-table-card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -77,33 +77,22 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                         </Field>}
                         <div className="flex gap-2"><FilterSubmit /></div>
                     </form></FilterPanel>
-            <Card className="overflow-hidden">
-                <CardHeader className="border-b border-neutral-100">
-                    <div className="flex items-start gap-3">
-                        <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ClipboardCheck className="size-5" /></span>
-                        <div><CardTitle>Daftar pengkajian awal</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(screenings.total)} pengkajian tercatat.</CardDescription></div>
-                    </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <Table className="min-w-[850px]">
-                            <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Petugas</TableHead><TableHead className="text-center">Prioritas</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {screenings.data.length ? screenings.data.map((record) => <TableRow key={record.id}>
-                                    <TableCell className="font-sans tabular-nums text-xs">{record.visitNumber}</TableCell>
-                                    <TableCell>{record.date}</TableCell>
-                                    <TableCell><p className="font-medium text-neutral-900">{record.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{record.medicalRecordNumber}</p></TableCell>
-                                    <TableCell>{record.clinic}</TableCell>
-                                    <TableCell>{record.staff}<p className="mt-1 text-xs text-neutral-500">{record.isDraft ? 'Draf pengkajian' : 'Pengkajian terkirim'}</p></TableCell>
-                                    <TableCell className="text-center"><PriorityBadge triage={record.triage} priority={record.priority} /></TableCell>
-                                    <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2"><ActionButton disabledReason="Data ini belum dapat diubah pada tahap pelayanan saat ini." disabled={!record.editUrl} asChild action="screening" label="Perbarui pengkajian"><Link href={record.editUrl ?? ''} /></ActionButton><ActionButton disabledReason="Dokumen belum tersedia untuk dicetak." disabled={!record.printUrl} asChild action="print" label="Cetak pengkajian"><a href={record.printUrl ?? ''} /></ActionButton><ActionButton disabledReason="Detail kunjungan belum tersedia." disabled={!record.visitUrl} asChild action="detail" label="Lihat kunjungan"><Link href={record.visitUrl ?? ''} /></ActionButton></div></TableCell>
-                                </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada catatan pengkajian pada filter ini." /></TableCell></TableRow>}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-                <Pagination pagination={screenings} />
-            </Card>
+            <ReportTableCard title="Daftar pengkajian awal" description={`${new Intl.NumberFormat('id-ID').format(screenings.total)} pengkajian tercatat.`} icon={<ClipboardCheck className="size-5" />} pagination={screenings}>
+                <Table className="min-w-[850px]">
+                    <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Petugas</TableHead><TableHead className="text-center">Prioritas</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                        {screenings.data.length ? screenings.data.map((record) => <TableRow key={record.id}>
+                            <TableCell className="font-sans tabular-nums text-xs">{record.visitNumber}</TableCell>
+                            <TableCell>{record.date}</TableCell>
+                            <TableCell><p className="font-medium text-neutral-900">{record.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{record.medicalRecordNumber}</p></TableCell>
+                            <TableCell>{record.clinic}</TableCell>
+                            <TableCell>{record.staff}<p className="mt-1 text-xs text-neutral-500">{record.isDraft ? 'Draf pengkajian' : 'Pengkajian terkirim'}</p></TableCell>
+                            <TableCell className="text-center"><PriorityBadge triage={record.triage} priority={record.priority} /></TableCell>
+                            <TableCell className="text-center"><div className="flex flex-wrap justify-center gap-2"><ActionButton disabledReason="Data ini belum dapat diubah pada tahap pelayanan saat ini." disabled={!record.editUrl} asChild action="screening" label="Perbarui pengkajian"><Link href={record.editUrl ?? ''} /></ActionButton><ActionButton disabledReason="Dokumen belum tersedia untuk dicetak." disabled={!record.printUrl} asChild action="print" label="Cetak pengkajian"><a href={record.printUrl ?? ''} /></ActionButton><ActionButton disabledReason="Detail kunjungan belum tersedia." disabled={!record.visitUrl} asChild action="detail" label="Lihat kunjungan"><Link href={record.visitUrl ?? ''} /></ActionButton></div></TableCell>
+                        </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada catatan pengkajian pada filter ini." /></TableCell></TableRow>}
+                    </TableBody>
+                </Table>
+            </ReportTableCard>
         </div>
     </>;
 }

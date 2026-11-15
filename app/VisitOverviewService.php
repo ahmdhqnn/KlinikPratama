@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 final class VisitOverviewService
 {
     /**
-     * @param Builder<Kunjungan> $visits
+     * @param  Builder<Kunjungan>  $visits
      * @return array{upcoming: int, overdue: int}
      */
     public function summarize(Builder $visits): array

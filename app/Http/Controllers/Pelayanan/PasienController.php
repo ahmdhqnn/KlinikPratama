@@ -16,7 +16,9 @@ use App\GeneralAssessment;
 use App\HakLayananVerifier;
 use App\Http\Controllers\Controller;
 use App\KepesertaanRegistry;
+use App\Models\FarmasiMandiri;
 use App\Models\Kepesertaan;
+use App\Models\OdontogramFinding;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
 use App\PatientRegistrationService;
@@ -397,7 +399,16 @@ class PasienController extends Controller
 
     public function destroy(Pasien $pasien): RedirectResponse
     {
-        $pasien->delete();
+        DB::transaction(function () use ($pasien): void {
+            $patient = Pasien::whereKey($pasien->id)->lockForUpdate()->firstOrFail();
+            abort_if(
+                $patient->kunjungan()->exists() || FarmasiMandiri::where('pasien_id', $patient->id)->exists(),
+                409,
+                'Pasien dengan riwayat pelayanan tidak dapat dihapus.',
+            );
+
+            $patient->delete();
+        });
 
         return redirect()->route('pelayanan.pasien.index')->with('success', 'Data pasien berhasil dihapus.');
     }
@@ -415,7 +426,7 @@ class PasienController extends Controller
             'kunjungan_id' => ['nullable', 'integer', 'min:1'],
             'search' => ['nullable', 'string', 'max:100'],
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
-            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,tindakan,farmasi,kasir,selesai,batal'],
+            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,tindakan,farmasi,selesai,batal'],
             'dari' => ['nullable', 'date_format:Y-m-d'],
             'sampai' => ['nullable', 'date_format:Y-m-d'],
         ]);
@@ -481,6 +492,7 @@ class PasienController extends Controller
 
         return Inertia::render('pelayanan/pasien/rekam-medis', [
             'clinicProfile' => app(ClinicDocumentProfile::class)->data(),
+            'odontogramFindingLabels' => OdontogramFinding::findingLabels(),
             'patient' => [
                 'id' => $pasien->id,
                 'name' => $pasien->nama,

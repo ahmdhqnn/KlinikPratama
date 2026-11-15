@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
-use App\Models\DepoObat;
 use App\Models\Poliklinik;
 use App\Models\RuangPoli;
 use Illuminate\Http\RedirectResponse;
@@ -17,10 +16,8 @@ class PoliklinikController extends Controller
     public function index(Request $request): Response
     {
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
-        $depotsEnabled = config('clinic.modules.medicine_depots', false);
         $poliklinik = Poliklinik::query()
-            ->when($depotsEnabled, fn ($query) => $query->with('depoObat'))
-            ->when(! config('clinic.modules.laboratory', false), fn ($query) => $query->where('jenis', '!=', 'lab'))
+            ->where('jenis', '!=', 'lab')
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(function ($query) use ($search): void {
                 $query->where('nama', 'like', "%{$search}%")
                     ->orWhere('kode', 'like', "%{$search}%");
@@ -36,8 +33,6 @@ class PoliklinikController extends Controller
                     'code' => $clinic->kode,
                     'name' => $clinic->nama,
                     'type' => $clinic->jenis,
-                    'depotId' => $depotsEnabled ? $clinic->depo_obat_id : null,
-                    'depotName' => $depotsEnabled ? $clinic->depoObat?->nama : null,
                     'active' => $clinic->is_active,
                 ])->values(),
                 'currentPage' => $poliklinik->currentPage(),
@@ -50,12 +45,6 @@ class PoliklinikController extends Controller
                 'nextUrl' => $poliklinik->nextPageUrl(),
             ],
             'filters' => ['search' => $filters['search'] ?? ''],
-            'depotsEnabled' => $depotsEnabled,
-            'depots' => $depotsEnabled ? DepoObat::where('is_active', true)->orderBy('nama')->get()->map(fn (DepoObat $depot): array => [
-                'id' => $depot->id,
-                'name' => $depot->nama,
-                'code' => $depot->kode,
-            ])->values() : [],
             'clinicTypes' => [
                 ['value' => 'umum', 'label' => 'Umum'],
                 ['value' => 'gigi', 'label' => 'Gigi'],
@@ -63,7 +52,6 @@ class PoliklinikController extends Controller
                 ['value' => 'mata', 'label' => 'Mata'],
                 ['value' => 'tht', 'label' => 'THT'],
                 ['value' => 'kulit', 'label' => 'Kulit'],
-                ...(config('clinic.modules.laboratory', false) ? [['value' => 'lab', 'label' => 'Laboratorium']] : []),
                 ['value' => 'radiologi', 'label' => 'Radiologi'],
                 ['value' => 'ugd', 'label' => 'UGD'],
             ],
@@ -93,8 +81,7 @@ class PoliklinikController extends Controller
         $data = $request->validate([
             'kode' => ['required', 'string', 'max:20', 'unique:poliklinik,kode'],
             'nama' => ['required', 'string', 'max:100'],
-            'jenis' => ['required', 'string', Rule::notIn(config('clinic.modules.laboratory', false) ? [] : ['lab'])],
-            'depo_obat_id' => config('clinic.modules.medicine_depots', false) ? ['nullable', 'exists:depo_obat,id'] : ['exclude'],
+            'jenis' => ['required', 'string', Rule::notIn(['lab'])],
             'is_active' => ['boolean'],
         ]);
 
@@ -109,8 +96,7 @@ class PoliklinikController extends Controller
         $data = $request->validate([
             'kode' => ['required', 'string', 'max:20', "unique:poliklinik,kode,{$poliklinik->id}"],
             'nama' => ['required', 'string', 'max:100'],
-            'jenis' => ['required', 'string', Rule::notIn(config('clinic.modules.laboratory', false) ? [] : ['lab'])],
-            'depo_obat_id' => config('clinic.modules.medicine_depots', false) ? ['nullable', 'exists:depo_obat,id'] : ['exclude'],
+            'jenis' => ['required', 'string', Rule::notIn(['lab'])],
             'is_active' => ['boolean'],
         ]);
 

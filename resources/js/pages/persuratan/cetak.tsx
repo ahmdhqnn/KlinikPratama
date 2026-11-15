@@ -57,9 +57,9 @@ export function LetterSheet({ document: doc }: { document: DocumentData }) {
     const referral = doc.kind === 'rujukan_internal' || doc.type === 'rujukan';
     const supporting = ['laboratorium', 'rontgen_gigi'].includes(doc.type ?? '');
     const restDays = details.rest_start && details.rest_end ? Math.round((Date.parse(details.rest_end) - Date.parse(details.rest_start)) / 86400000) + 1 : null;
-    return <article className={`medical-letter${supporting ? ' letter-supporting' : ''}`}>
+    return <article className={`medical-letter print-preview-paper${supporting ? ' letter-supporting' : ''}`}>
         <style>{`
-            .medical-letter { color:#000; background:#fff; font-family:var(--font-sans); font-size:11pt; line-height:1.5; max-width:210mm; min-height:250mm; margin:0 auto; padding:18mm; box-shadow:0 1px 8px #0002; overflow-wrap:anywhere; }
+            .medical-letter { color:#000; background:#fff; font-family:var(--font-sans); font-size:11pt; line-height:1.5; max-width:100%; min-height:250mm; margin:0 auto; padding:18mm; overflow-wrap:anywhere; }
             .medical-letter * { color:inherit; }
             .letter-head { text-align:center; padding:0; margin-bottom:5mm; break-inside:avoid; }
             .letter-head > strong { display:block; font-size:18pt; }
@@ -156,7 +156,7 @@ export function LetterSheet({ document: doc }: { document: DocumentData }) {
 
 export default function Cetak({ document }: { document: DocumentData }) {
     return <><Head title={`${titleOf(document)} · ${document.patient.name}`} />
-        <div className="letter-print-main mx-auto max-w-4xl space-y-4 p-4 sm:p-8">
+        <div className="letter-print-main mx-auto w-full max-w-[210mm] space-y-4">
             <div className="letter-toolbar flex flex-wrap items-center justify-between gap-3 print:hidden"><Button onClick={() => returnToPreviousScreen(document.backUrl)} type="button" variant="secondary"><ArrowLeft className="size-4" />{document.backLabel}</Button><Button onClick={() => void printWithFonts()}><Printer className="size-4" />Cetak dokumen</Button></div>
             <LetterSheet document={document} />
         </div></>;

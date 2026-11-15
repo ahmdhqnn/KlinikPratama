@@ -87,7 +87,7 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
                 </form>
             </FilterPanel>}
 
-            <Card className="overflow-hidden print:rounded-none print:border-0 print:shadow-none">
+            <Card className={printMode ? "print-preview-paper overflow-hidden print:overflow-visible" : "overflow-hidden print:rounded-none print:border-0 print:shadow-none"}>
                 <CardHeader className="border-b border-neutral-100 print:px-0 print:pt-0">
                     <div className="flex items-start gap-3">
                         <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700 print:hidden"><ClipboardCheck className="size-5" /></span>

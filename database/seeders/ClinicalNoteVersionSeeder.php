@@ -26,8 +26,10 @@ class ClinicalNoteVersionSeeder extends Seeder
                 ['email' => 'dokter-uat@klinik.test'],
                 ['name' => 'Dokter UAT', 'password' => 'password', 'role' => 'dokter', 'is_active' => true]
             );
-            $doctor = Nakes::where('kode', 'DKT001')->firstOrFail();
-            $doctor->update(['user_id' => $doctorUser->id]);
+            $doctor = Nakes::firstOrCreate(
+                ['kode' => 'DKT-ADDENDUM-UAT'],
+                ['nama' => 'dr. UAT Addendum', 'kategori' => 'medis', 'jabatan' => 'dokter', 'user_id' => $doctorUser->id, 'is_active' => true]
+            );
             $clinic = Poliklinik::where('jenis', 'umum')->where('is_active', true)->firstOrFail();
             $patient = Pasien::firstOrCreate(
                 ['no_rm' => 'RM-UAT-ADDENDUM'],
@@ -66,7 +68,7 @@ class ClinicalNoteVersionSeeder extends Seeder
                     'signed_by_user_id' => $doctorUser->id,
                     'signed_at' => now(),
                 ]);
-                $visit->update(['status' => 'kasir']);
+                $visit->update(['status' => 'selesai']);
             }
         });
     }

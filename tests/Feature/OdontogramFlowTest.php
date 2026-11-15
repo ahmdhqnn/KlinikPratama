@@ -553,6 +553,20 @@ class OdontogramFlowTest extends TestCase
         $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien_id))->assertInertia(fn (Assert $page) => $page->has('visits.0.odontogram', 15));
     }
 
+    public function test_psa_in_progress_can_be_recorded_without_a_pulpal_diagnosis(): void
+    {
+        [$user, $visit] = $this->dentalExamination();
+        $url = route('pelayanan.pemeriksaan.odontogram.store', $visit);
+        $payload = ['tooth_fdi' => '46', 'surface' => 'W', 'finding_code' => 'root_canal'];
+
+        $this->actingAs($user)->post($url, [...$payload, 'details' => ['endodontic' => 'in_progress', 'pulpal' => 'normal']])
+            ->assertSessionHasErrors('details.pulpal');
+        $this->post($url, [...$payload, 'details' => ['endodontic' => 'in_progress', 'pulpal' => '']])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(['endodontic' => 'in_progress'], $visit->odontogramFindings()->sole()->details);
+    }
+
     public function test_extended_findings_reject_wrong_scope_and_inconsistent_details(): void
     {
         [$user, $visit] = $this->dentalExamination();

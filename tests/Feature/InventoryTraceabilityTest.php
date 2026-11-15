@@ -71,21 +71,19 @@ class InventoryTraceabilityTest extends TestCase
         $this->assertEquals(4, $medicine->fresh()->stok);
     }
 
-    public function test_transfer_opname_damage_and_donation_keep_aggregate_batch_balance(): void
+    public function test_opname_damage_and_donation_keep_aggregate_batch_balance(): void
     {
         [$actor, $medicine, $depot] = $this->context();
-        $other = DepoObat::create(['kode' => 'DEP-OTHER', 'nama' => 'Gudang', 'is_active' => true]);
         $inventory = app(PersediaanRecorder::class);
         $batch = $inventory->receive($medicine->id, [...$this->receipt($depot, 'HIBAH-01', 8, today()->addYear()->toDateString()), 'sumber' => 'hibah'], $actor);
-        $inventory->transfer($batch, ['depo_id' => $other->id, 'jumlah' => 3, 'alasan' => 'Pindah gudang fisik'], $actor);
         $this->assertEquals(8, $medicine->fresh()->stok);
         $inventory->adjust($batch, ['jenis' => 'opname', 'jumlah' => 4, 'alasan' => 'Selisih hitung fisik'], $actor);
         $inventory->adjust($batch, ['jenis' => 'rusak', 'jumlah' => 1, 'alasan' => 'Kemasan rusak diperiksa'], $actor);
-        $this->assertEquals(6, $medicine->fresh()->stok);
-        $this->assertEquals(6, $medicine->batches()->sum('stok'));
-        $this->assertDatabaseCount('stok_mutasi', 5);
+        $this->assertEquals(3, $medicine->fresh()->stok);
+        $this->assertEquals(3, $medicine->batches()->sum('stok'));
+        $this->assertDatabaseCount('stok_mutasi', 3);
         $this->actingAs($actor)->post(route('stok.batch.adjust', $batch), ['jenis' => 'rusak', 'jumlah' => 99, 'alasan' => 'Jumlah tidak benar'])->assertSessionHasErrors('jumlah');
-        $this->assertEquals(6, $medicine->fresh()->stok);
+        $this->assertEquals(3, $medicine->fresh()->stok);
     }
 
     private function context(): array
