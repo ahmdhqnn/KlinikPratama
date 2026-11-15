@@ -46,7 +46,7 @@ interface Props {
     recentVisits: PaginationData & { data: Visit[] };
 }
 
-const statusOptions = ['menunggu', 'screening', 'pemeriksaan', 'tindakan', 'farmasi', 'selesai', 'batal'].map((status) => [status, visitStatusFilterLabels[status]]);
+const statusOptions = Object.entries(visitStatusFilterLabels);
 
 export default function ClinicVisits({ filters: initialFilters, clinics, stats, access, visits, recentVisits }: Props) {
     const [filters, setFilters] = useState(initialFilters);

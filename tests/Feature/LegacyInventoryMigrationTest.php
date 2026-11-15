@@ -19,6 +19,9 @@ class LegacyInventoryMigrationTest extends TestCase
     public function test_upgrade_restores_only_unfinished_reservations_and_quarantines_unknown_batches(): void
     {
         $this->freezeTime();
+        (require database_path('migrations/2026_11_14_120000_retire_cashier_and_enforce_one_prescription_per_visit.php'))->down();
+        (require database_path('migrations/2026_11_14_120100_remove_equipment_catalog.php'))->down();
+        (require database_path('migrations/2026_11_14_120200_remove_internal_laboratory.php'))->down();
         $cleanupMigration = require database_path('migrations/2026_10_16_075052_remove_retired_billing_procurement_and_price_schema.php');
         $cleanupMigration->down();
         $migration = require database_path('migrations/2026_10_08_152825_add_batch_inventory_traceability.php');

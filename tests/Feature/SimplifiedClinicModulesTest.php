@@ -2,10 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\Alkes;
 use App\Models\DepoObat;
 use App\Models\Kunjungan;
-use App\Models\Laboratorium;
 use App\Models\Nakes;
 use App\Models\Obat;
 use App\Models\ObatBatch;
@@ -24,43 +22,15 @@ class SimplifiedClinicModulesTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_disabled_modules_reject_reads_and_writes_without_removing_historical_data(): void
+    public function test_retired_modules_have_no_routes(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        $depot = DepoObat::create(['kode' => 'OLD-DEP', 'nama' => 'Depo lama', 'is_active' => true]);
-        $laboratory = Laboratorium::create(['kode' => 'OLD-LAB', 'nama' => 'Laboratorium lama', 'is_active' => true]);
-        $equipment = Alkes::create(['kode' => 'OLD-ALK', 'nama' => 'Alat lama', 'is_active' => true]);
-        $treatment = Tindakan::create(['kode' => 'OLD-MED', 'nama' => 'Tindakan lama', 'kategori' => 'medis', 'is_active' => true]);
         $this->actingAs($admin);
 
-        foreach (['depo-obat' => $depot, 'laboratorium' => $laboratory, 'alkes' => $equipment, 'tindakan' => $treatment] as $resource => $record) {
-            $this->get("/master/{$resource}")->assertNotFound();
-            $this->get("/master/{$resource}/{$record->id}")->assertNotFound();
-            $this->post("/master/{$resource}", ['kode' => 'NEW', 'nama' => 'Item baru'])->assertNotFound();
-            $this->put("/master/{$resource}/{$record->id}", ['nama' => 'Diubah'])->assertNotFound();
-            $this->delete("/master/{$resource}/{$record->id}")->assertNotFound();
-            $this->assertModelExists($record);
-            $this->assertNull($record->fresh()->deleted_at);
-            $this->assertSame($record->nama, $record->fresh()->nama);
+        foreach (['/master/alkes', '/master/depo-obat', '/master/laboratorium', '/master/tindakan', '/laporan/laboratorium'] as $url) {
+            $this->get($url)->assertNotFound();
+            $this->post($url)->assertNotFound();
         }
-        $this->post(route('master.laboratorium.indikator.store', $laboratory), [])->assertNotFound();
-        $this->post(route('master.laboratorium.bhp.store', $laboratory), [])->assertNotFound();
-        $this->assertDatabaseCount('depo_obat', 1);
-        $this->assertDatabaseCount('laboratorium', 1);
-        $this->assertDatabaseCount('alkes', 1);
-        $this->assertDatabaseCount('tindakan', 1);
-        $this->get(route('master.tindakan.terminologi'))->assertNotFound();
-        $this->post(route('master.tindakan.bhp.store', $treatment), [])->assertNotFound();
-        $this->get(route('master.terminologi.index'))->assertOk();
-    }
-
-    #[TestWith(['admin'])]
-    #[TestWith(['manajemen'])]
-    public function test_laboratory_report_is_unavailable_for_report_roles(string $role): void
-    {
-        $actor = User::factory()->create(['role' => $role, 'is_active' => true]);
-
-        $this->actingAs($actor)->get(route('laporan.laboratorium'))->assertNotFound();
     }
 
     #[TestWith(['admin', 'obat'])]
@@ -82,8 +52,7 @@ class SimplifiedClinicModulesTest extends TestCase
         $this->assertDatabaseHas('obat', ['id' => $medicine->id, 'stok' => 5]);
         $this->assertDatabaseCount('depo_obat', 0);
         $this->get(route('stok.persediaan.show', $medicine))->assertInertia(fn (Assert $page) => $page
-            ->where('depotsEnabled', false)->has('depots', 0)->where('batches.0.depot', null)
-            ->where('modules.laboratory', false)->where('modules.medicine_depots', false)->where('modules.medical_equipment', false));
+            ->where('batches.0.number', 'BATCH-NEW')->missing('depots'));
     }
 
     public function test_quarantined_legacy_batch_can_be_verified_without_selecting_or_losing_its_old_depot(): void
@@ -109,7 +78,7 @@ class SimplifiedClinicModulesTest extends TestCase
         $medicine->update(['stok' => 5]);
         $batch = ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 5]);
 
-        $this->actingAs($actor)->post(route('stok.batch.transfer', $batch), ['depo_id' => 123, 'jumlah' => 2, 'alasan' => 'Pindah stok'])->assertNotFound();
+        $this->actingAs($actor)->post('/stok/batch/'.$batch->id.'/mutasi', ['depo_id' => 123, 'jumlah' => 2, 'alasan' => 'Pindah stok'])->assertNotFound();
 
         $this->assertSame('5.00', $batch->fresh()->stok);
         $this->assertDatabaseCount('stok_mutasi', 0);
@@ -123,7 +92,7 @@ class SimplifiedClinicModulesTest extends TestCase
         Poliklinik::create(['kode' => 'LAB', 'nama' => 'Laboratorium', 'jenis' => 'lab', 'is_active' => true]);
 
         $this->actingAs($admin)->get(route('master.poliklinik.index'))->assertInertia(fn (Assert $page) => $page
-            ->has('clinics.data', 1)->where('depotsEnabled', false)->has('depots', 0)
+            ->has('clinics.data', 1)->missing('depots')
             ->where('clinicTypes', fn ($types): bool => ! collect($types)->contains('value', 'lab')));
         $this->put(route('master.poliklinik.update', $clinic), [
             'kode' => 'UMUM', 'nama' => 'Poli Umum Klinik', 'jenis' => 'umum', 'is_active' => true, 'depo_obat_id' => '',
@@ -131,23 +100,6 @@ class SimplifiedClinicModulesTest extends TestCase
         $this->assertDatabaseHas('poliklinik', ['id' => $clinic->id, 'nama' => 'Poli Umum Klinik', 'depo_obat_id' => $depot->id]);
         $this->post(route('master.poliklinik.store'), ['kode' => 'LAB-NEW', 'nama' => 'Lab baru', 'jenis' => 'lab', 'is_active' => true])->assertSessionHasErrors('jenis');
         $this->assertDatabaseMissing('poliklinik', ['kode' => 'LAB-NEW']);
-    }
-
-    public function test_treatment_catalog_hides_laboratory_and_rejects_new_laboratory_treatments(): void
-    {
-        config(['clinic.modules.medical_treatments' => true]);
-        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        Tindakan::create(['kode' => 'MEDIS', 'nama' => 'Perawatan luka', 'kategori' => 'medis', 'is_active' => true]);
-        $lab = Tindakan::create(['kode' => 'LAB', 'nama' => 'Tes lama', 'kategori' => 'lab', 'is_active' => true]);
-
-        $this->actingAs($admin)->get(route('master.tindakan.index'))->assertInertia(fn (Assert $page) => $page
-            ->has('treatments.data', 1)->where('treatments.data.0.category', 'medis')
-            ->has('categories', 1)->where('categories.0.value', 'medis'));
-        $this->get(route('master.tindakan.show', $lab))->assertNotFound();
-        $this->post(route('master.tindakan.bhp.store', $lab), [])->assertNotFound();
-        $this->post(route('master.tindakan.store'), ['kode' => 'LAB-NEW', 'nama' => 'Lab baru', 'kategori' => 'lab', 'is_active' => true])->assertSessionHasErrors('kategori');
-        $this->assertDatabaseMissing('tindakan', ['kode' => 'LAB-NEW']);
-        $this->assertModelExists($lab);
     }
 
     public function test_doctor_cannot_add_hidden_laboratory_treatment_but_can_record_medical_treatment(): void

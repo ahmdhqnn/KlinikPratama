@@ -2,8 +2,8 @@ import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
 import { ClipboardCheck } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
-import { Card, CardContent } from '@/components/ui/card';
+import { type PaginationData } from '@/components/dashboard/pagination';
+import { ReportTableCard } from '@/components/dashboard/report-table-card';
 import { Empty } from '@/components/ui/empty';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Field } from '@/components/ui/field';
@@ -55,25 +55,20 @@ export default function AssistanceAuditPage({ filters, actions, events }: Props)
                 <FilterSubmit />
             </form></FilterPanel>
 
-            <Card className="overflow-hidden">
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <Table className="min-w-[1050px]">
-                            <TableHeader><TableRow><TableHead>Waktu</TableHead><TableHead>Kegiatan</TableHead><TableHead>Hasil</TableHead><TableHead>Operator</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Poliklinik</TableHead><TableHead>Alasan bantuan</TableHead></TableRow></TableHeader>
-                            <TableBody>{events.data.length ? events.data.map((event) => <TableRow key={event.id}>
-                                <TableCell className="whitespace-nowrap">{new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(event.occurredAt))}</TableCell>
-                                <TableCell className="font-medium">{event.label}</TableCell>
-                                <TableCell>{event.result ?? 'Berhasil'}</TableCell>
-                                <TableCell>{event.actor}</TableCell>
-                                <TableCell className="font-sans tabular-nums text-xs">{event.visitNumber ?? 'Tidak terhubung'}</TableCell>
-                                <TableCell>{event.clinic ?? '—'}</TableCell>
-                                <TableCell className="max-w-xs whitespace-normal">{event.reason ?? 'Belum dicatat'}</TableCell>
-                            </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty description="Coba ubah rentang tanggal atau jenis kegiatan." icon={<ClipboardCheck className="size-5" />} size="compact" title="Belum ada riwayat bantuan pada filter ini." /></TableCell></TableRow>}</TableBody>
-                        </Table>
-                    </div>
-                    <Pagination pagination={events} />
-                </CardContent>
-            </Card>
+            <ReportTableCard title="Daftar kegiatan bantuan" description={`${new Intl.NumberFormat('id-ID').format(events.total)} kegiatan tercatat.`} icon={<ClipboardCheck className="size-5" />} pagination={events}>
+                <Table className="min-w-[1050px]">
+                    <TableHeader><TableRow><TableHead>Waktu</TableHead><TableHead>Kegiatan</TableHead><TableHead>Hasil</TableHead><TableHead>Operator</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Poliklinik</TableHead><TableHead>Alasan bantuan</TableHead></TableRow></TableHeader>
+                    <TableBody>{events.data.length ? events.data.map((event) => <TableRow key={event.id}>
+                        <TableCell className="whitespace-nowrap">{new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(event.occurredAt))}</TableCell>
+                        <TableCell className="font-medium">{event.label}</TableCell>
+                        <TableCell>{event.result ?? 'Berhasil'}</TableCell>
+                        <TableCell>{event.actor}</TableCell>
+                        <TableCell className="font-sans tabular-nums text-xs">{event.visitNumber ?? 'Tidak terhubung'}</TableCell>
+                        <TableCell>{event.clinic ?? '—'}</TableCell>
+                        <TableCell className="max-w-xs whitespace-normal">{event.reason ?? 'Belum dicatat'}</TableCell>
+                    </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty description="Coba ubah rentang tanggal atau jenis kegiatan." icon={<ClipboardCheck className="size-5" />} size="compact" title="Belum ada riwayat bantuan pada filter ini." /></TableCell></TableRow>}</TableBody>
+                </Table>
+            </ReportTableCard>
         </div>
     </>;
 }

@@ -10,14 +10,10 @@ use App\Http\Controllers\FarmasiDashboardController;
 use App\Http\Controllers\FarmasiMandiriController;
 use App\Http\Controllers\KepesertaanController;
 use App\Http\Controllers\LaporanController;
-use App\Http\Controllers\Master\AlkesController;
 use App\Http\Controllers\Master\ClinicalTerminologyController;
-use App\Http\Controllers\Master\DepoObatController;
-use App\Http\Controllers\Master\LaboratoriumController;
 use App\Http\Controllers\Master\NakesController;
 use App\Http\Controllers\Master\ObatController;
 use App\Http\Controllers\Master\PoliklinikController;
-use App\Http\Controllers\Master\TindakanController;
 use App\Http\Controllers\Pelayanan\FarmasiController;
 use App\Http\Controllers\Pelayanan\KunjunganController;
 use App\Http\Controllers\Pelayanan\PasienController;
@@ -34,7 +30,6 @@ use App\Http\Controllers\Stok\PersediaanController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\AuditAdminAssistanceFailures;
 use App\Http\Middleware\EnsureAdminRole;
-use App\Http\Middleware\EnsureModuleEnabled;
 use App\Http\Middleware\EnsureRegistrationRole;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\RedirectRegistrationRole;
@@ -153,7 +148,6 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::post('persediaan/{obat}/terima', [PersediaanController::class, 'receive'])->name('persediaan.receive');
         Route::post('batch/{batch}/opname', [PersediaanController::class, 'adjust'])->name('batch.adjust');
         Route::post('batch/{batch}/verifikasi', [PersediaanController::class, 'reconcile'])->name('batch.reconcile');
-        Route::post('batch/{batch}/mutasi', [PersediaanController::class, 'transfer'])->middleware(EnsureModuleEnabled::class.':medicine_depots')->name('batch.transfer');
         Route::post('mutasi/{mutasi}/retur', [PersediaanController::class, 'returnDispensing'])->name('mutasi.return');
     });
 
@@ -163,25 +157,9 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('terminologi-klinis/detail', [ClinicalTerminologyController::class, 'show'])->name('terminologi.show');
         Route::post('terminologi-klinis/import', [ClinicalTerminologyController::class, 'import'])->name('terminologi.import');
         Route::delete('terminologi-klinis', [ClinicalTerminologyController::class, 'destroy'])->name('terminologi.destroy');
-        Route::resource('depo-obat', DepoObatController::class)->except(['create', 'edit'])->middleware(EnsureModuleEnabled::class.':medicine_depots');
         Route::resource('poliklinik', PoliklinikController::class)->except(['create', 'edit']);
         Route::post('poliklinik/{poliklinik}/ruang', [PoliklinikController::class, 'storeRuang'])->name('poliklinik.ruang.store');
         Route::delete('poliklinik/ruang/{ruang}', [PoliklinikController::class, 'destroyRuang'])->name('poliklinik.ruang.destroy');
-
-        Route::middleware(EnsureModuleEnabled::class.':medical_treatments')->group(function (): void {
-            Route::get('tindakan-terminologi', [TindakanController::class, 'searchTerminology'])->name('tindakan.terminologi');
-            Route::resource('tindakan', TindakanController::class)->except(['create', 'edit']);
-            Route::post('tindakan/{tindakan}/bhp', [TindakanController::class, 'storeBhp'])->name('tindakan.bhp.store');
-            Route::delete('tindakan/bhp/{bhp}', [TindakanController::class, 'destroyBhp'])->name('tindakan.bhp.destroy');
-        });
-
-        Route::middleware(EnsureModuleEnabled::class.':laboratory')->group(function (): void {
-            Route::resource('laboratorium', LaboratoriumController::class)->except(['create', 'edit']);
-            Route::post('laboratorium/{laboratorium}/indikator', [LaboratoriumController::class, 'storeIndikator'])->name('laboratorium.indikator.store');
-            Route::delete('laboratorium/indikator/{indikator}', [LaboratoriumController::class, 'destroyIndikator'])->name('laboratorium.indikator.destroy');
-            Route::post('laboratorium/{laboratorium}/bhp', [LaboratoriumController::class, 'storeBhp'])->name('laboratorium.bhp.store');
-            Route::delete('laboratorium/bhp/{bhp}', [LaboratoriumController::class, 'destroyBhp'])->name('laboratorium.bhp.destroy');
-        });
 
         Route::resource('nakes', NakesController::class)->except(['create', 'show', 'edit']);
 
@@ -192,7 +170,6 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('obat/{obat}/stok', [ObatController::class, 'stok'])->name('obat.stok');
         Route::post('obat/{obat}/tambah-stok', [ObatController::class, 'tambahStok'])->name('obat.tambah-stok');
 
-        Route::resource('alkes', AlkesController::class)->except(['create', 'edit'])->middleware(EnsureModuleEnabled::class.':medical_equipment');
     });
 
     // Pelayanan
@@ -300,9 +277,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     Route::prefix('laporan')->name('laporan.')->middleware(EnsureRole::class.':admin,manajemen')->group(function () {
         Route::get('kunjungan', [LaporanController::class, 'kunjungan'])->name('kunjungan');
         Route::get('stok', [LaporanController::class, 'stok'])->name('stok');
-        Route::get('laboratorium', [LaporanController::class, 'laboratorium'])->middleware(EnsureModuleEnabled::class.':laboratory')->name('laboratorium');
         Route::get('stok/export', [LaporanController::class, 'exportStok'])->name('stok.export');
-        Route::get('laboratorium/export', [LaporanController::class, 'exportLaboratorium'])->middleware(EnsureModuleEnabled::class.':laboratory')->name('laboratorium.export');
         Route::get('kunjungan/export', [LaporanController::class, 'exportKunjungan'])->name('kunjungan.export');
     });
 

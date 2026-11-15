@@ -42,9 +42,4 @@ class Obat extends Model
     {
         return $this->hasMany(StokMutasi::class);
     }
-
-    public function labBhp(): HasMany
-    {
-        return $this->hasMany(LabBhp::class);
-    }
 }

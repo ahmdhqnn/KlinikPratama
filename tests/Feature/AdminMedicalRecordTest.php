@@ -35,6 +35,17 @@ class AdminMedicalRecordTest extends TestCase
         $this->assertDatabaseCount('surat_medis', 1);
     }
 
+    public function test_admin_cannot_hide_a_patient_with_clinical_history(): void
+    {
+        [$patient, $visit] = $this->context();
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+
+        $this->actingAs($admin)->delete(route('pelayanan.pasien.destroy', $patient))->assertConflict();
+
+        $this->assertNotSoftDeleted($patient);
+        $this->assertModelExists($visit);
+    }
+
     public function test_new_admin_history_access_does_not_expand_other_roles_or_accept_external_back_links(): void
     {
         [$patient, $general] = $this->context();

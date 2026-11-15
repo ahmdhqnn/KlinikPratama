@@ -32,7 +32,7 @@ export default function DirectDispensing({ search, patients, medicines, adminAss
 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        form.post('/farmasi/pemberian-obat');
+        form.post('/farmasi/pemberian-obat', { preserveScroll: 'errors' });
     }
 
     return <><Head title="Catat pemberian obat langsung" /><div className="mx-auto max-w-5xl space-y-6">

@@ -173,8 +173,6 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
         $this->assertDatabaseHas('poliklinik', ['kode' => 'PU', 'is_active' => true]);
         $this->assertDatabaseHas('poliklinik', ['kode' => 'PG', 'is_active' => true]);
         $this->assertDatabaseHas('poliklinik', ['kode' => 'KIA', 'is_active' => false]);
-        $this->assertDatabaseHas('poliklinik', ['kode' => 'LAB', 'is_active' => false]);
-        $this->assertDatabaseHas('depo_obat', ['kode' => 'UGD', 'is_active' => false]);
         $this->assertDatabaseHas('farmasi', ['status' => 'selesai']);
         $this->assertDatabaseHas('obat', ['kode' => 'OBT001', 'stok' => 90]);
     }

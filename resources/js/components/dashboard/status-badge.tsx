@@ -6,7 +6,6 @@ export const visitStatusLabels: Record<string, string> = {
     pemeriksaan: 'Menunggu pemeriksaan',
     tindakan: 'Menunggu tindakan perawat',
     farmasi: 'Pelayanan farmasi',
-    kasir: 'Perlu penyelesaian kunjungan',
     selesai: 'Kunjungan selesai',
     batal: 'Kunjungan dibatalkan',
 };
@@ -17,11 +16,6 @@ const pharmacyStatusLabels: Record<string, string> = {
     diproses: 'Penyiapan obat berlangsung',
     selesai: 'Penyerahan obat selesai',
     batal: 'Pelayanan farmasi dibatalkan',
-};
-
-const laboratoryStatusLabels: Record<string, string> = {
-    menunggu: 'Menunggu pemeriksaan lab',
-    selesai: 'Pemeriksaan lab selesai',
 };
 
 const nurseStatusLabels: Record<string, string> = {
@@ -38,7 +32,7 @@ export const visitStatusFilterLabels: Record<string, string> = {
     pemeriksaan: 'Menunggu / sedang diperiksa',
 };
 
-export function StatusBadge({ status, reservation = false, context = 'visit', examinationStarted = false, treatmentStarted = false }: { status: string; examinationStarted?: boolean; treatmentStarted?: boolean; reservation?: boolean; context?: 'visit' | 'nurse' | 'pharmacy' | 'laboratory' }) {
+export function StatusBadge({ status, reservation = false, context = 'visit', examinationStarted = false, treatmentStarted = false }: { status: string; examinationStarted?: boolean; treatmentStarted?: boolean; reservation?: boolean; context?: 'visit' | 'nurse' | 'pharmacy' }) {
     if (reservation) {
         return <Badge variant="default">Reservasi</Badge>;
     }
@@ -55,7 +49,7 @@ export function StatusBadge({ status, reservation = false, context = 'visit', ex
         return <Badge className="justify-center text-center leading-4">Tindakan berlangsung</Badge>;
     }
 
-    const labels = { visit: visitStatusLabels, nurse: nurseStatusLabels, pharmacy: pharmacyStatusLabels, laboratory: laboratoryStatusLabels }[context];
+    const labels = { visit: visitStatusLabels, nurse: nurseStatusLabels, pharmacy: pharmacyStatusLabels }[context];
 
     return <Badge className="justify-center text-center leading-4" variant={variants[status] ?? 'default'}>{labels[status] ?? status}</Badge>;
 }

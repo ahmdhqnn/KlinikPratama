@@ -38,11 +38,6 @@ class Poliklinik extends Model
         return $this->hasMany(Tindakan::class);
     }
 
-    public function laboratorium(): HasMany
-    {
-        return $this->hasMany(Laboratorium::class);
-    }
-
     public function kunjungan(): HasMany
     {
         return $this->hasMany(Kunjungan::class);

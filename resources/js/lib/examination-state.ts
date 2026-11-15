@@ -13,7 +13,7 @@ export function examinationState(visit: ExaminationVisit) {
     const finalized = signed || visit.examination?.status === 'selesai';
     const canStart = !invalid && !finalized && visit.screeningSubmitted === true && !visit.isReservation && visit.status === 'pemeriksaan' && (!visit.examination || visit.canClaim);
     const canEdit = visit.screeningSubmitted === true && !visit.canClaim && Boolean(visit.examination) && !invalid && !finalized && visit.status === 'pemeriksaan';
-    const canCorrect = !visit.canClaim && signed && visit.examination?.integrityValid === true && ['tindakan', 'farmasi', 'kasir', 'selesai'].includes(visit.status);
+    const canCorrect = !visit.canClaim && signed && visit.examination?.integrityValid === true && ['tindakan', 'farmasi', 'selesai'].includes(visit.status);
     let notice: ExaminationNotice | null = null;
     if (invalid) {
         notice = { title: 'Catatan perlu diverifikasi', description: 'Keutuhan catatan belum dapat diverifikasi. Perubahan dihentikan sementara; hubungi pengelola rekam medis untuk pemeriksaan data.', destructive: true };

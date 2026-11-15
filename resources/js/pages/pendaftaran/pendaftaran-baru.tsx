@@ -73,7 +73,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
             return;
         }
         form.transform((data) => ({ ...data, registration_type: registrationType === 'directory' ? 'directory' : 'manual' }));
-        form.post('/pendaftaran/pendaftaran-baru');
+        form.post('/pendaftaran/pendaftaran-baru', { preserveScroll: 'errors' });
     }
 
     return (

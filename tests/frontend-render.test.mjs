@@ -677,7 +677,7 @@ test('doctor treatment monitoring shows operational filters, compact statuses an
 test('dashboard summaries and day bars navigate to their related menus', async () => {
     const globalDashboard = await renderPage('dashboard/index', {
         stats: { totalPatients: 12, visitsToday: 3, visitsThisMonth: 18, prescriptionsToday: 2 },
-        visitStatuses: { menunggu: 1, screening: 1, pemeriksaan: 1, farmasi: 0, kasir: 0, selesai: 0, batal: 0 },
+        visitStatuses: { menunggu: 1, screening: 1, pemeriksaan: 1, farmasi: 0, selesai: 0, batal: 0 },
         visitsByDay: [{ tanggal: '2026-10-21', jumlah: 2 }, { tanggal: '2026-10-22', jumlah: 3 }],
         canRegister: true,
         followUp: { upcoming: 0, overdue: 0, href: '/laporan/kunjungan' },
@@ -760,7 +760,7 @@ test('registration visit editor returns to its visit detail with the shared back
     assert.doesNotMatch(html, /Kembali ke laporan kunjungan/);
 });
 
-test('shared waiting and completed codes retain their pharmacy and laboratory meanings', async () => {
+test('shared waiting and completed codes retain their visit and pharmacy meanings', async () => {
     const { StatusBadge } = await server.ssrLoadModule('/resources/js/components/dashboard/status-badge.tsx');
     for (const [context, status, label] of [
         ['visit', 'menunggu', 'Menunggu pengkajian awal'],
@@ -770,8 +770,6 @@ test('shared waiting and completed codes retain their pharmacy and laboratory me
         ['pharmacy', 'menunggu', 'Menunggu penyiapan obat'],
         ['pharmacy', 'farmasi', 'Menunggu penyiapan obat'],
         ['pharmacy', 'selesai', 'Penyerahan obat selesai'],
-        ['laboratory', 'menunggu', 'Menunggu pemeriksaan lab'],
-        ['laboratory', 'selesai', 'Pemeriksaan lab selesai'],
     ]) {
         const html = renderToString(createElement(StatusBadge, { context, status }));
         assert.ok(html.includes(`>${label}</span>`), `${context}: ${status}`);
@@ -807,6 +805,27 @@ test('pharmacy item actions enable external prescription only when usable stock 
     assert.doesNotMatch(empty.match(/<button[^>]*aria-label="Catat resep luar"[^>]*>/)?.[0] ?? '', /\sdisabled(?:=|\s|>)/);
     const stocked = await renderPage('pelayanan/farmasi/show', { visit: { ...visit, prescriptionItems: [{ ...item, stock: 4 }] }, today: '2026-10-31', appName: 'Klinik Uji' });
     assert.match(stocked.match(/<button[^>]*aria-label="Catat resep luar"[^>]*>/)?.[0] ?? '', /\sdisabled(?:=|\s|>)/);
+});
+
+test('completed dispensing displays the historical quantity independently of current stock', async () => {
+    const html = await renderPage('pelayanan/farmasi/show', {
+        appName: 'Klinik Uji', today: '2026-10-31',
+        visit: {
+            id: 1, number: 'KNJ-1', status: 'selesai', prescriptionNumber: 'RSP-1', doctor: 'Dokter Uji',
+            patient: { id: 1, name: 'Pasien Uji', medicalRecordNumber: 'RM-1', allergies: null, screeningAllergies: null, examinationAllergies: null },
+            pharmacy: { status: 'selesai', notes: 'Sisa resep dikonfirmasi', items: [] },
+            prescriptionItems: [{ id: 1, medicineId: 4, name: 'Obat Uji', type: 'jadi', requestedQuantity: 3, dispensedQuantity: 2, unit: 'tablet', instructions: 'Aturan pakai tercatat', external: false, stock: 0, stockUnit: 'tablet' }],
+            allocations: [],
+        },
+    });
+    assert.match(html, /Rincian penyerahan resep/);
+    assert.match(html, />2\s*(?:<!-- -->\s*)*tablet</);
+    assert.match(html, /Aturan pakai tercatat/);
+    assert.match(html, /Sisa resep dikonfirmasi/);
+    assert.doesNotMatch(html, /<input\b|Stok layak pakai|Jumlah melebihi resep|Simpan draf|Catat resep luar/);
+    const labelAction = html.match(/<button[^>]*aria-label="Cetak etiket"[^>]*>/)?.[0];
+    assert.ok(labelAction);
+    assert.doesNotMatch(labelAction, /\sdisabled(?:=|\s|>)/);
 });
 
 test('pharmacy direct dispensing captures patient, medicine, reason, and safe-use instructions', async () => {
@@ -1227,12 +1246,9 @@ test('patient row exposes verification, detail and RME as separate icon actions'
 });
 
 for (const [page, props, expectedCount] of [
-    ['master/alkes/index', { filters: { search: '' }, items: pageOf([{ id: 1, code: 'A-1', name: 'Alkes', stock: 1, minimumStock: 0, active: true }]) }, 2],
-    ['master/depo-obat/index', { filters: { search: '' }, depots: pageOf([{ id: 1, code: 'D-1', name: 'Depo', active: true }]) }, 2],
-    ['master/laboratorium/index', { filters: { search: '' }, clinics: [], laboratories: pageOf([{ id: 1, code: 'L-1', name: 'Lab', active: true }]) }, 3],
     ['master/obat/index', { filters: { search: '', type: '', lowStock: false }, medicines: pageOf([{ id: 1, code: 'O-1', name: 'Obat', stock: 1, minimumStock: 0, unitConversion: 1, type: 'obat', active: true }]) }, 3],
     ['dokter/patients', { search: '', patients: pageOf([{ id: 7, medicalRecordNumber: 'RM-007', name: 'Pasien Uji', visitCount: 1, recordUrl: '/pelayanan/pasien/7/rekam-medis', letterUrl: null }]) }, 2],
-    ['stok/persediaan/show', { medicine: { id: 1, code: 'O-1', name: 'Obat', stock: 10, unit: 'tablet' }, batches: [{ id: 1, number: 'B-1', stock: 10, status: 'karantina', source: 'distribusi', expired: false, nearExpiry: false }], movements: pageOf([{ id: 1, date: '24/10/2026', type: 'keluar', quantity: 1, before: 11, after: 10, canReturn: true }]), depots: [], depotsEnabled: true }, 4],
+    ['stok/persediaan/show', { medicine: { id: 1, code: 'O-1', name: 'Obat', stock: 10, unit: 'tablet' }, batches: [{ id: 1, number: 'B-1', stock: 10, status: 'karantina', source: 'distribusi', expired: false, nearExpiry: false }], movements: pageOf([{ id: 1, date: '24/10/2026', type: 'keluar', quantity: 1, before: 11, after: 10, canReturn: true }]) }, 3],
 ]) {
     test(`${page} uses uniform icon actions in populated tables`, async () => {
         const html = await renderPage(page, props);
@@ -2023,11 +2039,11 @@ async function clinicalSaveHarness(pendingBodyFinding = false) {
     const ast = ts.createSourceFile(path.pathname, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const functions = [];
     function collect(node) {
-        if (ts.isFunctionDeclaration(node) && ['confirmSave', 'submitClinicalSection', 'submitForm', 'canSubmitEntry', 'submitAddendum', 'submitDentalFinding'].includes(node.name?.text)) functions.push(node.getText(ast));
+        if (ts.isFunctionDeclaration(node) && ['confirmSave', 'submitClinicalSection', 'submitForm', 'canSubmitEntry', 'submitAddendum', 'submitDentalFinding', 'focusDentalErrors', 'focusExaminationErrors'].includes(node.name?.text)) functions.push(node.getText(ast));
         ts.forEachChild(node, collect);
     }
     collect(ast);
-    assert.equal(functions.length, 6);
+    assert.equal(functions.length, 8);
     const requests = [];
     const posts = [];
     const formNames = ['examinationForm', 'physicalForm', 'differentialForm', 'followUpForm', 'diagnosisForm', 'treatmentForm', 'prescriptionForm', 'externalPrescriptionForm', 'letterForm', 'referralForm', 'addendumForm', 'dentalForm'];
@@ -2422,6 +2438,49 @@ test('physical summary shows only recorded map findings or annotations when narr
     assert.doesNotMatch(annotationHtml, /temuan dicatat|Temuan per sistem|<dt[^>]*>Ringkasan pemeriksaan fisik<\/dt>/);
 });
 
+test('general diagnosis handoff includes recorded clinical detail and keeps search terms reviewable', async () => {
+    const { describeGeneralFinding, generalFindingSearch, generalFindingSearches } = await server.ssrLoadModule('/resources/js/lib/general-diagnosis.ts');
+    const finding = recordedBodyMap().findings[0];
+    const context = describeGeneralFinding({ ...finding, annotationNote: 'Catatan khusus gambar' });
+    for (const detail of ['Sisi: kanan', 'Lokasi rinci: Dahi kanan', 'Metode: Palpasi', 'Keluhan lokal: Benjolan', 'Nyeri: 0/10', 'Catatan khusus gambar']) assert.ok(context.includes(detail));
+    assert.deepEqual(generalFindingSearches('Batuk disertai mengi'), ['Wheezing', 'Cough']);
+    assert.equal(generalFindingSearch('Tidak ada batuk'), 'Tidak ada batuk');
+});
+
+test('general diagnosis lookup offers saved map, narrative and system findings as catalog search sources', async () => {
+    const { GeneralDiagnosisSuggestions } = await server.ssrLoadModule('/resources/js/components/kunjungan/general-diagnosis-suggestions.tsx');
+    const html = renderToString(createElement(GeneralDiagnosisSuggestions, {
+        bodyMap: recordedBodyMap(), physicalExam: 'Temuan naratif tersimpan',
+        physicalSystems: { Thorax: 'Temuan sistem tersimpan', Kulit: '' },
+        disabled: false, onSearch() {},
+    }));
+    assert.match(html, /Usulan kode berdasarkan temuan/);
+    assert.match(html, /value="map-head-1"/);
+    assert.match(html, /value="system-Thorax"/);
+    assert.match(html, /value="summary"/);
+    assert.doesNotMatch(html, /value="system-Kulit"/);
+});
+
+test('diagnosis summary switches between manual and interactive findings without nested vertical scrolling', async () => {
+    const { GeneralExaminationSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
+    const { examinationAnnotationNote } = await server.ssrLoadModule('/resources/js/lib/body-map.ts');
+    const bodyMap = recordedBodyMap();
+    const manual = { ...bodyMap.findings[0], id: 'manual-1', entryMode: 'manual', locationId: 'other', locationLabel: 'Dahi', finding: 'Temuan manual pada dahi' };
+    manual.annotationNote = examinationAnnotationNote(manual.locationLabel, manual.finding);
+    const props = { anamnesis: null, physicalExam: null, physicalSystems: {}, hasUnsavedChanges: false, onReview() {} };
+    const html = renderToString(createElement(GeneralExaminationSummary, { ...props, bodyMap: { ...bodyMap, findings: [...bodyMap.findings, manual] } }));
+    assert.match(html, /data-value="interactive"[^>]*role="tab"/);
+    assert.match(html, /data-value="manual"[^>]*role="tab"/);
+    assert.doesNotMatch(html, /h-\[32rem\]|h-\[39rem\]|overflow-auto/);
+    assert.equal((html.match(/Temuan manual pada dahi/g) ?? []).length, 1);
+    assert.doesNotMatch(html, /Keterangan anotasi/i);
+
+    const manualOnly = renderToString(createElement(GeneralExaminationSummary, { ...props, bodyMap: { ...bodyMap, findings: [manual] } }));
+    assert.match(manualOnly, /data-annotation-id="draw-1"/);
+    assert.match(manualOnly, /Temuan manual pada dahi/);
+    assert.doesNotMatch(manualOnly, /role="tablist"|Peta seluruh tubuh interaktif/);
+});
+
 test('a selected finding appears once when a previous version copied it into the annotation note', async () => {
     const { GeneralExaminationSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
     const { annotationNarrative, emptyBodyFinding } = await server.ssrLoadModule('/resources/js/lib/body-examination.ts');
@@ -2433,7 +2492,7 @@ test('a selected finding appears once when a previous version copied it into the
     const html = renderToString(createElement(GeneralExaminationSummary, { anamnesis: null, physicalExam: null, physicalSystems: {}, bodyMap, hasUnsavedChanges: false, onReview() {} }));
     assert.equal((html.match(/Ronki halus pada pemeriksaan/g) ?? []).length, 1);
     assert.match(html, /Tampilkan lokasi pada peta/);
-    assert.match(html, /Belum ada keterangan anotasi untuk temuan ini/);
+    assert.doesNotMatch(html, /Keterangan anotasi/i);
     assert.doesNotMatch(html, /Anotasi tersimpan|Catatan untuk seluruh peta|body-model-reference/);
 });
 
@@ -2457,7 +2516,7 @@ test('the annotation panel below the map follows the selected pin or finding', a
     const render = runInNewContext(code + '\nBodyExaminationRecord;', {
         React: { createElement }, ...lib,
         useState: () => { const index = hook++; return [state[index], value => { state[index] = value; }]; },
-        MapPin: 'i', Button: 'button', Badge: 'span', HumanBodyModel: 'body-map', BodyFindingDetails: 'finding-details',
+        MapPin: 'i', Button: 'button', Badge: 'span', HumanBodyModel: 'body-map', BodyFindingCard: 'finding-card',
     });
     function nodes(node) {
         if (Array.isArray(node)) return node.flatMap(nodes);
@@ -2476,7 +2535,7 @@ test('the annotation panel below the map follows the selected pin or finding', a
     tree.find(node => node.type === 'body-map').props.onSelect({ id: 'ent_throat' });
     tree = renderNodes();
     assert.equal(selectedNote(tree), 'Tanda tenggorokan');
-    tree.find(node => node.props['aria-label'] === 'Tampilkan lokasi ' + lib.findingLocation(lungs).label).props.onClick();
+    tree.find(node => node.type === 'finding-card' && node.props.finding.id === lungs.id).props.action.props.onClick();
     assert.equal(selectedNote(renderNodes()), 'Tanda paru');
 });
 
@@ -2772,7 +2831,11 @@ async function examinationWorkspaceHandler(name, scope) {
     function collect(node) { if (ts.isFunctionDeclaration(node) && node.name?.text === name) fn = node.getText(ast); ts.forEachChild(node, collect); }
     collect(ast);
     assert.ok(fn, name + ' is missing');
-    if (name === 'applyFinding') attachDerivedState(ts, ast, scope, ['preview', 'existingFinding', 'findingChanged', 'canApplyFinding']);
+    if (name === 'applyFinding') {
+        const { examinationAnnotationNote, findingLocation } = await server.ssrLoadModule('/resources/js/lib/body-map.ts');
+        Object.assign(scope, { examinationAnnotationNote, findingLocation, onDraftChange() {} });
+        attachDerivedState(ts, ast, scope, ['selected', 'autoAnnotation', 'annotationNote', 'preview', 'existingFinding', 'findingChanged', 'canApplyFinding']);
+    }
     const code = ts.transpileModule(fn, { compilerOptions: { target: ts.ScriptTarget.ESNext } }).outputText;
     return runInNewContext(code + '\n' + name, scope);
 }
@@ -2940,7 +3003,7 @@ test('examination state allows addenda only for valid signed records and blocks 
     const signedDraft = examinationState({ status: 'pemeriksaan', canClaim: false, examination: { status: 'draft', signedAt: '26/10/2026', integrityValid: true } });
     assert.equal(signedDraft.canEdit, false);
     assert.equal(signedDraft.canCorrect, false);
-    for (const status of ['farmasi', 'kasir', 'selesai']) {
+    for (const status of ['farmasi', 'selesai']) {
         const finalized = examinationState({ status, canClaim: false, examination: { status: 'selesai', signedAt: '26/10/2026', integrityValid: true } });
         assert.equal(finalized.canEdit, false);
         assert.equal(finalized.canCorrect, true);
@@ -3015,20 +3078,20 @@ test('clinic inventory keeps receipt and reconciliation actions without depot co
     const html = await renderPage('stok/persediaan/show', {
         medicine: { id: 1, code: 'BHP-1', name: 'Kasa steril', stock: 10, unit: 'pcs' },
         batches: [{ id: 1, number: 'OLD-BATCH', stock: 10, status: 'karantina', source: 'retur', depot: 'Depo lama', expired: false, nearExpiry: false }],
-        movements: pageOf([]), depots: [], depotsEnabled: false,
+        movements: pageOf([]),
     });
     assert.match(html, /Catat penerimaan/);
     assert.match(html, /aria-label="Verifikasi"/);
     assert.match(html, /aria-label="Opname \/ kondisi"/);
     assert.doesNotMatch(html.match(/<table\b[\s\S]*?<\/table>/)?.[0] ?? '', /<th[^>]*>Depo|Depo lama/);
-    assert.match(html.match(/<button[^>]*aria-label="Mutasi"[^>]*>/)?.[0] ?? '', /disabled=""/);
+    assert.doesNotMatch(html, /aria-label="Mutasi"/);
     assert.match(html, /Karantina/);
 });
 
 test('clinic settings omit depot columns and retain examination-room actions', async () => {
     const html = await renderPage('master/poliklinik/index', {
         clinics: pageOf([{ id: 1, code: 'UMUM', name: 'Poli Umum', type: 'umum', depotId: 2, depotName: 'Depo lama', active: true }]),
-        filters: { search: '' }, depots: [], depotsEnabled: false, clinicTypes: [{ value: 'umum', label: 'Umum' }],
+        filters: { search: '' }, clinicTypes: [{ value: 'umum', label: 'Umum' }],
     });
     assert.doesNotMatch(html.match(/<table\b[\s\S]*?<\/table>/)?.[0] ?? '', /Depo|depo|sumber stok/);
     assert.match(html, /aria-label="Ruang poli"/);
@@ -3457,8 +3520,11 @@ test('physician sections use the dental examination title and shared centered ta
     const props = examinationProps();
     props.visit.odontogram = [{ toothFdi: '28', surface: 'W', findingCode: 'caries', notes: null, details: {} }];
     const html = await renderPage('pelayanan/pemeriksaan/show', props);
-    assert.match(html, /Temuan karies yang perlu dilengkapi/);
-    assert.match(html.replace(/<!--.*?-->/g, ''), /Lengkapi gigi 28/);
+    assert.match(html, /Tabel temuan odontogram[\s\S]*Rincian karies belum lengkap/);
+    assert.match(html, /Ubah temuan gigi 28 permukaan W/);
+    props.visit.odontogram = [{ ...finding, toothFdi: '28', notes: null }];
+    const completeHtml = await renderPage('pelayanan/pemeriksaan/show', props);
+    assert.doesNotMatch(completeHtml, /Rincian karies belum lengkap/);
     assert.match(html, /diagnosis pulpa/);
  });
 
@@ -3832,4 +3898,20 @@ test('printing one RME visit retains selection during preparation and restores t
     scope.printWithFonts = async () => { throw new Error('Print interrupted'); };
     await assert.rejects(scope.run(84), /Print interrupted/);
     assert.deepEqual(states, [42, null, 84, null]);
+});
+
+
+test('dental assessment sends only dental and handover fields from a saved assessment', async () => {
+    const { dentalNursingAssessment } = await server.ssrLoadModule('/resources/js/pages/pelayanan/screening/show.tsx');
+    assert.deepEqual(dentalNursingAssessment({
+        general_condition: 'baik',
+        progression: 'menetap',
+        needs_status: 'ada',
+        needs: 'Observasi',
+        complaint_notes: '',
+        systems_notes: 'Catatan lama',
+        systems: { respiratory: { status: 'negative' } },
+        airway: 'baik',
+    }), { general_condition: 'baik', progression: 'menetap', needs_status: 'ada', needs: 'Observasi' });
+    assert.deepEqual(dentalNursingAssessment({}), {});
 });

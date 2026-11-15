@@ -29,7 +29,8 @@ final readonly class DateRangeFilter
 
     /**
      * @template T of Builder|QueryBuilder
-     * @param T $query
+     *
+     * @param  T  $query
      * @return T
      */
     public function apply(Builder|QueryBuilder $query, string $column = 'tanggal'): Builder|QueryBuilder

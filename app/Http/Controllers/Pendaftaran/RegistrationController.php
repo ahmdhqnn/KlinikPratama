@@ -426,7 +426,7 @@ class RegistrationController extends Controller
         $filters = $request->validate([
             'poliklinik_id' => ['nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'tanggal' => ['nullable', 'date'],
-            'status' => ['nullable', 'in:menunggu,screening,pemeriksaan,tindakan,farmasi,selesai,batal'],
+            'status' => ['nullable', 'in:'.implode(',', Kunjungan::STATUSES)],
         ]);
         $role = $request->user()->role;
         $assignedClinicId = $role === 'perawat'
@@ -712,31 +712,11 @@ class RegistrationController extends Controller
         ]);
         $this->scheduleAccess->authorizeClinic($request->user(), (int) $validated['poliklinik_id']);
 
-        $doctorIsActiveDoctor = Nakes::whereKey($validated['dokter_id'])
-            ->where('jabatan', 'dokter')
-            ->where('is_active', true)
-            ->exists();
-
-        if (! $doctorIsActiveDoctor) {
-            throw ValidationException::withMessages(['dokter_id' => 'Pilih tenaga kesehatan aktif dengan jabatan dokter.']);
-        }
-
-        $exists = JadwalDokter::where('dokter_id', $validated['dokter_id'])
-            ->where('poliklinik_id', $validated['poliklinik_id'])
-            ->where('hari', $validated['hari'])
-            ->where(function ($query) use ($validated): void {
-                $end = $validated['berlaku_sampai'] ?? '9999-12-31';
-                $query->where(function ($period) use ($validated): void {
-                    $period->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', $validated['berlaku_mulai']);
-                })->where(fn ($start) => $start->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', $end));
-            })
-            ->exists();
-
-        if ($exists) {
-            throw ValidationException::withMessages(['hari' => 'Jadwal dokter untuk poli dan hari tersebut sudah tersedia.']);
-        }
-
-        JadwalDokter::create($validated);
+        DB::transaction(function () use ($validated): void {
+            $this->lockScheduleDoctor((int) $validated['dokter_id']);
+            $this->ensureSchedulePeriodAvailable($validated);
+            JadwalDokter::create($validated);
+        }, attempts: 3);
 
         return back()->with('success', 'Jadwal praktik berhasil ditambahkan.');
     }
@@ -756,31 +736,13 @@ class RegistrationController extends Controller
         ]);
         $this->scheduleAccess->authorizeClinic($request->user(), (int) $validated['poliklinik_id']);
 
-        $doctorIsActiveDoctor = Nakes::whereKey($validated['dokter_id'])
-            ->where('jabatan', 'dokter')
-            ->where('is_active', true)
-            ->exists();
-
-        if (! $doctorIsActiveDoctor) {
-            throw ValidationException::withMessages(['dokter_id' => 'Pilih tenaga kesehatan aktif dengan jabatan dokter.']);
-        }
-
-        $periodEnd = $validated['berlaku_sampai'] ?? '9999-12-31';
-        $overlapsAnotherSchedule = JadwalDokter::where('id', '!=', $jadwal->id)
-            ->where('dokter_id', $validated['dokter_id'])
-            ->where('poliklinik_id', $validated['poliklinik_id'])
-            ->where('hari', $validated['hari'])
-            ->where(function ($period) use ($validated): void {
-                $period->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', $validated['berlaku_mulai']);
-            })
-            ->where(fn ($start) => $start->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', $periodEnd))
-            ->exists();
-
-        if ($overlapsAnotherSchedule) {
-            throw ValidationException::withMessages(['hari' => 'Jadwal dokter untuk poli dan hari tersebut sudah bertumpuk dengan jadwal lain.']);
-        }
-
-        $jadwal->update($validated);
+        DB::transaction(function () use ($request, $jadwal, $validated): void {
+            $this->lockScheduleDoctor((int) $validated['dokter_id']);
+            $current = JadwalDokter::whereKey($jadwal->id)->lockForUpdate()->firstOrFail();
+            $this->scheduleAccess->authorizeClinic($request->user(), (int) $current->poliklinik_id);
+            $this->ensureSchedulePeriodAvailable($validated, $current->id);
+            $current->update($validated);
+        }, attempts: 3);
 
         return back()->with('success', 'Jadwal praktik berhasil diperbarui.');
     }
@@ -801,9 +763,39 @@ class RegistrationController extends Controller
             'poliklinik_id' => ['required', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
         ]);
         $this->scheduleAccess->authorizeClinic($request->user(), (int) $data['poliklinik_id']);
-        $added = DB::transaction(fn (): int => $this->schedule->applyAsnTemplate((int) $data['dokter_id'], (int) $data['poliklinik_id'], today()->toDateString()));
+        $added = DB::transaction(function () use ($data): int {
+            $this->lockScheduleDoctor((int) $data['dokter_id']);
+
+            return $this->schedule->applyAsnTemplate((int) $data['dokter_id'], (int) $data['poliklinik_id'], today()->toDateString());
+        }, attempts: 3);
 
         return back()->with('success', "{$added} hari jadwal ASN ditambahkan; jadwal yang sudah diatur tetap dipertahankan.");
+    }
+
+    private function lockScheduleDoctor(int $doctorId): void
+    {
+        $doctor = Nakes::whereKey($doctorId)->where('jabatan', 'dokter')
+            ->where('is_active', true)->lockForUpdate()->first();
+
+        if (! $doctor) {
+            throw ValidationException::withMessages(['dokter_id' => 'Pilih tenaga kesehatan aktif dengan jabatan dokter.']);
+        }
+    }
+
+    private function ensureSchedulePeriodAvailable(array $data, ?int $exceptId = null): void
+    {
+        $periodEnd = $data['berlaku_sampai'] ?? '9999-12-31';
+        $overlap = JadwalDokter::where('dokter_id', $data['dokter_id'])
+            ->where('poliklinik_id', $data['poliklinik_id'])
+            ->where('hari', $data['hari'])
+            ->when($exceptId, fn ($query) => $query->whereKeyNot($exceptId))
+            ->where(fn ($query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', $data['berlaku_mulai']))
+            ->where(fn ($query) => $query->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', $periodEnd))
+            ->exists();
+
+        if ($overlap) {
+            throw ValidationException::withMessages(['hari' => 'Jadwal dokter untuk poli dan hari tersebut bertumpuk dengan jadwal lain.']);
+        }
     }
 
     public function storeHoliday(Request $request): RedirectResponse

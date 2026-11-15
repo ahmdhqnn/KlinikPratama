@@ -33,7 +33,7 @@ export default function ClinicalTerminologyShow({ catalog, codes, search: initia
 
     function removeCatalog() {
         confirmAction(`Hapus seluruh ${new Intl.NumberFormat('id-ID').format(catalog.count)} kode dari ${catalog.label}, rilis ${catalog.release}? Penghapusan ini tidak dapat dibatalkan.`, () => {
-            router.delete('/master/terminologi-klinis', { data: { system: catalog.system, release: catalog.releaseValue } });
+            router.delete('/master/terminologi-klinis', { preserveScroll: 'errors', data: { system: catalog.system, release: catalog.releaseValue } });
         }, 'Hapus katalog');
     }
 

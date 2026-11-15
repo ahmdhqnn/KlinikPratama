@@ -65,7 +65,6 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
         pemeriksaan: `/pelayanan/pemeriksaan?tanggal=${today}&status=pemeriksaan`,
         tindakan: `/pelayanan/tindakan-perawat?tanggal=${today}&status=pending`,
         farmasi: `/pelayanan/farmasi?tanggal=${today}`,
-        kasir: reportStatusUrl('kasir'),
         selesai: reportStatusUrl('selesai'),
         batal: reportStatusUrl('batal'),
     } : Object.fromEntries(Object.keys(visitStatusFilterLabels).map((status) => [status, todayReportUrl]));

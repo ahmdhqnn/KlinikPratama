@@ -1,7 +1,7 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
-import { focusFirstInvalidField, focusFormControl } from '@/lib/form-error-focus';
+import { focusFirstInvalidField, focusFormControl, revealFormControl } from '@/lib/form-error-focus';
 
 export function RequestFeedback() {
     useEffect(() => {
@@ -13,16 +13,17 @@ export function RequestFeedback() {
             });
         };
 
-        const focusValidationError = () => {
+        const focusValidationError = (errors?: Record<string, string>) => {
             afterRender(() => {
                 const root = document.querySelector('[role="dialog"][data-state="open"]') ?? document;
                 if (!focusFirstInvalidField(root)) {
                     const summary = root.querySelector<HTMLElement>('[data-validation-summary]');
-                    if (summary?.getClientRects().length) focusFormControl(summary);
+                    if (summary && revealFormControl(summary)) focusFormControl(summary);
+                    else if (errors) toast.error(Object.values(errors)[0] ?? 'Periksa kembali isian formulir.', { id: 'request-validation' });
                 }
             });
         };
-        const removeValidation = router.on('error', focusValidationError);
+        const removeValidation = router.on('error', ({ detail: { errors } }) => focusValidationError(errors));
         focusValidationError();
 
         const onInvalid = (event: Event) => {
@@ -40,7 +41,7 @@ export function RequestFeedback() {
                         const proxy = candidate.getAttribute('aria-hidden') === 'true' ? candidate.previousElementSibling : null;
                         return proxy instanceof HTMLElement && proxy.matches('[role="checkbox"], [role="combobox"]') ? proxy : candidate;
                     })
-                    .find((candidate) => !candidate.closest('[hidden], [aria-hidden="true"]') && candidate.getClientRects().length > 0);
+                    .find(revealFormControl);
                 if (!first) return;
 
                 focusFormControl(first);

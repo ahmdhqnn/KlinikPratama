@@ -79,7 +79,7 @@ class DokterTindakanController extends Controller
     private function letterUrl(?Kunjungan $visit, ClinicalNoteRecorder $notes): ?string
     {
         $examination = $visit?->pemeriksaan;
-        if (! $visit || ! in_array($visit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true)
+        if (! $visit || ! in_array($visit->status, Kunjungan::POST_EXAMINATION_STATUSES, true)
             || ! $examination?->signed_at || ! $notes->verify($examination)) {
             return null;
         }

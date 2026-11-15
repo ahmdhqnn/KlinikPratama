@@ -18,9 +18,11 @@ interface ConfirmationRequest {
 }
 
 let activeRequest: ConfirmationRequest | null = null;
+let returnFocus: HTMLElement | null = null;
 let notifyProvider: (() => void) | null = null;
 
 export function confirmAction(description: string, action: () => void, actionLabel = 'Lanjutkan', title = 'Konfirmasi tindakan'): void {
+    returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     activeRequest = { title, description, action, actionLabel };
     notifyProvider?.();
 }
@@ -52,7 +54,12 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
         <>
             {children}
             <AlertDialog onOpenChange={(open) => { if (!open) close(); }} open={request !== null}>
-                <AlertDialogContent>
+                <AlertDialogContent onCloseAutoFocus={(event) => {
+                    event.preventDefault();
+                    const trigger = returnFocus;
+                    returnFocus = null;
+                    if (trigger?.isConnected && !trigger.matches(':disabled')) trigger.focus({ preventScroll: true });
+                }}>
                     <AlertDialogHeader>
                         <AlertDialogTitle>{request?.title ?? 'Konfirmasi tindakan'}</AlertDialogTitle>
                         <AlertDialogDescription>{request?.description}</AlertDialogDescription>

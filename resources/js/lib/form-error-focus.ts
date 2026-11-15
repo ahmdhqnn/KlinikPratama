@@ -5,14 +5,19 @@ export function focusFormControl(control: HTMLElement): void {
     control.scrollIntoView({ block: 'center', inline: 'nearest' });
 }
 
-function revealControl(control: HTMLElement): boolean {
+export function revealFormControl(control: HTMLElement): boolean {
     if (control.closest('[hidden], [inert], [aria-hidden="true"]') || control.matches(':disabled')) return false;
+    for (let parent = control.parentElement; parent; parent = parent.parentElement) {
+        if (getComputedStyle(parent).display === 'none') return false;
+    }
     const closed: HTMLDetailsElement[] = [];
     for (let parent = control.parentElement; parent; parent = parent.parentElement) {
         if (parent instanceof HTMLDetailsElement && !parent.open) closed.push(parent);
     }
     closed.forEach((details) => { details.open = true; });
-    return control.getClientRects().length > 0 && getComputedStyle(control).visibility === 'visible';
+    const visible = control.getClientRects().length > 0 && getComputedStyle(control).visibility === 'visible';
+    if (!visible) closed.forEach((details) => { details.open = false; });
+    return visible;
 }
 
 export function focusFirstInvalidField(root: ParentNode): boolean {
@@ -20,12 +25,12 @@ export function focusFirstInvalidField(root: ParentNode): boolean {
     for (const field of invalid) {
         const controls = field.matches(controlSelector) ? [field] : field.querySelectorAll<HTMLElement>(controlSelector);
         for (const control of controls) {
-            if (revealControl(control)) {
+            if (revealFormControl(control)) {
                 focusFormControl(control);
                 return true;
             }
         }
-        if (field.hasAttribute('data-field-invalid') && field.tabIndex === -1 && revealControl(field)) {
+        if (field.hasAttribute('data-field-invalid') && field.tabIndex === -1 && revealFormControl(field)) {
             focusFormControl(field);
             return true;
         }

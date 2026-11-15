@@ -51,7 +51,7 @@ class PemeriksaanController extends Controller
         $date = $filters['tanggal'] ?? '';
         $claimDate = $date ?: today()->toDateString();
         $visitQuery = $this->doctorAccess->visibleVisits($request->user(), $claimDate)
-            ->whereIn('status', ['pemeriksaan', 'tindakan', 'farmasi', 'kasir', 'selesai'])
+            ->whereIn('status', ['pemeriksaan', ...Kunjungan::POST_EXAMINATION_STATUSES])
             ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status));
         $kunjungan = (clone $visitQuery)
             ->with(['pasien', 'poliklinik', 'dokter', 'screening', 'pemeriksaan.diagnosa', 'pemeriksaan.clinicalNoteVersions'])
@@ -89,7 +89,7 @@ class PemeriksaanController extends Controller
             'canExamine' => $visit->canOpenExamination(),
             'diagnosisCount' => $visit->pemeriksaan?->diagnosa->count() ?? 0,
             'recordUrl' => ($request->user()->isAdmin() || ($doctorId !== null && in_array((int) $visit->pasien_id, $recordPatientIds, true))) ? route('pelayanan.pasien.rekam-medis', $visit->pasien_id) : null,
-            'letterUrl' => $doctorId !== null && in_array($visit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true)
+            'letterUrl' => $doctorId !== null && in_array($visit->status, Kunjungan::POST_EXAMINATION_STATUSES, true)
                 && $visit->pemeriksaan?->signed_at && $noteRecorder->verify($visit->pemeriksaan)
                 ? route('persuratan.surat.create', $visit)
                 : null,
@@ -98,7 +98,7 @@ class PemeriksaanController extends Controller
         return Inertia::render('pelayanan/pemeriksaan/index', [
             'canIssueLetters' => $request->user()->role === 'dokter',
             'stats' => [
-                'total' => (clone $todayVisits)->whereIn('status', ['pemeriksaan', 'tindakan', 'farmasi', 'kasir', 'selesai'])->count(),
+                'total' => (clone $todayVisits)->whereIn('status', ['pemeriksaan', ...Kunjungan::POST_EXAMINATION_STATUSES])->count(),
                 'waiting' => (clone $todayVisits)->where('status', 'pemeriksaan')->whereDoesntHave('pemeriksaan')->count(),
                 'inProgress' => (clone $todayVisits)->where('status', 'pemeriksaan')->whereHas('pemeriksaan', fn ($query) => $query->whereNull('signed_at'))->count(),
                 'completed' => (clone $todayVisits)->whereHas('pemeriksaan', fn ($query) => $query->whereNotNull('signed_at'))->count(),
@@ -136,12 +136,12 @@ class PemeriksaanController extends Controller
             'pasien', 'poliklinik', 'dokter', 'screening',
             'pemeriksaan.diagnosa', 'pemeriksaan.dokter', 'pemeriksaan.signedBy', 'pemeriksaan.clinicalNoteVersions.actor', 'resep.resepObat.obat',
             'tindakanKunjungan.tindakan', 'suratMedis.template',
-            'labHasil.laboratorium', 'rujukanInternal.dariPoli', 'rujukanInternal.kePoli',
+            'rujukanInternal.dariPoli', 'rujukanInternal.kePoli',
             'informedConsent', 'odontogramFindings', 'rujukanInternal.template',
         ]);
 
         $tindakanList = Tindakan::where('is_active', true)->where('poliklinik_id', $kunjungan->poliklinik_id)
-            ->when(! config('clinic.modules.laboratory', false), fn ($query) => $query->where('kategori', 'medis'))
+            ->where('kategori', 'medis')
             ->orderBy('nama')->get();
         $diagnosisCodeSystems = collect([
             ['value' => 'icd10_cm', 'label' => 'ICD-10-CM'],
@@ -868,7 +868,7 @@ class PemeriksaanController extends Controller
             $treatmentName = $terminology?->display;
             if ($hasClinicTreatment) {
                 $tindakan = Tindakan::query()->where('is_active', true)->findOrFail($data['tindakan_id']);
-                if ($tindakan->kategori === 'lab' && ! config('clinic.modules.laboratory', false)) {
+                if ($tindakan->kategori !== 'medis') {
                     throw ValidationException::withMessages(['tindakan_id' => 'Layanan laboratorium tidak tersedia. Pilih tindakan klinik yang aktif.']);
                 }
                 abort_unless($tindakan->poliklinik_id === $kunjungan->poliklinik_id, 422, 'Tindakan tidak tersedia di poliklinik kunjungan ini.');
@@ -928,7 +928,7 @@ class PemeriksaanController extends Controller
             $this->authorizeVisit($kunjungan);
             $signedExamination = $kunjungan->pemeriksaan?->signed_at !== null;
             if ($signedExamination) {
-                abort_unless($request->user()->role === 'dokter' && in_array($kunjungan->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true), 422, 'Surat hanya dapat diterbitkan untuk pemeriksaan final yang tidak dibatalkan.');
+                abort_unless($request->user()->role === 'dokter' && in_array($kunjungan->status, Kunjungan::POST_EXAMINATION_STATUSES, true), 422, 'Surat hanya dapat diterbitkan untuk pemeriksaan final yang tidak dibatalkan.');
                 abort_unless($noteRecorder->verify($kunjungan->pemeriksaan), 422, 'Keutuhan catatan pemeriksaan perlu diverifikasi sebelum surat diterbitkan.');
             } else {
                 $this->authorizeMutableVisit($kunjungan);
@@ -1260,7 +1260,7 @@ class PemeriksaanController extends Controller
         DB::transaction(function () use ($request, $kunjungan, $noteRecorder, $auditRecorder, $data, $fields): void {
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeVisit($lockedVisit);
-            abort_unless(in_array($lockedVisit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
+            abort_unless(in_array($lockedVisit->status, Kunjungan::POST_EXAMINATION_STATUSES, true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
             $examination = $lockedVisit->pemeriksaan()->lockForUpdate()->first();
             abort_unless($examination?->signed_at, 422, 'Catatan lama belum difinalisasi dengan versi yang dapat dikoreksi.');
             abort_unless($noteRecorder->verify($examination), 422, 'Integritas riwayat catatan tidak valid; koreksi dihentikan.');
@@ -1417,7 +1417,7 @@ class PemeriksaanController extends Controller
                 throw ValidationException::withMessages(['reason' => 'Alasan pembatalan temuan final minimal 10 karakter.']);
             }
 
-            abort_unless(in_array($lockedVisit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
+            abort_unless(in_array($lockedVisit->status, Kunjungan::POST_EXAMINATION_STATUSES, true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
             abort_unless($noteRecorder->verify($examination), 422, 'Integritas riwayat catatan tidak valid; koreksi dihentikan.');
 
             $latestVersion = $examination->clinicalNoteVersions()->latest('version')->firstOrFail();
@@ -1454,7 +1454,7 @@ class PemeriksaanController extends Controller
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeVisit($lockedVisit);
             abort_unless($lockedVisit->poliklinik?->jenis === 'gigi', 422, 'Odontogram hanya untuk kunjungan Poli Gigi.');
-            abort_unless(in_array($lockedVisit->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
+            abort_unless(in_array($lockedVisit->status, Kunjungan::POST_EXAMINATION_STATUSES, true), 422, 'Kunjungan tidak dalam status yang dapat dikoreksi.');
             $examination = $lockedVisit->pemeriksaan()->lockForUpdate()->first();
             abort_unless($examination?->signed_at, 422, 'Odontogram belum difinalisasi.');
             abort_unless($noteRecorder->verify($examination), 422, 'Integritas riwayat catatan tidak valid; koreksi dihentikan.');

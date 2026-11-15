@@ -109,25 +109,6 @@ class PersediaanRecorder
         });
     }
 
-    public function transfer(ObatBatch $batch, array $data, User $actor): void
-    {
-        DB::transaction(function () use ($batch, $data, $actor): void {
-            $medicine = Obat::whereKey($batch->obat_id)->lockForUpdate()->firstOrFail();
-            $this->assertBalance($medicine);
-            $batch = ObatBatch::whereKey($batch->id)->lockForUpdate()->firstOrFail();
-            if ((int) $batch->depo_id === (int) $data['depo_id'] || (float) $data['jumlah'] > (float) $batch->stok) {
-                throw ValidationException::withMessages(['jumlah' => 'Pilih depo tujuan berbeda dan jumlah sesuai saldo batch.']);
-            }
-            $target = $medicine->batches()->create([
-                'depo_id' => $data['depo_id'], 'nomor_batch' => $batch->nomor_batch, 'expired_at' => $batch->expired_at,
-                'stok' => 0, 'status' => $batch->status,
-                'sumber' => 'mutasi', 'referensi' => $data['alasan'],
-            ]);
-            $this->change($medicine, $batch, -(float) $data['jumlah'], 'mutasi_keluar', $actor, $data['alasan'], 'MutasiDepo', $batch->id);
-            $this->change($medicine, $target, (float) $data['jumlah'], 'mutasi_masuk', $actor, $data['alasan'], 'MutasiDepo', $batch->id);
-        });
-    }
-
     public function returnDispensing(StokMutasi $original, float $quantity, string $reason, User $actor): void
     {
         DB::transaction(function () use ($original, $quantity, $reason, $actor): void {

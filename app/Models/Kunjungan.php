@@ -10,6 +10,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Kunjungan extends Model
 {
+    public const POST_EXAMINATION_STATUSES = ['tindakan', 'farmasi', 'selesai'];
+
+    public const STATUSES = ['menunggu', 'screening', 'pemeriksaan', ...self::POST_EXAMINATION_STATUSES, 'batal'];
+
     protected $table = 'kunjungan';
 
     protected $fillable = [
@@ -78,7 +82,7 @@ class Kunjungan extends Model
             return $this->screening?->submitted_at !== null;
         }
 
-        return in_array($this->status, ['tindakan', 'farmasi', 'kasir', 'selesai'], true);
+        return in_array($this->status, self::POST_EXAMINATION_STATUSES, true);
     }
 
     public function pemeriksaan(): HasOne
@@ -94,11 +98,6 @@ class Kunjungan extends Model
     public function tindakanKunjungan(): HasMany
     {
         return $this->hasMany(TindakanKunjungan::class);
-    }
-
-    public function labHasil(): HasMany
-    {
-        return $this->hasMany(LabHasil::class);
     }
 
     public function farmasi(): HasOne

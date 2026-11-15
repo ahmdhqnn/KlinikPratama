@@ -29,7 +29,9 @@ Versi yang dapat direproduksi tersimpan dalam `composer.lock` dan `package-lock.
 
 Alur utama: pendaftaran → pengkajian awal → pemeriksaan dokter → tindakan perawat jika diperlukan → farmasi jika diperlukan → selesai. Kunjungan dapat selesai tanpa resep; tindak lanjut mengikuti data pelayanan yang benar-benar dicatat. Reservasi mendatang mengikuti pembatasan tanggal pelayanan.
 
-Modul laboratorium, depo obat, alat kesehatan, dan master tindakan dinonaktifkan secara bawaan melalui `config/clinic.php`. Kode, tabel, dan test modul tersebut tetap dipertahankan karena masih terhubung melalui konfigurasi, relasi, route, dan cakupan regresi.
+Menu dan endpoint modul laboratorium internal, manajemen depo, katalog alat kesehatan, serta master tindakan sudah dipensiunkan. Riwayat depo dan referensi tindakan bersejarah tetap dipertahankan untuk keterlacakan. Pencatatan tindakan klinis serta surat pengantar laboratorium tetap tersedia.
+
+Pada upgrade, migration memindahkan status kunjungan kasir lama ke selesai dan menegakkan satu resep per kunjungan. Jika ada resep ganda, verifikasi dokumen sumber sebelum menjalankan ulang migration. Migration penghapusan Alkes dan laboratorium menolak tabel yang masih memiliki data. Untuk instalasi dengan data lama, verifikasi cadangan dan migrasikan catatan ke arsip yang dapat diakses petugas berwenang sebelum penghapusan skema.
 
 ## Struktur proyek
 
@@ -70,14 +72,17 @@ Jalankan dari direktori proyek menggunakan PowerShell. Langkah pembuatan `.env` 
 ```powershell
 composer install
 npm ci --ignore-scripts
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-php artisan key:generate --no-interaction
+if (-not (Test-Path .env)) {
+    Copy-Item .env.example .env
+    php artisan key:generate --no-interaction
+}
+if (-not (Test-Path database/database.sqlite)) { New-Item database/database.sqlite -ItemType File | Out-Null }
 php artisan migrate --no-interaction
 php artisan storage:link --no-interaction
 npm run build
 ```
 
-Atur koneksi database, URL aplikasi, zona waktu, dan kebutuhan layanan di `.env`. Contoh konfigurasi memakai SQLite dan `Asia/Jakarta`. Buat `database/database.sqlite` bila belum tersedia sebelum migration pertama. Jalankan `composer run dev` untuk server aplikasi, queue listener, dan Vite melalui perintah development proyek.
+Atur koneksi database, URL aplikasi, zona waktu, dan kebutuhan layanan di `.env`. Contoh konfigurasi memakai SQLite dan `Asia/Jakarta`. Alternatifnya, jalankan `composer run setup` untuk memasang dependensi, menyiapkan konfigurasi SQLite, menjalankan migrasi, dan membangun aset. Perintah ini mempertahankan `.env` yang sudah ada; tinjau koneksinya sebelum menjalankan migrasi. Jalankan `composer run dev` untuk server aplikasi, queue listener, dan Vite.
 
 Setelah memperbarui dependensi frontend, jalankan ulang proses `composer run dev` yang sudah aktif agar memuat paket baru.
 
@@ -101,7 +106,7 @@ php artisan clinic:audit-database --no-interaction
 
 Perintah mengembalikan exit code `0` jika relasi yang dideklarasikan tidak bermasalah, atau `1` jika menemukan pelanggaran. Pemeriksaan ini tidak memvalidasi seluruh aturan klinis, konsistensi stok, atau relasi logis yang tidak dideklarasikan sebagai foreign key.
 
-Pada audit lokal 3 November 2026, integritas fisik SQLite berstatus `ok`, tetapi ditemukan **8 pelanggaran foreign key** terhadap tabel `kunjungan`: screening (1), pemeriksaan (1), resep (1), farmasi (1), odontogram_findings (2), dan tindakan_kunjungan (2). Data tersebut dipertahankan dan memerlukan rekonsiliasi berdasarkan sumber klinis yang sah. Jangan menghapus atau mengaitkan ulang baris tersebut hanya untuk membuat audit berstatus hijau.
+Pada audit lokal 3 November 2026, integritas fisik SQLite berstatus `ok`, tetapi ditemukan **8 pelanggaran foreign key** terhadap tabel `kunjungan`: screening (1), pemeriksaan (1), resep (1), farmasi (1), odontogram_findings (2), dan tindakan_kunjungan (2). Temuan tersebut sudah ditangani pada pemeliharaan berikutnya; lihat status verifikasi lokal di bawah. Untuk temuan baru, gunakan sumber klinis yang sah sebelum mengaitkan ulang atau menghapus baris.
 
 Backup sebelum perubahan indeks dan salinan berkas yang dibersihkan tersimpan di luar repositori pada `C:\Project\LARAVEL\klinik-pratama-cleanup-backup-20261103`. Backup database dapat berisi data klinis; perlakukan sesuai akses data sumber.
 
@@ -145,4 +150,16 @@ Saat melakukan perubahan, mulai dari test paling sempit yang mencakup perilaku t
 | Audit keamanan Composer | Belum terverifikasi: Packagist gagal diakses karena reset koneksi/timeout |
 | Database lokal | Integritas fisik ok; 8 pelanggaran foreign key yang telah ada tetap dipertahankan |
 
-Build menampilkan peringatan fitur font fallback optimal yang membutuhkan paket opsional fontaine; build tetap berhasil dan tidak ada dependensi tambahan dipasang untuk peringatan tersebut. UAT browser langsung, penerimaan pengguna, rekonsiliasi delapan pelanggaran relasi lokal, keputusan kewenangan klinis bantuan Admin, dan kesiapan produksi tetap memerlukan bukti terpisah.
+Build pada pemeriksaan 3 November menampilkan peringatan fitur font fallback optimal yang membutuhkan paket opsional fontaine.
+
+## Status verifikasi lokal 15 November 2026
+
+- Persiapan instalasi pada checkout bersih membuat SQLite dan application key. Pengulangan tidak mengubah `.env`. Folder runtime Laravel disiapkan dari Git tanpa menyimpan log, sesi, atau hasil kompilasi.
+- Migrasi penghapusan kasir, katalog alat kesehatan, dan lab internal dapat diterapkan ulang setelah rollback pada SQLite sintetis. Data historis modul yang masih terisi perlu diarsipkan terlebih dahulu sesuai penjagaan migrasi; rollback skema tidak mengembalikan data yang sudah diarsipkan atau status historis kasir.
+- Pemeriksaan sebelum commit: 485 tes backend (9.036 assertion), 278 tes render frontend, TypeScript, build produksi, Pint seluruh proyek, cache route, dan audit dependensi lolos. Composer masih memberi peringatan untuk constraint Inertia yang dikunci tepat.
+- Uji browser pada aset hasil build memastikan fokus pemeriksaan fisik ketika penyelesaian kedua poli tertahan, koreksi serta penyimpanan temuan PSA, dan pengiriman pengkajian awal Poli Gigi ke antrean dokter. Setelah login dari browser dengan enam peran, 73 tautan menu lolos pemeriksaan akses HTTP sesuai sesi masing-masing.
+- Uji penyerahan parsial farmasi mencakup validasi jumlah, penyimpanan draf dan alasan tindak lanjut, satu mutasi stok, serta pembukaan kembali hasil penyerahan tanpa formulir edit atau stok saat ini.
+- Delapan pelanggaran FK kunjungan pada SQLite lokal telah dibersihkan setelah pencadangan. Audit FK bersih. Salinan pemulihan SQLite lolos pemeriksaan integritas dan ketiga lampiran terdaftar tersedia di disk privat sumber.
+- Edge dengan data sintetis memverifikasi pengkajian gigi hingga masuk antrean dokter, tambah jadwal, penyerahan parsial, finalisasi dan cetak A4 RME kedua poli, serta penanganan fokus pada formulir terkait.
+- Uji dua proses server pada SQLite sintetis menghasilkan satu jadwal untuk dua pengiriman bertumpuk, satu versi final per kunjungan saat tanda tangan dikirim dua kali, dan satu mutasi persediaan saat penyerahan resep dikirim dua kali.
+- Verifikasi produksi memerlukan lingkungan target untuk mengulang migrasi, uji konkurensi dan pemulihan database beserta lampiran. Pemilik layanan klinis perlu memvalidasi SOP yang berlaku, termasuk cakupan pemeriksaan dan kewenangan bantuan Admin.

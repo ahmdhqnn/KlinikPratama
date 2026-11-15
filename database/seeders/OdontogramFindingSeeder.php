@@ -76,7 +76,7 @@ class OdontogramFindingSeeder extends Seeder
                     'signed_by_user_id' => $doctorUser->id,
                     'signed_at' => now(),
                 ]);
-                $visit->update(['status' => 'kasir']);
+                $visit->update(['status' => 'selesai']);
             }
         });
     }

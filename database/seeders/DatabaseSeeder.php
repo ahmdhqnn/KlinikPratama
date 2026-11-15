@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\HakLayananVerifier;
-use App\Models\DepoObat;
 use App\Models\Diagnosa;
 use App\Models\Farmasi;
 use App\Models\FarmasiItem;
@@ -12,8 +11,6 @@ use App\Models\JadwalDokter;
 use App\Models\Kepesertaan;
 use App\Models\KlinikSetting;
 use App\Models\Kunjungan;
-use App\Models\LabIndikator;
-use App\Models\Laboratorium;
 use App\Models\Nakes;
 use App\Models\Obat;
 use App\Models\Pasien;
@@ -69,16 +66,10 @@ class DatabaseSeeder extends Seeder
             'kepala_klinik' => 'dr. Kepala Klinik',
         ]);
 
-        // Depo Obat
-        $apotek = DepoObat::create(['kode' => 'APT', 'nama' => 'Apotek', 'is_active' => true]);
-        $gudang = DepoObat::create(['kode' => 'GDG', 'nama' => 'Gudang Farmasi', 'is_active' => true]);
-        DepoObat::create(['kode' => 'UGD', 'nama' => 'UGD', 'is_active' => false]);
-
         // Poliklinik
-        $poliUmum = Poliklinik::create(['kode' => 'PU', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'depo_obat_id' => $apotek->id]);
-        $poliGigi = Poliklinik::create(['kode' => 'PG', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'depo_obat_id' => $apotek->id]);
-        $poliKia = Poliklinik::create(['kode' => 'KIA', 'nama' => 'Poli KIA', 'jenis' => 'kia', 'depo_obat_id' => $apotek->id, 'is_active' => false]);
-        $poliLab = Poliklinik::create(['kode' => 'LAB', 'nama' => 'Laboratorium', 'jenis' => 'lab', 'depo_obat_id' => null, 'is_active' => false]);
+        $poliUmum = Poliklinik::create(['kode' => 'PU', 'nama' => 'Poli Umum', 'jenis' => 'umum']);
+        $poliGigi = Poliklinik::create(['kode' => 'PG', 'nama' => 'Poli Gigi', 'jenis' => 'gigi']);
+        $poliKia = Poliklinik::create(['kode' => 'KIA', 'nama' => 'Poli KIA', 'jenis' => 'kia', 'is_active' => false]);
 
         // Nakes
         $dokter = Nakes::create([
@@ -88,7 +79,7 @@ class DatabaseSeeder extends Seeder
         ]);
         Nakes::create([
             'kode' => 'PRT001', 'nama' => 'Siti Perawat, Amd.Kep',
-            'kategori' => 'medis', 'jabatan' => 'perawat', 'is_active' => true,
+            'kategori' => 'medis', 'jabatan' => 'perawat', 'poliklinik_id' => $poliGigi->id, 'is_active' => true,
         ]);
         Nakes::create([
             'kode' => 'FRM001', 'nama' => 'Budi Farmasi, S.Farm',
@@ -135,7 +126,7 @@ class DatabaseSeeder extends Seeder
 
         foreach (['OBT001' => 100, 'OBT002' => 80, 'OBT003' => 50, 'OBT004' => 60, 'BHP001' => 200, 'BHP002' => 50] as $code => $stock) {
             $medicine = Obat::where('kode', $code)->firstOrFail();
-            app(PersediaanRecorder::class)->receive($medicine->id, ['depo_id' => $apotek->id, 'nomor_batch' => 'CONTOH-'.$code, 'expired_at' => today()->addYear()->toDateString(), 'jumlah' => $stock, 'sumber' => 'saldo_awal', 'referensi' => 'CONTOH - saldo awal sintetis'], $admin);
+            app(PersediaanRecorder::class)->receive($medicine->id, ['nomor_batch' => 'CONTOH-'.$code, 'expired_at' => today()->addYear()->toDateString(), 'jumlah' => $stock, 'sumber' => 'saldo_awal', 'referensi' => 'CONTOH - saldo awal sintetis'], $admin);
         }
         foreach (['dokter', 'perawat', 'farmasi'] as $role) {
             Nakes::where('jabatan', $role)->update(['user_id' => User::where('role', $role)->value('id')]);
@@ -159,27 +150,6 @@ class DatabaseSeeder extends Seeder
             'kode' => 'TDK003', 'nama' => 'EKG / Rekam Jantung',
             'kategori' => 'medis', 'poliklinik_id' => $poliUmum->id,
         ]);
-
-        // Laboratorium
-        $labDarah = Laboratorium::create([
-            'kode' => 'LAB001', 'nama' => 'Darah Lengkap',
-            'poliklinik_id' => $poliLab->id,
-        ]);
-        LabIndikator::create(['laboratorium_id' => $labDarah->id, 'nama' => 'Hemoglobin', 'satuan' => 'g/dL', 'nilai_rujukan_min' => '12', 'nilai_rujukan_max' => '17', 'format_input' => 'number', 'urutan' => 1]);
-        LabIndikator::create(['laboratorium_id' => $labDarah->id, 'nama' => 'Leukosit', 'satuan' => 'ribu/µL', 'nilai_rujukan_min' => '4.5', 'nilai_rujukan_max' => '11', 'format_input' => 'number', 'urutan' => 2]);
-        LabIndikator::create(['laboratorium_id' => $labDarah->id, 'nama' => 'Trombosit', 'satuan' => 'ribu/µL', 'nilai_rujukan_min' => '150', 'nilai_rujukan_max' => '400', 'format_input' => 'number', 'urutan' => 3]);
-
-        $labGDA = Laboratorium::create([
-            'kode' => 'LAB002', 'nama' => 'Gula Darah Acak',
-            'poliklinik_id' => $poliLab->id,
-        ]);
-        LabIndikator::create(['laboratorium_id' => $labGDA->id, 'nama' => 'Gula Darah', 'satuan' => 'mg/dL', 'nilai_rujukan_min' => '70', 'nilai_rujukan_max' => '200', 'format_input' => 'number', 'urutan' => 1]);
-
-        $labGolDar = Laboratorium::create([
-            'kode' => 'LAB003', 'nama' => 'Golongan Darah',
-            'poliklinik_id' => $poliLab->id,
-        ]);
-        LabIndikator::create(['laboratorium_id' => $labGolDar->id, 'nama' => 'Golongan Darah', 'satuan' => '', 'format_input' => 'select', 'pilihan' => json_encode(['A', 'B', 'O', 'AB']), 'urutan' => 1]);
 
         // ICD-10
         $icd10Data = [
