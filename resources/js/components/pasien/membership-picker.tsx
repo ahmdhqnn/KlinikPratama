@@ -1,3 +1,4 @@
+import { SearchResultsSkeleton } from '@/components/loading-skeletons';
 import { useEffect, useState } from 'react';
 import { Link } from '@inertiajs/react';
 import { ShieldCheck, Search } from 'lucide-react';
@@ -5,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/field';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Spinner } from '@/components/ui/spinner';
 
 export interface MemberOption {
     id: number; name: string; nik: string | null; nip: string | null; category: string; unit: string; reason: string | null;
@@ -34,7 +34,6 @@ export function MembershipPicker({ value, label, error, onClear, onSelect, regis
         const controller = new AbortController();
         setResults([]); setLoading(true); setFailure('');
         const timer = window.setTimeout(async () => {
-            setLoading(true); setFailure('');
             try {
                 const response = await fetch('/kepesertaan/search?q=' + encodeURIComponent(query.trim()) + (registrationOnly ? '&registration=1' : ''), { headers: { Accept: 'application/json' }, signal: controller.signal });
                 if (!response.ok) throw new Error('Direktori belum dapat dimuat. Coba kembali.');
@@ -49,7 +48,7 @@ export function MembershipPicker({ value, label, error, onClear, onSelect, regis
 
     return <div className="space-y-3">
         <Field error={error ?? failure} htmlFor="membership-search" label="NIP, NIK, atau nama peserta" required>
-            <div className="relative"><Input id="membership-search" autoComplete="off" maxLength={30} placeholder="Cari NIP, NIK, atau nama peserta" value={query} onChange={(event) => {
+            <div className="relative"><Input className="pr-10" id="membership-search" autoComplete="off" maxLength={30} placeholder="Cari NIP, NIK, atau nama peserta" value={query} onChange={(event) => {
                 if (value) {
                     onClear();
                     setSelected(null);
@@ -58,9 +57,10 @@ export function MembershipPicker({ value, label, error, onClear, onSelect, regis
                 setResults([]);
                 setFailure('');
                 setQuery(event.target.value);
-            }} /><span className="absolute right-3 top-3 text-neutral-400">{loading ? <Spinner label="Mencari peserta" /> : <Search className="size-4" />}</span></div>
+            }} /><Search aria-hidden="true" className="pointer-events-none absolute right-3 top-3 size-4 text-neutral-500" /></div>
         </Field>
-        {results.length > 0 && <div className="max-h-64 divide-y divide-neutral-100 overflow-y-auto rounded-xl border border-neutral-200">{results.map((member) => <Button className="h-auto w-full justify-start rounded-none p-3 text-left" key={member.id} variant="ghost" type="button" disabled={!!member.reason} onClick={() => { setSelected(member); onSelect(member); setQuery(''); setResults([]); }}><span className="min-w-0"><span className="block font-semibold">{member.name} · {member.nip ?? member.nik}</span><span className="block text-xs font-normal text-neutral-500">{member.category} · {member.unit}</span><span className={member.reason ? 'block text-xs font-normal text-red-700' : 'block text-xs font-normal text-emerald-700'}>{member.reason ?? 'Berhak atas layanan internal'}</span></span></Button>)}</div>}
+        {loading && <SearchResultsSkeleton label="Mencari peserta…" />}
+        {!loading && results.length > 0 && <div className="max-h-64 divide-y divide-neutral-100 overflow-y-auto rounded-xl border border-neutral-200">{results.map((member) => <Button className="h-auto w-full justify-start rounded-none p-3 text-left" key={member.id} variant="ghost" type="button" disabled={!!member.reason} onClick={() => { setSelected(member); onSelect(member); setQuery(''); setResults([]); }}><span className="min-w-0"><span className="block font-semibold">{member.name} · {member.nip ?? member.nik}</span><span className="block text-xs font-normal text-neutral-500">{member.category} · {member.unit}</span><span className={member.reason ? 'block text-xs font-normal text-red-700' : 'block text-xs font-normal text-emerald-700'}>{member.reason ?? 'Berhak atas layanan internal'}</span></span></Button>)}</div>}
         {query.trim().length >= 2 && !loading && !failure && results.length === 0 && <p className="text-sm text-neutral-500">Peserta belum ditemukan. Impor data kepegawaian terlebih dahulu.</p>}
         {value && <Alert variant="success"><ShieldCheck /><AlertDescription>{selected?.name ?? label ?? 'Peserta terhubung'}{selected ? ` · ${selected.category} · ${selected.unit}` : ''}. Hak layanan diperiksa kembali saat kunjungan didaftarkan.</AlertDescription></Alert>}
         <p className="text-xs text-neutral-500">Sumber kepesertaan: <Link className="font-medium underline underline-offset-4" href="/kepesertaan">direktori instansi terverifikasi</Link>.</p>

@@ -20,8 +20,8 @@ class AdminReportController extends Controller
                     ['title' => 'Pemeriksaan dokter', 'description' => 'Pemeriksaan draf dan final dari seluruh dokter.', 'href' => route('admin.laporan.pemeriksaan')],
                     ['title' => 'Tindakan dokter', 'description' => 'Tindakan yang dicatat pada pemeriksaan dokter.', 'href' => route('admin.laporan.dokter', ['jenis' => 'tindakan'])],
                     ['title' => 'Resep dokter', 'description' => 'Rincian obat yang diresepkan dari seluruh dokter.', 'href' => route('admin.laporan.dokter', ['jenis' => 'obat'])],
-                    ['title' => 'Rincian kunjungan pendaftaran', 'description' => 'Daftar kunjungan dengan akses ke detail dan cetak antrean.', 'href' => route('pendaftaran.laporan-kunjungan')],
-                    ['title' => 'Diagnosis terbanyak', 'description' => 'Peringkat diagnosis berdasarkan periode kunjungan.', 'href' => route('pendaftaran.laporan-top-diagnosa')],
+                    ['title' => 'Laporan kunjungan', 'description' => 'Daftar kunjungan dengan filter tanggal, poliklinik, dan status pelayanan.', 'href' => route('pendaftaran.laporan-kunjungan')],
+                    ['title' => 'Diagnosis terbanyak', 'description' => 'Peringkat diagnosis berdasarkan frekuensi pencatatan pada periode kunjungan.', 'href' => route('pendaftaran.laporan-top-diagnosa')],
                 ],
             ],
             [

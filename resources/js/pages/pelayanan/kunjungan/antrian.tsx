@@ -34,6 +34,7 @@ interface Visit {
     doctor: string | null;
     status: string;
     examinationStarted: boolean;
+    pendingReservation?: boolean;
     isReservation: boolean;
     actions: QueueAction[];
 }
@@ -70,7 +71,7 @@ function QueueTable({ title, description, icon, visits }: { title: string; descr
                                     <TableCell className="font-sans tabular-nums text-xs text-neutral-600">{visit.number}</TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                     <TableCell><p className="font-medium">{visit.patient}</p><p className="font-sans tabular-nums text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                     <TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor ?? 'Belum ditentukan'}</TableCell>
-                                    <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
+                                    <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} pendingReservation={visit.pendingReservation} status={visit.status} /></TableCell>
                                     <TableCell><div className="mx-auto grid w-fit grid-cols-5 gap-2">
                                         {visit.actions.map((action) => action.method === 'post'
                                             ? <ActionButton key={action.action} disabled={action.disabled} disabledReason={action.disabledReason} action={action.action} label={action.label} onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} atas nama ${visit.patient}?`, () => router.post(action.href!, {}, { preserveScroll: true }), 'Batalkan')} />

@@ -43,31 +43,33 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Analisis rekam medis</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Laporan diagnosis terbanyak</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Ringkasan diagnosis pasien untuk periode yang dipilih.</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Diagnosis terbanyak</h2>
+                    <p className="mt-1 text-sm text-neutral-500">Peringkat diagnosis berdasarkan frekuensi pencatatan pada periode kunjungan yang dipilih.</p>
                 </div>
 
-                <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
-                            <Field htmlFor="registration-diagnoses-period" label="Periode diagnosis">
-                                <DateRangePicker id="registration-diagnoses-period" from={filters.tanggalMulai} onChange={(range) => setFilters({ ...filters, tanggalMulai: range.from, tanggalSelesai: range.to })} to={filters.tanggalSelesai} />
-                            </Field>
-                            <FilterSubmit />
-                        </form></FilterPanel>
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <StatCard label="Jenis diagnosis" value={summary.diagnosisCount} description="Diagnosis yang tercatat pada periode laporan." icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
-                    <StatCard label="Total kasus" value={summary.caseCount} description="Jumlah kasus dengan diagnosis tercatat." icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
+                    <StatCard label="Jenis diagnosis" value={summary.diagnosisCount} description="Jumlah jenis diagnosis dalam periode kunjungan." icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
+                    <StatCard label="Total catatan diagnosis" value={summary.caseCount} description="Jumlah seluruh pencatatan diagnosis dalam periode kunjungan." icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
                 </div>
+                <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}>
+                    <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
+                        <Field htmlFor="registration-diagnoses-period" label="Periode kunjungan">
+                            <DateRangePicker id="registration-diagnoses-period" from={filters.tanggalMulai} onChange={(range) => setFilters({ ...filters, tanggalMulai: range.from, tanggalSelesai: range.to })} to={filters.tanggalSelesai} />
+                        </Field>
+                        <FilterSubmit />
+                    </form>
+                </FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Activity className="size-5" /></span>
-                            <div><CardTitle>Diagnosis terbanyak</CardTitle><CardDescription className="mt-1">{!initialFilters.tanggalMulai && !initialFilters.tanggalSelesai ? 'Urut berdasarkan jumlah kasus terbanyak.' : `${formatDate(initialFilters.tanggalMulai)} – ${formatDate(initialFilters.tanggalSelesai)}`}</CardDescription></div>
+                            <div><CardTitle>Daftar diagnosis</CardTitle><CardDescription className="mt-1">{describePeriod(initialFilters.tanggalMulai, initialFilters.tanggalSelesai)} · Diurutkan dari yang paling sering tercatat.</CardDescription></div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <Table className="min-w-[760px]">
-                                <TableHeader><TableRow><TableHead className="w-24 text-center">Peringkat</TableHead><TableHead>Kode ICD-10</TableHead><TableHead>Nama diagnosis</TableHead><TableHead className="text-center">Kasus</TableHead><TableHead>Persentase</TableHead></TableRow></TableHeader>
+                                <TableHeader><TableRow><TableHead className="w-24 text-center">Peringkat</TableHead><TableHead>Kode ICD-10</TableHead><TableHead>Diagnosis</TableHead><TableHead className="text-center">Jumlah catatan</TableHead><TableHead>Persentase</TableHead></TableRow></TableHeader>
                                 <TableBody>
                                     {diagnoses.data.length > 0 ? diagnoses.data.map((diagnosis) => (
                                         <TableRow key={`${diagnosis.code}-${diagnosis.name}`}>
@@ -84,7 +86,7 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
                                                 </div>
                                             </TableCell>
                                         </TableRow>
-                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada diagnosis untuk periode ini." /></TableCell></TableRow>}
+                                    )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada diagnosis pada periode ini." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                         </div>
@@ -96,8 +98,15 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
     );
 }
 
+function describePeriod(from: string, to: string): string {
+    if (from && to) return `${formatDate(from)} – ${formatDate(to)}`;
+    if (from) return `Sejak ${formatDate(from)}`;
+    if (to) return `Hingga ${formatDate(to)}`;
+
+    return 'Semua tanggal kunjungan';
+}
+
 function formatDate(date: string): string {
-    if (!date) return 'Tidak dibatasi';
     const [year, month, day] = date.split('-').map(Number);
     const value = new Date(year, month - 1, day);
     return Number.isNaN(value.getTime()) ? 'Tidak dibatasi' : new Intl.DateTimeFormat('id-ID', { dateStyle: 'long' }).format(value);

@@ -1,3 +1,4 @@
+import { SearchResultsSkeleton } from '@/components/loading-skeletons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useForm } from '@inertiajs/react';
 import { Check, Search, UserRound, UserRoundPlus, X } from 'lucide-react';
@@ -8,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Spinner } from '@/components/ui/spinner';
 
 interface Option {
     id: number;
@@ -18,6 +18,7 @@ interface Option {
 
 interface PatientForm extends VisitFormValues {
     pasien_id: string;
+    rujukan_internal_id?: number;
 }
 
 export interface PatientResult {
@@ -44,16 +45,20 @@ export interface PatientResult {
     membership: string;
 }
 
+export interface InternalReferralRegistration { id: number; number: string | null; clinicId: number }
+
 interface Props {
+    internalReferral?: InternalReferralRegistration | null;
     initialPatient?: PatientResult | null;
     clinics: Option[];
     today: string;
     doctorsUrl: string;
 }
 
-export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatient = null }: Props) {
+export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatient = null, internalReferral }: Props) {
     const form = useForm<PatientForm>({
-        pasien_id: initialPatient?.id.toString() ?? '', poliklinik_id: clinics.find((clinic) => clinic.type === 'umum')?.id.toString() ?? '', dokter_id: '', tanggal: today, catatan: '',
+        ...(internalReferral ? { rujukan_internal_id: internalReferral.id } : {}),
+        pasien_id: initialPatient?.id.toString() ?? '', poliklinik_id: (internalReferral?.clinicId ?? clinics.find((clinic) => clinic.type === 'umum')?.id)?.toString() ?? '', dokter_id: '', tanggal: today, catatan: '',
     });
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<PatientResult[]>([]);
@@ -74,9 +79,6 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
         setSearching(true);
         setSearchError('');
         const timeout = window.setTimeout(async () => {
-            setSearching(true);
-            setSearchError('');
-
             try {
                 const url = new URL('/pendaftaran/pasien/search', window.location.origin);
                 url.searchParams.set('q', query.trim());
@@ -133,28 +135,32 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
     return (
         <>
             <form className="space-y-6" onSubmit={submit}>
+                {internalReferral && <Alert><AlertDescription>Rujukan {internalReferral.number ?? 'internal'}. Pilih tanggal dan dokter yang praktik di poli tujuan.</AlertDescription></Alert>}
+                {form.errors.rujukan_internal_id && <Alert variant="destructive"><AlertDescription>{form.errors.rujukan_internal_id}</AlertDescription></Alert>}
                 {selectedPatient && <Alert variant={selectedPatient.eligibilityReason ? 'destructive' : 'success'}><AlertDescription>{selectedPatient.eligibilityReason ?? 'Pasien dipilih. Lengkapi tujuan dan tanggal kunjungan.'}</AlertDescription></Alert>}
                 <Card>
                     <CardHeader>
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Search className="size-5" /></span>
-                            <div><CardTitle>Cari pasien</CardTitle><CardDescription className="mt-1">Cari berdasarkan nama, nomor rekam medis, NIK, atau NIP.</CardDescription></div>
+                            <div><CardTitle>{internalReferral ? 'Pasien rujukan' : 'Cari pasien'}</CardTitle>{!internalReferral && <CardDescription className="mt-1">Cari berdasarkan nama, nomor rekam medis, NIK, atau NIP.</CardDescription>}</div>
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                        {!internalReferral && <>
                         <Field error={form.errors.pasien_id ?? searchError} htmlFor="patient-search" label="Cari pasien" required>
                             <div className="relative">
-                                <Input autoComplete="off" id="patient-search" maxLength={100} onChange={(event) => {
+                                <Input autoComplete="off" className="pr-10" id="patient-search" maxLength={100} onChange={(event) => {
                                     setQuery(event.target.value);
                                     setSelectedPatient(null);
                                     form.setData((data) => ({ ...data, pasien_id: '', catatan: '' }));
                                 }} placeholder="Cari nama, No. RM, NIK, atau NIP" value={query} />
-                                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400">
-                                    {searching ? <Spinner label="Mencari pasien" /> : <Search className="size-4" />}
+                                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500">
+                                    <Search aria-hidden="true" className="size-4" />
                                 </span>
                             </div>
                         </Field>
-                        {results.length > 0 && (
+                        {searching && <SearchResultsSkeleton label="Mencari pasien…" />}
+                        {!searching && results.length > 0 && (
                             <ul aria-label="Hasil pencarian pasien" className="max-h-72 divide-y divide-neutral-100 overflow-y-auto rounded-xl border border-neutral-200">
                                 {results.map((patient) => (
                                     <li key={patient.id}>
@@ -175,6 +181,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
                         {query.trim().length > 0 && query.trim().length < 2 && (
                             <p className="text-xs text-neutral-500">Masukkan minimal 2 karakter untuk mulai mencari.</p>
                         )}
+                        </>}
                         {selectedPatient && (
                             <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-4">
                                 <div className="flex items-start justify-between gap-3">
@@ -187,7 +194,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
                                             <p className="mt-1 text-xs text-neutral-500">Telepon: {selectedPatient.telepon || 'Belum tersedia'}</p>
                                         </div>
                                     </div>
-                                    <Button aria-label="Ganti pasien" onClick={clearPatient} size="icon" type="button" variant="ghost"><X className="size-4" /></Button>
+                                    {!internalReferral && <Button aria-label="Ganti pasien" onClick={clearPatient} size="icon" type="button" variant="ghost"><X className="size-4" /></Button>}
                                 </div>
                                 <RegisteredPatientIdentity patient={selectedPatient} />
                             </div>
@@ -206,6 +213,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
                         <CardContent>
                             <VisitFields
                                 clinics={clinics}
+                                clinicLocked={Boolean(internalReferral)}
                                 today={today}
                                 doctorsUrl={doctorsUrl}
                                 errors={form.errors}
@@ -218,7 +226,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
 
                 {selectedPatient && (
                     <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
-                        <Button disabled={form.processing || Boolean(selectedPatient.eligibilityReason)} type="submit"><Check className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan kunjungan'}</Button>
+                        <Button disabled={form.processing || Boolean(selectedPatient.eligibilityReason)} type="submit"><Check className="size-4" />{form.processing ? 'Mendaftarkan…' : internalReferral ? 'Daftarkan ke poli tujuan' : 'Daftarkan kunjungan'}</Button>
                     </div>
                 )}
             </form>

@@ -24,7 +24,7 @@ class DashboardController extends Controller
         ]);
 
         return Inertia::render('dashboard/index', [
-            'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()), 'href' => route('laporan.kunjungan')],
+            'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()), 'href' => route('pendaftaran.kunjungan-per-poli')],
             'stats' => [
                 'totalPatients' => Pasien::count(),
                 'visitsToday' => Kunjungan::whereDate('tanggal', $to)->count(),

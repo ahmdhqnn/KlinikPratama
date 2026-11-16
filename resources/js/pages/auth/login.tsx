@@ -91,7 +91,7 @@ export default function LoginPage({ email = '' }: { email?: string }) {
 
                                     <Field error={form.errors.email} htmlFor="email" label="Email">
                                         <div className="relative">
-                                            <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+                                            <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-neutral-500" />
                                             <Input
                                                 autoComplete="username"
                                                 className="pl-10"
@@ -108,7 +108,7 @@ export default function LoginPage({ email = '' }: { email?: string }) {
 
                                     <Field error={form.errors.password} htmlFor="password" label="Kata sandi">
                                         <div className="relative">
-                                            <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+                                            <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-neutral-500" />
                                             <Input
                                                 autoComplete="current-password"
                                                 className="pl-10 pr-12"

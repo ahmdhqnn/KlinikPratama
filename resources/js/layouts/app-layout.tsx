@@ -2,6 +2,7 @@ import { ClinicBrand, clinicBrand } from '@/components/clinic-brand';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
+    ArrowRightLeft,
     BarChart3,
     BedDouble,
     Boxes,
@@ -37,6 +38,7 @@ import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Empty } from '@/components/ui/empty';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { PageLoading } from '@/components/page-loading';
 import type { PageProps } from '@inertiajs/core';
 import { activeNavigationHref, type NavigationTarget } from '@/lib/navigation';
 
@@ -136,6 +138,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             label: 'Operasional',
             items: [
                 { label: 'Pendaftaran pasien', href: '/pendaftaran/pendaftaran-baru', activePaths: ['/pendaftaran/pendaftaran-lama'], icon: UserRoundPlus },
+                { label: 'Rujukan internal', href: '/pendaftaran/rujukan-internal', icon: ArrowRightLeft },
                 { label: 'Kunjungan poli', href: '/pendaftaran/kunjungan-per-poli', activePaths: ['/pendaftaran/kunjungan'], icon: BedDouble },
                 { label: 'Pasien', href: '/pendaftaran/database-pasien', activePaths: ['/pelayanan/pasien'], icon: UsersRound },
             ],
@@ -150,7 +153,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         {
             label: 'Laporan',
             items: [
-                { label: 'Rincian kunjungan pendaftaran', href: '/pendaftaran/laporan-kunjungan', icon: BarChart3 },
+                { label: 'Laporan kunjungan', href: '/pendaftaran/laporan-kunjungan', icon: BarChart3 },
                 { label: 'Diagnosis terbanyak', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
             ],
         },
@@ -240,13 +243,14 @@ function getPageTitle(component: string): string {
         'kepesertaan/show': 'Detail kepesertaan',
         'stok/persediaan/index': 'Persediaan & batch',
         'stok/persediaan/show': 'Batch & kartu stok',
+        'pendaftaran/rujukan-internal': 'Rujukan internal',
         'pendaftaran/dashboard': 'Dasbor pendaftaran',
         'pendaftaran/pendaftaran-baru': 'Pendaftaran pasien',
         'pendaftaran/pendaftaran-lama': 'Pendaftaran pasien',
-        'pendaftaran/laporan-kunjungan': 'Rincian kunjungan pendaftaran',
+        'pendaftaran/laporan-kunjungan': 'Laporan kunjungan',
         'pendaftaran/database-pasien': 'Pasien',
         'pendaftaran/kunjungan-per-poli': 'Kunjungan poli',
-        'pendaftaran/laporan-top-diagnosa': 'Laporan diagnosis terbanyak',
+        'pendaftaran/laporan-top-diagnosa': 'Diagnosis terbanyak',
         'pendaftaran/jadwal-praktik': 'Jadwal praktik dokter',
         'pendaftaran/edit-kunjungan': 'Edit kunjungan',
         'pendaftaran/cetak-antrian': 'Cetak antrean',
@@ -602,13 +606,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                         <Breadcrumb items={breadcrumbs} />
                     </div>
                     <div className="relative order-last flex w-full min-w-0 items-center sm:order-none sm:w-auto">
-                        <Search aria-hidden="true" className="pointer-events-none absolute left-3 size-4 text-neutral-400" />
+                        <Search aria-hidden="true" className="pointer-events-none absolute left-3 size-4 text-neutral-500" />
                         <input
                             aria-label="Cari menu"
                             aria-controls="global-search-results"
                             aria-expanded={searchOpen && searchQuery.trim().length > 0}
                             autoComplete="off"
-                            className="h-10 w-full rounded-lg bg-surface pl-9 pr-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus-visible:ring-4 focus-visible:ring-neutral-500/10 sm:w-56 sm:pr-12 lg:w-64"
+                            className="h-10 w-full rounded-lg bg-surface pl-9 pr-3 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 sm:w-56 sm:pr-12 lg:w-64"
                             id="global-navigation-search"
                             onBlur={() => setSearchOpen(false)}
                             onChange={(event) => {
@@ -648,7 +652,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                                         >
                                             <result.icon aria-hidden="true" className="size-4 shrink-0 text-neutral-500" />
                                             <span className="min-w-0 flex-1 truncate">{result.label}</span>
-                                            <span className="shrink-0 text-xs text-neutral-400">{result.group}</span>
+                                            <span className="shrink-0 text-xs text-neutral-500">{result.group}</span>
                                         </Link>
                                     </li>
                                 )) : <li><Empty className="items-start gap-1 px-3 py-3 text-left" description="Coba kata kunci lain." eyebrow={null} icon={null} size="compact" title="Menu tidak ditemukan" /></li>}
@@ -660,7 +664,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </header>
 
                 <main className={`mx-auto min-w-0 w-full p-4 print:max-w-none print:p-0 sm:p-6 lg:p-8 ${['pelayanan/pasien/rekam-medis', 'pelayanan/pemeriksaan/show'].includes(page.component) ? 'max-w-none' : 'max-w-[1600px]'}`}>
-                    {children}
+                    <PageLoading>{children}</PageLoading>
                 </main>
             </div>
         </div>

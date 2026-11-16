@@ -1,3 +1,4 @@
+import { InternalReferralTable, type InternalReferralPagination } from '@/components/kunjungan/internal-referral-table';
 import { letterTypes } from '@/components/medical-letter-fields';
 import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
@@ -39,10 +40,7 @@ interface DocumentRow {
     patient: string;
     visitNumber: string;
     clinic?: string;
-    fromClinic?: string;
-    toClinic?: string;
     doctor: string;
-    status?: string;
     printUrl: string;
 }
 
@@ -51,7 +49,7 @@ interface Props {
     isAdmin: boolean;
     templates: PaginationData & { data: Template[] };
     letters: PaginationData & { data: DocumentRow[] };
-    referrals: PaginationData & { data: DocumentRow[] };
+    referrals: InternalReferralPagination;
     eligibleVisits: (PaginationData & { data: { id: number; date: string; number: string; patient: string; medicalRecordNumber: string; clinic: string; letterUrl: string | null }[] }) | null;
 }
 
@@ -66,7 +64,6 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
     const [search, setSearch] = useState(filters.search);
     const templates = templatePagination.data;
     const letters = letterPagination.data;
-    const referrals = referralPagination.data;
     const [editingId, setEditingId] = useState<number | null>(null);
     const [activeTab, setActiveTab] = useState('dokumen');
     const form = useForm(emptyTemplate);
@@ -148,13 +145,7 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
                                 </Table></div><Pagination pagination={letterPagination} /></CardContent>
                         </Card>
 
-                        <Card className="overflow-hidden">
-                            <CardHeader className="min-h-24 border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ArrowRightLeft className="size-5" /></span><div className="min-w-0"><CardTitle>Rujukan internal</CardTitle><CardDescription className="mt-1">Rujukan antarpoliklinik yang telah diterbitkan.</CardDescription></div></div></CardHeader>
-                            <CardContent className="p-0"><div className="overflow-x-auto">
-                                <Table className="min-w-[760px]"><TableHeader><TableRow><TableHead className="text-center">Nomor / tanggal</TableHead><TableHead className="text-center">Pasien</TableHead><TableHead className="text-center">Tujuan</TableHead><TableHead className="text-center">Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
-                                    <TableBody>{referrals.length ? referrals.map((referral) => <TableRow key={referral.id}><TableCell className="text-center"><span className="font-sans tabular-nums text-sm">{referral.number ?? 'Belum diisi'}</span><p className="mt-1 text-xs text-neutral-500">{referral.date ?? 'Belum diisi'}</p></TableCell><TableCell className="text-center"><span className="font-medium">{referral.patient}</span><p className="text-xs text-neutral-500">{referral.visitNumber}</p></TableCell><TableCell className="text-center">{referral.fromClinic} → {referral.toClinic}<p className="text-xs text-neutral-500">{referral.doctor}</p></TableCell><TableCell className="text-center"><Badge variant={referral.status === 'selesai' ? 'complete' : 'waiting'}>{referral.status}</Badge></TableCell><TableCell className="text-center"><ActionButton asChild action="print" label="Cetak"><a href={referral.printUrl} /></ActionButton></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={5}><Empty size="compact" title="Belum ada rujukan internal." /></TableCell></TableRow>}</TableBody>
-                                </Table></div><Pagination pagination={referralPagination} /></CardContent>
-                        </Card>
+                        <InternalReferralTable referrals={referralPagination} canManage={isAdmin} />
                     </TabsContent>
 
                     {isAdmin && <TabsContent className="space-y-5" value="template">

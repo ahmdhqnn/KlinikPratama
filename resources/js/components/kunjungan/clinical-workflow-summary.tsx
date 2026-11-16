@@ -1,9 +1,11 @@
+import { RecordedTableNote } from '@/components/kunjungan/recorded-table-note';
 import { OdontogramRecord } from '@/components/odontogram/odontogram-record';
 import { dentalDiagnosisDescription, dentalSurfaceLabel } from '@/lib/dental-diagnosis';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Button } from '@/components/ui/button';
 import { BodyExaminationRecord } from '@/components/anatomy/body-examination-record';
 import { hasBodyMapContent, recordedAnnotationNote, type BodyMapData } from '@/lib/body-map';
-import { ClipboardPlus, Stethoscope } from 'lucide-react';
+import { ChevronDown, ClipboardPlus, Stethoscope } from 'lucide-react';
 import { ActionButton } from '@/components/ui/action-button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +39,7 @@ interface DiagnosisSummaryProps extends SummaryProps {
 export function DentalExaminationSummary({ id = 'dental-examination-summary', anamnesis, intraoralExam, odontogramSummary, extraoralExam, findings, options, hasUnsavedChanges, onReview }: DentalExaminationSummaryProps) {
     return (
         <WorkflowSummary
+            collapsible
             counts={<><Badge>{new Set(findings.map((finding) => finding.toothFdi)).size} gigi</Badge><Badge>{findings.length} temuan</Badge></>}
             description="Hasil pemeriksaan tersimpan pada kunjungan ini sebagai acuan penetapan diagnosis."
             hasUnsavedChanges={hasUnsavedChanges}
@@ -67,9 +70,7 @@ export function DentalExaminationSummary({ id = 'dental-examination-summary', an
                                 <TableCell className="px-5 py-4 text-center align-middle font-sans tabular-nums font-semibold">{finding.toothFdi}</TableCell>
                                 <TableCell className="break-words px-5 py-4 text-center align-middle">{options.surfaces[finding.surface] ?? finding.surface}</TableCell>
                                 <TableCell className="break-words px-5 py-4 text-center align-middle">{options.findings[finding.findingCode] ?? finding.findingCode}</TableCell>
-                                <TableCell className="break-words px-4 py-3 text-left align-top">{finding.detailSummary || normalizeClinicalAnswer(finding.notes)
-                                    ? <details className="group min-w-0"><summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden"><span className="line-clamp-2 group-open:hidden">{[finding.detailSummary, normalizeClinicalAnswer(finding.notes)].filter(Boolean).join(' · ')}</span><span className="text-xs text-neutral-500 group-open:hidden">Lihat lengkap</span><span className="hidden text-xs text-neutral-500 group-open:inline">Tutup</span></summary><p className="mt-2 whitespace-pre-wrap">{[finding.detailSummary, normalizeClinicalAnswer(finding.notes)].filter(Boolean).join('\n')}</p></details>
-                                    : optionalAnswers.notRecorded}</TableCell>
+                                <TableCell className="align-top text-left"><RecordedTableNote parts={[finding.detailSummary, normalizeClinicalAnswer(finding.notes)]} /></TableCell>
                             </TableRow>
                         ))}</TableBody>
                     </Table>
@@ -96,6 +97,7 @@ export function GeneralExaminationSummary({ id = 'general-examination-summary', 
 
     return (
         <WorkflowSummary
+            collapsible
             counts={findingCount || hasAnnotation ? <>{findingCount > 0 && <Badge>{findingCount} temuan dicatat</Badge>}{hasAnnotation && <Badge>Anotasi tersimpan</Badge>}</> : null}
             description="Hasil pemeriksaan tersimpan pada kunjungan ini sebagai acuan penetapan diagnosis."
             hasUnsavedChanges={hasUnsavedChanges}
@@ -113,7 +115,15 @@ export function GeneralExaminationSummary({ id = 'general-examination-summary', 
             {hasBodyMapContent(bodyMap) && <BodyExaminationRecord data={bodyMap} diagnosisSummary />}
             {recordedSystems.length > 0 && <div className="space-y-3 border-t border-neutral-100 pt-4">
                 <h3 className="text-sm font-semibold text-neutral-900">Temuan per sistem</h3>
-                <div className="overflow-x-auto rounded-xl border border-neutral-100"><Table aria-label="Temuan pemeriksaan per sistem" className="min-w-[32rem]"><TableHeader><TableRow><TableHead>Sistem</TableHead><TableHead>Temuan</TableHead></TableRow></TableHeader><TableBody>{recordedSystems.map(({ system, value }) => <TableRow key={system}><TableCell className="font-medium">{system}</TableCell><TableCell className="whitespace-pre-wrap break-words">{value}</TableCell></TableRow>)}</TableBody></Table></div>
+                <div className="overflow-x-auto rounded-xl border border-neutral-200">
+                    <Table aria-label="Temuan pemeriksaan per sistem" className="min-w-[27rem] table-fixed">
+                        <TableHeader><TableRow><TableHead className="w-40 text-left">Sistem</TableHead><TableHead className="text-left">Temuan</TableHead></TableRow></TableHeader>
+                        <TableBody>{recordedSystems.map(({ system, value }) => <TableRow key={system}>
+                            <TableCell className="align-top text-left font-medium [overflow-wrap:anywhere]">{system}</TableCell>
+                            <TableCell className="align-top text-left"><RecordedTableNote parts={[value]} /></TableCell>
+                        </TableRow>)}</TableBody>
+                    </Table>
+                </div>
             </div>}
             {!normalizeClinicalAnswer(physicalExam) && !hasBodyMapContent(bodyMap) && recordedSystems.length === 0 && <Empty size="compact" title="Belum ada temuan fisik tersimpan" description="Catat temuan pada tab Pemeriksaan fisik." />}
         </WorkflowSummary>
@@ -137,20 +147,26 @@ export function DiagnosisSummary({ id = 'diagnosis-summary', diagnoses, differen
             unsavedMessage="Ada isian diagnosis yang belum disimpan. Simpan di tab Diagnosis agar masuk ke ringkasan ini."
         >
             {orderedDiagnoses.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-neutral-100">
-                    <Table aria-label="Ringkasan diagnosis tercatat" className="min-w-[36rem] table-fixed">
+                <div className="overflow-x-auto rounded-xl border border-neutral-200">
+                    <Table aria-label="Ringkasan diagnosis tercatat" className="min-w-[42rem] table-fixed">
                         <TableHeader><TableRow>
-                            <TableHead className="w-24 px-5 py-4 text-center">Kode</TableHead>
-                            <TableHead className="w-36 px-5 py-4 text-center">Sistem kode</TableHead>
-                            <TableHead className="px-5 py-4 text-center">Diagnosis</TableHead>
-                            <TableHead className="w-28 px-5 py-4 text-center">Jenis</TableHead>
+                            <TableHead className="w-32">Kode / sistem</TableHead>
+                            <TableHead className="w-48 text-left">Diagnosis</TableHead>
+                            <TableHead className="w-28">Kategori</TableHead>
+                            <TableHead className="text-left">Catatan</TableHead>
                         </TableRow></TableHeader>
                         <TableBody>{orderedDiagnoses.map((diagnosis) => (
                             <TableRow key={diagnosis.id}>
-                                <TableCell className="break-words px-5 py-4 text-center align-middle font-sans tabular-nums font-semibold">{diagnosis.code || 'Manual'}</TableCell>
-                                <TableCell className="break-words px-5 py-4 text-center align-middle">{diagnosis.codeSystem === 'manual' || !diagnosis.code ? 'Manual' : codeSystems.find((system) => system.value === diagnosis.codeSystem)?.label ?? diagnosis.codeSystem ?? optionalAnswers.notRecorded}</TableCell>
-                                <TableCell className="whitespace-pre-wrap break-words px-5 py-4 text-center align-middle font-medium"><p>{diagnosis.name}</p>{diagnosis.toothFdi && <p className="mt-1 text-sm">Gigi {diagnosis.toothFdi} · {dentalSurfaceLabel(diagnosis.surfaces ?? []) || 'Tanpa permukaan spesifik'}</p>}{dentalDiagnosisDescription(diagnosis) && <p className="mt-1 font-normal text-neutral-600">{dentalDiagnosisDescription(diagnosis)}</p>}</TableCell>
-                                <TableCell className="px-5 py-4 text-center align-middle"><Badge variant={diagnosis.type === 'utama' ? 'examination' : 'default'}>{diagnosis.type === 'utama' ? 'Utama' : 'Tambahan'}</Badge></TableCell>
+                                <TableCell className="align-top whitespace-normal [overflow-wrap:anywhere]">
+                                    <span className="font-sans font-semibold tabular-nums">{diagnosis.code || 'Manual'}</span>
+                                    {diagnosis.code && <span className="mt-1 block text-xs text-neutral-500">{diagnosis.codeSystem === 'manual' ? 'Manual' : codeSystems.find((system) => system.value === diagnosis.codeSystem)?.label ?? diagnosis.codeSystem ?? optionalAnswers.notRecorded}</span>}
+                                </TableCell>
+                                <TableCell className="align-top whitespace-normal text-left font-medium [overflow-wrap:anywhere]">
+                                    {diagnosis.name}
+                                    {diagnosis.toothFdi && <span className="mt-1 block text-xs font-normal text-neutral-600">Gigi {diagnosis.toothFdi} · {dentalSurfaceLabel(diagnosis.surfaces ?? []) || 'Tanpa permukaan spesifik'}</span>}
+                                </TableCell>
+                                <TableCell className="align-top"><Badge variant={diagnosis.type === 'utama' ? 'examination' : 'default'}>{diagnosis.type === 'utama' ? 'Utama' : 'Tambahan'}</Badge></TableCell>
+                                <TableCell className="align-top text-left"><RecordedTableNote parts={[dentalDiagnosisDescription(diagnosis)]} /></TableCell>
                             </TableRow>
                         ))}</TableBody>
                     </Table>
@@ -162,7 +178,7 @@ export function DiagnosisSummary({ id = 'diagnosis-summary', diagnoses, differen
     );
 }
 
-function WorkflowSummary({ id, title, description, icon: Icon, counts, reviewLabel, onReview, hasUnsavedChanges, unsavedMessage, children }: SummaryProps & {
+function WorkflowSummary({ id, title, description, icon: Icon, counts, reviewLabel, onReview, hasUnsavedChanges, unsavedMessage, children, collapsible = false }: SummaryProps & {
     id: string;
     title: string;
     description: string;
@@ -171,11 +187,14 @@ function WorkflowSummary({ id, title, description, icon: Icon, counts, reviewLab
     reviewLabel: string;
     unsavedMessage: string;
     children: ReactNode;
+    collapsible?: boolean;
 }) {
+    const [open, setOpen] = useState(true);
+
     return (
         <Card aria-labelledby={id + '-title'} id={id}>
             <CardHeader>
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
                         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600"><Icon aria-hidden="true" className="size-5" /></span>
                         <div className="min-w-0 space-y-1.5">
@@ -183,11 +202,16 @@ function WorkflowSummary({ id, title, description, icon: Icon, counts, reviewLab
                             <CardDescription>{description}</CardDescription>
                         </div>
                     </div>
-                    <ActionButton action="detail" className="shrink-0" label={reviewLabel} onClick={onReview} />
+                    <div className="flex shrink-0 items-center gap-2">
+                        <ActionButton action="detail" label={reviewLabel} onClick={onReview} />
+                        {collapsible && <Button aria-controls={id + '-content'} aria-expanded={open} aria-label={`${open ? 'Tutup' : 'Buka'} ${title.toLocaleLowerCase('id')}`} onClick={() => setOpen(value => !value)} size="sm" type="button" variant="secondary">
+                            {open ? 'Tutup' : 'Buka'}<ChevronDown aria-hidden="true" className={open ? 'size-4 rotate-180' : 'size-4'} />
+                        </Button>}
+                    </div>
                 </div>
                 {(counts || hasUnsavedChanges) && <div className="flex flex-wrap gap-2 pt-2">{counts}{hasUnsavedChanges && <Badge variant="warning">Ada perubahan belum disimpan</Badge>}</div>}
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4" id={id + '-content'} hidden={collapsible && !open}>
                 {hasUnsavedChanges && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700" role="status">{unsavedMessage}</p>}
                 {children}
             </CardContent>

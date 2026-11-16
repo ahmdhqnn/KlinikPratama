@@ -29,6 +29,7 @@ interface Visit {
     clinic: string;
     status: string;
     examinationStarted?: boolean;
+    pendingReservation?: boolean;
     isReservation?: boolean;
     actionUrl: string;
     actionLabel: string;
@@ -44,11 +45,12 @@ interface Props {
     access: { manageVisits: boolean; monitorClinicalFlow: boolean; selectClinic: boolean };
     visits: PaginationData & { data: Visit[] };
     recentVisits: PaginationData & { data: Visit[] };
+    reservations?: PaginationData & { data: Visit[] };
 }
 
 const statusOptions = Object.entries(visitStatusFilterLabels);
 
-export default function ClinicVisits({ filters: initialFilters, clinics, stats, access, visits, recentVisits }: Props) {
+export default function ClinicVisits({ filters: initialFilters, clinics, stats, access, visits, recentVisits, reservations }: Props) {
     const [filters, setFilters] = useState(initialFilters);
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
@@ -90,7 +92,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                             <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
-                                            <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
+                                            <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} pendingReservation={visit.pendingReservation} status={visit.status} /></TableCell>
                                             <TableCell><VisitActions manageVisits={access.manageVisits} visit={visit} /></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty description="Belum ada kunjungan terbaru untuk poliklinik ini." size="compact" title="Belum ada data kunjungan." /></TableCell></TableRow>}
@@ -100,6 +102,28 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                         <Pagination pagination={recentVisits} />
                     </CardContent>
                 </Card>
+                {reservations && <Card className="overflow-hidden">
+                    <CardHeader className="border-b border-neutral-100">
+                        <CardTitle>Reservasi 7 hari ke depan</CardTitle>
+                        <CardDescription>Periksa jadwal praktik sebelum mengonfirmasi reservasi kontrol.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <Table className="min-w-[720px]">
+                            <TableHeader><TableRow><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik dan dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {reservations.data.map(visit => <TableRow key={visit.id}>
+                                    <TableCell className="whitespace-nowrap">{visit.date}</TableCell>
+                                    <TableCell><p className="font-medium">{visit.patient}</p><p className="text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
+                                    <TableCell><p>{visit.clinic}</p><p className="text-xs text-neutral-500">{visit.doctor}</p></TableCell>
+                                    <TableCell><StatusBadge status={visit.status} reservation pendingReservation={visit.pendingReservation} /></TableCell>
+                                    <TableCell><VisitActions visit={visit} manageVisits={access.manageVisits} /></TableCell>
+                                </TableRow>)}
+                                {!reservations.data.length && <TableRow><TableCell colSpan={5}><Empty size="compact" title="Tidak ada reservasi dalam tujuh hari ke depan." /></TableCell></TableRow>}
+                            </TableBody>
+                        </Table>
+                        <Pagination pagination={reservations} />
+                    </CardContent>
+                </Card>}
                 <FilterPanel><form className={`grid gap-4 sm:items-end ${access.selectClinic ? 'sm:grid-cols-2 xl:grid-cols-2' : 'sm:grid-cols-2'}`} onSubmit={applyFilters}>
                             {access.selectClinic && <Field htmlFor="visits-by-clinic" label="Poliklinik">
                                 <Select id="visits-by-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
@@ -136,7 +160,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                                             <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
-                                            <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
+                                            <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} pendingReservation={visit.pendingReservation} status={visit.status} /></TableCell>
                                             <TableCell><VisitActions manageVisits={access.manageVisits} visit={visit} /></TableCell>
                                         </TableRow>
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty description={clinics.length ? 'Coba sesuaikan filter tanggal untuk melihat kunjungan.' : 'Aktifkan poliklinik agar daftar kunjungan dapat ditampilkan.'} size="compact" title={clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'} /></TableCell></TableRow>}
@@ -157,7 +181,7 @@ function VisitActions({ visit, manageVisits }: { visit: Visit; manageVisits: boo
 
     return <div className="flex justify-center gap-2">
         <ActionButton asChild action={isScreeningAction ? 'screening' : isMedicalRecordAction ? 'rme' : 'detail'} label={visit.actionLabel}><Link href={visit.actionUrl} /></ActionButton>
-        <ActionButton disabledReason={!manageVisits ? 'Akun Anda tidak memiliki akses mengubah kunjungan.' : 'Kunjungan yang sudah dilayani tidak dapat diubah.'} disabled={!(manageVisits && visit.editUrl)} asChild action="edit" label={`Perbarui kunjungan ${visit.number}`}><Link href={visit.editUrl ?? ''} /></ActionButton>
+        <ActionButton disabledReason={!manageVisits ? 'Akun Anda tidak memiliki akses mengubah kunjungan.' : 'Kunjungan yang sudah dilayani tidak dapat diubah.'} disabled={!(manageVisits && visit.editUrl)} asChild action="edit" label={visit.pendingReservation ? 'Konfirmasi reservasi' : `Perbarui kunjungan ${visit.number}`}><Link href={visit.editUrl ?? ''} /></ActionButton>
         <ActionButton disabledReason={!manageVisits ? 'Akun Anda tidak memiliki akses membatalkan kunjungan.' : 'Kunjungan yang sudah dilayani tidak dapat dibatalkan.'} disabled={!(manageVisits && visit.cancelUrl)} onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} untuk ${visit.patient}?`, () => { router.post(visit.cancelUrl as string, {}, { preserveScroll: true }); }, 'Batalkan')} type="button" action="cancel" label={`Batalkan kunjungan ${visit.number}`} />
         <ActionButton disabledReason="Dokumen belum tersedia untuk dicetak." disabled={!visit.ticketUrl} asChild action="print" label={`Cetak antrean ${visit.number}`}><a href={visit.ticketUrl ?? ''} /></ActionButton>
     </div>;

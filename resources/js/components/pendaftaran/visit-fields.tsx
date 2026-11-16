@@ -1,3 +1,4 @@
+import { LoadingField } from '@/components/loading-skeletons';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
@@ -19,6 +20,8 @@ export interface VisitFormValues {
 
 interface Props {
     clinics: Option[];
+    clinicLocked?: boolean;
+    plannedDoctor?: Option | null;
     today: string;
     doctorsUrl: string;
     values: VisitFormValues;
@@ -33,10 +36,10 @@ interface ScheduledDoctor {
     poliklinik_nama: string;
 }
 
-export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChange }: Props) {
+export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChange, clinicLocked = false, plannedDoctor }: Props) {
     const isDental = clinics.find((clinic) => String(clinic.id) === values.poliklinik_id)?.type === 'gigi';
     const [doctors, setDoctors] = useState<ScheduledDoctor[]>([]);
-    const [loadingDoctors, setLoadingDoctors] = useState(true);
+    const [loadedDate, setLoadedDate] = useState<string | null>(null);
     const [doctorLoadError, setDoctorLoadError] = useState(false);
     const onChangeRef = useRef(onChange);
 
@@ -45,13 +48,13 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
     useEffect(() => {
         if (!values.tanggal) {
             setDoctors([]);
-            setLoadingDoctors(false);
+            setLoadedDate(null);
             setDoctorLoadError(false);
             return;
         }
 
         const abortController = new AbortController();
-        setLoadingDoctors(true);
+        setLoadedDate(null);
         setDoctorLoadError(false);
 
         fetch(`${doctorsUrl}?tanggal=${encodeURIComponent(values.tanggal || today)}`, {
@@ -78,26 +81,27 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
             })
             .finally(() => {
                 if (!abortController.signal.aborted) {
-                    setLoadingDoctors(false);
+                    setLoadedDate(values.tanggal);
                 }
             });
 
         return () => abortController.abort();
     }, [doctorsUrl, today, values.tanggal]);
 
+    const loadingDoctors = Boolean(values.tanggal && loadedDate !== values.tanggal);
     const clinicDoctors = doctors.filter((doctor) => doctor.poliklinik_id.toString() === values.poliklinik_id);
 
     useEffect(() => {
-        if (loadingDoctors || !values.poliklinik_id) {
+        if (loadingDoctors || doctorLoadError || !values.poliklinik_id) {
             return;
         }
 
-        if (clinicDoctors.length === 1 && values.dokter_id !== clinicDoctors[0].id.toString()) {
+        if (!plannedDoctor && clinicDoctors.length === 1 && values.dokter_id !== clinicDoctors[0].id.toString()) {
             onChangeRef.current({ dokter_id: clinicDoctors[0].id.toString() });
         } else if (values.dokter_id && !clinicDoctors.some((doctor) => doctor.id.toString() === values.dokter_id)) {
             onChangeRef.current({ dokter_id: '' });
         }
-    }, [clinicDoctors, loadingDoctors, values.dokter_id, values.poliklinik_id]);
+    }, [clinicDoctors, doctorLoadError, loadingDoctors, plannedDoctor, values.dokter_id, values.poliklinik_id]);
 
     const displayedDoctors = values.poliklinik_id ? clinicDoctors : doctors;
     const selectedDoctor = values.poliklinik_id
@@ -121,7 +125,7 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
         <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
                 <Field error={errors.poliklinik_id} htmlFor="poliklinik_id" label="Poliklinik tujuan" required>
-                    <Select aria-describedby={errors.poliklinik_id ? 'poliklinik_id-error' : undefined} id="poliklinik_id" onChange={(event) => {
+                    <Select disabled={clinicLocked} aria-describedby={errors.poliklinik_id ? 'poliklinik_id-error' : undefined} id="poliklinik_id" onChange={(event) => {
                         onChange({ poliklinik_id: event.target.value, dokter_id: '', tanggal: values.tanggal >= today ? values.tanggal : today });
                     }} required value={values.poliklinik_id}>
                         <option value="">Pilih poliklinik</option>
@@ -129,18 +133,23 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
                     </Select>
                 </Field>
                 <Field error={doctorLoadError ? 'Jadwal dokter gagal dimuat. Silakan muat ulang halaman.' : errors.dokter_id} htmlFor="dokter_id" label="Dokter terjadwal" required>
-                    <Select aria-describedby={(errors.dokter_id || doctorLoadError) ? 'dokter_id-error' : undefined} disabled={loadingDoctors || doctorLoadError || displayedDoctors.length === 0} id="dokter_id" required onChange={(event) => selectDoctor(event.target.value)} value={selectedDoctor}>
-                        <option value="">{loadingDoctors ? 'Memuat dokter…' : doctorLoadError ? 'Jadwal dokter tidak tersedia' : displayedDoctors.length ? 'Pilih dokter' : 'Tidak ada dokter terjadwal'}</option>
-                        {displayedDoctors.map((doctor) => (
-                            <option key={`${doctor.poliklinik_id}:${doctor.id}`} value={values.poliklinik_id ? doctor.id : `${doctor.poliklinik_id}:${doctor.id}`}>
-                                {doctor.nama}{values.poliklinik_id ? '' : ` · ${doctor.poliklinik_nama}`}
-                            </option>
-                        ))}
-                    </Select>
+                    <LoadingField label="Memuat jadwal dokter…" loading={loadingDoctors}>
+                        <Select aria-describedby={(errors.dokter_id || doctorLoadError) ? 'dokter_id-error' : undefined} disabled={loadingDoctors || doctorLoadError || displayedDoctors.length === 0} id="dokter_id" required onChange={(event) => selectDoctor(event.target.value)} value={selectedDoctor}>
+                            <option value="">{doctorLoadError ? 'Jadwal dokter tidak tersedia' : displayedDoctors.length ? 'Pilih dokter' : 'Tidak ada dokter terjadwal'}</option>
+                            {displayedDoctors.map((doctor) => (
+                                <option key={`${doctor.poliklinik_id}:${doctor.id}`} value={values.poliklinik_id ? doctor.id : `${doctor.poliklinik_id}:${doctor.id}`}>
+                                    {doctor.nama}{values.poliklinik_id ? '' : ` · ${doctor.poliklinik_nama}`}
+                                </option>
+                            ))}
+                        </Select>
+                    </LoadingField>
+                    {plannedDoctor && !loadingDoctors && !doctorLoadError && !clinicDoctors.some((doctor) => doctor.id === plannedDoctor.id) && (
+                        <p className="text-xs text-neutral-600">{plannedDoctor.name} tidak terjadwal pada poli dan tanggal ini. Pilih tanggal praktiknya atau pilih dokter lain secara manual.</p>
+                    )}
                 </Field>
                 <Field error={errors.tanggal} htmlFor="reservation-date" label={isDental ? 'Tanggal kunjungan Poli Gigi' : 'Tanggal kunjungan'} required>
-                    <DatePicker id="reservation-date" min={today} required value={values.tanggal} onChange={(event) => onChange({ tanggal: event.target.value, dokter_id: '' })} />
-                    <p className="text-xs text-neutral-500">{isDental ? 'Poli Gigi dapat didaftarkan hari ini atau tanggal berikutnya sesuai jadwal dokter.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
+                    <DatePicker id="reservation-date" min={today} required value={values.tanggal} onChange={(event) => onChange({ tanggal: event.target.value, dokter_id: plannedDoctor ? values.dokter_id || String(plannedDoctor.id) : '' })} />
+                    <p className="text-xs text-neutral-500">{plannedDoctor ? 'Gunakan tanggal pilihan dokter. Jika perlu dijadwalkan ulang, pilih tanggal sesuai jadwal praktik.' : isDental ? 'Poli Gigi dapat didaftarkan hari ini atau tanggal berikutnya sesuai jadwal dokter.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
                 </Field>
                 <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Fasilitas klinik internal</p><p className="mt-1 text-xs text-neutral-500">Pasien baru dapat langsung didaftarkan untuk kunjungan. Verifikasi kepesertaan dilakukan oleh admin.</p></div>
             </div>

@@ -11,13 +11,17 @@ interface Visit {
     patient: { name: string; medicalRecordNumber: string; gender: string | null; age: number | null };
     clinicId: string;
     doctorId: string;
+    doctor?: { id: number; name: string } | null;
     date: string;
     notes: string | null;
+    pendingReservation?: boolean;
 }
 interface Props { visit: Visit; clinics: Clinic[]; today: string; doctorsUrl: string; updateUrl: string; backUrl: string }
 
 export default function EditRegistrationVisit({ visit, clinics, today, doctorsUrl, updateUrl, backUrl }: Props) {
     const form = useForm<VisitFormValues>({ poliklinik_id: visit.clinicId, dokter_id: visit.doctorId, catatan: visit.notes ?? '', tanggal: visit.date });
+
+    const plannedDate = new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(visit.date + 'T00:00:00Z'));
 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -31,7 +35,7 @@ export default function EditRegistrationVisit({ visit, clinics, today, doctorsUr
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>
                         <p className="text-sm font-medium text-neutral-700">Pendaftaran</p>
-                        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ubah data kunjungan</h2>
+                        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{visit.pendingReservation ? 'Konfirmasi reservasi kontrol' : 'Ubah data kunjungan'}</h2>
                         <p className="mt-1 text-sm text-neutral-500">Pembaruan poli dan dokter akan diperiksa terhadap jadwal praktik.</p>
                     </div>
                     <Button asChild variant="secondary"><Link href={backUrl}><ArrowLeft className="size-4" />Kembali</Link></Button>
@@ -48,13 +52,15 @@ export default function EditRegistrationVisit({ visit, clinics, today, doctorsUr
                     </CardContent>
                 </Card>
                 <Card>
-                    <CardHeader><CardTitle>Data kunjungan</CardTitle><CardDescription>Pilih tanggal dan dokter yang tersedia untuk poli tujuan.</CardDescription></CardHeader>
+                    <CardHeader><CardTitle>Data kunjungan</CardTitle><CardDescription>{visit.pendingReservation
+                        ? ['Jadwal dari dokter', plannedDate, visit.doctor?.name].filter(Boolean).join(' · ')
+                        : 'Pilih tanggal dan dokter yang tersedia untuk poli tujuan.'}</CardDescription></CardHeader>
                     <CardContent>
                         <form className="space-y-5" onSubmit={submit}>
-                            <VisitFields clinics={clinics} doctorsUrl={doctorsUrl} errors={form.errors} today={today} values={form.data} onChange={(fields) => form.setData((data) => ({ ...data, ...fields }))} />
+                            <VisitFields plannedDoctor={visit.pendingReservation ? visit.doctor : null} clinics={clinics} doctorsUrl={doctorsUrl} errors={form.errors} today={today} values={form.data} onChange={(fields) => form.setData((data) => ({ ...data, ...fields }))} />
                             <div className="flex flex-col-reverse gap-2 border-t border-neutral-100 pt-4 sm:flex-row sm:justify-end">
                                 <Button asChild variant="secondary"><Link href={backUrl}>Batalkan</Link></Button>
-                                <Button disabled={form.processing} type="submit"><Save className="size-4" />{form.processing ? 'Menyimpan.' : 'Simpan perubahan'}</Button>
+                                <Button disabled={form.processing} type="submit"><Save className="size-4" />{form.processing ? 'Menyimpan…' : visit.pendingReservation ? 'Konfirmasi reservasi' : 'Simpan perubahan'}</Button>
                             </div>
                         </form>
                     </CardContent>

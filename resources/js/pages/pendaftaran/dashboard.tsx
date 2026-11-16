@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 interface Props {
     schedules: { id: number; doctorId: number; doctor: string; clinic: string; start: string; end: string }[];
-    visits: PaginationData & { data: { id: number; number: string; date: string; patient: string; medicalRecordNumber: string; clinic: string; doctor: string; status: string; examinationStarted: boolean; detailUrl: string; ticketUrl: string }[] };
+    visits: PaginationData & { data: { id: number; number: string; date: string; patient: string; medicalRecordNumber: string; clinic: string; doctor: string; status: string; examinationStarted: boolean; detailUrl: string; pendingReservation?: boolean; ticketUrl: string | null }[] };
 
     today: string;
     followUp: FollowUpData;
@@ -85,8 +85,8 @@ export default function RegistrationDashboard({ stats, followUp, today, schedule
                                 <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
                                 <TableCell><p className="font-medium">{visit.patient}</p><p className="text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                 <TableCell>{visit.clinic}</TableCell><TableCell>{visit.doctor}</TableCell>
-                                <TableCell><StatusBadge status={visit.status} examinationStarted={visit.examinationStarted} /></TableCell>
-                                <TableCell><div className="flex justify-center gap-2"><ActionButton asChild action="detail" label={`Detail ${visit.number}`}><Link href={visit.detailUrl} /></ActionButton><ActionButton asChild action="print" label={`Cetak tiket ${visit.number}`}><a href={visit.ticketUrl} /></ActionButton></div></TableCell>
+                                <TableCell><StatusBadge status={visit.status} pendingReservation={visit.pendingReservation} examinationStarted={visit.examinationStarted} /></TableCell>
+                                <TableCell><div className="flex justify-center gap-2"><ActionButton asChild action="detail" label={`Detail ${visit.number}`}><Link href={visit.detailUrl} /></ActionButton><ActionButton asChild action="print" label={`Cetak tiket ${visit.number}`} disabled={!visit.ticketUrl} disabledReason={visit.pendingReservation ? "Konfirmasikan reservasi sebelum mencetak tiket." : "Tiket tidak tersedia untuk kunjungan ini."}><a href={visit.ticketUrl ?? undefined} /></ActionButton></div></TableCell>
                             </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada kunjungan hari ini" /></TableCell></TableRow>}</TableBody>
                         </Table>
                     </CardContent>

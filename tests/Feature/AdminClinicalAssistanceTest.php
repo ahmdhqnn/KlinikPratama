@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\ClinicalNoteRecorder;
 use App\Http\Middleware\AuditAdminAssistanceFailures;
 use App\Models\ClinicalNoteVersion;
+use App\Models\JadwalDokter;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Obat;
@@ -162,6 +163,65 @@ class AdminClinicalAssistanceTest extends TestCase
             $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'reason' => 'Koreksi catatan final oleh operator'])->assertForbidden();
             $this->assertDatabaseHas('odontogram_findings', ['kunjungan_id' => $visit->id, 'tooth_fdi' => '46']);
         }
+    }
+
+    public function test_follow_up_plan_syncs_a_pending_reservation_until_registration_confirms_it(): void
+    {
+        [, $admin, $visit] = $this->assistedContext();
+        $date = today()->addDays(7);
+        $data = ['section' => 'rencana', 'kontrol_berikutnya' => $date->toDateString(), 'catatan' => 'Evaluasi setelah terapi.'];
+        $saveUrl = route('pelayanan.pemeriksaan.store', $visit);
+
+        $this->actingAs($admin)->post($saveUrl, $data)->assertSessionHasNoErrors();
+        $reservation = Kunjungan::where('kontrol_asal_id', $visit->id)->sole();
+        $this->assertSame($data['catatan'], $reservation->kontrol_catatan);
+        $this->assertTrue($reservation->isPendingReservation());
+        $this->assertFalse($reservation->canUpdateScreening());
+        $this->get(route('pendaftaran.cetak-antrian', $reservation))->assertUnprocessable();
+
+        $this->put(route('pelayanan.pemeriksaan.update', $visit), [...$data, 'catatan' => 'Catatan kontrol diperbarui.'])->assertSessionHasNoErrors();
+        $this->assertSame('Catatan kontrol diperbarui.', $reservation->fresh()->kontrol_catatan);
+        $this->assertDatabaseCount('kunjungan', 2);
+
+        $page = $this->get(route('pendaftaran.kunjungan-per-poli'))->inertiaProps('reservations');
+        $this->assertSame($reservation->id, $page['data'][0]['id']);
+
+        $registrar = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
+        $alternateUser = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $alternate = Nakes::create(['kode' => 'DOCTOR-ALT', 'nama' => 'Dokter Lain', 'kategori' => 'medis', 'jabatan' => 'dokter', 'poliklinik_id' => $visit->poliklinik_id, 'user_id' => $alternateUser->id, 'is_active' => true]);
+        JadwalDokter::create([
+            'dokter_id' => $alternate->id, 'poliklinik_id' => $visit->poliklinik_id, 'hari' => 'senin',
+            'jam_mulai' => '08:00', 'jam_selesai' => '16:00', 'is_active' => true,
+        ]);
+
+        $confirmation = ['poliklinik_id' => $visit->poliklinik_id];
+        $confirmUrl = route('pendaftaran.update-kunjungan', $reservation);
+        $editorUrl = route('pendaftaran.edit-kunjungan', $reservation);
+        $this->get(route('pelayanan.kunjungan.edit', $reservation))->assertRedirect($editorUrl);
+        $this->actingAs($registrar)->get($editorUrl)->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/edit-kunjungan')
+            ->where('visit.date', $date->toDateString())
+            ->where('visit.doctorId', (string) $visit->dokter_id));
+        $this->put($confirmUrl, $confirmation)->assertSessionHasErrors('dokter_id');
+        $this->assertTrue($reservation->fresh()->isPendingReservation());
+        JadwalDokter::create([
+            'dokter_id' => $visit->dokter_id, 'poliklinik_id' => $visit->poliklinik_id, 'hari' => 'senin',
+            'jam_mulai' => '08:00', 'jam_selesai' => '16:00', 'is_active' => true,
+        ]);
+        $this->put($confirmUrl, $confirmation)->assertSessionHasNoErrors();
+        $this->assertFalse($reservation->fresh()->isPendingReservation());
+        $this->assertSame($visit->dokter_id, $reservation->fresh()->dokter_id);
+        $this->assertSame($date->toDateString(), $reservation->fresh()->tanggal->toDateString());
+        $this->get(route('pendaftaran.cetak-antrian', $reservation))->assertOk();
+
+        $this->actingAs($admin);
+        $later = $date->copy()->addDay()->toDateString();
+        $this->post($saveUrl, [...$data, 'kontrol_berikutnya' => $later])->assertSessionHasNoErrors();
+        $this->assertSame($later, $reservation->fresh()->tanggal->toDateString());
+        $this->assertTrue($reservation->fresh()->isPendingReservation());
+        $this->assertSame(0, $this->get(route('pendaftaran.kunjungan-per-poli'))->inertiaProps('reservations')['total']);
+        $this->post($saveUrl, [...$data, 'kontrol_berikutnya' => null])->assertSessionHasNoErrors();
+        $this->assertSame('batal', $reservation->fresh()->status);
     }
 
     public function test_changed_assisted_content_requires_a_fresh_review_before_signing(): void

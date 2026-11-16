@@ -32,7 +32,11 @@ export const visitStatusFilterLabels: Record<string, string> = {
     pemeriksaan: 'Menunggu / sedang diperiksa',
 };
 
-export function StatusBadge({ status, reservation = false, context = 'visit', examinationStarted = false, treatmentStarted = false }: { status: string; examinationStarted?: boolean; treatmentStarted?: boolean; reservation?: boolean; context?: 'visit' | 'nurse' | 'pharmacy' }) {
+export function StatusBadge({ status, reservation = false, pendingReservation = false, context = 'visit', examinationStarted = false, treatmentStarted = false }: { status: string; examinationStarted?: boolean; treatmentStarted?: boolean; reservation?: boolean; pendingReservation?: boolean; context?: 'visit' | 'nurse' | 'pharmacy' }) {
+    if (pendingReservation) {
+        return <Badge variant="default">Menunggu konfirmasi</Badge>;
+    }
+
     if (reservation) {
         return <Badge variant="default">Reservasi</Badge>;
     }

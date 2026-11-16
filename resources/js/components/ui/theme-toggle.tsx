@@ -1,31 +1,50 @@
 import { Moon, Sun } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 
 export function ThemeToggle({ className }: { className?: string }) {
     const [isDarkMode, setIsDarkMode] = useState(false);
-    const [isThemeReady, setIsThemeReady] = useState(false);
+    const savedTheme = useRef<string | null>(null);
 
     useEffect(() => {
-        setIsDarkMode(document.documentElement.classList.contains('dark'));
-        setIsThemeReady(true);
-    }, []);
+        const preference = window.matchMedia('(prefers-color-scheme: dark)');
+        try { savedTheme.current = window.localStorage.getItem('clinic-theme'); } catch {}
 
-    useEffect(() => {
-        if (!isThemeReady) {
-            return;
+        function syncTheme() {
+            const dark = savedTheme.current === 'dark' || (savedTheme.current !== 'light' && preference.matches);
+            document.documentElement.classList.toggle('dark', dark);
+            setIsDarkMode(dark);
         }
 
-        document.documentElement.classList.toggle('dark', isDarkMode);
-        window.localStorage.setItem('clinic-theme', isDarkMode ? 'dark' : 'light');
-    }, [isDarkMode, isThemeReady]);
+        function onStorage(event: StorageEvent) {
+            if (event.storageArea !== window.localStorage || (event.key !== null && event.key !== 'clinic-theme')) return;
+            savedTheme.current = event.newValue;
+            syncTheme();
+        }
+
+        syncTheme();
+        preference.addEventListener('change', syncTheme);
+        window.addEventListener('storage', onStorage);
+        return () => {
+            preference.removeEventListener('change', syncTheme);
+            window.removeEventListener('storage', onStorage);
+        };
+    }, []);
+
+    function toggleTheme() {
+        const dark = !document.documentElement.classList.contains('dark');
+        savedTheme.current = dark ? 'dark' : 'light';
+        document.documentElement.classList.toggle('dark', dark);
+        setIsDarkMode(dark);
+        try { window.localStorage.setItem('clinic-theme', savedTheme.current); } catch {}
+    }
 
     return (
         <Button
             aria-label={isDarkMode ? 'Aktifkan tema terang' : 'Aktifkan tema gelap'}
             aria-pressed={isDarkMode}
             className={className}
-            onClick={() => setIsDarkMode((darkMode) => !darkMode)}
+            onClick={toggleTheme}
             size="icon"
             title={isDarkMode ? 'Tema terang' : 'Tema gelap'}
             variant="ghost"

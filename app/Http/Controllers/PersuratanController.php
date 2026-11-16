@@ -7,6 +7,7 @@ use App\ClinicalNoteRecorder;
 use App\ClinicDocumentProfile;
 use App\CorrespondenceService;
 use App\DoctorAccessService;
+use App\InternalReferralDirectory;
 use App\MedicalLetterData;
 use App\Models\CorrespondenceTemplate;
 use App\Models\Kunjungan;
@@ -29,7 +30,7 @@ class PersuratanController extends Controller
 {
     public function __construct(private DoctorAccessService $doctorAccess, private CorrespondenceService $correspondence) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request, InternalReferralDirectory $referralDirectory): Response
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
@@ -57,14 +58,6 @@ class PersuratanController extends Controller
             ->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'dokter'])
             ->when(! $isAdmin, fn (Builder $query) => $query->whereHas('kunjungan', fn (Builder $visit) => $visit->where('dokter_id', $doctorId)))
             ->latest('id')->paginate(10, ['*'], 'letters_page')->withQueryString();
-        $referrals = RujukanInternal::query()
-            ->when($filters['kunjungan_id'] ?? null, fn (Builder $query, int|string $visitId) => $query->where('kunjungan_id', $visitId))
-            ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
-                ->where('nomor_surat', 'like', "%{$search}%")
-                ->orWhereHas('kunjungan.pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
-            ->with(['kunjungan.pasien', 'kunjungan.dokter', 'dariPoli', 'kePoli'])
-            ->when(! $isAdmin, fn (Builder $query) => $query->whereHas('kunjungan', fn (Builder $visit) => $visit->where('dokter_id', $doctorId)))
-            ->latest('id')->paginate(10, ['*'], 'referrals_page')->withQueryString();
         $templates = CorrespondenceTemplate::query()
             ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
                 ->where('nama', 'like', "%{$search}%")->orWhere('kode', 'like', "%{$search}%")))
@@ -122,23 +115,10 @@ class PersuratanController extends Controller
                 'from' => $letters->firstItem(), 'to' => $letters->lastItem(), 'total' => $letters->total(),
                 'previousUrl' => $letters->previousPageUrl(), 'nextUrl' => $letters->nextPageUrl(),
             ],
-            'referrals' => [
-                'data' => $referrals->getCollection()->map(fn (RujukanInternal $referral): array => [
-                    'id' => $referral->id,
-                    'number' => $referral->nomor_surat,
-                    'date' => $referral->kunjungan?->tanggal?->format('d/m/Y'),
-                    'patient' => $referral->kunjungan?->pasien?->nama ?? 'Belum diisi',
-                    'visitNumber' => $referral->kunjungan?->no_kunjungan ?? 'Belum diisi',
-                    'fromClinic' => $referral->dariPoli?->nama ?? 'Belum diisi',
-                    'toClinic' => $referral->kePoli?->nama ?? 'Belum diisi',
-                    'doctor' => $referral->kunjungan?->dokter?->nama ?? 'Belum diisi',
-                    'status' => $referral->status,
-                    'printUrl' => route('persuratan.rujukan.cetak', $referral),
-                ])->values(),
-                'currentPage' => $referrals->currentPage(), 'lastPage' => $referrals->lastPage(),
-                'from' => $referrals->firstItem(), 'to' => $referrals->lastItem(), 'total' => $referrals->total(),
-                'previousUrl' => $referrals->previousPageUrl(), 'nextUrl' => $referrals->nextPageUrl(),
-            ],
+            'referrals' => $referralDirectory->paginate(
+                $search, isset($filters['kunjungan_id']) ? (int) $filters['kunjungan_id'] : null,
+                $doctorId, $isAdmin ? 'pelayanan.kunjungan.show' : null, true, 'referrals_page',
+            ),
         ]);
     }
 
@@ -293,9 +273,9 @@ class PersuratanController extends Controller
         $auditRecorder->record($request, 'internal_referral.print', $visit->pasien_id, $visit->id, ['document_id' => $rujukanInternal->id]);
 
         return Inertia::render('persuratan/cetak', [
-            'document' => $this->baseDocument($visit, 'rujukan_internal', $visit->dokter, $rujukanInternal->document_data) + [
+            'document' => $this->baseDocument($visit, 'rujukan_internal', $visit->dokter, $rujukanInternal->document_data, $rujukanInternal->created_at) + [
                 'number' => $rujukanInternal->nomor_surat,
-                'date' => $visit->tanggal?->locale('id')->isoFormat('D MMMM Y'),
+                'date' => $rujukanInternal->created_at?->locale('id')->isoFormat('D MMMM Y'),
                 'fromClinic' => $rujukanInternal->document_data['fromClinic'] ?? $rujukanInternal->dariPoli?->nama,
                 'toClinic' => $rujukanInternal->document_data['toClinic'] ?? $rujukanInternal->kePoli?->nama,
                 'content' => $rujukanInternal->konten_surat,
