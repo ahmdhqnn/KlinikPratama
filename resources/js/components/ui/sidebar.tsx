@@ -30,6 +30,14 @@ export function SidebarMenuItem({ className, ...props }: ComponentProps<'li'>) {
     return <li className={className} {...props} />;
 }
 
+export function SidebarMenuSub({ className, ...props }: ComponentProps<'ul'>) {
+    return <ul className={cn('ml-5 mt-1 space-y-1 border-l border-neutral-200 py-1 pl-3', className)} {...props} />;
+}
+
+export function SidebarMenuSubButton({ className, ...props }: ComponentProps<typeof SidebarMenuButton>) {
+    return <SidebarMenuButton className={cn('min-h-9 gap-2 rounded-md px-2.5 py-2 text-[13px]', className)} {...props} />;
+}
+
 export function SidebarMenuButton({ className, isActive = false, asChild = false, ...props }: ComponentProps<'button'> & { isActive?: boolean; asChild?: boolean }) {
     const Component = asChild ? Slot : 'button';
 

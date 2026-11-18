@@ -20,12 +20,12 @@ class AdminReportHubTest extends TestCase
                 ->component('admin/laporan')
                 ->has('groups', fn (Assert $groups) => $groups
                     ->where('0.title', 'Pelayanan klinik')
-                    ->has('0.reports', 8)
+                    ->has('0.reports', 7)
                     ->where('0.reports.0.href', route('laporan.kunjungan'))
                     ->where('0.reports.1.href', route('admin.laporan.pengkajian'))
                     ->where('0.reports.2.href', route('admin.laporan.tindakan-perawat'))
                     ->where('0.reports.3.href', route('admin.laporan.pemeriksaan'))
-                    ->where('0.reports.7.href', route('pendaftaran.laporan-top-diagnosa'))
+                    ->where('0.reports.6.href', route('pendaftaran.laporan-top-diagnosa'))
                     ->where('1.title', 'Farmasi dan persediaan')
                     ->has('1.reports', 4)));
     }

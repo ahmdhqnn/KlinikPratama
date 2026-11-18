@@ -5,7 +5,7 @@ import { VisitTable, type DashboardVisit } from '@/components/dashboard/visit-ta
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, usePage, usePoll } from '@inertiajs/react';
 import { ArrowRight, CalendarClock, ClipboardCheck, ClipboardList, Stethoscope, Syringe, UsersRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -17,6 +17,7 @@ interface Props {
 }
 
 export default function DoctorDashboard({ stats, schedule, recentVisits, followUp }: Props) {
+    usePoll(10_000, { only: ['stats', 'recentVisits', 'doctorQueues'] });
     const { auth } = usePage<{ auth?: { user?: { clinicType?: string | null } | null } }>().props;
     const practiceLabel = auth?.user?.clinicType === 'gigi' ? 'Praktik dokter gigi' : auth?.user?.clinicType === 'umum' ? 'Praktik dokter umum' : 'Praktik dokter';
 

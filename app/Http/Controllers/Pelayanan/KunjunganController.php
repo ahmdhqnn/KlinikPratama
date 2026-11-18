@@ -109,7 +109,7 @@ class KunjunganController extends Controller
     {
         $filters = $visits->filters($request);
         $query = $visits->filtered($filters)
-            ->when(empty($filters['tanggal']), fn ($query) => $query->where('tanggal', '<', today()->addDays(8)->toDateString()))->with(['pasien', 'poliklinik', 'dokter', 'screening', 'pemeriksaan', 'farmasi'])
+            ->with(['pasien', 'poliklinik', 'dokter', 'screening', 'pemeriksaan', 'farmasi'])
             ->withExists(['tindakanKunjungan as has_nurse_procedures' => fn ($query) => $query->where('execution_role', 'perawat')]);
         $todayQuery = Kunjungan::query()->whereDate('tanggal', today());
         $counts = (clone $todayQuery)->selectRaw('status, COUNT(*) as total')->groupBy('status')->pluck('total', 'status');
@@ -220,6 +220,8 @@ class KunjunganController extends Controller
             $canServe && ($visit->status === 'farmasi' || $visit->farmasi?->status === 'selesai'),
             ! $canServe ? $serviceReason : 'Penyerahan obat tersedia pada tahap farmasi atau untuk melihat penyerahan yang sudah selesai.');
         $actions[] = $action('issue', 'Persuratan kunjungan', route('persuratan.index', ['kunjungan_id' => $visit->id]));
+        $actions[] = $action('ticket', 'Cetak tiket antrean', route('pendaftaran.cetak-antrian', $visit),
+            $visit->status !== 'batal' && ! $visit->isPendingReservation(), 'Tiket tersedia setelah reservasi dikonfirmasi dan kunjungan tidak dibatalkan.');
         $actions[] = $action('edit', 'Ubah kunjungan', route($visit->isPendingReservation() ? 'pendaftaran.edit-kunjungan' : 'pelayanan.kunjungan.edit', $visit), $visit->status === 'menunggu', 'Hanya kunjungan yang belum dilayani yang dapat diubah.');
         $actions[] = [...$action('cancel', 'Batalkan kunjungan', route('pelayanan.kunjungan.batal', $visit), $visit->status === 'menunggu', 'Hanya kunjungan yang belum dilayani yang dapat dibatalkan.'), 'method' => 'post'];
 
@@ -243,6 +245,7 @@ class KunjunganController extends Controller
             ...$this->formOptions($poliklinikList),
             'doctorsUrl' => route('pelayanan.dokter.by-poli'),
             'patientSearchUrl' => route('pelayanan.kunjungan.pasien.search'),
+            'returnUrl' => route($request->user()->role === 'admin' ? 'pelayanan.antrian' : 'pelayanan.kunjungan.index'),
             'today' => today()->toDateString(),
         ]);
     }
@@ -321,6 +324,9 @@ class KunjunganController extends Controller
         $fallbackBackUrl = $isRegistrationPage
             ? route($kunjungan->rujukan_internal_id && $role === 'pendaftaran' ? 'pendaftaran.rujukan-internal' : 'pendaftaran.kunjungan-per-poli')
             : ($role === 'perawat' ? route('perawat.dashboard') : route('pelayanan.kunjungan.index'));
+        if ($role === 'admin') {
+            $fallbackBackUrl = route('pelayanan.antrian');
+        }
 
         return Inertia::render('pelayanan/kunjungan/show', [
             'backUrl' => $this->contextualVisitBackUrl($request, $fallbackBackUrl),

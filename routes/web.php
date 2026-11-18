@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminActivityLogController;
 use App\Http\Controllers\AdminAssistanceAuditController;
 use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\Auth\LoginController;
@@ -79,6 +80,9 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
 
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/admin/log-aktivitas', [AdminActivityLogController::class, 'index'])
+        ->withoutMiddleware(RedirectRegistrationRole::class)
+        ->middleware(EnsureAdminRole::class)->name('admin.log-aktivitas');
     Route::get('/admin/audit-bantuan', [AdminAssistanceAuditController::class, 'index'])
         ->middleware(EnsureAdminRole::class)
         ->name('admin.audit-bantuan');

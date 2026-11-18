@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\DoctorAccessService;
 use App\Models\Kunjungan;
+use App\Models\RujukanInternal;
 use App\NurseQueueCounts;
 use App\PerawatClinicResolver;
 use Illuminate\Database\Eloquent\Builder;
@@ -48,6 +49,7 @@ class HandleInertiaRequests extends Middleware
             'adminQueues' => fn (): ?array => $this->adminQueues($request),
             'nurseQueues' => fn (): ?array => $this->nurseQueues($request),
             'doctorQueues' => fn (): ?array => $this->doctorQueues($request),
+            'registrationReferralCount' => fn (): ?int => $this->registrationReferralCount($request),
             'pharmacyQueues' => fn (): ?array => $this->pharmacyQueues($request),
             'auth' => [
                 'user' => $request->user() ? [
@@ -114,6 +116,20 @@ class HandleInertiaRequests extends Middleware
         }
 
         return ['handovers' => $this->pendingHandovers()];
+    }
+
+    private function registrationReferralCount(Request $request): ?int
+    {
+        if ($request->user()?->role !== 'pendaftaran') {
+            return null;
+        }
+
+        return RujukanInternal::query()->where('status', 'menunggu')
+            ->whereHas('kunjungan', fn (Builder $visit) => $visit->where('status', '!=', 'batal'))
+            ->whereHas('kePoli', fn (Builder $clinic) => $clinic->where('is_active', true)->whereIn('jenis', ['umum', 'gigi']))
+            ->whereDoesntHave('kunjunganTujuanTerakhir', fn (Builder $visit) => $visit
+                ->whereIn('status', ['selesai', 'menunggu', 'screening', 'pemeriksaan', 'tindakan', 'farmasi']))
+            ->count();
     }
 
     private function pendingHandovers(): int

@@ -84,6 +84,18 @@ class RmeAuthFlowTest extends TestCase
         );
     }
 
+    public function test_management_dashboard_links_follow_up_to_an_authorized_report(): void
+    {
+        $user = User::factory()->create(['role' => 'manajemen', 'is_active' => true]);
+
+        $response = $this->actingAs($user)->get('/')->assertInertia(fn (Assert $page) => $page
+            ->component('dashboard/index')
+            ->where('followUp.href', route('laporan.kunjungan'))
+        );
+
+        $this->get($response->viewData('page')['props']['followUp']['href'])->assertOk();
+    }
+
     public function test_login_is_rate_limited_after_repeated_failed_attempts(): void
     {
         foreach (range(1, 5) as $attempt) {

@@ -135,9 +135,15 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
     return (
         <>
             <form className="space-y-6" onSubmit={submit}>
-                {internalReferral && <Alert><AlertDescription>Rujukan {internalReferral.number ?? 'internal'}. Pilih tanggal dan dokter yang praktik di poli tujuan.</AlertDescription></Alert>}
+                {internalReferral && <Alert dismissLabel="Tutup informasi rujukan"><AlertDescription>Rujukan {internalReferral.number ?? 'internal'}. Pilih tanggal dan dokter yang praktik di poli tujuan.</AlertDescription></Alert>}
                 {form.errors.rujukan_internal_id && <Alert variant="destructive"><AlertDescription>{form.errors.rujukan_internal_id}</AlertDescription></Alert>}
-                {selectedPatient && <Alert variant={selectedPatient.eligibilityReason ? 'destructive' : 'success'}><AlertDescription>{selectedPatient.eligibilityReason ?? 'Pasien dipilih. Lengkapi tujuan dan tanggal kunjungan.'}</AlertDescription></Alert>}
+                {selectedPatient?.eligibilityReason ? (
+                    <Alert variant="destructive"><AlertDescription>{selectedPatient.eligibilityReason}</AlertDescription></Alert>
+                ) : selectedPatient && (
+                    <Alert dismissLabel="Tutup informasi pasien terpilih" key={selectedPatient.id} variant="success">
+                        <AlertDescription>Pasien dipilih. Lengkapi tujuan dan tanggal kunjungan.</AlertDescription>
+                    </Alert>
+                )}
                 <Card>
                     <CardHeader>
                         <div className="flex items-start gap-3">

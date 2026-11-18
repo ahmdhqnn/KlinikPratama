@@ -8,6 +8,7 @@ import {
     Boxes,
     CalendarDays,
     ChartNoAxesCombined,
+    FolderCog,
     ClipboardList,
     ClipboardCheck,
     FilePlus2,
@@ -31,16 +32,16 @@ import { useEffect, useState, type ReactNode } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Breadcrumb, type BreadcrumbItem } from '@/components/ui/breadcrumb';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Empty } from '@/components/ui/empty';
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { PageLoading } from '@/components/page-loading';
 import type { PageProps } from '@inertiajs/core';
-import { activeNavigationHref, type NavigationTarget } from '@/lib/navigation';
+import { activeNavigationHref } from '@/lib/navigation';
+import { SidebarNavigationItem, navigationLinks, type NavigationItem, type NavigationLink } from '@/components/sidebar-navigation-item';
 
 interface AppUser {
     id: number;
@@ -56,16 +57,10 @@ interface SharedPageProps extends PageProps {
     nurseQueues?: { assessment: number; treatments: number } | null;
     adminQueues?: { assessment: number; treatments: number; examinations: number; handovers: number } | null;
     doctorQueues?: { examinations: number } | null;
+    registrationReferralCount?: number | null;
     pharmacyQueues?: { handovers: number } | null;
     auth: { user: AppUser | null };
     flash: { success?: string | null; error?: string | null };
-}
-
-interface NavigationItem extends NavigationTarget {
-    label: string;
-    href: string;
-    icon: typeof LayoutDashboard;
-    badge?: number;
 }
 
 interface NavigationGroup {
@@ -76,61 +71,54 @@ interface NavigationGroup {
 const navigationByRole: Record<string, NavigationGroup[]> = {
     admin: [
         { label: 'Ringkasan', items: [{ label: 'Dasbor', href: '/', icon: LayoutDashboard, exact: true }] },
-        {
-            label: 'Pendaftaran & kunjungan',
-            items: [
-                { label: 'Antrean pasien', href: '/pelayanan/antrian', icon: Activity },
-                { label: 'Pendaftaran pasien', href: '/pendaftaran/pendaftaran-baru', activePaths: ['/pendaftaran/pendaftaran-lama'], icon: UserRoundPlus },
-                { label: 'Kunjungan poli', href: '/pendaftaran/kunjungan-per-poli', activePaths: ['/pendaftaran/kunjungan'], icon: BedDouble },
-                { label: 'Daftar kunjungan', href: '/pelayanan/kunjungan', icon: ClipboardList },
+        { label: 'Operasional', items: [
+            { label: 'Kunjungan & antrean', href: '/pelayanan/antrian', activePaths: ['/pelayanan/kunjungan', '/pendaftaran/kunjungan-per-poli', '/pendaftaran/kunjungan'], icon: Activity },
+            { label: 'Pendaftaran pasien', href: '/pendaftaran/pendaftaran-baru', activePaths: ['/pendaftaran/pendaftaran-lama'], icon: UserRoundPlus },
+            { label: 'Jadwal praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
+        ] },
+        { label: 'Pengelolaan', items: [
+            { label: 'Master data', icon: FolderCog, children: [
+                { label: 'Pengguna & hak akses', href: '/users', icon: UsersRound },
+                { label: 'Nakes & karyawan', href: '/master/nakes', icon: UsersRound },
                 { label: 'Data pasien', href: '/pelayanan/pasien', activePaths: ['/pendaftaran/database-pasien'], icon: UsersRound },
-                { label: 'Kepesertaan', href: '/kepesertaan', icon: ShieldCheck },
-                { label: 'Jadwal praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
-            ],
-        },
-        {
-            label: 'Pelayanan klinis',
-            items: [
+                { label: 'Kepesertaan internal', href: '/kepesertaan', icon: ShieldCheck },
+                { label: 'Poliklinik & ruang', href: '/master/poliklinik', icon: Boxes },
+                { label: 'Referensi medis', href: '/master/terminologi-klinis', icon: ClipboardList },
+                { label: 'Master obat & BHP', href: '/master/obat', icon: Pill },
+            ] },
+            { label: 'Pelayanan klinis', icon: Stethoscope, children: [
                 { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
                 { label: 'Pemeriksaan dokter', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
                 { label: 'Tindakan perawat', href: '/pelayanan/tindakan-perawat', icon: ClipboardCheck },
                 { label: 'Persuratan', href: '/persuratan', icon: FileText },
-            ],
-        },
-        {
-            label: 'Farmasi & persediaan',
-            items: [
+            ] },
+            { label: 'Farmasi & persediaan', icon: Pill, children: [
                 { label: 'Penyerahan obat', href: '/pelayanan/farmasi', icon: Pill },
                 { label: 'Obat langsung', href: '/farmasi/pemberian-obat', icon: FilePlus2 },
                 { label: 'Resep luar', href: '/farmasi/resep-luar', icon: FileText },
                 { label: 'Riwayat farmasi pasien', href: '/farmasi/pasien', icon: UsersRound },
-                { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes },
-            ],
-        },
-        {
-            label: 'Laporan',
-            items: [{
-                label: 'Pusat laporan', href: '/admin/laporan', icon: BarChart3,
-                activePaths: ['/laporan', '/farmasi/laporan', '/pendaftaran/laporan-kunjungan', '/pendaftaran/laporan-top-diagnosa'],
-            }],
-        },
-        {
-            label: 'Data master',
-            items: [
-                { label: 'Poliklinik', href: '/master/poliklinik', icon: Boxes },
-                { label: 'Tenaga kesehatan & karyawan', href: '/master/nakes', icon: UsersRound },
-                { label: 'Obat & BHP', href: '/master/obat', icon: Pill },
-                { label: 'Terminologi klinis', href: '/master/terminologi-klinis', icon: ClipboardList },
-            ],
-        },
-        {
-            label: 'Administrasi',
-            items: [
-                { label: 'Manajemen pengguna', href: '/users', icon: UsersRound },
-                { label: 'Pengaturan klinik', href: '/setting', icon: Settings },
+                { label: 'Mutasi & stok farmasi', href: '/stok/persediaan', icon: Boxes },
+            ] },
+            { label: 'Laporan & analitik', icon: BarChart3, children: [
+                { label: 'Pusat laporan', href: '/admin/laporan', icon: BarChart3, exact: true },
+                { label: 'Kunjungan pasien', href: '/laporan/kunjungan', activePaths: ['/pendaftaran/laporan-kunjungan'], icon: ClipboardList },
+                { label: 'Pengkajian awal', href: '/admin/laporan/pengkajian', icon: HeartPulse },
+                { label: 'Tindakan perawat', href: '/admin/laporan/tindakan-perawat', icon: ClipboardCheck },
+                { label: 'Pemeriksaan dokter', href: '/admin/laporan/pemeriksaan', icon: Stethoscope },
+                { label: 'Tindakan dokter', href: '/admin/laporan/dokter/tindakan', icon: ClipboardCheck },
+                { label: 'Resep dokter', href: '/admin/laporan/dokter/obat', icon: Pill },
+                { label: 'Diagnosis terbanyak', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
+                { label: 'Penyerahan obat', href: '/farmasi/laporan/penyerahan-obat', icon: Pill },
+                { label: 'Obat langsung', href: '/farmasi/laporan/pemberian-langsung', icon: FilePlus2 },
+                { label: 'Resep luar', href: '/farmasi/laporan/resep-luar', icon: FileText },
+                { label: 'Stok obat & BHP', href: '/laporan/stok', icon: Boxes },
+            ] },
+            { label: 'Audit & aktivitas', icon: ShieldCheck, children: [
+                { label: 'Log aktivitas', href: '/admin/log-aktivitas', icon: Activity },
                 { label: 'Audit bantuan layanan', href: '/admin/audit-bantuan', icon: ShieldCheck },
-            ],
-        },
+            ] },
+            { label: 'Pengaturan klinik', href: '/setting', icon: Settings },
+        ] },
     ],
     pendaftaran: [
         { label: 'Ringkasan', items: [{ label: 'Dasbor', href: '/pendaftaran', icon: LayoutDashboard, exact: true }] },
@@ -236,6 +224,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
 function getPageTitle(component: string): string {
     const titles: Record<string, string> = {
         'admin/audit-bantuan': 'Audit bantuan layanan',
+        'admin/log-aktivitas': 'Log aktivitas',
         'admin/laporan': 'Pusat laporan',
         'auth/login': 'Masuk',
         'dashboard/index': 'Dasbor',
@@ -273,7 +262,7 @@ function getPageTitle(component: string): string {
         'pelayanan/kunjungan/index': 'Daftar kunjungan',
         'pelayanan/kunjungan/form': 'Data kunjungan',
         'pelayanan/kunjungan/show': 'Detail kunjungan',
-        'pelayanan/kunjungan/antrian': 'Antrean pasien',
+        'pelayanan/kunjungan/antrian': 'Monitoring kunjungan & antrean',
         'pelayanan/pemeriksaan/index': 'Pemeriksaan dokter',
         'pelayanan/pemeriksaan/show': 'Pemeriksaan klinis',
         'persuratan/index': 'Persuratan',
@@ -296,14 +285,14 @@ function getPageTitle(component: string): string {
         'farmasi/laporan-resep-luar': 'Laporan resep luar',
         'laporan/kunjungan': 'Laporan kunjungan',
         'laporan/stok': 'Laporan stok',
-        'users/index': 'Manajemen pengguna',
+        'users/index': 'Pengguna & hak akses',
         'profile/show': 'Profil saya',
         'setting/index': 'Pengaturan klinik',
         'master/terminologi/index': 'Terminologi klinis',
         'master/terminologi/show': 'Detail terminologi klinis',
         'master/poliklinik/index': 'Poliklinik',
         'master/poliklinik/show': 'Ruang poliklinik',
-        'master/nakes/index': 'Tenaga kesehatan & karyawan',
+        'master/nakes/index': 'Nakes & karyawan',
         'master/obat/index': 'Obat & BHP',
         'master/obat/stok': 'Kartu stok obat',
     };
@@ -367,7 +356,7 @@ function SidebarContents({
     headerClassName?: string;
     isCollapsed?: boolean;
 }) {
-    const activeHref = activeNavigationHref(pathname, groups.flatMap((group) => group.items));
+    const activeHref = activeNavigationHref(pathname, groups.flatMap((group) => navigationLinks(group.items)));
 
     return (
         <>
@@ -382,21 +371,7 @@ function SidebarContents({
                     <SidebarGroup key={group.label}>
                         <SidebarGroupLabel className={isCollapsed ? 'sr-only' : undefined}>{group.label}</SidebarGroupLabel>
                         <SidebarMenu>
-                            {group.items.map(({ href, icon: Icon, label, badge }) => {
-                                const active = href === activeHref;
-
-                                return (
-                                    <SidebarMenuItem key={`${href}-${label}`}>
-                                        <SidebarMenuButton asChild className={isCollapsed ? 'justify-center px-2' : undefined} isActive={active}>
-                                            <Link aria-current={active ? 'page' : undefined} aria-label={badge ? `${label}, ${badge} memerlukan layanan` : label} className="relative" href={href} onClick={onNavigate} title={isCollapsed ? label : undefined}>
-                                                <Icon aria-hidden="true" className="size-[18px] shrink-0" />
-                                                {isCollapsed ? <span className="sr-only">{label}</span> : <span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{label}</span>{badge ? <Badge aria-hidden="true" variant="notification">{badge > 99 ? '99+' : badge}</Badge> : null}</span>}
-                                                {isCollapsed && badge ? <Badge aria-hidden="true" className="absolute right-0.5 top-0.5" variant="notification">{badge > 99 ? '99+' : badge}</Badge> : null}
-                                            </Link>
-                                        </SidebarMenuButton>
-                                    </SidebarMenuItem>
-                                );
-                            })}
+                            {group.items.map((item) => <SidebarNavigationItem key={item.label} item={item} activeHref={activeHref} pathname={pathname} isCollapsed={isCollapsed} onNavigate={onNavigate} />)}
                         </SidebarMenu>
                     </SidebarGroup>
                 ))}
@@ -463,7 +438,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         if (messages.length) toast.error(messages[0]);
     }), []);
 
-    const { auth, flash, adminQueues, nurseQueues, doctorQueues, pharmacyQueues } = page.props;
+    const { auth, flash, adminQueues, nurseQueues, doctorQueues, pharmacyQueues, registrationReferralCount } = page.props;
     const adminBadges: Record<string, number | undefined> = {
         '/pelayanan/screening': adminQueues?.assessment,
         '/pelayanan/pemeriksaan': adminQueues?.examinations,
@@ -479,24 +454,32 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         ...(navigationByRole[user?.role ?? ''] ?? []).map((group) => ({
             ...group,
             items: group.items.map((item) => {
-                const label = user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
-                    ? user.clinicType === 'gigi' ? 'Pemeriksaan Gigi & Mulut' : user.clinicType === 'umum' ? 'Pemeriksaan Umum' : item.label
-                    : item.label;
-                const badge = user?.role === 'perawat'
-                    ? item.href === '/pelayanan/screening' ? nurseQueues?.assessment : item.href === '/pelayanan/tindakan-perawat' ? nurseQueues?.treatments : undefined
-                    : user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
-                        ? doctorQueues?.examinations
-                        : user?.role === 'farmasi' && item.href === '/pelayanan/farmasi'
-                            ? pharmacyQueues?.handovers
-                            : undefined;
+                const decorateLink = (item: NavigationLink): NavigationLink => {
+                    const label = user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
+                        ? user.clinicType === 'gigi' ? 'Pemeriksaan Gigi & Mulut' : user.clinicType === 'umum' ? 'Pemeriksaan Umum' : item.label
+                        : item.label;
+                    const badge = user?.role === 'perawat'
+                        ? item.href === '/pelayanan/screening' ? nurseQueues?.assessment : item.href === '/pelayanan/tindakan-perawat' ? nurseQueues?.treatments : undefined
+                        : user?.role === 'dokter' && item.href === '/pelayanan/pemeriksaan'
+                            ? doctorQueues?.examinations
+                            : user?.role === 'farmasi' && item.href === '/pelayanan/farmasi'
+                                ? pharmacyQueues?.handovers
+                                : undefined;
 
-                return { ...item, label, badge: (user?.role === 'admin' ? adminBadges[item.href] : badge) ?? undefined };
+                    if (item.href === '/pendaftaran/rujukan-internal') {
+                        return { ...item, label, badge: registrationReferralCount ?? undefined };
+                    }
+
+                    return { ...item, label, badge: (user?.role === 'admin' ? adminBadges[item.href] : badge) ?? undefined };
+                };
+                return 'children' in item ? { ...item, children: item.children.map(decorateLink) } : decorateLink(item);
             }),
         })).filter((group) => group.items.length > 0),
         { label: 'Akun', items: [{ label: 'Profil saya', href: '/profile', icon: UserRound }] },
     ];
     const pathname = page.url.split(/[?#]/, 1)[0];
     const reportTitles: Record<string, string> = {
+        '/admin/log-aktivitas': 'Log aktivitas',
         '/admin/laporan/pemeriksaan': 'Laporan pemeriksaan dokter',
         '/admin/laporan/pengkajian': 'Laporan pengkajian awal',
         '/admin/laporan/dokter/tindakan': 'Laporan tindakan dokter',
@@ -507,15 +490,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         '/dokter/laporan/obat': 'Laporan obat',
     };
     const pageTitle = reportTitles[pathname] ?? getPageTitle(page.component);
-    const validHrefs = new Set(groups.flatMap((group) => group.items.map((item) => item.href)));
-    const activeHref = activeNavigationHref(pathname, groups.flatMap((group) => group.items));
-    const breadcrumbs = activeHref === '/admin/laporan' && pathname !== activeHref
-        ? [{ label: 'Pusat laporan', href: activeHref }, { label: pageTitle }]
+    const validHrefs = new Set(groups.flatMap((group) => navigationLinks(group.items).map((item) => item.href)));
+    const activeHref = activeNavigationHref(pathname, groups.flatMap((group) => navigationLinks(group.items)));
+    const inAdminReports = user?.role === 'admin' && groups.some((group) => group.items.some((item) => 'children' in item && item.label === 'Laporan & analitik' && item.children.some((child) => child.href === activeHref)));
+    const breadcrumbs = inAdminReports && pathname !== '/admin/laporan'
+        ? [{ label: 'Pusat laporan', href: '/admin/laporan' }, { label: pageTitle }]
         : getBreadcrumbItems(pathname, pageTitle, validHrefs);
-    const searchResults = groups.flatMap((group) => group.items
-        .filter((item) => `${item.label} ${group.label}`.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()))
-        .map((item) => ({ ...item, group: group.label })))
-        .slice(0, 6);
+    const searchResults = groups.flatMap((group) => group.items.flatMap((item) => {
+        const category = 'children' in item ? `${group.label} · ${item.label}` : group.label;
+        return navigationLinks([item]).map((link) => ({ ...link, group: category }));
+    })).filter((item) => `${item.label} ${item.group}`.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase())).slice(0, 6);
 
     useEffect(() => {
         const handleSearchShortcut = (event: KeyboardEvent) => {

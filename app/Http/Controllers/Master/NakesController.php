@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Master;
 
+use App\ClinicalAuditRecorder;
 use App\Http\Controllers\Controller;
 use App\JadwalPraktikResolver;
 use App\Models\Nakes;
@@ -83,7 +84,7 @@ class NakesController extends Controller
         ]);
     }
 
-    public function store(Request $request, JadwalPraktikResolver $schedule): RedirectResponse
+    public function store(Request $request, JadwalPraktikResolver $schedule, ClinicalAuditRecorder $audit): RedirectResponse
     {
         $requiresLogin = $request->boolean('buat_akun');
         $data = $request->validate([
@@ -99,10 +100,10 @@ class NakesController extends Controller
             'is_active' => ['boolean'],
             'buat_akun' => ['boolean'],
             'email' => [Rule::requiredIf($requiresLogin), 'nullable', 'email', 'unique:users,email'],
-            'password' => [Rule::requiredIf($requiresLogin), 'nullable', 'min:6'],
+            'password' => [Rule::requiredIf($requiresLogin), 'nullable', 'string', 'min:8'],
         ]);
 
-        DB::transaction(function () use ($data, $request, $schedule): void {
+        DB::transaction(function () use ($data, $request, $schedule, $audit): void {
             $userId = null;
             if ($request->boolean('buat_akun')) {
                 $user = User::create([
@@ -131,12 +132,13 @@ class NakesController extends Controller
             if ($staffMember->jabatan === 'dokter' && $staffMember->is_active) {
                 $schedule->applyAsnTemplate($staffMember->id, (int) $data['poliklinik_id'], today()->toDateString());
             }
+            $audit->record($request, 'staff.created', metadata: ['staff_id' => $staffMember->id, 'user_id' => $userId]);
         });
 
         return back()->with('success', 'Data nakes berhasil ditambahkan.');
     }
 
-    public function update(Request $request, Nakes $nake): RedirectResponse
+    public function update(Request $request, Nakes $nake, ClinicalAuditRecorder $audit): RedirectResponse
     {
         $data = $request->validate([
             'kode' => ['required', 'string', 'max:30', "unique:nakes,kode,{$nake->id}"],
@@ -158,22 +160,24 @@ class NakesController extends Controller
             return back()->withErrors(['jabatan' => 'Jabatan tidak sesuai dengan peran akun tertaut. Ubah peran akun di Manajemen Pengguna terlebih dahulu.']);
         }
 
-        DB::transaction(function () use ($nake, $data): void {
+        DB::transaction(function () use ($nake, $data, $request, $audit): void {
             $nake->update($data);
 
             if (! $nake->is_active) {
                 $nake->user?->update(['is_active' => false]);
             }
+            $audit->record($request, 'staff.updated', metadata: ['staff_id' => $nake->id, 'user_id' => $nake->user_id, 'active' => $nake->is_active]);
         });
 
         return back()->with('success', 'Data nakes berhasil diperbarui.');
     }
 
-    public function destroy(Nakes $nake): RedirectResponse
+    public function destroy(Request $request, Nakes $nake, ClinicalAuditRecorder $audit): RedirectResponse
     {
-        DB::transaction(function () use ($nake): void {
+        DB::transaction(function () use ($nake, $request, $audit): void {
             $nake->user?->update(['is_active' => false]);
             $nake->delete();
+            $audit->record($request, 'staff.archived', metadata: ['staff_id' => $nake->id, 'user_id' => $nake->user_id]);
         });
 
         return back()->with('success', 'Data nakes berhasil dihapus.');

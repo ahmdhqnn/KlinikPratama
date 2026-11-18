@@ -3,7 +3,7 @@ import { letterTypes } from '@/components/medical-letter-fields';
 import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { Plus, Save, FileText, ArrowRightLeft, Files } from 'lucide-react';
+import { Plus, Save, FileText, ArrowRightLeft, Files, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -66,6 +66,8 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
     const letters = letterPagination.data;
     const [editingId, setEditingId] = useState<number | null>(null);
     const [activeTab, setActiveTab] = useState('dokumen');
+    const [showArchiveNotice, setShowArchiveNotice] = useState(true);
+    const [showVisitNotice, setShowVisitNotice] = useState(true);
     const form = useForm(emptyTemplate);
 
     function startEdit(template: Template) {
@@ -108,12 +110,27 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
         <>
             <Head title="Persuratan" />
             <div className="space-y-6">
-                {isAdmin && <p className="rounded-xl bg-neutral-100/70 p-4 text-sm text-neutral-600">Arsip dokumen dapat ditinjau dan dicetak lintas poli. Template dikelola pada tab tersendiri. Surat baru diterbitkan oleh dokter penanggung jawab setelah pemeriksaan final.</p>}
                 <div>
                     <p className="text-sm font-medium text-neutral-600">Dokumen klinis dan administrasi</p>
                     <h1 className="mt-1 text-2xl font-semibold text-neutral-950">Persuratan</h1>
                     <p className="mt-1 text-sm text-neutral-500">Terbitkan surat dari pemeriksaan pasien dan tinjau dokumen yang sudah dibuat.</p>
                 </div>
+
+                {isAdmin && showArchiveNotice && <div className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-surface p-4 text-sm text-neutral-700" role="status">
+                    <p className="min-w-0 flex-1">Arsip dokumen dapat ditinjau dan dicetak lintas poli. Template dikelola pada tab tersendiri. Surat baru diterbitkan oleh dokter penanggung jawab setelah pemeriksaan final.</p>
+                    <button aria-label="Tutup informasi persuratan" className="-mr-1 -mt-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" onClick={() => setShowArchiveNotice(false)} type="button">
+                        <X aria-hidden="true" className="size-4" />
+                    </button>
+                </div>}
+                {filters.visitId && showVisitNotice && <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-neutral-200 bg-surface p-4 text-sm text-neutral-700" role="status">
+                    <p className="min-w-0 flex-1">Dokumen untuk kunjungan yang dipilih dari antrean.</p>
+                    <div className="flex shrink-0 items-center gap-2">
+                        <Button asChild size="sm" variant="secondary"><Link href="/persuratan">Tampilkan semua dokumen</Link></Button>
+                        <button aria-label="Tutup informasi kunjungan" className="inline-flex size-8 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" onClick={() => setShowVisitNotice(false)} type="button">
+                            <X aria-hidden="true" className="size-4" />
+                        </button>
+                    </div>
+                </div>}
 
                 <section aria-label="Ringkasan persuratan" className="grid auto-rows-fr items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Total dokumen terbit" value={letterPagination.total + referralPagination.total} description="Surat medis dan rujukan internal" icon={<Files className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
@@ -121,7 +138,6 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
                     <StatCard label="Rujukan internal" value={referralPagination.total} description="Rujukan antarpoliklinik terbit" icon={<ArrowRightLeft className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                     {eligibleVisits && <StatCard label="Penerbitan dokumen" value={eligibleVisits.total} description={isAdmin ? 'Kunjungan memenuhi syarat penerbitan oleh dokter' : 'Pemeriksaan final yang dapat dibuatkan surat'} icon={<Plus className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />}
                 </section>
-                {filters.visitId && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-neutral-100/70 p-4 text-sm"><p>Dokumen untuk kunjungan yang dipilih dari antrean.</p><Button asChild size="sm" variant="secondary"><Link href="/persuratan">Tampilkan semua dokumen</Link></Button></div>}
             <Tabs className="space-y-5" onValueChange={setActiveTab} value={activeTab}>
                     <TabsList aria-label="Bagian persuratan">
                         <TabsTrigger value="dokumen">Dokumen terbit</TabsTrigger>
