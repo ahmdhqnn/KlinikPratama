@@ -63,11 +63,12 @@ class KunjunganInertiaTest extends TestCase
         $this->get(route('pelayanan.kunjungan.create', ['pasien_id' => $patient->id]))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/kunjungan/form')
             ->where('patient.name', 'Pasien Uji')
+            ->where('returnUrl', route('pelayanan.antrian'))
         );
 
         $this->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/kunjungan/show')
-            ->where('backUrl', route('pelayanan.kunjungan.index'))
+            ->where('backUrl', route('pelayanan.antrian'))
             ->where('visit.number', 'KNJ-20261007-0001')
             ->where('visit.patient.name', 'Pasien Uji')
             ->has('visit.progress', 4)
@@ -82,9 +83,9 @@ class KunjunganInertiaTest extends TestCase
         $this->withHeader('Referer', $serviceContextUrl)->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('backUrl', $safeServiceContextUrl));
         $this->withHeader('Referer', 'https://outside.example/kunjungan')->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
-            ->where('backUrl', route('pelayanan.kunjungan.index')));
+            ->where('backUrl', route('pelayanan.antrian')));
         $this->withHeader('Referer', route('users.index'))->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
-            ->where('backUrl', route('pelayanan.kunjungan.index')));
+            ->where('backUrl', route('pelayanan.antrian')));
         $patientUrl = route('pelayanan.pasien.show', $patient);
         $this->withHeader('Referer', $patientUrl)->get(route('pelayanan.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('backUrl', $patientUrl));

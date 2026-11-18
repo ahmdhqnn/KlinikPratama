@@ -24,6 +24,7 @@ const actionIcons = {
     rooms: DoorOpen,
     screening: ClipboardCheck,
     stock: PackageSearch,
+    ticket: Printer,
     supplies: Package,
     transfer: ArrowLeftRight,
     verify: ShieldCheck,

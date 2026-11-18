@@ -20,15 +20,17 @@ interface AuditEvent {
     clinic: string | null;
     reason: string | null;
     result: string | null;
+    subject?: string | null;
 }
 
 interface Props {
+    activityLog?: boolean;
     filters: { from: string; to: string; action: string; search: string };
     actions: Array<{ key: string; label: string }>;
     events: PaginationData & { data: AuditEvent[] };
 }
 
-export default function AssistanceAuditPage({ filters, actions, events }: Props) {
+export default function AssistanceAuditPage({ filters, actions, events, activityLog = false }: Props) {
     const [from, setFrom] = useState(filters.from);
     const [to, setTo] = useState(filters.to);
     const [action, setAction] = useState(filters.action);
@@ -36,37 +38,37 @@ export default function AssistanceAuditPage({ filters, actions, events }: Props)
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get('/admin/audit-bantuan', { dari: from, sampai: to, aksi: action, q: search }, { preserveState: true, preserveScroll: true, replace: true });
+        router.get(activityLog ? '/admin/log-aktivitas' : '/admin/audit-bantuan', { dari: from, sampai: to, aksi: action, q: search }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     return <>
-        <Head title="Audit bantuan layanan" />
+        <Head title={activityLog ? 'Log aktivitas' : 'Audit bantuan layanan'} />
         <div className="space-y-6">
             <div>
                 <p className="text-sm font-medium text-neutral-700">Administrasi dan akuntabilitas</p>
-                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Audit bantuan layanan</h2>
-                <p className="mt-1 text-sm text-neutral-500">Riwayat bantuan layanan oleh admin dan peninjauan draf oleh dokter.</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{activityLog ? 'Log aktivitas' : 'Audit bantuan layanan'}</h2>
+                <p className="mt-1 text-sm text-neutral-500">{activityLog ? 'Jejak akses, ekspor, bantuan layanan, dan pengelolaan akun yang dicatat aplikasi. Aktivitas sebelum pencatatan tersedia tidak direkonstruksi.' : 'Riwayat bantuan layanan oleh admin dan peninjauan draf oleh dokter.'}</p>
             </div>
 
             <FilterPanel><form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" onSubmit={applyFilters}>
                 <Field htmlFor="audit-period" label="Periode kegiatan"><DateRangePicker id="audit-period" from={from} to={to} onChange={(range) => { setFrom(range.from); setTo(range.to); }} /></Field>
-                <Field htmlFor="audit-action" label="Jenis kegiatan"><Select id="audit-action" onChange={(event) => setAction(event.target.value)} value={action}><option value="">Semua kegiatan bantuan</option>{actions.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</Select></Field>
-                <Field htmlFor="audit-search" label="No. kunjungan"><Input id="audit-search" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nomor kunjungan" value={search} /></Field>
+                <Field htmlFor="audit-action" label="Jenis kegiatan"><Select id="audit-action" onChange={(event) => setAction(event.target.value)} value={action}><option value="">Semua kegiatan</option>{actions.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</Select></Field>
+                <Field htmlFor="audit-search" label={activityLog ? 'Operator / No. kunjungan' : 'No. kunjungan'}><Input id="audit-search" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nomor kunjungan" value={search} /></Field>
                 <FilterSubmit />
             </form></FilterPanel>
 
-            <ReportTableCard title="Daftar kegiatan bantuan" description={`${new Intl.NumberFormat('id-ID').format(events.total)} kegiatan tercatat.`} icon={<ClipboardCheck className="size-5" />} pagination={events}>
+            <ReportTableCard title={activityLog ? 'Aktivitas tercatat' : 'Daftar kegiatan bantuan'} description={`${new Intl.NumberFormat('id-ID').format(events.total)} kegiatan tercatat.`} icon={<ClipboardCheck className="size-5" />} pagination={events}>
                 <Table className="min-w-[1050px]">
-                    <TableHeader><TableRow><TableHead>Waktu</TableHead><TableHead>Kegiatan</TableHead><TableHead>Hasil</TableHead><TableHead>Operator</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Poliklinik</TableHead><TableHead>Alasan bantuan</TableHead></TableRow></TableHeader>
+                    <TableHeader><TableRow><TableHead>Waktu</TableHead><TableHead>Kegiatan</TableHead>{activityLog && <TableHead>Objek</TableHead>}<TableHead>Hasil</TableHead><TableHead>Operator</TableHead><TableHead>No. kunjungan</TableHead><TableHead>Poliklinik</TableHead>{!activityLog && <TableHead>Alasan bantuan</TableHead>}</TableRow></TableHeader>
                     <TableBody>{events.data.length ? events.data.map((event) => <TableRow key={event.id}>
                         <TableCell className="whitespace-nowrap">{new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(event.occurredAt))}</TableCell>
-                        <TableCell className="font-medium">{event.label}</TableCell>
+                        <TableCell className="font-medium">{event.label}</TableCell>{activityLog && <TableCell>{event.subject ?? '—'}</TableCell>}
                         <TableCell>{event.result ?? 'Berhasil'}</TableCell>
                         <TableCell>{event.actor}</TableCell>
                         <TableCell className="font-sans tabular-nums text-xs">{event.visitNumber ?? 'Tidak terhubung'}</TableCell>
                         <TableCell>{event.clinic ?? '—'}</TableCell>
-                        <TableCell className="max-w-xs whitespace-normal">{event.reason ?? 'Belum dicatat'}</TableCell>
-                    </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty description="Coba ubah rentang tanggal atau jenis kegiatan." icon={<ClipboardCheck className="size-5" />} size="compact" title="Belum ada riwayat bantuan pada filter ini." /></TableCell></TableRow>}</TableBody>
+                        {!activityLog && <TableCell className="max-w-xs whitespace-normal">{event.reason ?? 'Belum dicatat'}</TableCell>}
+                    </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty description="Coba ubah rentang tanggal atau jenis kegiatan." icon={<ClipboardCheck className="size-5" />} size="compact" title="Belum ada aktivitas pada filter ini." /></TableCell></TableRow>}</TableBody>
                 </Table>
             </ReportTableCard>
         </div>

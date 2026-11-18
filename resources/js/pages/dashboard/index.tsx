@@ -60,7 +60,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
     const todayReportUrl = `/laporan/kunjungan?dari=${today}&sampai=${today}`;
     const reportStatusUrl = (status: string) => `/laporan/kunjungan?dari=${today}&sampai=${today}&status=${status}`;
     const visitStatusUrls: Record<string, string> = canRegister ? {
-        menunggu: `/pendaftaran/kunjungan-per-poli?tanggal=${today}&status=menunggu`,
+        menunggu: `/pelayanan/antrian?tanggal=${today}&status=menunggu`,
         screening: `/pelayanan/screening?tanggal=${today}`,
         pemeriksaan: `/pelayanan/pemeriksaan?tanggal=${today}&status=pemeriksaan`,
         tindakan: `/pelayanan/tindakan-perawat?tanggal=${today}&status=pending`,
@@ -101,7 +101,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                         description="Seluruh kunjungan tercatat hari ini"
                         icon={<CalendarCheck2 className="size-5" />}
                         label="Kunjungan hari ini"
-                        href={canRegister ? `/pendaftaran/kunjungan-per-poli?tanggal=${today}` : todayReportUrl}
+                        href={canRegister ? `/pelayanan/antrian?tanggal=${today}` : todayReportUrl}
                         value={stats.visitsToday}
                     />
                     <StatCard
@@ -201,7 +201,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                     <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {[
                         { label: 'Pendaftaran pasien', href: '/pendaftaran/pendaftaran-baru', icon: UsersRound },
-                        { label: 'Kunjungan poli', href: '/pendaftaran/kunjungan-per-poli', icon: ClipboardPlus },
+                        { label: 'Kunjungan & antrean', href: '/pelayanan/antrian', icon: ClipboardPlus },
                         { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
                         { label: 'Pemeriksaan dokter', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
                         { label: 'Tindakan perawat', href: '/pelayanan/tindakan-perawat', icon: ClipboardList },

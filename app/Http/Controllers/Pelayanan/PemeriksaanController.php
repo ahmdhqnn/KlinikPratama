@@ -19,7 +19,6 @@ use App\Models\Icd10;
 use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\OdontogramFinding;
-use App\Models\Pemeriksaan;
 use App\Models\Poliklinik;
 use App\Models\ResepObat;
 use App\Models\Tindakan;

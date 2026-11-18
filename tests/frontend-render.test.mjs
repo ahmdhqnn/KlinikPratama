@@ -686,7 +686,7 @@ test('dashboard summaries and day bars navigate to their related menus', async (
         followUp: { upcoming: 0, overdue: 0, href: '/laporan/kunjungan' },
     });
     assert.ok(globalDashboard.includes('href="/pelayanan/pasien"'));
-    assert.ok(globalDashboard.includes('href="/pendaftaran/kunjungan-per-poli?tanggal=2026-10-22"'));
+    assert.ok(globalDashboard.includes('href="/pelayanan/antrian?tanggal=2026-10-22"'));
     assert.ok(globalDashboard.includes('href="/laporan/kunjungan?dari=2026-10-21&amp;sampai=2026-10-21"'));
 
     assert.match(globalDashboard, /Akses cepat/);
@@ -1318,7 +1318,7 @@ test('user action icons reflect active status and disable protected self-account
         ]), filters: { search: '', role: '' }, roles: [], doctors: [], clinics: [],
     });
     const table = html.match(/<table\b[\s\S]*?<\/table>/)?.[0];
-    assertIconActions(table, 12);
+    assertIconActions(table, 15);
     assert.equal((table.match(/aria-label="Hapus"/g) ?? []).length, 3);
     assert.match(table.match(/<button[^>]*aria-label="Hapus"[^>]*>/)?.[0] ?? '', /disabled=""/);
     assert.equal((table.match(/aria-label="Nonaktifkan pengguna"/g) ?? []).length, 2);
@@ -1783,7 +1783,7 @@ async function renderRoleNavigation(role, url, clinicType = null) {
 }
 
 for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
-    ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Pendaftaran &amp; kunjungan', 'Pelayanan klinis', 'Farmasi &amp; persediaan', 'Laporan', 'Data master', 'Administrasi', 'Akun'], 26],
+    ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Akun'], 36],
     ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 10],
     ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
     ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
@@ -1817,11 +1817,11 @@ for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
     });
 }
 
-test('admin shared reports keep the report hub selected and available in the breadcrumb', async () => {
+test('admin shared reports select their own submenu and retain the report hub breadcrumb', async () => {
     const html = await renderRoleNavigation('admin', '/farmasi/laporan/penyerahan-obat?search=obat');
     const navigation = html.match(/<nav\b[^>]*aria-label="Navigasi utama"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
     const breadcrumb = html.match(/<nav\b[^>]*aria-label="Breadcrumb"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
-    assert.match(navigation, /<a[^>]*aria-current="page"[^>]*href="\/admin\/laporan"/);
+    assert.match(navigation, /<a[^>]*aria-current="page"[^>]*href="\/farmasi\/laporan\/penyerahan-obat"/);
     assert.match(breadcrumb, /href="\/admin\/laporan"/);
 });
 
@@ -4047,4 +4047,79 @@ test('dental assessment sends only dental and handover fields from a saved asses
         airway: 'baik',
     }), { general_condition: 'baik', progression: 'menetap', needs_status: 'ada', needs: 'Observasi' });
     assert.deepEqual(dentalNursingAssessment({}), {});
+});
+
+for (const [path, href] of [
+    ['/pelayanan/kunjungan/7', '/pelayanan/antrian'],
+    ['/pendaftaran/kunjungan-per-poli', '/pelayanan/antrian'],
+    ['/admin/audit-bantuan', '/admin/audit-bantuan'],
+]) {
+    test('admin consolidated menu stays selected for ' + path, async () => {
+        const html = await renderRoleNavigation('admin', path);
+        const navigation = html.match(/<nav\b[^>]*aria-label="Navigasi utama"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+        const links = navigation.match(/<a\b[^>]*aria-current="page"[^>]*>/g) ?? [];
+        assert.equal(links.length, 1);
+        assert.ok(links[0].includes('href="' + href + '"'));
+        assert.doesNotMatch(navigation, /href="\/pelayanan\/kunjungan"|href="\/pendaftaran\/kunjungan-per-poli"/);
+    });
+}
+
+test('staff management keeps accounts and profiles in the master data submenu', async () => {
+    for (const path of ['/users', '/master/nakes']) {
+        const html = await renderRoleNavigation('admin', path);
+        assert.match(html, /<button[^>]*aria-expanded="true"[^>]*>[\s\S]*?Master data/);
+        const submenu = html.match(/<ul[^>]*aria-label="Master data"[^>]*>([\s\S]*?)<\/ul>/)?.[1];
+        assert.match(submenu, /href="\/users"/);
+        assert.match(submenu, /href="\/master\/nakes"/);
+    }
+});
+
+test('activity log labels scope accurately and escapes operator and object values', async () => {
+    const html = await renderPage('admin/audit-bantuan', {
+        activityLog: true, filters: { from: '2026-11-18', to: '2026-11-18', action: '', search: '' }, actions: [],
+        events: pageOf([{ id: 1, label: 'Akun diperbarui', actor: '<script>actor</script>', occurredAt: '2026-11-18T09:00:00+07:00', visitNumber: null, clinic: null, reason: null, result: 'Tercatat', subject: 'Akun #42' }]),
+    });
+    assert.match(html, /Log aktivitas/);
+    assert.match(html, /Akun #42/);
+    assert.match(html, /&lt;script&gt;actor&lt;\/script&gt;/);
+    assert.doesNotMatch(html, /<script>actor<\/script>/);
+    assert.match(html, /tidak direkonstruksi/);
+    assert.doesNotMatch(html, /aria-label="Jenis audit"|href="\/admin\/audit-bantuan"/);
+});
+
+test('admin separates professional profiles from account permissions within master data', async () => {
+    for (const path of ['/users', '/master/nakes']) {
+        const html = await renderRoleNavigation('admin', path);
+        const navigation = html.match(/<nav\b[^>]*aria-label="Navigasi utama"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+        assert.match(navigation, /href="\/users"/);
+        assert.match(navigation, /href="\/master\/nakes"/);
+        const active = navigation.match(/<a\b[^>]*aria-current="page"[^>]*>/g) ?? [];
+        assert.equal(active.length, 1);
+        assert.ok(active[0].includes('href="' + path + '"'));
+    }
+});
+
+test('admin audit submenu opens its active child and keeps only one current page', async () => {
+    for (const path of ['/admin/log-aktivitas', '/admin/audit-bantuan']) {
+        const html = await renderRoleNavigation('admin', path);
+        const submenu = html.match(/<ul([^>]*aria-label="Audit &amp; aktivitas"[^>]*)>([\s\S]*?)<\/ul>/);
+        assert.ok(submenu);
+        assert.doesNotMatch(submenu[1], /hidden/);
+        assert.match(submenu[2], /href="\/admin\/log-aktivitas"/);
+        assert.match(submenu[2], /href="\/admin\/audit-bantuan"/);
+        assert.equal((submenu[2].match(/aria-current="page"/g) ?? []).length, 1);
+        const unrelated = html.match(/<ul([^>]*aria-label="Master data"[^>]*)>/);
+        assert.match(unrelated[1], /hidden/);
+    }
+});
+
+test('nested navigation keeps matching leaves and collapses branches to accessible icon triggers', async () => {
+    const { SidebarNavigationItem, navigationLinks } = await server.ssrLoadModule('/resources/js/components/sidebar-navigation-item.tsx');
+    const { ShieldCheck } = await server.ssrLoadModule('lucide-react');
+    const item = { label: 'Audit', icon: ShieldCheck, children: [{ label: 'Aktivitas', href: '/audit', icon: ShieldCheck }] };
+    assert.deepEqual(navigationLinks([item]).map((link) => link.href), ['/audit']);
+    const html = renderToString(createElement(SidebarNavigationItem, { item, activeHref: '/audit', pathname: '/audit', isCollapsed: true, onNavigate() {} }));
+    assert.match(html, /aria-haspopup="menu"/);
+    assert.match(html, /aria-label="Audit"/);
+    assert.doesNotMatch(html, /href="\/audit"/);
 });

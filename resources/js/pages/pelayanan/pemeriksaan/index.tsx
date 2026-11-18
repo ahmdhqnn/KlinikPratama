@@ -9,7 +9,7 @@ import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePoll } from '@inertiajs/react';
 import { Activity, CalendarDays, ClipboardCheck, Clock3, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 
@@ -41,6 +41,7 @@ interface Props {
 }
 
 export default function ExaminationsIndex({ visits, todayVisits, date: initialDate, search: initialSearch, stats, canIssueLetters }: Props) {
+    usePoll(10_000, { only: ['stats', 'todayVisits', 'visits', 'doctorQueues', 'adminQueues'] });
     const [date, setDate] = useState(initialDate);
     const [search, setSearch] = useState(initialSearch);
 

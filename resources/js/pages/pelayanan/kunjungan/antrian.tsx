@@ -97,11 +97,11 @@ export default function VisitQueue({ visits, todayVisits, today, queueUrl, servi
 
     return (
         <>
-            <Head title="Antrean pasien" />
+            <Head title="Monitoring kunjungan & antrean" />
             <div className="space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                    <div><p className="text-sm font-medium text-neutral-700">Operasional pelayanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Antrean pasien</h2><p className="mt-1 text-sm text-neutral-500">Pusat pelayanan setelah pendaftaran: pengkajian, pemeriksaan, tindakan, persuratan, dan penyerahan obat.</p></div>
-                    <Button onClick={() => router.reload()} variant="secondary"><RefreshCw className="size-4" />Perbarui antrean</Button>
+                    <div><p className="text-sm font-medium text-neutral-700">Operasional pelayanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Monitoring kunjungan & antrean</h2><p className="mt-1 text-sm text-neutral-500">Pusat pelayanan setelah pendaftaran: pengkajian, pemeriksaan, tindakan, persuratan, dan penyerahan obat.</p></div>
+                    <div className="flex flex-wrap gap-2"><Button asChild><Link href="/pendaftaran/pendaftaran-baru">Daftarkan pasien</Link></Button><Button asChild variant="secondary"><Link href="/pelayanan/kunjungan/create">Buka kunjungan</Link></Button><Button onClick={() => router.reload()} variant="secondary"><RefreshCw className="size-4" />Perbarui antrean</Button></div>
                 </div>
                 <section aria-label="Antrean aktif hari ini menurut tahap pelayanan" className="grid min-w-0 items-stretch gap-4 md:grid-cols-2 2xl:grid-cols-4">
                     {stages.map((stage) => {

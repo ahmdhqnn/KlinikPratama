@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\ClinicalAuditRecorder;
 use App\Models\Nakes;
 use App\Models\Poliklinik;
 use App\Models\User;
@@ -10,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -80,6 +82,15 @@ class UserController extends Controller
                 'code' => $doctor->kode,
                 'linked' => $doctor->user_id !== null,
             ])->values(),
+            'staffProfiles' => Nakes::query()->where('is_active', true)->orderBy('nama')->get()
+                ->map(fn (Nakes $staff): array => [
+                    'id' => $staff->id, 'name' => $staff->nama, 'code' => $staff->kode,
+                    'role' => match ($staff->jabatan) {
+                        'dokter' => 'dokter', 'perawat', 'bidan', 'terapis_gigi' => 'perawat',
+                        'farmasi', 'apotek' => 'farmasi', 'pendaftaran' => 'pendaftaran', default => null,
+                    },
+                    'userId' => $staff->user_id, 'clinicId' => $staff->poliklinik_id,
+                ])->values(),
             'clinics' => Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama'])->map(fn (Poliklinik $clinic): array => [
                 'id' => $clinic->id,
                 'name' => $clinic->nama,
@@ -87,12 +98,12 @@ class UserController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, ClinicalAuditRecorder $audit): RedirectResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:200'],
             'email' => ['required', 'email', 'unique:users,email'],
-            'password' => ['required', 'min:6'],
+            'password' => ['required', 'string', 'min:8'],
             'role' => ['required', 'in:admin,dokter,perawat,farmasi,pendaftaran,manajemen'],
             'is_active' => ['boolean'],
             'poliklinik_id' => [Rule::requiredIf($request->input('role') === 'perawat'), 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
@@ -100,7 +111,8 @@ class UserController extends Controller
                 Rule::requiredIf($request->input('role') === 'dokter'),
                 'nullable',
                 Rule::exists('nakes', 'id')->where(fn ($query) => $query
-                    ->where('jabatan', 'dokter')
+                    ->whereIn('jabatan', $this->positionsForRole($request->string('role')->toString()))
+                    ->whereNull('deleted_at')
                     ->where('is_active', true)
                     ->whereNull('user_id')),
             ],
@@ -109,15 +121,16 @@ class UserController extends Controller
         $data['password'] = Hash::make($data['password']);
         $data['is_active'] = $request->boolean('is_active');
 
-        DB::transaction(function () use ($data): void {
+        DB::transaction(function () use ($data, $request, $audit): void {
             $user = User::create($data);
             $this->syncNakesProfile($user, $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null);
+            $audit->record($request, 'user.created', metadata: ['user_id' => $user->id, 'role' => $user->role]);
         });
 
         return back()->with('success', 'Pengguna berhasil ditambahkan.');
     }
 
-    public function update(Request $request, User $user): RedirectResponse
+    public function update(Request $request, User $user, ClinicalAuditRecorder $audit): RedirectResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:200'],
@@ -129,7 +142,8 @@ class UserController extends Controller
                 Rule::requiredIf($request->input('role') === 'dokter'),
                 'nullable',
                 Rule::exists('nakes', 'id')->where(fn ($query) => $query
-                    ->where('jabatan', 'dokter')
+                    ->whereIn('jabatan', $this->positionsForRole($request->string('role')->toString()))
+                    ->whereNull('deleted_at')
                     ->where('is_active', true)
                     ->where(function ($query) use ($user): void {
                         $query->whereNull('user_id')->orWhere('user_id', $user->id);
@@ -138,45 +152,64 @@ class UserController extends Controller
         ]);
 
         $data['is_active'] = $request->boolean('is_active', $user->is_active);
+        if ($data['is_active'] && $data['role'] === $user->role && $user->nakes && ! $user->nakes->is_active
+            && (empty($data['nakes_id']) || (int) $data['nakes_id'] === $user->nakes->id)) {
+            return back()->withErrors(['is_active' => 'Aktifkan profil petugas terlebih dahulu sebelum mengaktifkan akun.']);
+        }
+
         if ($user->is($request->user()) && ($data['role'] !== $user->role || $data['is_active'] !== $user->is_active)) {
             return back()->with('error', 'Peran dan status akun sendiri tidak dapat diubah.');
         }
 
-        DB::transaction(function () use ($data, $user): void {
+        DB::transaction(function () use ($data, $user, $request, $audit): void {
             $user->update($data);
             $this->syncNakesProfile($user->fresh(), $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null);
+            $audit->record($request, 'user.updated', metadata: ['user_id' => $user->id, 'role' => $user->role, 'active' => $user->is_active]);
         });
 
         return back()->with('success', 'Pengguna berhasil diperbarui.');
     }
 
-    public function destroy(User $user): RedirectResponse
+    public function destroy(Request $request, User $user, ClinicalAuditRecorder $audit): RedirectResponse
     {
         if ($user->id === auth()->id()) {
             return back()->with('error', 'Tidak dapat menghapus akun Anda sendiri.');
         }
 
-        $user->delete();
+        DB::transaction(function () use ($request, $user, $audit): void {
+            $user->delete();
+            $audit->record($request, 'user.deleted', metadata: ['user_id' => $user->id]);
+        });
 
         return back()->with('success', 'Pengguna berhasil dihapus.');
     }
 
-    public function toggleActive(User $user): RedirectResponse
+    public function toggleActive(Request $request, User $user, ClinicalAuditRecorder $audit): RedirectResponse
     {
         if ($user->id === auth()->id()) {
             return back()->with('error', 'Tidak dapat mengubah status akun Anda sendiri.');
         }
 
-        $user->update(['is_active' => ! $user->is_active]);
+        if (! $user->is_active && $user->nakes && ! $user->nakes->is_active) {
+            return back()->with('error', 'Aktifkan profil petugas terlebih dahulu sebelum mengaktifkan akun.');
+        }
+
+        DB::transaction(function () use ($request, $user, $audit): void {
+            $user->update(['is_active' => ! $user->is_active]);
+            $audit->record($request, 'user.status_changed', metadata: ['user_id' => $user->id, 'active' => $user->is_active]);
+        });
 
         return back()->with('success', 'Status pengguna berhasil diperbarui.');
     }
 
-    public function resetPassword(Request $request, User $user): RedirectResponse
+    public function resetPassword(Request $request, User $user, ClinicalAuditRecorder $audit): RedirectResponse
     {
-        $request->validate(['password' => ['required', 'min:6']]);
+        $request->validate(['password' => ['required', 'string', 'min:8']]);
 
-        $user->update(['password' => Hash::make($request->password)]);
+        DB::transaction(function () use ($request, $user, $audit): void {
+            $user->update(['password' => Hash::make($request->password)]);
+            $audit->record($request, 'user.password_reset', metadata: ['user_id' => $user->id]);
+        });
 
         return back()->with('success', 'Kata sandi pengguna berhasil diatur ulang.');
     }
@@ -191,15 +224,22 @@ class UserController extends Controller
             return;
         }
 
-        if ($user->role === 'dokter') {
-            $selectedNakes = Nakes::findOrFail($nakesId);
+        if ($nakesId !== null) {
+            $selectedNakes = Nakes::query()->lockForUpdate()->findOrFail($nakesId);
+            if (! $selectedNakes->is_active || ($selectedNakes->user_id !== null && $selectedNakes->user_id !== $user->id)
+                || ! in_array($selectedNakes->jabatan, $this->positionsForRole($user->role), true)) {
+                throw ValidationException::withMessages(['nakes_id' => 'Profil petugas tidak tersedia untuk akun ini.']);
+            }
             $currentNakes = $user->nakes;
 
             if ($currentNakes && $currentNakes->isNot($selectedNakes)) {
                 $currentNakes->update(['user_id' => null]);
             }
 
-            $selectedNakes->update(['user_id' => $user->id]);
+            $selectedNakes->update([
+                'user_id' => $user->id,
+                ...($user->role === 'perawat' ? ['poliklinik_id' => $clinicId] : []),
+            ]);
 
             return;
         }
@@ -248,6 +288,17 @@ class UserController extends Controller
             'user_id' => $user->id,
             'is_active' => $user->is_active,
         ]);
+    }
+
+    private function positionsForRole(string $role): array
+    {
+        return match ($role) {
+            'dokter' => ['dokter'],
+            'perawat' => ['perawat', 'bidan', 'terapis_gigi'],
+            'farmasi' => ['farmasi', 'apotek'],
+            'pendaftaran' => ['pendaftaran'],
+            default => [],
+        };
     }
 
     private function generateNakesCode(string $jabatan): string
