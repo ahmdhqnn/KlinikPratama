@@ -205,6 +205,8 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     const [expanded, setExpanded] = useState<Record<Section, boolean>>({ triage: true, complaint: true, history: true, vitals: true, anthropometry: false, dental: false, additional: false, ringkas: true, systems: false, nutrition: false, attachments: false });
     const [attachmentPending, setAttachmentPending] = useState(false);
     const [starting, setStarting] = useState(false);
+    const [otherSymptomsOpen, setOtherSymptomsOpen] = useState(false);
+    const [otherHandoverOpen, setOtherHandoverOpen] = useState(false);
     const [mode, setMode] = useState('ringkas');
     const requestId = useRef<string | null>(null);
     const requestFingerprint = useRef('');
@@ -252,12 +254,17 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     const triageHasAbnormal = hasAbnormalTriageAnswer(form.data) || Object.entries(normalGeneral).some(([key, value]) => Boolean(form.data.general_assessment[key]) && form.data.general_assessment[key] !== value);
     const triage = emergency ? 'merah' : priority ? 'kuning' : !generalNotAssessed && triageComplete && (!isDental || form.data.dental_red_flags.includes('none')) ? 'hijau' : null;
     const responseLabel = triage === 'merah' ? 'Merah · perlu respons segera' : triage === 'kuning' ? 'Kuning · perlu penilaian lanjut' : 'Hijau · prioritas rutin';
-    const quickNormalTriage = (id: string) => <label className={`flex items-center gap-2 text-sm leading-6 ${triageHasAbnormal ? 'cursor-not-allowed text-neutral-400' : 'cursor-pointer text-neutral-700'}`} htmlFor={id}>
+    const quickNormalTriage = (id: string) => <label className={`flex items-center gap-2 text-sm leading-6 ${triageHasAbnormal ? 'cursor-not-allowed text-neutral-500' : 'cursor-pointer text-neutral-700'}`} htmlFor={id}>
         <Checkbox checked={triageAnswersNormal} className="shrink-0" disabled={triageHasAbnormal} id={id} onCheckedChange={(checked) => form.setData((data) => ({ ...data, ...quickNormalTriagePatch(checked === true), general_assessment: { ...data.general_assessment, ...Object.fromEntries(Object.entries(normalGeneral).map(([key, value]) => [key, checked === true ? value : ''])) } }))} />
         <span>Semua jawaban kondisi awal normal setelah diperiksa{triageHasAbnormal && <span className="text-neutral-500"> · ada temuan tidak normal</span>}</span>
     </label>;
+    const historyConfirmationFields: ScalarField[] = [
+        'status_alergi', 'riwayat_alergi', 'alergi_jenis', 'alergi_reaksi', 'alergi_keparahan', 'alergi_verifikasi',
+        'status_riwayat_penyakit', 'riwayat_penyakit', 'penyakit_nama', 'penyakit_keterangan',
+    ];
     const update = (name: ScalarField, value: string) => form.setData(data => ({
-        ...data, [name]: value, konfirmasi_riwayat: false,
+        ...data, [name]: value,
+        konfirmasi_riwayat: (isDental || historyConfirmationFields.includes(name)) && data[name] !== value ? false : data.konfirmasi_riwayat,
         ...(name === 'status_riwayat_penyakit' && value !== 'ada' ? { risiko_medis_gigi: value ? [value] : [], risiko_medis_gigi_lainnya: '', riwayat_penyakit: '', penyakit_nama: '', penyakit_keterangan: '' } : {}),
         ...(name === 'status_riwayat_penyakit' && value === 'ada' ? { risiko_medis_gigi: data.risiko_medis_gigi.filter(v => !['tidak_ada', 'belum_diketahui'].includes(v)) } : {}),
         ...(name === 'status_riwayat_obat' && value !== 'ada' ? { dental_medication_categories: value === 'tidak_ada' ? ['none'] : value ? ['unknown'] : [], dental_medication_categories_other: '', riwayat_obat: '' } : {}),
@@ -333,7 +340,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     </>;
     const painScale = <Field error={form.errors.skala_nyeri} htmlFor="skala_nyeri" label="Skala nyeri (0–10)"><Select id="skala_nyeri" value={form.data.skala_nyeri} onChange={(event) => update('skala_nyeri', event.target.value)}><option value="">Belum dikaji</option>{Array.from({ length: 11 }, (_, value) => <option key={value} value={value}>{value}{value === 0 ? ' · Tidak nyeri' : ''}</option>)}</Select></Field>;
     const allergyDetails = <div className="grid min-w-0 gap-4 md:grid-cols-2"><div className="min-w-0 col-span-full">{text('riwayat_alergi', 'Rincian alergi obat / makanan / lainnya', true, true)}</div>{text('alergi_reaksi', 'Reaksi alergi', true, true)}{text('alergi_keparahan', 'Keparahan alergi (jika diketahui)', false, true, true)}{text('alergi_jenis', 'Jenis / pemicu alergi')}</div>;
-    const generalExtra = (part: 'visit' | 'triage' | 'complaint' | 'history' | 'systems' | 'additional' | 'conclusion', nutritionField?: ReactNode) => <GeneralNursingAssessment nutritionField={nutritionField} dental={isDental} informationSource={form.data.sumber_informasi} section={part} includeComplaintNote={part !== 'complaint'} complaint={form.data.keluhan} value={form.data.general_assessment} errors={form.errors} complaintNarrative={generalComplaintNarrative} systemsNarrative={generalSystemsNarrative} onChange={value => form.setData(data => ({ ...data, general_assessment: value, riwayat_kondisi_khusus: !isDental && data.riwayat_kondisi_khusus === noSpecialHistory && (['ada', 'belum_diketahui'].includes(String(value.hospitalization_status ?? '')) || ['ada', 'belum_diketahui'].includes(String(value.surgery_status ?? ''))) ? '' : data.riwayat_kondisi_khusus }))} />;
+    const generalExtra = (part: 'visit' | 'triage' | 'complaint' | 'history' | 'systems' | 'additional' | 'conclusion', nutritionField?: ReactNode) => <GeneralNursingAssessment otherHandoverOpen={otherHandoverOpen} onOtherHandoverOpenChange={setOtherHandoverOpen} nutritionField={nutritionField} dental={isDental} informationSource={form.data.sumber_informasi} section={part} includeComplaintNote={part !== 'complaint'} complaint={form.data.keluhan} value={form.data.general_assessment} errors={form.errors} complaintNarrative={generalComplaintNarrative} systemsNarrative={generalSystemsNarrative} onChange={value => form.setData(data => ({ ...data, general_assessment: value, riwayat_kondisi_khusus: !isDental && data.riwayat_kondisi_khusus === noSpecialHistory && (['ada', 'belum_diketahui'].includes(String(value.hospitalization_status ?? '')) || ['ada', 'belum_diketahui'].includes(String(value.surgery_status ?? ''))) ? '' : data.riwayat_kondisi_khusus }))} />;
     const generalSafety = (
         <section className={isDental ? "space-y-4 rounded-xl bg-surface p-4 sm:p-5" : "space-y-4 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4 sm:p-5"}>
             {isDental && <AssessmentHeading title="Kondisi umum pasien" description="Catat hasil penilaian kondisi umum. Jawaban kosong berarti belum dinilai." />}
@@ -476,7 +483,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         </section>
     </>;
 
-    const associatedSymptoms = <AssociatedSymptoms value={form.data.keluhan_tambahan} error={form.errors.keluhan_tambahan} onChange={value => update('keluhan_tambahan', value)} />;
+    const associatedSymptoms = <AssociatedSymptoms otherOpen={otherSymptomsOpen} onOtherOpenChange={setOtherSymptomsOpen} value={form.data.keluhan_tambahan} error={form.errors.keluhan_tambahan} onChange={value => update('keluhan_tambahan', value)} />;
     const handover = <>
         <p className="text-xs leading-5 text-neutral-500">Temuan dan riwayat yang tercatat diteruskan kepada dokter. Jika sudah melakukan tindakan, catat respons pasien. Untuk serah terima, catat penerima, waktu, dan tindak lanjut bila ada.</p>
         {isDental ? text('catatan_medis_gigi', 'Hal yang perlu dikonfirmasi dokter gigi', form.data.risiko_medis_gigi.includes('belum_diketahui'), true, true) : narrativeField('pemeriksaan_fisik', 'Catatan temuan tambahan (bila diperlukan)')}
@@ -494,7 +501,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     </Field>;
     const complaintFields = <>
         {text('keluhan', 'Keluhan utama / alasan kunjungan', true, true)}
-        {isDental && associatedSymptoms}
+        {associatedSymptoms}
         <div className="grid min-w-0 items-start gap-4 md:grid-cols-2">
             {text('lama_keluhan', 'Sejak kapan / lama keluhan', true)}
             {informationSource}
@@ -556,7 +563,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
     } else {
         parts.push(
             { id: 'triage', title: 'Kondisi awal dan triase', description: 'Catat kondisi umum dan tanda bahaya yang sudah dinilai. Jawaban kosong berarti belum dinilai.', content: generalSafety },
-            { id: 'dental', title: 'Rincian keluhan', description: 'Lengkapi ciri keluhan, gejala penyerta, dan skala nyeri sesuai informasi pasien.', content: <>{generalExtra('complaint')}{associatedSymptoms}{painScale}<GeneralAssessmentNarrativeField field="complaint_notes" label="Catatan rincian keluhan" generated={generalComplaintNarrative} value={String(form.data.general_assessment.complaint_notes ?? '')} error={form.errors['general_assessment.complaint_notes']} onChange={value => form.setData('general_assessment', { ...form.data.general_assessment, complaint_notes: value })} /></> },
+            { id: 'dental', title: 'Rincian keluhan', description: 'Lengkapi ciri keluhan dan skala nyeri sesuai informasi pasien.', content: <>{generalExtra('complaint')}{painScale}<GeneralAssessmentNarrativeField field="complaint_notes" label="Catatan rincian keluhan" generated={generalComplaintNarrative} value={String(form.data.general_assessment.complaint_notes ?? '')} error={form.errors['general_assessment.complaint_notes']} onChange={value => form.setData('general_assessment', { ...form.data.general_assessment, complaint_notes: value })} /></> },
             { id: 'systems', title: 'Pengkajian sistem tubuh', description: 'Pilih hasil setelah dikaji dan jelaskan temuan abnormal.', content: generalExtra('systems') },
             { id: 'nutrition', title: 'Nutrisi dan kebutuhan pasien', description: 'Lengkapi sesuai kondisi dan kebutuhan pasien.', content: generalExtra('additional', nutrition) },
         );

@@ -30,6 +30,7 @@ interface Visit {
     date: string;
     status: string;
     examinationStarted?: boolean;
+    pendingReservation?: boolean;
     isReservation?: boolean;
     ticketUrl: string | null;
     editUrl: string | null;
@@ -68,12 +69,12 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
 
     return (
         <>
-            <Head title="Rincian kunjungan pendaftaran" />
+            <Head title="Laporan kunjungan" />
             <div className="space-y-6">
                 <div>
-                    <p className="text-sm font-medium text-neutral-700">Pendaftaran dan pelayanan</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Rincian kunjungan pendaftaran</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Cari kunjungan, cetak nomor antrean, atau kelola kunjungan aktif.</p>
+                    <p className="text-sm font-medium text-neutral-700">Analisis pelayanan</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Laporan kunjungan</h2>
+                    <p className="mt-1 text-sm text-neutral-500">Lihat rincian kunjungan berdasarkan tanggal, poliklinik, dan status pelayanan.</p>
                 </div>
 
                 <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}><form className="space-y-4" onSubmit={applyFilters}>
@@ -81,7 +82,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                 <Field htmlFor="registration-visits-search" label="Cari pasien">
                                     <Input id="registration-visits-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama atau No. RM" value={filters.search} />
                                 </Field>
-                                <Field htmlFor="registration-visits-date" label="Tanggal">
+                                <Field htmlFor="registration-visits-date" label="Tanggal kunjungan">
                                     <DatePicker id="registration-visits-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} value={filters.tanggal} />
                                 </Field>
                                 <Field htmlFor="registration-visits-clinic" label="Poliklinik">
@@ -90,7 +91,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                         {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                                     </Select>
                                 </Field>
-                                <Field htmlFor="registration-visits-status" label="Status">
+                                <Field htmlFor="registration-visits-status" label="Status pelayanan">
                                     <Select id="registration-visits-status" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}>
                                         <option value="">Semua status</option>
                                         {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -105,7 +106,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span>
-                            <div><CardTitle>Daftar kunjungan</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(visits.total)} hasil sesuai filter.</CardDescription></div>
+                            <div><CardTitle>Daftar kunjungan</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(visits.total)} kunjungan sesuai filter.</CardDescription></div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -120,15 +121,14 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                                             <TableCell className="text-neutral-600">{visit.doctor}</TableCell>
-                                            <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></TableCell>
+                                            <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} pendingReservation={visit.pendingReservation} status={visit.status} /></TableCell>
                                             <TableCell>
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <ActionButton disabledReason="Dokumen belum tersedia untuk dicetak." disabled={!visit.ticketUrl} asChild action="print" label="Cetak nomor antrean"><a href={visit.ticketUrl ?? ''} /></ActionButton>
-                                                    <ActionButton disabledReason="Data ini belum dapat diubah pada tahap pelayanan saat ini." disabled={!visit.editUrl} asChild action="edit" label="Edit kunjungan"><a href={visit.editUrl ?? ''} /></ActionButton>
+                                                    <ActionButton disabledReason="Tiket antrean belum tersedia untuk kunjungan ini." disabled={!visit.ticketUrl} asChild action="print" label="Cetak tiket antrean"><a href={visit.ticketUrl ?? ''} /></ActionButton>
+                                                    <ActionButton disabledReason="Kunjungan pada tahap ini belum dapat diubah." disabled={!visit.editUrl} asChild action="edit" label={visit.pendingReservation ? 'Konfirmasi reservasi' : 'Ubah kunjungan'}><a href={visit.editUrl ?? ''} /></ActionButton>
                                                     <ActionButton disabledReason="Hanya kunjungan yang belum dilayani yang dapat dibatalkan." disabled={!visit.cancelUrl} onClick={() => {
                                                         confirmAction('Batalkan kunjungan ini?', () => { router.post(visit.cancelUrl as string); }, 'Batalkan');
                                                     }} action="cancel" label="Batalkan kunjungan" />
-                                                    {!visit.ticketUrl && !visit.editUrl && !visit.cancelUrl && <span className="pr-2 text-xs text-neutral-400">Tidak ada tindakan</span>}
                                                 </div>
                                             </TableCell>
                                         </TableRow>

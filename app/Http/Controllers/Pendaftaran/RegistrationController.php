@@ -9,6 +9,7 @@ use App\Exports\DiagnosisExport;
 use App\Exports\KunjunganExport;
 use App\HakLayananVerifier;
 use App\Http\Controllers\Controller;
+use App\InternalReferralDirectory;
 use App\JadwalPraktikResolver;
 use App\Models\JadwalDokter;
 use App\Models\Kepesertaan;
@@ -17,6 +18,7 @@ use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
+use App\Models\RujukanInternal;
 use App\PatientRegistrationService;
 use App\PerawatClinicResolver;
 use App\PracticeScheduleAccess;
@@ -47,7 +49,7 @@ class RegistrationController extends Controller
         $stats = [
             'total_kunjungan_hari_ini' => Kunjungan::whereDate('tanggal', $today)->count(),
             'total_kunjungan' => Kunjungan::count(),
-            'menunggu_screening' => Kunjungan::whereDate('tanggal', $today)->where('status', 'menunggu')->count(),
+            'menunggu_screening' => Kunjungan::whereDate('tanggal', $today)->where('status', 'menunggu')->where('kontrol_pending', false)->count(),
             'sedang_pemeriksaan' => Kunjungan::whereDate('tanggal', $today)->whereIn('status', ['screening', 'pemeriksaan', 'tindakan'])->count(),
         ];
 
@@ -69,14 +71,17 @@ class RegistrationController extends Controller
                     'clinic' => $visit->poliklinik?->nama ?? '-', 'doctor' => $visit->dokter?->nama ?? 'Belum ditentukan',
                     'status' => $visit->status, 'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
                     'detailUrl' => route('pendaftaran.kunjungan.show', $visit),
-                    'ticketUrl' => route('pendaftaran.cetak-antrian', $visit),
+                    'pendingReservation' => $visit->isPendingReservation(),
+                    'ticketUrl' => $visit->status !== 'batal' && ! $visit->isPendingReservation()
+                        ? route('pendaftaran.cetak-antrian', $visit)
+                        : null,
                 ])->values(),
                 'currentPage' => $visits->currentPage(), 'lastPage' => $visits->lastPage(),
                 'from' => $visits->firstItem(), 'to' => $visits->lastItem(), 'total' => $visits->total(),
                 'previousUrl' => $visits->previousPageUrl(), 'nextUrl' => $visits->nextPageUrl(),
             ],
             'today' => $today->toDateString(),
-            'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()), 'href' => route('pendaftaran.laporan-kunjungan')],
+            'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()), 'href' => route('pendaftaran.kunjungan-per-poli')],
             'stats' => [
                 'visitsToday' => $stats['total_kunjungan_hari_ini'],
                 'totalVisits' => $stats['total_kunjungan'],
@@ -118,8 +123,9 @@ class RegistrationController extends Controller
                     'date' => $visit->tanggal?->format('d/m/Y') ?? 'Belum diisi',
                     'status' => $visit->status,
                     'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
+                    'pendingReservation' => $visit->isPendingReservation(),
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
-                    'ticketUrl' => $visit->status !== 'batal' ? route('pendaftaran.cetak-antrian', $visit) : null,
+                    'ticketUrl' => $visit->status !== 'batal' && ! $visit->isPendingReservation() ? route('pendaftaran.cetak-antrian', $visit) : null,
                     'editUrl' => $visit->status === 'menunggu'
                         ? route('pendaftaran.edit-kunjungan', $visit)
                         : null,
@@ -151,12 +157,40 @@ class RegistrationController extends Controller
         ), 'laporan-kunjungan-'.today()->toDateString().'.xlsx');
     }
 
+    public function rujukanInternal(Request $request, InternalReferralDirectory $directory): Response
+    {
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $search = $filters['search'] ?? '';
+
+        return Inertia::render('pendaftaran/rujukan-internal', [
+            'search' => $search,
+            'referrals' => $directory->paginate($search, null, null, 'pendaftaran.kunjungan.show', false),
+        ]);
+    }
+
     public function pendaftaranBaru(Request $request): Response
     {
-        $data = $request->validate(['pasien_id' => ['nullable', 'integer', 'exists:pasien,id']]);
-        $patient = isset($data['pasien_id']) ? Pasien::with('kepesertaan.penanggung')->findOrFail($data['pasien_id']) : null;
+        $data = $request->validate([
+            'pasien_id' => ['nullable', 'integer', 'exists:pasien,id'],
+            'rujukan_internal_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $referral = null;
+        if (isset($data['rujukan_internal_id'])) {
+            $referral = RujukanInternal::with(['kunjunganTujuanTerakhir', 'kunjungan', 'kePoli'])->findOrFail($data['rujukan_internal_id']);
+            abort_unless($referral->canRegisterDestination(), 422, 'Rujukan ini tidak dapat didaftarkan.');
+        }
 
-        return Inertia::render('pendaftaran/pendaftaran-baru', [...$this->registrationFormData(), 'initialPatient' => $patient ? $this->patientRegistrationData($patient) : null, 'initialTab' => in_array($request->query('tab'), ['manual', 'directory', 'registered'], true) ? $request->query('tab') : 'manual']);
+        $patientId = $referral?->kunjungan->pasien_id ?? ($data['pasien_id'] ?? null);
+        $patient = $patientId ? Pasien::with('kepesertaan.penanggung')->findOrFail($patientId) : null;
+        $tab = $request->query('tab');
+
+        return Inertia::render('pendaftaran/pendaftaran-baru', [
+            ...$this->registrationFormData(),
+            'initialPatient' => $patient ? $this->patientRegistrationData($patient) : null,
+            'initialTab' => $referral ? 'registered' : (in_array($tab, ['manual', 'directory', 'registered'], true) ? $tab : 'manual'),
+            'internalReferral' => $referral ? ['id' => $referral->id, 'number' => $referral->nomor_surat, 'clinicId' => $referral->ke_poli_id] : null,
+            'referralBackUrl' => $request->user()->isAdmin() ? route('persuratan.index').'#rujukan-internal' : route('pendaftaran.rujukan-internal'),
+        ]);
     }
 
     public function storePasienBaru(Request $request, PatientRegistrationService $registrationService): RedirectResponse
@@ -325,6 +359,7 @@ class RegistrationController extends Controller
     public function storePasienLama(Request $request): RedirectResponse
     {
         $validated = $request->validate([
+            'rujukan_internal_id' => ['nullable', 'integer', 'min:1'],
             'pasien_id' => ['required', 'exists:pasien,id'],
             'poliklinik_id' => ['required', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'dokter_id' => ['nullable', 'exists:nakes,id'],
@@ -333,18 +368,33 @@ class RegistrationController extends Controller
             'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $referralId = $validated['rujukan_internal_id'] ?? null;
+
         $validated['catatan'] = filled($validated['catatan'] ?? null)
             ? trim($validated['catatan'])
             : null;
 
         $validated['tanggal'] = $validated['tanggal'] ?? today()->toDateString();
-        $validated['dokter_id'] = $this->scheduling->resolveDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], $validated['tanggal']);
         $pasien = Pasien::findOrFail($validated['pasien_id']);
 
-        DB::transaction(function () use ($validated, $pasien, $request): void {
+        $visit = DB::transaction(function () use ($validated, $pasien, $request, $referralId): Kunjungan {
             $pasien = Pasien::whereKey($pasien->id)->lockForUpdate()->firstOrFail();
+            if ($referralId) {
+                $referral = RujukanInternal::whereKey($referralId)->lockForUpdate()->firstOrFail();
+                $origin = $referral->kunjungan;
+                abort_unless($origin && $origin->pasien_id === $pasien->id, 404);
+                if ($referral->ke_poli_id !== (int) $validated['poliklinik_id']) {
+                    throw ValidationException::withMessages(['poliklinik_id' => 'Poli tujuan harus sesuai dengan rujukan.']);
+                }
+                if ($origin->status === 'batal' || $referral->status !== 'menunggu'
+                    || $referral->kunjunganTujuan()->where('status', '!=', 'batal')->exists()) {
+                    throw ValidationException::withMessages(['rujukan_internal_id' => 'Rujukan ini sudah terdaftar atau tidak dapat digunakan.']);
+                }
+            }
+
+            $validated['dokter_id'] = $this->scheduling->resolveDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], $validated['tanggal']);
             $this->scheduling->ensureNoDuplicate($pasien->id, (int) $validated['poliklinik_id'], $validated['tanggal']);
-            Kunjungan::create([
+            $visit = Kunjungan::create([
                 'no_kunjungan' => Kunjungan::generateNomor(),
                 'pasien_id' => $pasien->id,
                 'poliklinik_id' => $validated['poliklinik_id'],
@@ -352,10 +402,20 @@ class RegistrationController extends Controller
                 'tanggal' => $validated['tanggal'],
                 'status' => 'menunggu',
                 'jenis_pasien' => 'lama',
+                'rujukan_internal_id' => $referralId,
                 ...app(HakLayananVerifier::class)->patient($pasien, $request),
                 'catatan' => $validated['catatan'] ?? null,
             ]);
-        });
+            if ($referralId) {
+                app(ClinicalAuditRecorder::class)->record($request, 'internal_referral.register', $visit->pasien_id, $visit->id, ['referral_id' => (int) $referralId]);
+            }
+
+            return $visit;
+        }, attempts: 5);
+
+        if ($referralId) {
+            return redirect()->route('pendaftaran.kunjungan.show', $visit)->with('success', 'Kunjungan poli tujuan berhasil didaftarkan.');
+        }
 
         return redirect()->to($this->afterRegistrationUrl())
             ->with('success', "Pasien {$pasien->nama} berhasil didaftarkan untuk kunjungan baru.");
@@ -440,7 +500,7 @@ class RegistrationController extends Controller
         $summaryQuery = Kunjungan::query()->when($assignedClinicId, fn ($query, int $id) => $query->where('poliklinik_id', $id));
         $visitsQuery = Kunjungan::query()
             ->when($selectedPoli, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId))
-            ->when($filters['tanggal'] ?? null, fn ($query, string $date) => $query->whereDate('tanggal', $date))
+            ->when($filters['tanggal'] ?? null, fn ($query, string $date) => $query->whereDate('tanggal', $date), fn ($query) => $query->where('tanggal', '<', today()->addDays(8)->toDateString()))
             ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status));
         $kunjungan = (clone $visitsQuery)->with(['pasien', 'dokter', 'poliklinik', 'pemeriksaan'])
             ->latest('created_at')->latest('id')->paginate(10)->withQueryString();
@@ -449,6 +509,10 @@ class RegistrationController extends Controller
             ->latest('tanggal')->latest('created_at')->latest('id')
             ->paginate(10, ['*'], 'recent_page')
             ->withQueryString();
+        $reservations = Kunjungan::query()->upcomingReservations()
+            ->when($selectedPoli, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId))
+            ->with(['pasien', 'dokter', 'poliklinik', 'pemeriksaan'])
+            ->orderBy('tanggal')->orderBy('id')->paginate(10, ['*'], 'reservations_page')->withQueryString();
         $mapVisit = fn (Kunjungan $visit): array => [
             'id' => $visit->id,
             'number' => $visit->no_kunjungan,
@@ -459,20 +523,21 @@ class RegistrationController extends Controller
             'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
             'status' => $visit->status,
             'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
+            'pendingReservation' => $visit->isPendingReservation(),
             'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
-            'actionUrl' => $role === 'perawat' && $visit->status === 'tindakan' ? route('pelayanan.tindakan.show', $visit) : ($role === 'perawat' && ! $visit->tanggal->isFuture()
+            'actionUrl' => $role === 'perawat' && $visit->status === 'tindakan' ? route('pelayanan.tindakan.show', $visit) : ($role === 'perawat' && ! $visit->tanggal->isFuture() && ! $visit->isPendingReservation()
                 ? (in_array($visit->status, ['menunggu', 'screening'], true)
                     ? route('pelayanan.screening.show', $visit)
                     : ($visit->status === 'batal'
                         ? route('pelayanan.kunjungan.show', $visit)
                         : route('pelayanan.pasien.rekam-medis', $visit->pasien)))
                 : route($role === 'pendaftaran' ? 'pendaftaran.kunjungan.show' : 'pelayanan.kunjungan.show', $visit)),
-            'actionLabel' => $role === 'perawat' && $visit->status === 'tindakan' ? 'Laksanakan tindakan' : ($role === 'perawat' && ! $visit->tanggal->isFuture()
+            'actionLabel' => $role === 'perawat' && $visit->status === 'tindakan' ? 'Laksanakan tindakan' : ($role === 'perawat' && ! $visit->tanggal->isFuture() && ! $visit->isPendingReservation()
                 ? (in_array($visit->status, ['menunggu', 'screening'], true)
                     ? ($visit->status === 'screening' ? 'Lanjutkan pengkajian' : 'Mulai pengkajian')
                     : ($visit->status === 'batal' ? 'Detail' : 'Lihat RME'))
                 : 'Detail'),
-            'ticketUrl' => $visit->status !== 'batal' && $request->user()->role !== 'perawat' ? route('pendaftaran.cetak-antrian', $visit) : null,
+            'ticketUrl' => $visit->status !== 'batal' && ! $visit->isPendingReservation() && $request->user()->role !== 'perawat' ? route('pendaftaran.cetak-antrian', $visit) : null,
             'editUrl' => in_array($role, ['admin', 'pendaftaran'], true) && $visit->status === 'menunggu'
                 ? route('pendaftaran.edit-kunjungan', $visit)
                 : null,
@@ -498,11 +563,21 @@ class RegistrationController extends Controller
             ])->values(),
             'stats' => [
                 'total' => (clone $summaryQuery)->count(),
-                'waiting' => (clone $summaryQuery)->whereDate('tanggal', '<=', today())->where('status', 'menunggu')->count(),
+                'waiting' => (clone $summaryQuery)->whereDate('tanggal', '<=', today())->where('status', 'menunggu')->where('kontrol_pending', false)->count(),
                 'screening' => (clone $summaryQuery)->where('status', 'screening')->count(),
                 'examination' => (clone $summaryQuery)->where('status', 'pemeriksaan')->count(),
                 'completedToday' => Kunjungan::whereDate('tanggal', today())->where('status', 'selesai')
                     ->when($assignedClinicId, fn ($query, int $id) => $query->where('poliklinik_id', $id))->count(),
+            ],
+            'reservations' => [
+                'data' => $reservations->getCollection()->map($mapVisit)->values(),
+                'currentPage' => $reservations->currentPage(),
+                'lastPage' => $reservations->lastPage(),
+                'from' => $reservations->firstItem(),
+                'to' => $reservations->lastItem(),
+                'total' => $reservations->total(),
+                'previousUrl' => $reservations->previousPageUrl(),
+                'nextUrl' => $reservations->nextPageUrl(),
             ],
             'visits' => [
                 'data' => $kunjungan->getCollection()->map($mapVisit)->values(),
@@ -884,13 +959,14 @@ class RegistrationController extends Controller
 
     public function cetakAntrian(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $auditRecorder): Response
     {
+        abort_if($kunjungan->isPendingReservation(), 422, 'Konfirmasikan reservasi kontrol sebelum mencetak tiket.');
         abort_if($kunjungan->status === 'batal', 422, 'Kunjungan yang dibatalkan tidak memiliki tiket antrian.');
 
         $auditRecorder->record($request, 'queue_ticket.print', $kunjungan->pasien_id, $kunjungan->id);
         $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'pemeriksaan']);
         $antrian = Kunjungan::where('poliklinik_id', $kunjungan->poliklinik_id)
             ->whereDate('tanggal', $kunjungan->tanggal)
-            ->where('status', '!=', 'batal')
+            ->where('status', '!=', 'batal')->where('kontrol_pending', false)
             ->where(function ($query) use ($kunjungan): void {
                 $query->where('created_at', '<', $kunjungan->created_at)
                     ->orWhere(function ($tieQuery) use ($kunjungan): void {
@@ -947,6 +1023,7 @@ class RegistrationController extends Controller
                 'date' => $kunjungan->tanggal->toDateString(),
                 'patientType' => $kunjungan->jenis_pasien,
                 'notes' => $kunjungan->catatan,
+                'pendingReservation' => $kunjungan->isPendingReservation(),
             ],
             'clinics' => $data['clinics'],
             'day' => $data['day'],
@@ -971,17 +1048,26 @@ class RegistrationController extends Controller
         $validated['catatan'] = filled($validated['catatan'] ?? null)
             ? trim($validated['catatan'])
             : null;
-        $validated['tanggal'] = $validated['tanggal'] ?? $kunjungan->tanggal->toDateString();
-        $validated['dokter_id'] = $this->scheduling->resolveDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], $validated['tanggal']);
-        DB::transaction(function () use ($kunjungan, $validated, $request): void {
+        $date = DB::transaction(function () use ($kunjungan, $validated, $request): string {
+            Pasien::whereKey($kunjungan->pasien_id)->lockForUpdate()->firstOrFail();
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             abort_unless($lockedVisit->status === 'menunggu', 422, 'Kunjungan yang sudah dilayani tidak dapat diubah dari pendaftaran.');
-            Pasien::whereKey($lockedVisit->pasien_id)->lockForUpdate()->firstOrFail();
+            if ($lockedVisit->rujukan_internal_id && $lockedVisit->poliklinik_id !== (int) $validated['poliklinik_id']) {
+                throw ValidationException::withMessages(['poliklinik_id' => 'Poli tujuan terkunci sesuai rujukan internal.']);
+            }
+            $validated['tanggal'] ??= $lockedVisit->tanggal->toDateString();
+            $validated['dokter_id'] = $this->scheduling->resolveDoctorForUpdate($lockedVisit, $validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], $validated['tanggal']);
             $this->scheduling->ensureNoDuplicate($lockedVisit->pasien_id, (int) $validated['poliklinik_id'], $validated['tanggal'], $lockedVisit->id);
-            $lockedVisit->update([...$validated, ...app(HakLayananVerifier::class)->patient($lockedVisit->pasien, $request)]);
+            $pendingReservation = $lockedVisit->isPendingReservation();
+            $lockedVisit->update([...$validated, 'kontrol_pending' => false, ...app(HakLayananVerifier::class)->patient($lockedVisit->pasien, $request)]);
+            if ($pendingReservation) {
+                app(ClinicalAuditRecorder::class)->record($request, 'reservation.confirm', $lockedVisit->pasien_id, $lockedVisit->id);
+            }
+
+            return $validated['tanggal'];
         });
 
-        return redirect()->route('pendaftaran.kunjungan-per-poli', ['tanggal' => $kunjungan->tanggal->toDateString()])->with('success', 'Data kunjungan berhasil diperbarui.');
+        return redirect()->route('pendaftaran.kunjungan-per-poli', ['tanggal' => $date])->with('success', 'Data kunjungan berhasil diperbarui.');
     }
 
     public function batalKunjungan(Kunjungan $kunjungan): RedirectResponse

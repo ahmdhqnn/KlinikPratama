@@ -25,6 +25,7 @@ interface Visit {
     status: string;
     examinationStarted?: boolean;
     canExamine: boolean;
+    pendingReservation?: boolean;
     isReservation?: boolean;
     triage?: string | null;
     priority?: string | null;
@@ -109,7 +110,7 @@ export default function DoctorAppointments({ filters, visits, isReport, isAdmin 
                                             <TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-neutral-600">{visit.clinic}</TableCell>
                                             {isAdmin && <TableCell>{visit.doctor ?? 'Belum tercatat'}</TableCell>}
-                                            <TableCell className="text-center">{isReport ? <div><span className="font-medium">{visit.finalizedAt ? 'Final' : 'Draf'}</span>{visit.finalizedAt && <p className="mt-1 text-xs text-neutral-500">{visit.finalizedAt}</p>}</div> : <StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} />}</TableCell>
+                                            <TableCell className="text-center">{isReport ? <div><span className="font-medium">{visit.finalizedAt ? 'Final' : 'Draf'}</span>{visit.finalizedAt && <p className="mt-1 text-xs text-neutral-500">{visit.finalizedAt}</p>}</div> : <StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} pendingReservation={visit.pendingReservation} status={visit.status} />}</TableCell>
                                             <TableCell className="text-center">{isReport ? <p className="max-w-xs whitespace-normal">{visit.diagnoses || 'Belum dicatat'}</p> : <PriorityBadge triage={visit.triage} priority={visit.priority} />}</TableCell>
                                             <TableCell className="text-center"><VisitActionButtons letterUrl={visit.letterUrl} patient={visit.patient} showLetterAction={!isAdmin} primary={!visit.examinationUrl ? undefined : isAdmin ? { href: visit.examinationUrl, label: 'Lihat pemeriksaan', type: 'detail' } : { href: visit.examinationUrl, label: visit.canExamine ? (visit.status === 'pemeriksaan' ? (visit.examinationStarted ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan') : 'Tinjau pemeriksaan') : visit.status === 'batal' ? 'Kunjungan dibatalkan' : visit.isReservation ? 'Sesuai jadwal kunjungan' : 'Menunggu pengkajian perawat', disabled: !visit.canExamine, title: visit.canExamine ? undefined : visit.status === 'batal' ? 'Kunjungan dibatalkan dan tidak dapat diperiksa.' : visit.isReservation ? 'Pemeriksaan dapat dimulai pada tanggal kunjungan.' : 'Pemeriksaan dokter dapat dimulai setelah pengkajian perawat dikirim.', type: 'examination' }} recordLabel="Rekam medis" recordUrl={visit.recordUrl} /></TableCell>
                                         </TableRow>

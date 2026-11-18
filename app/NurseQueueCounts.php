@@ -25,7 +25,7 @@ class NurseQueueCounts
         return [
             'assessment' => (clone $visits)
                 ->whereDate('tanggal', today())
-                ->whereIn('status', ['menunggu', 'screening'])
+                ->whereIn('status', ['menunggu', 'screening'])->where('kontrol_pending', false)
                 ->whereDoesntHave('screening', fn ($query) => $query->whereNotNull('submitted_at'))
                 ->count(),
             'treatments' => (clone $visits)

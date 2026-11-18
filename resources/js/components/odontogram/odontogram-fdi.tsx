@@ -363,7 +363,7 @@ export function OdontogramFdi({
                                     Bentuk mahkota dan akar gigi
                                 </p>
                             </div>
-                            <span className="text-[11px] font-medium text-neutral-400">
+                            <span className="text-[11px] font-medium text-neutral-500">
                                 Interaktif
                             </span>
                         </div>

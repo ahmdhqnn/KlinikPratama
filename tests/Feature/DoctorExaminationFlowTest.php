@@ -183,8 +183,9 @@ class DoctorExaminationFlowTest extends TestCase
             ->where('stats.completedToday', 1)
             ->has('recentVisits.data', 1)
             ->where('recentVisits.data.0.status', 'selesai')
-            ->where('recentVisits.data.0.actionUrl', route('pelayanan.pasien.rekam-medis', $patient))
-            ->where('recentVisits.data.0.actionLabel', 'Lihat RME')
+            ->where('recentVisits.data.0.recordUrl', route('pelayanan.pasien.rekam-medis', $patient))
+            ->where('recentVisits.data.0.actionUrl', route('pelayanan.pemeriksaan.show', $visit))
+            ->where('recentVisits.data.0.actionLabel', 'Tinjau pemeriksaan')
         );
         $visit->update(['status' => 'pemeriksaan']);
         $this->actingAs($user)->get(route('dokter.janji-kunjungan', [
@@ -452,6 +453,7 @@ class DoctorExaminationFlowTest extends TestCase
     #[TestWith(['gigi', 'rencana'])]
     public function test_saving_a_clinical_section_preserves_other_draft_sections(string $clinicType, string $section): void
     {
+        $this->travelTo('2026-10-26 09:00:00');
         [$user, $visit, $examination] = $this->examinationWithSections($clinicType);
         $payloads = [
             'anamnesis' => ['anamnesis' => 'Keluhan diperbarui', 'pemeriksaan_fisik' => null, 'diagnosis_banding' => null, 'kontrol_berikutnya' => null],

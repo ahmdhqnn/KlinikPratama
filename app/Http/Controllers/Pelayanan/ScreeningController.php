@@ -56,7 +56,7 @@ class ScreeningController extends Controller
             ->orderByDesc('tanggal')->latest('created_at')->latest('id')
             ->paginate(10)->withQueryString();
         $todayVisits = (clone $clinicVisits)->whereDate('tanggal', today())
-            ->whereIn('status', ['menunggu', 'screening'])
+            ->whereIn('status', ['menunggu', 'screening'])->where('kontrol_pending', false)
             ->whereDoesntHave('screening', fn ($query) => $query->whereNotNull('submitted_at'))
             ->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan'])
             ->orderBy('created_at')->orderBy('id')
@@ -100,10 +100,10 @@ class ScreeningController extends Controller
             'serviceName' => $assignedClinicId ? $clinics->first()?->nama : 'Semua poli',
             'stats' => [
                 'total' => (clone $todaySummary)->count(),
-                'waiting' => (clone $todaySummary)->whereIn('status', ['menunggu', 'screening'])
+                'waiting' => (clone $todaySummary)->whereIn('status', ['menunggu', 'screening'])->where('kontrol_pending', false)
                     ->whereDoesntHave('screening', fn ($query) => $query->whereNotNull('submitted_at'))->count(),
                 'submitted' => (clone $todaySummary)->whereHas('screening', fn ($query) => $query->whereDate('submitted_at', today()))->count(),
-                'allPending' => (clone $clinicVisits)->whereIn('status', ['menunggu', 'screening'])
+                'allPending' => (clone $clinicVisits)->whereIn('status', ['menunggu', 'screening'])->where('kontrol_pending', false)
                     ->whereDoesntHave('screening', fn ($query) => $query->whereNotNull('submitted_at'))->count(),
             ],
             'filters' => [

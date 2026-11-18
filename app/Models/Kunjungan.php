@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\ClinicDocumentNumber;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -20,11 +21,12 @@ class Kunjungan extends Model
         'no_kunjungan', 'pasien_id', 'poliklinik_id', 'dokter_id',
         'tanggal', 'status', 'jenis_pasien', 'catatan', 'hak_layanan_snapshot', 'verified_by', 'verified_at',
         'unit_kerja', 'kategori_peserta', 'tindakan_started_at',
+        'kontrol_asal_id', 'kontrol_pending', 'kontrol_catatan', 'rujukan_internal_id',
     ];
 
-    protected $casts = ['tanggal' => 'date', 'hak_layanan_snapshot' => 'array', 'verified_at' => 'datetime', 'lampiran' => 'array', 'tindakan_started_at' => 'datetime'];
+    protected $casts = ['tanggal' => 'date', 'kontrol_pending' => 'boolean', 'hak_layanan_snapshot' => 'array', 'verified_at' => 'datetime', 'lampiran' => 'array', 'tindakan_started_at' => 'datetime'];
 
-    protected $hidden = ['lampiran'];
+    protected $hidden = ['lampiran', 'kontrol_catatan'];
 
     /** @return array<int, array{id: string, name: string, note: ?string, size: int, mime: string, downloadUrl: string, deleteUrl: string}> */
     public function attachmentSummaries(): array
@@ -60,9 +62,21 @@ class Kunjungan extends Model
         return $this->hasOne(Screening::class);
     }
 
+    public function scopeUpcomingReservations(Builder $query): Builder
+    {
+        return $query->where('status', 'menunggu')
+            ->where('tanggal', '>=', today()->addDay()->toDateString())
+            ->where('tanggal', '<', today()->addDays(8)->toDateString());
+    }
+
+    public function isPendingReservation(): bool
+    {
+        return $this->status === 'menunggu' && $this->kontrol_pending;
+    }
+
     public function canUpdateScreening(): bool
     {
-        if ($this->tanggal?->isFuture()) {
+        if ($this->isPendingReservation() || $this->tanggal?->isFuture()) {
             return false;
         }
 
@@ -113,6 +127,11 @@ class Kunjungan extends Model
     public function rujukanInternal(): HasMany
     {
         return $this->hasMany(RujukanInternal::class);
+    }
+
+    public function rujukanMasuk(): BelongsTo
+    {
+        return $this->belongsTo(RujukanInternal::class, 'rujukan_internal_id');
     }
 
     public function informedConsent(): HasMany

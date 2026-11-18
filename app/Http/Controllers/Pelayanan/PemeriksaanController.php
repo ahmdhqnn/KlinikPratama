@@ -136,7 +136,8 @@ class PemeriksaanController extends Controller
             'pasien', 'poliklinik', 'dokter', 'screening',
             'pemeriksaan.diagnosa', 'pemeriksaan.dokter', 'pemeriksaan.signedBy', 'pemeriksaan.clinicalNoteVersions.actor', 'resep.resepObat.obat',
             'tindakanKunjungan.tindakan', 'suratMedis.template',
-            'rujukanInternal.dariPoli', 'rujukanInternal.kePoli',
+            'rujukanInternal.dariPoli', 'rujukanInternal.kePoli', 'rujukanInternal.kunjunganTujuanTerakhir',
+            'rujukanMasuk.dariPoli', 'rujukanMasuk.kunjungan',
             'informedConsent', 'odontogramFindings', 'rujukanInternal.template',
         ]);
 
@@ -153,7 +154,7 @@ class PemeriksaanController extends Controller
             ]))
             ->reject(fn (array $system): bool => in_array($system['value'], ['icd10_who', 'icd9cm_diagnosis'], true))->unique('value')->values();
         $obatList = Obat::withSum(['batches as usable_stock' => fn ($query) => $query->usable()], 'stok')->where('is_active', true)->where('jenis', 'obat')->orderBy('nama')->get();
-        $poliklinikList = Poliklinik::where('is_active', true)->orderBy('nama')->get();
+        $poliklinikList = Poliklinik::registrable()->orderBy('nama')->get();
         $latestNote = $kunjungan->pemeriksaan?->clinicalNoteVersions->sortBy('version')->last();
         $noteIntegrityValid = $kunjungan->pemeriksaan?->signed_at ? $noteRecorder->verify($kunjungan->pemeriksaan) : null;
         $effectiveNote = $noteIntegrityValid ? $latestNote->payload : null;
@@ -401,12 +402,20 @@ class PemeriksaanController extends Controller
                     'date' => $letter->tanggal?->format('d/m/Y'),
                     'printUrl' => route('persuratan.surat.cetak', $letter).'?asal=pemeriksaan',
                 ])->values(),
+                'incomingReferral' => $kunjungan->rujukanMasuk ? [
+                    'number' => $kunjungan->rujukanMasuk->nomor_surat,
+                    'fromClinic' => $kunjungan->rujukanMasuk->document_data['fromClinic'] ?? $kunjungan->rujukanMasuk->dariPoli?->nama,
+                    'originVisit' => $kunjungan->rujukanMasuk->kunjungan?->no_kunjungan,
+                    'note' => $kunjungan->rujukanMasuk->catatan,
+                    'content' => $kunjungan->rujukanMasuk->konten_surat,
+                ] : null,
                 'referrals' => $kunjungan->rujukanInternal->map(fn ($referral) => [
                     'id' => $referral->id,
                     'fromClinic' => $referral->dariPoli?->nama,
                     'toClinic' => $referral->kePoli?->nama,
                     'notes' => $referral->catatan,
-                    'status' => $referral->status,
+                    'status' => $referral->statusLayanan(),
+                    'destinationVisit' => $referral->kunjunganTujuanTerakhir?->no_kunjungan,
                     'number' => $referral->nomor_surat,
                     'content' => $referral->konten_surat,
                     'printUrl' => route('persuratan.rujukan.cetak', $referral).'?asal=pemeriksaan',
@@ -548,7 +557,7 @@ class PemeriksaanController extends Controller
                 : $kunjungan->dokter_id;
             $data['status'] = 'draft';
 
-            Pemeriksaan::updateOrCreate(['kunjungan_id' => $kunjungan->id], $data);
+            $this->saveExaminationDraft($kunjungan, $data);
 
             return back()->with('success', 'Data pemeriksaan berhasil disimpan.');
         });
@@ -566,10 +575,23 @@ class PemeriksaanController extends Controller
             $data['dokter_id'] = auth()->user()->role === 'dokter'
                 ? $this->currentDoctorId()
                 : $kunjungan->dokter_id;
-            $kunjungan->pemeriksaan()->updateOrCreate(['kunjungan_id' => $kunjungan->id], $data);
+            $this->saveExaminationDraft($kunjungan, $data);
 
             return back()->with('success', 'Data pemeriksaan berhasil diperbarui.');
         });
+    }
+
+    private function saveExaminationDraft(Kunjungan $visit, array $data): void
+    {
+        $examination = $visit->pemeriksaan()->firstOrNew();
+        $previousDate = $examination->kontrol_berikutnya?->toDateString();
+        $examination->fill($data)->save();
+
+        if (array_key_exists('kontrol_berikutnya', $data) || array_key_exists('catatan', $data)) {
+            app(VisitSchedulingService::class)->syncFollowUp(
+                $visit, $examination->kontrol_berikutnya?->toDateString(), $examination->catatan, $previousDate,
+            );
+        }
     }
 
     public function storeDiagnosa(Request $request, Kunjungan $kunjungan): RedirectResponse
@@ -994,14 +1016,22 @@ class PemeriksaanController extends Controller
             app(ClinicalAuditRecorder::class)->record($request, 'clinical_draft.storeRujukan', $kunjungan->pasien_id, $kunjungan->id);
             $this->authorizeMutableVisit($kunjungan);
             $data = $request->validate([
-                'ke_poli_id' => ['required', 'exists:poliklinik,id'],
+                'ke_poli_id' => ['required', 'integer', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
                 'catatan' => ['nullable', 'string', 'max:5000'],
                 'konten_surat' => ['nullable', 'string', 'max:10000'],
                 'surat_template_id' => ['nullable', 'exists:correspondence_templates,id'],
             ]);
 
-            $targetClinic = Poliklinik::query()->where('is_active', true)->findOrFail($data['ke_poli_id']);
-            abort_unless($targetClinic->id !== $kunjungan->poliklinik_id, 422, 'Poliklinik tujuan harus berbeda dengan poli asal.');
+            $targetClinic = Poliklinik::registrable()->findOrFail($data['ke_poli_id']);
+            if ($targetClinic->id === $kunjungan->poliklinik_id) {
+                throw ValidationException::withMessages(['ke_poli_id' => 'Poliklinik tujuan harus berbeda dengan poli asal.']);
+            }
+            $openReferral = $kunjungan->rujukanInternal()->where('ke_poli_id', $targetClinic->id)
+                ->where('status', 'menunggu')->whereDoesntHave('kunjunganTujuan', fn ($query) => $query->where('status', 'selesai'))->exists();
+            if ($openReferral) {
+                throw ValidationException::withMessages(['ke_poli_id' => 'Rujukan ke poli ini masih aktif. Gunakan rujukan yang sudah diterbitkan.']);
+            }
+
             $template = filled($data['surat_template_id'] ?? null)
                 ? CorrespondenceTemplate::query()->where('is_active', true)->lockForUpdate()->findOrFail($data['surat_template_id'])
                 : null;
@@ -1010,7 +1040,7 @@ class PemeriksaanController extends Controller
             }
 
             $kunjungan->loadMissing(['pasien', 'dokter', 'poliklinik', 'pemeriksaan']);
-            $date = Carbon::parse($kunjungan->tanggal);
+            $date = now();
             $template ??= $correspondence->defaultTemplate('rujukan_internal');
             $number = $correspondence->nextNumber($template, $date);
             $snapshot = app(MedicalLetterData::class)->snapshot($kunjungan, $kunjungan->dokter, $date);
@@ -1303,6 +1333,11 @@ class PemeriksaanController extends Controller
                 throw ValidationException::withMessages(['reason' => 'Tidak ada perubahan catatan untuk dibuatkan addendum.']);
             }
 
+            if (array_key_exists('kontrol_berikutnya', $fields) || array_key_exists('catatan', $fields)) {
+                app(VisitSchedulingService::class)->syncFollowUp(
+                    $lockedVisit, $payload['kontrol_berikutnya'] ?? null, $payload['catatan'] ?? null, $latestVersion->payload['kontrol_berikutnya'] ?? null,
+                );
+            }
             $noteRecorder->recordAddendum($examination, $payload, $request->user()->id, trim($data['reason']));
             if (array_key_exists('riwayat_alergi', $fields)) {
                 $this->allergies->remember($lockedVisit, $payload['riwayat_alergi']);

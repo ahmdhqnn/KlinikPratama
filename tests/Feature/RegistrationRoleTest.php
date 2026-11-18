@@ -316,7 +316,7 @@ class RegistrationRoleTest extends TestCase
         $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/pasien/rekam-medis'));
         $this->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
-            ->where('visits.total', 0));
+            ->where('visits.total', 1)->where('visits.data.0.actionType', 'detail'));
         $this->actingAs($user)->get(route('pendaftaran.pendaftaran-baru'))->assertForbidden();
         $this->actingAs($user)->get(route('users.index'))->assertForbidden();
     }

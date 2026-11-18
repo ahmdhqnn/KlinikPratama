@@ -1,3 +1,4 @@
+import { SearchResultsSkeleton } from '@/components/loading-skeletons';
 import { Link } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -6,11 +7,14 @@ interface PatientMatch { id: number; nama: string; no_rm: string }
 
 export function ExistingPatientSuggestions({ query }: { query: string }) {
     const [patients, setPatients] = useState<PatientMatch[]>([]);
+    const [loading, setLoading] = useState(false);
     useEffect(() => {
         setPatients([]);
+        setLoading(false);
         if (query.trim().length < 2) return;
         const controller = new AbortController();
         const timeout = window.setTimeout(async () => {
+            setLoading(true);
             try {
                 const params = new URLSearchParams({ q: query.trim() });
                 const response = await fetch(`/pendaftaran/pasien/search?${params}`, { headers: { Accept: 'application/json' }, signal: controller.signal });
@@ -20,10 +24,13 @@ export function ExistingPatientSuggestions({ query }: { query: string }) {
                 }
             } catch {
                 if (!controller.signal.aborted) setPatients([]);
+            } finally {
+                if (!controller.signal.aborted) setLoading(false);
             }
         }, 300);
         return () => { window.clearTimeout(timeout); controller.abort(); };
     }, [query]);
+    if (loading) return <SearchResultsSkeleton label="Memeriksa kemungkinan pasien terdaftar…" />;
     if (!patients.length) return null;
 
     return <aside className="rounded-xl border border-amber-200 bg-amber-50/60 p-4" aria-label="Pasien yang mungkin sudah terdaftar">

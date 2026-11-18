@@ -635,7 +635,10 @@ test('dashboard queues clarify each workflow and center headers, cells, and stat
         assert.ok(table, page);
         assert.ok(table.includes(expected), page);
         assert.match(table, /flex flex-col items-center/);
-        assertIconActions(table, 1);
+        assertIconActions(table, page === 'perawat/dashboard' ? 4 : 1);
+        if (page === 'perawat/dashboard') {
+            assert.match(table, /aria-label="Tindakan perawat"[^>]*disabled/);
+        }
         for (const cell of table.match(/<(?:th|td)\b[^>]*>/g) ?? []) {
             assert.match(cell, /text-center/);
             assert.doesNotMatch(cell, /text-left|text-right/);
@@ -744,7 +747,8 @@ test('dashboard summaries and day bars navigate to their related menus', async (
     assert.match(activeTreatmentTable, /Tindakan berlangsung/);
     assert.match(activeTreatmentTable, /Belum ditentukan/);
     assert.match(activeTreatmentTable, /aria-label="Lanjutkan tindakan"[^>]*href="\/pelayanan\/tindakan-perawat\/1#pelaksanaan-tindakan"/);
-    assertIconActions(activeTreatmentTable, 1);
+    assertIconActions(activeTreatmentTable, 4);
+    assert.match(activeTreatmentTable, /aria-label="Pengkajian awal"[^>]*disabled/);
 });
 
 test('registration visit editor returns to its visit detail with the shared back button style', async () => {
@@ -1013,14 +1017,61 @@ for (const [label, dates] of [
     test(`top diagnosis renders ${label}`, async () => {
         const html = await renderPage('pendaftaran/laporan-top-diagnosa', {
             filters: dates,
+            exportUrl: '/pendaftaran/laporan-top-diagnosa/export',
             summary: { diagnosisCount: 1, caseCount: 3 },
             diagnoses: { ...singlePage, total: 1, to: 1, data: [{ rank: 1, code: 'J00', name: 'Diagnosis uji', count: 3, percentage: 100 }] },
         });
         assert.match(html, /Diagnosis terbanyak/);
         assert.match(html, /Diagnosis uji/);
         assert.doesNotMatch(html, /Invalid Date|NaN/);
+        const total = html.indexOf('Total catatan diagnosis');
+        const filter = html.indexOf('aria-label="Filter data"');
+        const table = html.indexOf('<table');
+        assert.ok(total >= 0 && total < filter && filter < table);
+        assert.match(html.slice(filter, table), /Ekspor Excel/);
     });
 }
+
+test('internal referral archive exposes registration only for an actionable referral', async () => {
+    const referral = { id: 1, number: 'RI-001', date: '26/10/2026', patient: 'Pasien Rujukan', visitNumber: 'KNJ-ASAL',
+        fromClinic: 'Poli Umum', toClinic: 'Poli Gigi', doctor: 'Dokter Uji', printUrl: '/persuratan/rujukan/1' };
+    const html = await renderPage('persuratan/index', {
+        filters: { search: '' }, isAdmin: true, templates: pageOf([]), letters: pageOf([]), eligibleVisits: null,
+        referrals: pageOf([
+            { ...referral, status: 'menunggu', registrationUrl: '/pendaftaran/pendaftaran-baru?rujukan_internal_id=1' },
+            { ...referral, id: 2, status: 'terdaftar', destinationVisit: 'KNJ-TUJUAN', destinationUrl: '/pelayanan/kunjungan/2' },
+        ]),
+    });
+    assert.match(html, /aria-label="Daftar rujukan internal"/);
+    assert.match(html, /Menunggu pendaftaran/);
+    assert.match(html, /Terdaftar di poli tujuan/);
+    assert.match(html, /aria-label="Daftarkan ke poli tujuan"[^>]*href="[^"]+rujukan_internal_id=1"/);
+    assert.match(html, /<button[^>]*aria-label="Daftarkan ke poli tujuan"[^>]*disabled/);
+    assert.match(html, /aria-label="Detail kunjungan tujuan"[^>]*href="\/pelayanan\/kunjungan\/2"/);
+    const registration = await renderPage('pendaftaran/rujukan-internal', {
+        search: '',
+        referrals: pageOf([{ ...referral, status: 'terdaftar', printUrl: null, destinationUrl: '/pendaftaran/kunjungan/2' }]),
+    });
+    assert.match(registration, /aria-label="Detail kunjungan tujuan"[^>]*href="\/pendaftaran\/kunjungan\/2"/);
+    assert.doesNotMatch(registration, /Cetak rujukan internal/);
+    assert.ok([...registration.matchAll(/<t[dh] [^>]*class="([^"]+)"/g)].every(([, classes]) => classes.includes('text-center')));
+});
+
+test('internal referral registration locks the patient and destination while leaving the date and doctor fields available', async () => {
+    const html = await renderPage('pendaftaran/pendaftaran-baru', {
+        initialTab: 'registered', internalReferral: { id: 1, number: 'RI-001', clinicId: 2 }, referralBackUrl: '/pendaftaran/rujukan-internal',
+        initialPatient: { id: 1, no_rm: 'RM-001', nama: 'Pasien Rujukan', jenis_kelamin: 'P' },
+        clinics: [{ id: 1, name: 'Poli Umum', type: 'umum' }, { id: 2, name: 'Poli Gigi', type: 'gigi' }],
+        today: '2026-10-26', doctorsUrl: '/pendaftaran/dokter/terjadwal',
+    });
+    assert.match(html, /Pendaftaran rujukan internal/);
+    assert.match(html, /Pasien Rujukan/);
+    const clinicControl = html.match(/<button(?=[^>]*id="poliklinik_id")[^>]*>/)?.[0];
+    assert.match(clinicControl ?? '', /\sdisabled=""/);
+    assert.match(html, /id="dokter_id"/);
+    assert.match(html, /id="reservation-date"/);
+    assert.doesNotMatch(html, /id="patient-search"|Ganti pasien/);
+});
 
 for (const initialTab of ['manual', 'directory', 'registered']) {
     test(`registration tab ${initialTab} renders only its own form`, async () => {
@@ -1733,7 +1784,7 @@ async function renderRoleNavigation(role, url, clinicType = null) {
 
 for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
     ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Pendaftaran &amp; kunjungan', 'Pelayanan klinis', 'Farmasi &amp; persediaan', 'Laporan', 'Data master', 'Administrasi', 'Akun'], 26],
-    ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 9],
+    ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 10],
     ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
     ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
     ['dokter', 'umum', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 13],
@@ -1749,6 +1800,7 @@ for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
         assert.deepEqual(links.slice(0, 2), [dashboard, primary]);
         assert.equal(links.length, linkCount, 'menu count matches the role scope');
         assert.equal(new Set(links).size, links.length, 'each destination appears once');
+        assert.equal(links.includes('/pendaftaran/rujukan-internal'), role === 'pendaftaran');
         if (role === 'dokter') {
             assert.ok(links.includes('/dokter/tindakan'));
             assert.ok(links.includes('/dokter/kunjungan'));
@@ -1832,10 +1884,45 @@ test('confirmed absence is displayed explicitly while real inherited histories r
     assert.match(history.match(/<button\b[^>]*id="rpd-none"[^>]*>/)?.[0], /aria-checked="true"/);
     assert.match(history, /id="riwayat-keluarga"[^>]*>Hipertensi pada ayah<\/textarea>/);
     assert.match(history.match(/<button\b[^>]*id="riwayat-keluarga-none"[^>]*>/)?.[0], /aria-checked="false"/);
+    assert.doesNotMatch(history.match(/<button\b[^>]*id="riwayat-keluarga-none"[^>]*>/)?.[0], /\sdisabled(?:=|\s|>)/);
     assert.match(history, /id="riwayat-alergi-dokter"[^>]*>Penisilin<\/textarea>/);
     assert.match(html, /Peringatan alergi/);
 });
 
+
+test('intraoral narrative keeps saved findings attached to the recorded surfaces without inferring clinical results', async () => {
+    const { dentalIntraoralNarrative } = await server.ssrLoadModule('/resources/js/lib/dental-intraoral-narrative.ts');
+    const options = { surfaces: { M: 'Mesial', L: 'Lingual/palatal', D: 'Distal' }, findings: { caries: 'Karies', sound: 'Sehat' } };
+    const caries = { toothFdi: '21', findingCode: 'caries', detailSummary: 'Dentin', notes: 'Tepi email putih kecokelatan' };
+    assert.equal(dentalIntraoralNarrative([
+        { ...caries, surface: 'M' },
+        { ...caries, surface: 'L' },
+        { ...caries, surface: 'D', detailSummary: null, notes: 'Belum diketahui' },
+        { toothFdi: '11', surface: 'M', findingCode: 'sound' },
+    ], 'Mukosa labial dalam batas normal.', options), [
+        'Gigi 11: Sehat pada permukaan Mesial (M).',
+        'Gigi 21: Karies pada permukaan Mesial (M), Lingual/palatal (L). Dentin. Catatan: Tepi email putih kecokelatan. Karies pada permukaan Distal (D).',
+        'Ringkasan odontogram: Mukosa labial dalam batas normal.',
+    ].join('\n\n'));
+    assert.equal(dentalIntraoralNarrative([], 'Belum dicatat', options), '');
+});
+
+test('intraoral draft updates generated values and preserves an existing clinical note', async () => {
+    const { syncIntraoralNarrative } = await server.ssrLoadModule('/resources/js/lib/dental-intraoral-narrative.ts');
+    const original = 'Gigi 46: Karies pada permukaan Oklusal (O).';
+    const updated = 'Gigi 46: Restorasi pada permukaan Oklusal (O).';
+    const written = 'Gingiva regio anterior tampak merah.';
+    assert.equal(syncIntraoralNarrative('', '', original), original);
+    assert.equal(syncIntraoralNarrative(original, original, updated), updated);
+    assert.equal(syncIntraoralNarrative(original, original, ''), '');
+    assert.equal(syncIntraoralNarrative(written, original, updated), written);
+    assert.equal(syncIntraoralNarrative(original, original, 'a'.repeat(10001)), '');
+
+    const html = await renderPage('pelayanan/pemeriksaan/show', examinationProps('gigi'));
+    assert.match(html, /id="pemeriksaan_fisik"[^>]*>Kavitas gigi 46<\/textarea>/);
+    assert.match(html, /Kolom kosong diisi dari odontogram yang sudah disimpan/);
+    assert.doesNotMatch(html, /Draf naratif dari odontogram|Pratinjau naratif intraoral/);
+});
 
 test('dental diagnosis starts with saved examination findings and counts distinct teeth across surfaces', async () => {
     const props = examinationProps('gigi');
@@ -1852,6 +1939,7 @@ test('dental diagnosis starts with saved examination findings and counts distinc
 
     assert.match(html, /aria-selected="true"[^>]*data-value="diagnosa"/);
     assert.match(summary, /Ringkasan pemeriksaan &amp; odontogram/);
+    assert.match(summary, /aria-controls="dental-examination-summary-content"[^>]*aria-expanded="true"/);
     assert.match(summary, />2 gigi</);
     assert.match(summary, />3 temuan</);
     assert.match(summary, /Nyeri sejak kemarin/);
@@ -1882,10 +1970,11 @@ test('dental treatment starts with the primary diagnosis, coding system and save
     assert.match(summary, /aria-label="Ringkasan diagnosis tercatat"/);
     const table = summary.match(/<table[^>]*aria-label="Ringkasan diagnosis tercatat"[\s\S]*?<\/table>/)?.[0];
     assert.ok(table);
-    for (const cell of table.matchAll(/<(?:th|td)\b[^>]*class="([^"]*)"/g)) {
-        assert.match(cell[1], /text-center/);
-        assert.doesNotMatch(cell[1], /text-left|align-top/);
-    }
+    assert.match(table, />Catatan<\/th>/);
+    const cells = [...table.matchAll(/<(?:th|td)\b[^>]*class="([^"]*)"/g)];
+    cells.forEach(([, className], index) => {
+        assert.match(className, index % 2 === 1 ? /text-left/ : /text-center/);
+    });
     assert.ok(summary.indexOf('Karies dentin') < summary.indexOf('Gingivitis kronis'));
     assert.match(summary, /ICD-10 WHO/);
     assert.match(summary, /legacy_system/);
@@ -3604,6 +3693,50 @@ test('dental guidance handles noncaries diagnoses and reports changed or inconsi
     const html = await renderPage('pelayanan/pemeriksaan/show', props);
     assert.match(html, /Tabel diagnosis tercatat/);
     assert.doesNotMatch(html, /id="diagnosis-tooth"|id="diagnosis-surfaces"/);
+});
+
+test('recorded diagnoses and treatments wrap notes with the same disclosure as odontogram findings', async () => {
+    const note = 'Catatan klinis panjang.\nLanjutan catatan pada baris kedua.';
+    for (const clinicType of ['umum', 'gigi']) {
+        const props = examinationProps(clinicType);
+        props.visit.diagnoses[0].note = note;
+        props.visit.treatments = [
+            { id: 1, name: 'Tindakan uji', code: '23.2', quantity: 2, executionRole: 'dokter', note },
+            { id: 2, name: 'Tindakan tanpa catatan', quantity: 1, executionRole: 'perawat', note: '' },
+        ];
+        for (const [tab, label] of [['diagnosa', 'Tabel diagnosis tercatat'], ['tindakan', 'Tabel tindakan tercatat']]) {
+            props.initialTab = tab;
+            const html = await renderPage('pelayanan/pemeriksaan/show', props);
+            const table = [...html.matchAll(/<table\b[^>]*>[\s\S]*?<\/table>/g)].find(([markup]) => markup.includes('aria-label="' + label + '"'))?.[0];
+            assert.ok(table, label);
+            assert.match(table, /table-fixed/);
+            assert.doesNotMatch(table, /Lihat catatan lengkap|Tutup catatan/, 'Render controls after measuring the available width');
+            assert.equal(table.split(note).length, 2, 'Render one copy of the note with its original line breaks');
+        }
+    }
+});
+
+test('general examination summaries and prescriptions share the recorded-table note controls', async () => {
+    const props = examinationProps('umum');
+    props.visit.examination.physicalSystems = { Abdomen: 'Temuan pemeriksaan pertama.\nLanjutan temuan.' };
+    props.visit.diagnoses[0].note = 'Pertimbangan diagnosis tercatat.';
+    props.visit.prescription.items = [
+        { id: 1, name: 'Resep klinik uji', type: 'jadi', quantity: 2, unit: 'tablet', instructions: 'Instruksi resep klinik uji.', external: false },
+        { id: 2, name: 'Resep luar uji', type: 'jadi', quantity: 1, unit: 'tablet', instructions: 'Instruksi resep luar uji.', external: true },
+    ];
+    for (const [tab, label, value] of [
+        ['diagnosa', 'Temuan pemeriksaan per sistem', props.visit.examination.physicalSystems.Abdomen],
+        ['tindakan', 'Ringkasan diagnosis tercatat', props.visit.diagnoses[0].note],
+        ['resep', 'Tabel resep tercatat', 'Instruksi resep klinik uji.'],
+        ['resep-luar', 'Tabel resep tercatat', 'Instruksi resep luar uji.'],
+    ]) {
+        props.initialTab = tab;
+        const html = examinationPanel(await renderPage('pelayanan/pemeriksaan/show', props), tab);
+        const table = [...html.matchAll(/<table\b[^>]*>[\s\S]*?<\/table>/g)].find(([markup]) => markup.includes('aria-label="' + label + '"'))?.[0];
+        assert.ok(table?.includes('table-fixed'), label);
+        assert.doesNotMatch(table, /Lihat catatan lengkap|Tutup catatan/);
+        assert.equal(table.split(value).length, 2, label);
+    }
 });
 
 test('suggested procedure searches preserve tooth context and do not treat tooth selection as a procedure draft', async () => {

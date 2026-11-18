@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\ClinicalNoteRecorder;
 use App\Models\CorrespondenceTemplate;
+use App\Models\JadwalDokter;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Pasien;
@@ -134,6 +135,81 @@ class PersuratanFlowTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('persuratan/cetak')->where('document.backUrl', route('pelayanan.pemeriksaan.show', $visit).'?tab=rujukan'));
         $this->assertDatabaseHas('clinical_audit_events', ['action' => 'medical_letter.print', 'kunjungan_id' => $visit->id]);
         $this->assertDatabaseHas('clinical_audit_events', ['action' => 'internal_referral.print', 'kunjungan_id' => $visit->id]);
+    }
+
+    public function test_internal_referral_creates_a_scoped_destination_visit_and_follows_its_status(): void
+    {
+        $this->travelTo('2026-10-26 09:00:00');
+        [$sourceDoctor, , $origin, $originClinic, $destination, $patient] = $this->visitFixture();
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $recipient = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $recipientDoctor = $this->createDoctor($recipient, 'DOK-RUJUKAN');
+        JadwalDokter::create([
+            'dokter_id' => $recipientDoctor->id, 'poliklinik_id' => $destination->id, 'hari' => 'senin',
+            'jam_mulai' => '08:00', 'jam_selesai' => '16:00', 'is_active' => true,
+        ]);
+
+        $issue = route('pelayanan.pemeriksaan.rujukan.store', $origin);
+        $this->actingAs($sourceDoctor)->post($issue, ['ke_poli_id' => $originClinic->id])->assertSessionHasErrors('ke_poli_id');
+        $this->post($issue, ['ke_poli_id' => $destination->id, 'catatan' => 'Evaluasi lanjutan', 'konten_surat' => 'Mohon konsultasi.'])
+            ->assertSessionHasNoErrors();
+        $this->post($issue, ['ke_poli_id' => $destination->id])->assertSessionHasErrors('ke_poli_id');
+        $referral = RujukanInternal::sole();
+        $registration = route('pendaftaran.pendaftaran-baru', ['rujukan_internal_id' => $referral->id]);
+        $this->actingAs($admin)->get(route('persuratan.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('referrals.data.0.status', 'menunggu')->where('referrals.data.0.registrationUrl', $registration));
+        $this->get($registration)->assertInertia(fn (Assert $page) => $page->where('initialTab', 'registered')
+            ->where('initialPatient.id', $patient->id)->where('internalReferral.clinicId', $destination->id));
+
+        $payload = ['rujukan_internal_id' => $referral->id, 'pasien_id' => $patient->id, 'poliklinik_id' => $destination->id, 'dokter_id' => $recipientDoctor->id, 'tanggal' => today()->toDateString()];
+        $register = route('pendaftaran.store-pasien-lama');
+        $registrar = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
+        $directory = route('pendaftaran.rujukan-internal');
+        $this->actingAs($recipient)->get($directory)->assertForbidden();
+        $this->get($registration)->assertForbidden();
+        $this->post($register, $payload)->assertForbidden();
+
+        $this->actingAs($registrar)->get($directory)->assertInertia(fn (Assert $page) => $page
+            ->component('pendaftaran/rujukan-internal')
+            ->where('referrals.data.0.registrationUrl', $registration)
+            ->where('referrals.data.0.printUrl', null)
+            ->missing('referrals.data.0.note'));
+        $this->get($registration)->assertInertia(fn (Assert $page) => $page
+            ->where('initialPatient.id', $patient->id)
+            ->where('internalReferral.clinicId', $destination->id)
+            ->where('referralBackUrl', $directory));
+        $this->post($register, [...$payload, 'pasien_id' => Pasien::create(['no_rm' => 'RM-BUKAN-RUJUKAN', 'nama' => 'Pasien lain', 'jenis_kelamin' => 'P'])->id])->assertNotFound();
+        $this->post($register, [...$payload, 'poliklinik_id' => $originClinic->id])->assertSessionHasErrors('poliklinik_id');
+        $this->post($register, $payload)->assertSessionHasNoErrors();
+        $visit = $referral->kunjunganTujuan()->sole();
+        $this->assertSame($patient->id, $visit->pasien_id);
+        $this->assertSame($destination->id, $visit->poliklinik_id);
+        $this->assertSame($recipientDoctor->id, $visit->dokter_id);
+        $this->post($register, $payload)->assertSessionHasErrors('rujukan_internal_id');
+        $this->get(route('pendaftaran.rujukan-internal', ['search' => $visit->no_kunjungan]))->assertInertia(fn (Assert $page) => $page
+            ->where('referrals.total', 1)->where('referrals.data.0.status', 'terdaftar')
+            ->where('referrals.data.0.registrationUrl', null)
+            ->where('referrals.data.0.destinationUrl', route('pendaftaran.kunjungan.show', $visit)));
+        $this->get(route('pendaftaran.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page->where('backUrl', $directory));
+        $this->actingAs($admin)->get(route('persuratan.index', ['search' => $visit->no_kunjungan]))->assertInertia(fn (Assert $page) => $page
+            ->where('referrals.total', 1)->where('referrals.data.0.status', 'terdaftar')
+            ->where('referrals.data.0.registrationUrl', null)->where('referrals.data.0.destinationVisit', $visit->no_kunjungan));
+        $this->post(route('pendaftaran.batal-kunjungan', $visit))->assertRedirect();
+        $this->get(route('persuratan.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('referrals.data.0.status', 'batal')->where('referrals.data.0.registrationUrl', $registration));
+
+        $this->post($register, $payload)->assertSessionHasNoErrors();
+        $destinationVisit = $referral->kunjunganTujuan()->where('status', 'menunggu')->sole();
+        $destinationVisit->update(['status' => 'pemeriksaan']);
+        Screening::create(['kunjungan_id' => $destinationVisit->id, 'submitted_at' => now()]);
+        $this->actingAs($recipient)->get(route('pelayanan.pemeriksaan.show', $destinationVisit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.incomingReferral.note', 'Evaluasi lanjutan')->where('visit.incomingReferral.originVisit', $origin->no_kunjungan));
+        $this->get(route('persuratan.rujukan.cetak', $referral))->assertNotFound();
+        $this->actingAs($sourceDoctor)->get(route('pelayanan.pemeriksaan.show', $destinationVisit))->assertForbidden();
+        $this->get(route('persuratan.index'))->assertInertia(fn (Assert $page) => $page->where('referrals.data.0.status', 'dilayani')
+            ->where('referrals.data.0.destinationUrl', null));
+        $destinationVisit->update(['status' => 'selesai']);
+        $this->get(route('persuratan.index'))->assertInertia(fn (Assert $page) => $page->where('referrals.data.0.status', 'selesai'));
     }
 
     public function test_doctor_can_print_external_prescription_but_cannot_read_another_doctors_documents(): void

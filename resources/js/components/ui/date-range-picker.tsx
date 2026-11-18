@@ -143,7 +143,7 @@ export function DateRangePicker({
                         aria-controls={calendarId}
                         aria-haspopup="dialog"
                         aria-label={id ? undefined : displayName}
-                        className={cn('clinic-canvas-control flex h-10 min-w-0 w-full items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm outline-none transition hover:border-neutral-300 focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50', completeRange || from || to ? 'text-neutral-950' : 'text-neutral-400', fieldControlInvalidClassName, className)}
+                        className={cn('clinic-canvas-control flex h-10 min-w-0 w-full items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-surface px-3.5 py-2 text-left text-sm outline-none transition hover:border-neutral-300 focus-visible:border-neutral-500 focus-visible:ring-4 focus-visible:ring-neutral-500/10 disabled:cursor-not-allowed disabled:opacity-50', completeRange || from || to ? 'text-neutral-950' : 'text-neutral-500', fieldControlInvalidClassName, className)}
                         disabled={disabled || readOnly}
                         id={id ?? calendarId + "-trigger"}
                         onClick={() => {
@@ -180,7 +180,7 @@ export function DateRangePicker({
                                 <button disabled={!isMonthWithinBounds(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1), min, max)} aria-label="Bulan berikutnya" className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 disabled:cursor-not-allowed disabled:opacity-40" onClick={() => moveMonth(1)} type="button"><ChevronRight aria-hidden="true" className="size-4" /></button>
                             </div>
                             <div className="grid grid-cols-7 gap-1">
-                                {weekdays.map((day) => <span aria-hidden="true" className="py-1 text-center text-[11px] font-medium text-neutral-400" key={day}>{day}</span>)}
+                                {weekdays.map((day) => <span aria-hidden="true" className="py-1 text-center text-[11px] font-medium text-neutral-500" key={day}>{day}</span>)}
                                 {days.map((date) => {
                                     const dateKey = toDateKey(date);
                                     const inMonth = date.getMonth() === visibleMonth.getMonth();

@@ -64,12 +64,12 @@ class NurseQueueBadgeTest extends TestCase
             ->where('nurseQueues.assessment', 2)->where('nurseQueues.treatments', 1)
             ->where('stats.menunggu_ttv', 2)->where('stats.menunggu_tindakan', 1)
             ->where('stats.triase_darurat', 1)
-            ->where('visits.total', 3)
-            ->where('visits.data.0.actionLabel', 'Mulai pengkajian')
-            ->where('visits.data.1.actionLabel', 'Lanjutkan pengkajian')
-            ->where('visits.data.2.actionType', 'procedure')
-            ->where('visits.data.2.actionLabel', 'Mulai tindakan')
-            ->where('visits.data.2.actionUrl', route('pelayanan.tindakan.show', $treatmentVisit).'#pelaksanaan-tindakan')
+            ->where('visits.total', 4)->has('visits.data', 3)->where('visits.lastPage', 2)
+            ->where('visits.data.1.actionType', 'detail')
+            ->where('visits.data.2.actionLabel', 'Lanjutkan pengkajian')
+            ->where('visits.data.0.actionType', 'procedure')
+            ->where('visits.data.0.actionLabel', 'Mulai tindakan')
+            ->where('visits.data.0.actionUrl', route('pelayanan.tindakan.show', $treatmentVisit).'#pelaksanaan-tindakan')
             ->where('clinicName', $clinic->nama)->has('schedules', 1)->where('schedules.0.clinic', $clinic->nama)->where('schedules.0.doctor', 'Dokter Poli'));
         $this->get(route('pelayanan.screening.index'))->assertInertia(fn (Assert $page) => $page
             ->where('nurseQueues.assessment', 2)->where('nurseQueues.treatments', 1)
@@ -88,7 +88,10 @@ class NurseQueueBadgeTest extends TestCase
             ->where('nurseQueues.assessment', 1)->where('nurseQueues.treatments', 0)
             ->where('stats.menunggu_ttv', 1)->where('stats.menunggu_tindakan', 0)
             ->where('stats.triase_darurat', 0)
-            ->where('visits.total', 1));
+            ->where('visits.total', 4)
+            ->where('visits.data.0.status', 'selesai')
+            ->where('visits.data.0.actionType', 'detail')
+            ->where('visits.data.0.actionUrl', route('pelayanan.kunjungan.show', $treatmentVisit)));
         $this->get(route('pelayanan.screening.index'))->assertInertia(fn (Assert $page) => $page
             ->where('todayVisits.total', 1)->where('visits.total', 5));
         $this->get(route('pelayanan.tindakan.index'))->assertInertia(fn (Assert $page) => $page
@@ -153,7 +156,10 @@ class NurseQueueBadgeTest extends TestCase
         $this->actingAs($nurse)->get(route('pelayanan.screening.index'))->assertInertia(fn (Assert $page) => $page
             ->where('todayVisits.total', 0)->where('visits.data.0.status', 'pemeriksaan')
             ->where('visits.data.0.examinationStarted', true));
-        $this->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page->where('visits.total', 0));
+        $this->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
+            ->where('visits.total', 1)->where('visits.data.0.examinationStarted', true)
+            ->where('visits.data.0.actionType', 'detail')
+            ->where('visits.data.0.actionUrl', route('pelayanan.kunjungan.show', $visit)));
         $this->get(route('pelayanan.tindakan.index'))->assertInertia(fn (Assert $page) => $page
             ->where('todayVisits.total', 0)->where('visits.data.0.status', 'pemeriksaan')
             ->where('visits.data.0.url', null)->where('visits.data.0.pendingCount', 0)
@@ -177,5 +183,15 @@ class NurseQueueBadgeTest extends TestCase
             ->where('visits.total', 1)->where('visits.data.0.actionType', 'procedure')
             ->where('visits.data.0.treatmentStarted', true)
             ->where('visits.data.0.actionLabel', 'Lanjutkan tindakan'));
+
+        $treatment->update(['execution_status' => 'completed']);
+        foreach (['farmasi', 'selesai'] as $status) {
+            $visit->update(['status' => $status]);
+            $this->get(route('perawat.dashboard'))->assertInertia(fn (Assert $page) => $page
+                ->where('visits.total', 1)->where('visits.data.0.status', $status)
+                ->where('visits.data.0.actionType', 'detail')
+                ->where('visits.data.0.actionUrl', route('pelayanan.kunjungan.show', $visit))
+                ->where('nurseQueues.treatments', 0));
+        }
     }
 }

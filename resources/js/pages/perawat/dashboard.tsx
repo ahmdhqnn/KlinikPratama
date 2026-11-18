@@ -45,7 +45,7 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ringkasan pelayanan keperawatan</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Pantau pengkajian awal, pemeriksaan dokter, dan tindakan perawat di poliklinik Anda. Antrean menampilkan pasien yang memerlukan layanan hari ini.</p>
+                    <p className="mt-1 text-sm text-neutral-500">Pantau pengkajian awal, pemeriksaan dokter, dan tindakan perawat di poliklinik Anda.</p>
                 </div>
                 <section aria-label="Statistik keperawatan" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>a>section]:h-full [&>a>section>div]:h-full">
                     <StatCard description={`Seluruh kunjungan poli Anda${todayCountDescription(stats.total_kunjungan_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan" value={stats.total_kunjungan} />
@@ -88,11 +88,11 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ClipboardCheck className="size-5" /></span>
-                            <div><CardTitle>Siap dilayani hari ini</CardTitle><CardDescription className="mt-1">Pasien yang menunggu pengkajian awal atau tindakan perawat. Yang paling lama menunggu ditampilkan lebih dulu.</CardDescription></div>
+                            <div><CardTitle>Kunjungan poli hari ini</CardTitle><CardDescription className="mt-1">Seluruh kunjungan hari ini di poliklinik Anda, termasuk yang sudah dilayani. Kunjungan terbaru tampil lebih dulu.</CardDescription></div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <VisitTable visits={visits.data} />
+                        <VisitTable nursing visits={visits.data} />
                         <Pagination pagination={visits} />
                     </CardContent>
                     <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/screening">Antrean pengkajian</Link></Button><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/tindakan-perawat">Antrean tindakan</Link></Button></div>

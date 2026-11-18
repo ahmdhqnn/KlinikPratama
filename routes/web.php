@@ -311,6 +311,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('pendaftaran-baru', [RegistrationController::class, 'pendaftaranBaru'])->name('pendaftaran-baru');
         Route::post('pendaftaran-baru', [RegistrationController::class, 'storePasienBaru'])->name('store-pasien-baru');
 
+        Route::get('rujukan-internal', [RegistrationController::class, 'rujukanInternal'])->name('rujukan-internal');
+
         Route::get('pendaftaran-lama', [RegistrationController::class, 'pendaftaranLama'])->name('pendaftaran-lama');
         Route::post('pendaftaran-lama', [RegistrationController::class, 'storePasienLama'])->name('store-pasien-lama');
         Route::get('pasien/search', [RegistrationController::class, 'searchPasien'])->name('pasien.search');

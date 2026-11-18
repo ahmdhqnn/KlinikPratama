@@ -8,7 +8,13 @@
 @source '../js';
 @source '../../vendor/livewire/flux/stubs/**/*.blade.php';
 
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark {
+    @media screen {
+        &:where(.dark, .dark *) {
+            @slot;
+        }
+    }
+}
 
 @layer components {
     .odontogram-fdi {
@@ -32,24 +38,26 @@
         --tooth-fill: var(--dental-enamel);
         --tooth-stroke: var(--dental-outline);
     }
-    .dark .odontogram-fdi:not(.odontogram-print) {
-        --dental-enamel: #dfcfb4;
-        --dental-outline: #a59078;
-        --dental-sound: #eee2cc;
-        --dental-sound-line: #7fb89c;
-        --dental-caries: #b97470;
-        --dental-caries-line: #f3aca5;
-        --dental-restored: #aebfd2;
-        --dental-restored-line: #86b5e3;
-        --dental-muted: #69717b;
-        --dental-muted-line: #abb2bc;
-        --dental-fracture: #c6a277;
-        --dental-fracture-line: #f2c58b;
-        --dental-root: #ad8a64;
-        --dental-root-line: #d6ad7d;
-        --dental-gum: #925e61;
-        --dental-gum-line: #c58e8e;
-        --dental-selection: #93c5fd;
+    @media screen {
+        .dark .odontogram-fdi:not(.odontogram-print) {
+            --dental-enamel: #dfcfb4;
+            --dental-outline: #a59078;
+            --dental-sound: #eee2cc;
+            --dental-sound-line: #7fb89c;
+            --dental-caries: #b97470;
+            --dental-caries-line: #f3aca5;
+            --dental-restored: #aebfd2;
+            --dental-restored-line: #86b5e3;
+            --dental-muted: #69717b;
+            --dental-muted-line: #abb2bc;
+            --dental-fracture: #c6a277;
+            --dental-fracture-line: #f2c58b;
+            --dental-root: #ad8a64;
+            --dental-root-line: #d6ad7d;
+            --dental-gum: #925e61;
+            --dental-gum-line: #c58e8e;
+            --dental-selection: #93c5fd;
+        }
     }
     .odontogram-fdi .tooth-shape {
         fill: var(--tooth-fill);
@@ -78,7 +86,7 @@
     .odontogram-fdi .tooth-selection-ring { color: var(--dental-selection); }
     .odontogram-fdi .gingiva-tissue { fill: var(--dental-gum); stroke: var(--dental-gum-line); stroke-width: 1.4; }
     .odontogram-fdi .gingiva-contour { fill: none; stroke: var(--dental-gum-line); stroke-width: 1; stroke-linecap: round; opacity: 0.6; }
-    .odontogram-fdi .arch-divider { stroke: var(--color-neutral-300); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.7; }
+    .odontogram-fdi .arch-divider { stroke: var(--color-neutral-600); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.7; }
     .odontogram-fdi .arch-label { fill: var(--color-neutral-700); font-family: var(--font-sans); font-size: 16px; font-weight: 600; }
     .odontogram-fdi .fdi-number { fill: var(--color-neutral-700); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: central; user-select: none; }
     .odontogram-fdi .fdi-number.is-active { fill: var(--dental-selection); font-weight: 700; }
@@ -122,7 +130,7 @@
     --clinic-neutral-200: hsl(0 0% 89.8%);
     --clinic-neutral-300: hsl(0 0% 83.1%);
     --clinic-neutral-400: hsl(0 0% 63.9%);
-    --clinic-neutral-500: hsl(0 0% 45.1%);
+    --clinic-neutral-500: hsl(0 0% 40%);
     --clinic-neutral-600: hsl(0 0% 32.2%);
     --clinic-neutral-700: hsl(0 0% 25.1%);
     --clinic-neutral-800: hsl(0 0% 14.9%);
@@ -148,39 +156,63 @@
     --color-accent: var(--clinic-neutral-900);
     --color-accent-content: var(--clinic-neutral-700);
     --color-accent-foreground: var(--clinic-neutral-50);
-    --color-amber-50: color-mix(in srgb, var(--color-amber-500) 16%, var(--clinic-surface));
-    --color-amber-100: color-mix(in srgb, var(--color-amber-500) 24%, var(--clinic-surface));
-    --color-amber-200: color-mix(in srgb, var(--color-amber-500) 42%, var(--clinic-surface));
-    --color-blue-50: color-mix(in srgb, var(--color-blue-500) 16%, var(--clinic-surface));
-    --color-blue-100: color-mix(in srgb, var(--color-blue-500) 24%, var(--clinic-surface));
-    --color-blue-200: color-mix(in srgb, var(--color-blue-500) 42%, var(--clinic-surface));
-    --color-violet-50: color-mix(in srgb, var(--color-violet-500) 16%, var(--clinic-surface));
-    --color-violet-100: color-mix(in srgb, var(--color-violet-500) 24%, var(--clinic-surface));
-    --color-violet-200: color-mix(in srgb, var(--color-violet-500) 42%, var(--clinic-surface));
-    --color-orange-50: color-mix(in srgb, var(--color-orange-500) 16%, var(--clinic-surface));
-    --color-orange-100: color-mix(in srgb, var(--color-orange-500) 24%, var(--clinic-surface));
-    --color-orange-200: color-mix(in srgb, var(--color-orange-500) 42%, var(--clinic-surface));
-    --color-pink-50: color-mix(in srgb, var(--color-pink-500) 16%, var(--clinic-surface));
-    --color-pink-100: color-mix(in srgb, var(--color-pink-500) 24%, var(--clinic-surface));
-    --color-pink-200: color-mix(in srgb, var(--color-pink-500) 42%, var(--clinic-surface));
-    --color-emerald-50: color-mix(in srgb, var(--color-emerald-500) 16%, var(--clinic-surface));
-    --color-emerald-100: color-mix(in srgb, var(--color-emerald-500) 24%, var(--clinic-surface));
-    --color-emerald-200: color-mix(in srgb, var(--color-emerald-500) 42%, var(--clinic-surface));
-    --color-red-50: color-mix(in srgb, var(--color-red-500) 16%, var(--clinic-surface));
-    --color-red-100: color-mix(in srgb, var(--color-red-500) 24%, var(--clinic-surface));
-    --color-red-200: color-mix(in srgb, var(--color-red-500) 42%, var(--clinic-surface));
-    --color-green-50: color-mix(in srgb, var(--color-green-500) 16%, var(--clinic-surface));
-    --color-green-100: color-mix(in srgb, var(--color-green-500) 24%, var(--clinic-surface));
-    --color-green-200: color-mix(in srgb, var(--color-green-500) 42%, var(--clinic-surface));
-    --color-yellow-50: color-mix(in srgb, var(--color-yellow-500) 16%, var(--clinic-surface));
-    --color-yellow-100: color-mix(in srgb, var(--color-yellow-500) 24%, var(--clinic-surface));
-    --color-yellow-200: color-mix(in srgb, var(--color-yellow-500) 42%, var(--clinic-surface));
-    --color-purple-50: color-mix(in srgb, var(--color-purple-500) 16%, var(--clinic-surface));
-    --color-purple-100: color-mix(in srgb, var(--color-purple-500) 24%, var(--clinic-surface));
-    --color-purple-200: color-mix(in srgb, var(--color-purple-500) 42%, var(--clinic-surface));
-    --color-indigo-50: color-mix(in srgb, var(--color-indigo-500) 16%, var(--clinic-surface));
-    --color-indigo-100: color-mix(in srgb, var(--color-indigo-500) 24%, var(--clinic-surface));
-    --color-indigo-200: color-mix(in srgb, var(--color-indigo-500) 42%, var(--clinic-surface));
+}
+
+@media screen {
+    .dark {
+        --color-amber-50: color-mix(in srgb, var(--color-amber-500) 16%, var(--clinic-surface));
+        --color-amber-100: color-mix(in srgb, var(--color-amber-500) 24%, var(--clinic-surface));
+        --color-amber-200: color-mix(in srgb, var(--color-amber-500) 42%, var(--clinic-surface));
+        --color-blue-50: color-mix(in srgb, var(--color-blue-500) 16%, var(--clinic-surface));
+        --color-blue-100: color-mix(in srgb, var(--color-blue-500) 24%, var(--clinic-surface));
+        --color-blue-200: color-mix(in srgb, var(--color-blue-500) 42%, var(--clinic-surface));
+        --color-violet-50: color-mix(in srgb, var(--color-violet-500) 16%, var(--clinic-surface));
+        --color-violet-100: color-mix(in srgb, var(--color-violet-500) 24%, var(--clinic-surface));
+        --color-violet-200: color-mix(in srgb, var(--color-violet-500) 42%, var(--clinic-surface));
+        --color-orange-50: color-mix(in srgb, var(--color-orange-500) 16%, var(--clinic-surface));
+        --color-orange-100: color-mix(in srgb, var(--color-orange-500) 24%, var(--clinic-surface));
+        --color-orange-200: color-mix(in srgb, var(--color-orange-500) 42%, var(--clinic-surface));
+        --color-pink-50: color-mix(in srgb, var(--color-pink-500) 16%, var(--clinic-surface));
+        --color-pink-100: color-mix(in srgb, var(--color-pink-500) 24%, var(--clinic-surface));
+        --color-pink-200: color-mix(in srgb, var(--color-pink-500) 42%, var(--clinic-surface));
+        --color-emerald-50: color-mix(in srgb, var(--color-emerald-500) 16%, var(--clinic-surface));
+        --color-emerald-100: color-mix(in srgb, var(--color-emerald-500) 24%, var(--clinic-surface));
+        --color-emerald-200: color-mix(in srgb, var(--color-emerald-500) 42%, var(--clinic-surface));
+        --color-red-50: color-mix(in srgb, var(--color-red-500) 16%, var(--clinic-surface));
+        --color-red-100: color-mix(in srgb, var(--color-red-500) 24%, var(--clinic-surface));
+        --color-red-200: color-mix(in srgb, var(--color-red-500) 42%, var(--clinic-surface));
+        --color-green-50: color-mix(in srgb, var(--color-green-500) 16%, var(--clinic-surface));
+        --color-green-100: color-mix(in srgb, var(--color-green-500) 24%, var(--clinic-surface));
+        --color-green-200: color-mix(in srgb, var(--color-green-500) 42%, var(--clinic-surface));
+        --color-yellow-50: color-mix(in srgb, var(--color-yellow-500) 16%, var(--clinic-surface));
+        --color-yellow-100: color-mix(in srgb, var(--color-yellow-500) 24%, var(--clinic-surface));
+        --color-yellow-200: color-mix(in srgb, var(--color-yellow-500) 42%, var(--clinic-surface));
+        --color-purple-50: color-mix(in srgb, var(--color-purple-500) 16%, var(--clinic-surface));
+        --color-purple-100: color-mix(in srgb, var(--color-purple-500) 24%, var(--clinic-surface));
+        --color-purple-200: color-mix(in srgb, var(--color-purple-500) 42%, var(--clinic-surface));
+        --color-indigo-50: color-mix(in srgb, var(--color-indigo-500) 16%, var(--clinic-surface));
+        --color-indigo-100: color-mix(in srgb, var(--color-indigo-500) 24%, var(--clinic-surface));
+        --color-indigo-200: color-mix(in srgb, var(--color-indigo-500) 42%, var(--clinic-surface));
+    }
+}
+
+.clinic-bootstrap {
+    visibility: hidden;
+    animation: clinic-bootstrap-reveal 250ms step-end forwards;
+}
+
+@keyframes clinic-bootstrap-reveal {
+    to { visibility: visible; }
+}
+
+#app:not(:empty) ~ .clinic-bootstrap {
+    display: none;
+}
+
+@media screen {
+    [data-page-content="loading"] {
+        visibility: hidden;
+    }
 }
 
 /* Keep hue tokens stable: dark backgrounds and readable text use separate roles. */
@@ -238,6 +270,7 @@
     }
 
     body {
+        color: var(--clinic-neutral-950);
         line-height: 1.6;
     }
 }
@@ -343,6 +376,13 @@ input[data-password-toggle]::-ms-reveal {
 .alert-warning { @apply bg-yellow-50 text-yellow-800 border border-yellow-200; }
 .alert-info    { @apply bg-blue-50 text-blue-800 border border-blue-200; }
 
+@media screen {
+    .dark .badge-yellow, .dark .alert-warning { color: var(--color-yellow-300); }
+    .dark .badge-red, .dark .alert-danger { color: var(--color-red-300); }
+    .dark .alert-success { color: var(--color-green-300); }
+    .dark .alert-info { color: var(--color-blue-300); }
+}
+
 /* Document previews */
 .print-preview-paper {
     border: 1px solid var(--color-neutral-200);
@@ -360,6 +400,8 @@ input[data-password-toggle]::-ms-reveal {
 
 /* Print styles */
 @media print {
+    #nprogress { display: none; }
+
     :root.dark {
         color-scheme: light;
         --clinic-canvas: hsl(0 0% 96.1%);
@@ -369,7 +411,7 @@ input[data-password-toggle]::-ms-reveal {
         --clinic-neutral-200: hsl(0 0% 89.8%);
         --clinic-neutral-300: hsl(0 0% 83.1%);
         --clinic-neutral-400: hsl(0 0% 63.9%);
-        --clinic-neutral-500: hsl(0 0% 45.1%);
+        --clinic-neutral-500: hsl(0 0% 40%);
         --clinic-neutral-600: hsl(0 0% 32.2%);
         --clinic-neutral-700: hsl(0 0% 25.1%);
         --clinic-neutral-800: hsl(0 0% 14.9%);

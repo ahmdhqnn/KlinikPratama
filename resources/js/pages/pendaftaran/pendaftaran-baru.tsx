@@ -1,9 +1,9 @@
 import { focusFirstInvalidField } from '@/lib/form-error-focus';
 import { identityPlaceholders } from '@/lib/form-placeholders';
-import { RegisteredPatientForm, type PatientResult } from '@/components/pendaftaran/registered-patient-form';
+import { RegisteredPatientForm, type InternalReferralRegistration, type PatientResult } from '@/components/pendaftaran/registered-patient-form';
 import { MembershipIdentityFields } from '@/components/pasien/membership-identity-fields';
 import { ManualPatientFields } from '@/components/pasien/manual-patient-fields';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { ClipboardPlus, UserRoundPlus } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { VisitFields, type VisitFormValues } from '@/components/pendaftaran/visit-fields';
@@ -43,13 +43,15 @@ interface PatientForm extends VisitFormValues {
 
 interface Props {
     initialPatient: PatientResult | null;
+    referralBackUrl: string;
+    internalReferral?: InternalReferralRegistration | null;
     clinics: Option[];
     today: string;
     doctorsUrl: string;
     initialTab: 'manual' | 'directory' | 'registered';
 }
 
-export default function NewPatientRegistration({ clinics, today, doctorsUrl, initialTab, initialPatient }: Props) {
+export default function NewPatientRegistration({ clinics, today, doctorsUrl, initialTab, initialPatient, internalReferral, referralBackUrl }: Props) {
     const [registrationType, setRegistrationType] = useState<'directory' | 'manual' | 'registered'>(initialTab);
     const defaultData: PatientForm = {
         registration_type: 'directory', kepesertaan_id: '', nama: '', nik: '', nip: '', unit_kerja: '', tempat_lahir: '', tanggal_lahir: '', jenis_kelamin: '', golongan_darah: '',
@@ -82,11 +84,11 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Layanan pendaftaran</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pendaftaran pasien</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Daftarkan pasien internal dan tentukan tujuan kunjungan.</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{internalReferral ? 'Pendaftaran rujukan internal' : 'Pendaftaran pasien'}</h2>
+                    {internalReferral ? <Link className="mt-1 inline-block text-sm font-medium text-neutral-700 underline-offset-4 hover:underline" href={referralBackUrl}>Kembali ke daftar rujukan</Link> : <p className="mt-1 text-sm text-neutral-500">Daftarkan pasien internal dan tentukan tujuan kunjungan.</p>}
                 </div>
 
-                <Tabs className="space-y-5" onValueChange={(value) => {
+                {internalReferral ? <RegisteredPatientForm initialPatient={initialPatient} internalReferral={internalReferral} clinics={clinics} today={today} doctorsUrl={doctorsUrl} /> : <Tabs className="space-y-5" onValueChange={(value) => {
                     setRegistrationType(value as typeof registrationType);
                     manualForm.clearErrors();
                     directoryForm.clearErrors();
@@ -167,7 +169,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                     <Button disabled={form.processing} type="submit"><UserRoundPlus className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan dan buat kunjungan'}</Button>
                 </div>
                     </form>}
-                </Tabs>
+                </Tabs>}
             </div>
         </>
     );

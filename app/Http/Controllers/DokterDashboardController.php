@@ -42,7 +42,10 @@ class DokterDashboardController extends Controller
         $jadwalHariIni = $this->schedule->doctorSchedule($dokterId, $today);
         $totalKunjungan = $this->doctorVisits()->count();
 
-        $kunjunganTerkini = (clone $base)->with(['pasien', 'poliklinik', 'screening', 'pemeriksaan.clinicalNoteVersions'])
+        $kunjunganTerkini = (clone $base)->with([
+            'pasien' => fn ($query) => $query->withExists(['kunjungan as doctor_can_access_record' => fn ($visits) => $visits->where('dokter_id', $dokterId)]),
+            'poliklinik', 'screening', 'pemeriksaan.clinicalNoteVersions',
+        ])
             ->whereDate('tanggal', $today)
             ->orderByDesc('created_at')->orderByDesc('id')
             ->paginate(3)
@@ -66,18 +69,25 @@ class DokterDashboardController extends Controller
                     'clinic' => $visit->poliklinik->nama,
                     'status' => $visit->status,
                     'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
+                    'pendingReservation' => $visit->isPendingReservation(),
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'triage' => $visit->screening?->kesimpulan_triase,
                     'priority' => $visit->screening?->prioritas_layanan,
-                    'actionUrl' => $visit->status === 'pemeriksaan'
-                        ? route('pelayanan.pemeriksaan.show', $visit)
-                        : route('pelayanan.pasien.rekam-medis', $visit->pasien),
-                    'recordUrl' => route('pelayanan.pasien.rekam-medis', $visit->pasien),
-                    'actionLabel' => $visit->status === 'pemeriksaan'
-                        ? ($visit->screening?->submitted_at === null ? 'Menunggu pengkajian perawat' : ($visit->pemeriksaan?->started_at !== null ? 'Lanjutkan pemeriksaan' : 'Mulai pemeriksaan'))
-                        : 'Lihat RME',
-                    'actionType' => $visit->status === 'pemeriksaan' ? 'examination' : 'detail',
-                    'actionDisabled' => $visit->status === 'pemeriksaan' && ! $visit->canOpenExamination(),
+                    'actionUrl' => route('pelayanan.pemeriksaan.show', $visit),
+                    'recordUrl' => $visit->pasien->doctor_can_access_record ? route('pelayanan.pasien.rekam-medis', $visit->pasien) : null,
+                    'actionLabel' => match (true) {
+                        ! $visit->canOpenExamination() => 'Pemeriksaan dokter',
+                        $visit->status !== 'pemeriksaan' => 'Tinjau pemeriksaan',
+                        $visit->pemeriksaan?->started_at !== null => 'Lanjutkan pemeriksaan',
+                        default => 'Mulai pemeriksaan',
+                    },
+                    'actionType' => 'examination',
+                    'actionDisabled' => ! $visit->canOpenExamination(),
+                    'actionDisabledReason' => match (true) {
+                        $visit->status === 'batal' => 'Kunjungan telah dibatalkan.',
+                        $visit->isPendingReservation() => 'Reservasi masih menunggu konfirmasi pendaftaran.',
+                        default => 'Pemeriksaan dapat dimulai setelah pengkajian awal dikirim.',
+                    },
                     'letterUrl' => $this->letterUrl($visit, $notes),
                     'showLetterAction' => true,
                 ])->values(),
@@ -100,7 +110,8 @@ class DokterDashboardController extends Controller
         $reportRoute = $isAdmin ? 'admin.laporan.pemeriksaan' : 'dokter.laporan-pemeriksaan';
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
         $search = $filters['search'] ?? '';
-        $base = $isReport ? (new DoctorExaminationReport)->query($isAdmin ? null : $this->dokterId(), $period, $search) : $period->apply($this->doctorVisits());
+        $base = $isReport ? (new DoctorExaminationReport)->query($isAdmin ? null : $this->dokterId(), $period, $search) : $period->apply($this->doctorVisits())->when($period->to === null && $period->from === null,
+            fn (Builder $query) => $query->where('tanggal', '<', today()->addDays(8)->toDateString()));
         $todayVisits = $isReport ? null : $this->doctorVisits()->whereDate('tanggal', today());
         if ($isAdmin) {
             $audit->record($request, 'admin.report.examination.view', metadata: ['from' => $period->from, 'to' => $period->to]);
@@ -123,7 +134,7 @@ class DokterDashboardController extends Controller
             ] : [
                 'total' => $this->doctorVisits()->count(),
                 'today' => (clone $todayVisits)->count(),
-                'waiting' => (clone $todayVisits)->whereIn('status', ['menunggu', 'screening'])->count(),
+                'waiting' => (clone $todayVisits)->whereIn('status', ['menunggu', 'screening'])->where('kontrol_pending', false)->count(),
                 'completed' => (clone $todayVisits)->whereHas('pemeriksaan', fn ($query) => $query->whereNotNull('signed_at'))->count(),
             ],
             'filters' => [
@@ -144,6 +155,7 @@ class DokterDashboardController extends Controller
                     'diagnoses' => $visit->pemeriksaan?->diagnosa->map(fn ($diagnosis) => $diagnosis->kode_icd10.' - '.$diagnosis->nama_diagnosa)->implode('; ') ?? '',
                     'finalizedAt' => $visit->pemeriksaan?->signed_at?->format('d/m/Y H:i'),
                     'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
+                    'pendingReservation' => $visit->isPendingReservation(),
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'triage' => $visit->screening?->kesimpulan_triase,
                     'priority' => $visit->screening?->prioritas_layanan,

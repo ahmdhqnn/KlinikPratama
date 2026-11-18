@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/field';
@@ -161,10 +161,9 @@ const legacyFields: Partial<Record<NursingSection, Array<[string, string]>>> = {
     conclusion: [['summary', 'Ringkasan sebelumnya'], ['doctor_notes', 'Catatan dokter sebelumnya']],
 };
 
-export function GeneralNursingAssessment({ value, onChange, complaint, errors = {}, section, informationSource, nutritionField, dental = false, complaintNarrative = '', systemsNarrative = '', includeComplaintNote = true }: {
-    value: GeneralNursingData; onChange: (value: GeneralNursingData) => void; complaint: string; errors?: Record<string, string>; section?: NursingSection; informationSource?: string; nutritionField?: ReactNode; dental?: boolean; complaintNarrative?: string; systemsNarrative?: string; includeComplaintNote?: boolean;
+export function GeneralNursingAssessment({ value, onChange, complaint, errors = {}, section, informationSource, nutritionField, dental = false, complaintNarrative = '', systemsNarrative = '', includeComplaintNote = true, otherHandoverOpen = false, onOtherHandoverOpenChange }: {
+    value: GeneralNursingData; onChange: (value: GeneralNursingData) => void; complaint: string; errors?: Record<string, string>; section?: NursingSection; informationSource?: string; nutritionField?: ReactNode; dental?: boolean; complaintNarrative?: string; systemsNarrative?: string; includeComplaintNote?: boolean; otherHandoverOpen?: boolean; onOtherHandoverOpenChange?: (open: boolean) => void;
 }) {
-    const [showOtherHandover, setShowOtherHandover] = useState(false);
     const parts: NursingSection[] = section ? [section] : ['visit', 'triage', 'complaint', 'history', 'systems', 'additional', 'conclusion'];
     const symptom = complaint.toLocaleLowerCase('id');
     const prompts: Array<[RegExp, string]> = [
@@ -195,7 +194,7 @@ export function GeneralNursingAssessment({ value, onChange, complaint, errors = 
                 (generated && candidates.includes(index)) || remaining.includes(legacy[index]) ? [index] : []);
             const otherPrefix = 'Lainnya: ';
             const other = remaining.find(line => line.startsWith(otherPrefix))?.slice(otherPrefix.length) ?? '';
-            const showOther = showOtherHandover || Boolean(other);
+            const showOther = otherHandoverOpen || Boolean(other);
             const manual = remaining.filter(line => !legacy.includes(line) && !line.startsWith(otherPrefix)).join('\n');
             const compose = (items: number[], detail: string, additional: string) =>
                 [handoverSentence(items, options), detail.trim() ? otherPrefix + detail : '', additional].filter(Boolean).join('\n');
@@ -221,7 +220,7 @@ export function GeneralNursingAssessment({ value, onChange, complaint, errors = 
                         })}
                         <label className="flex items-start gap-2 text-sm leading-5">
                             <Checkbox checked={showOther} className="mt-0.5 shrink-0" onCheckedChange={checked => {
-                                setShowOtherHandover(checked === true);
+                                onOtherHandoverOpenChange?.(checked === true);
                                 if (checked !== true && other) set(key, compose(selected, '', manual));
                             }} />
                             <span>Lainnya</span>

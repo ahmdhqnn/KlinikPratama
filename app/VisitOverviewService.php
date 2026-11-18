@@ -16,7 +16,7 @@ final class VisitOverviewService
         $active = (clone $visits)->whereNotIn('status', ['selesai', 'batal']);
 
         return [
-            'upcoming' => (clone $active)->whereDate('tanggal', '>', today())->count(),
+            'upcoming' => (clone $visits)->upcomingReservations()->count(),
             'overdue' => (clone $active)->whereDate('tanggal', '<', today())->count(),
         ];
     }
