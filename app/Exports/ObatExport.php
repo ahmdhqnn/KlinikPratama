@@ -9,7 +9,7 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class ObatExport implements FromCollection, WithHeadings, WithMapping, WithStyles
+class ObatExport extends SafeSpreadsheetValueBinder implements FromCollection, WithHeadings, WithMapping, WithStyles
 {
     public function collection()
     {

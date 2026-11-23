@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
+import { Textarea } from '@/components/ui/textarea';
 import {
     AlertDialog,
     AlertDialogCancel,
@@ -15,6 +17,7 @@ interface ConfirmationRequest {
     description: string;
     action: () => void;
     actionLabel: string;
+    reasonAction?: (reason: string) => void;
 }
 
 let activeRequest: ConfirmationRequest | null = null;
@@ -27,11 +30,18 @@ export function confirmAction(description: string, action: () => void, actionLab
     notifyProvider?.();
 }
 
+export function confirmReason(description: string, action: (reason: string) => void, actionLabel = 'Batalkan', title = 'Alasan pembatalan'): void {
+    returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    activeRequest = { title, description, action: () => undefined, actionLabel, reasonAction: action };
+    notifyProvider?.();
+}
+
 export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
     const [request, setRequest] = useState<ConfirmationRequest | null>(activeRequest);
+    const [reason, setReason] = useState('');
 
     useEffect(() => {
-        notifyProvider = () => setRequest(activeRequest);
+        notifyProvider = () => { setReason(''); setRequest(activeRequest); };
 
         return () => {
             notifyProvider = null;
@@ -45,9 +55,11 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
     }
 
     function confirm(): void {
+        if (activeRequest?.reasonAction && reason.trim().length < 5) return;
         const action = activeRequest?.action;
+        const reasonAction = activeRequest?.reasonAction;
         close();
-        action?.();
+        if (reasonAction) reasonAction(reason.trim()); else action?.();
     }
 
     return (
@@ -64,11 +76,12 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
                         <AlertDialogTitle>{request?.title ?? 'Konfirmasi tindakan'}</AlertDialogTitle>
                         <AlertDialogDescription>{request?.description}</AlertDialogDescription>
                     </AlertDialogHeader>
+                    {request?.reasonAction && <Field htmlFor="confirmation-reason" label="Alasan" required><Textarea autoFocus id="confirmation-reason" value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={1000} placeholder="Tuliskan alasan pembatalan, minimal 5 karakter." /></Field>}
                     <AlertDialogFooter>
                         <AlertDialogCancel asChild onClick={close}>
                             <Button variant="secondary">Batal</Button>
                         </AlertDialogCancel>
-                        <Button onClick={confirm} variant={/^(hapus|batalkan|kosongkan|tolak|nonaktifkan)\b/i.test(request?.actionLabel ?? '') ? 'destructiveOutline' : 'secondary'}>
+                        <Button disabled={!!request?.reasonAction && reason.trim().length < 5} onClick={confirm} variant={/^(hapus|batalkan|kosongkan|tolak|nonaktifkan)\b/i.test(request?.actionLabel ?? '') ? 'destructiveOutline' : 'secondary'}>
                             {request?.actionLabel ?? 'Lanjutkan'}
                         </Button>
                     </AlertDialogFooter>

@@ -75,7 +75,9 @@ class DentalReservationTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $visit = Kunjungan::create(['no_kunjungan' => 'RES-FUTURE', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'dokter_id' => $doctor->id, 'tanggal' => '2026-10-21', 'status' => 'menunggu']);
 
-        $this->actingAs($admin)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new'])->assertUnprocessable();
+        $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        Nakes::create(['kode' => 'RES-NURSE', 'nama' => 'Perawat Uji', 'kategori' => 'medis', 'jabatan' => 'perawat', 'poliklinik_id' => $clinic->id, 'user_id' => $nurse->id, 'is_active' => true]);
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), [])->assertUnprocessable();
 
         $this->assertDatabaseCount('screening', 0);
         $this->assertSame('menunggu', $visit->fresh()->status);

@@ -42,7 +42,7 @@ class AdminAssistanceAuditTest extends TestCase
             ->where('events.data.0.actor', $admin->name)
             ->where('events.data.0.visitNumber', 'KNJ-AUDIT-001')
             ->where('events.data.0.clinic', 'Poli Audit')
-            ->where('events.data.0.reason', 'Petugas farmasi sedang tidak tersedia')
+            ->where('events.data.0.reason', null)
             ->missing('events.data.0.metadata')
             ->missing('events.data.0.patient'));
     }
@@ -118,7 +118,7 @@ class AdminAssistanceAuditTest extends TestCase
             Kunjungan::create(['no_kunjungan' => $number, 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => $status]);
         }
 
-        $this->actingAs($admin)->get(route('pelayanan.pemeriksaan.index', ['tanggal' => today()->toDateString(), 'status' => 'pemeriksaan']))
+        $this->actingAs($admin)->get(route('pelayanan.antrian', ['tanggal' => today()->toDateString(), 'status' => 'pemeriksaan']))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('visits.total', 1)
                 ->where('visits.data.0.number', 'KNJ-DASH-EXAM')

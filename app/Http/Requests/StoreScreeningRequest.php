@@ -85,6 +85,7 @@ class StoreScreeningRequest extends FormRequest
             'riwayat_penyakit' => ['nullable', 'string', 'max:5000'],
             'riwayat_penyakit_keluarga' => ['nullable', 'string', 'max:5000'],
             'alergi_jenis' => ['nullable', 'string', 'max:255'],
+            'general_consent_emergency_reason' => ['nullable', 'string', 'min:20', 'max:2000'],
             'alergi_reaksi' => ['nullable', 'string', 'max:5000'],
             'penyakit_nama' => ['nullable', 'string', 'max:255'],
             'penyakit_keterangan' => ['nullable', 'string', 'max:5000'],

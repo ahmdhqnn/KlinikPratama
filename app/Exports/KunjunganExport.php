@@ -12,7 +12,7 @@ use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class KunjunganExport implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
+class KunjunganExport extends SafeSpreadsheetValueBinder implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
     public function __construct(
         private readonly ?string $dari = null,

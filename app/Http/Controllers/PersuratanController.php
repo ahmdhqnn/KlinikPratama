@@ -8,9 +8,11 @@ use App\ClinicDocumentProfile;
 use App\CorrespondenceService;
 use App\DoctorAccessService;
 use App\InternalReferralDirectory;
+use App\MedicalDocumentVerificationService;
 use App\MedicalLetterData;
 use App\Models\CorrespondenceTemplate;
 use App\Models\Kunjungan;
+use App\Models\MedicalDocumentVerification;
 use App\Models\Nakes;
 use App\Models\RujukanInternal;
 use App\Models\SuratMedis;
@@ -40,7 +42,7 @@ class PersuratanController extends Controller
         $user = $request->user();
         $isAdmin = $user->role === 'admin';
         $doctorId = $isAdmin ? null : $this->doctorId($user);
-        $eligibleVisits = Kunjungan::query()
+        $eligibleVisits = Kunjungan::query()->when($isAdmin, fn (Builder $query) => $query->whereRaw('1 = 0'))
             ->when(! $isAdmin, fn (Builder $query) => $query->where('dokter_id', $doctorId))
             ->whereIn('status', Kunjungan::POST_EXAMINATION_STATUSES)
             ->whereHas('pemeriksaan', fn (Builder $query) => $query->whereNotNull('signed_at'))
@@ -50,7 +52,7 @@ class PersuratanController extends Controller
                 ->orWhereHas('pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
             ->latest('tanggal')->latest('id')->paginate(10, ['*'], 'visits_page')->withQueryString();
 
-        $letters = SuratMedis::query()
+        $letters = SuratMedis::query()->when($isAdmin, fn (Builder $query) => $query->whereRaw('1 = 0'))
             ->when($filters['kunjungan_id'] ?? null, fn (Builder $query, int|string $visitId) => $query->where('kunjungan_id', $visitId))
             ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
                 ->where('nomor_surat', 'like', "%{$search}%")
@@ -68,7 +70,7 @@ class PersuratanController extends Controller
         return Inertia::render('persuratan/index', [
             'isAdmin' => $isAdmin,
             'filters' => ['search' => $search, 'visitId' => $filters['kunjungan_id'] ?? null],
-            'eligibleVisits' => $eligibleVisits ? [
+            'eligibleVisits' => ! $isAdmin && $eligibleVisits ? [
                 'data' => $eligibleVisits->getCollection()->map(fn (Kunjungan $visit): array => [
                     'id' => $visit->id,
                     'date' => $visit->tanggal->format('d/m/Y'),
@@ -115,7 +117,7 @@ class PersuratanController extends Controller
                 'from' => $letters->firstItem(), 'to' => $letters->lastItem(), 'total' => $letters->total(),
                 'previousUrl' => $letters->previousPageUrl(), 'nextUrl' => $letters->nextPageUrl(),
             ],
-            'referrals' => $referralDirectory->paginate(
+            'referrals' => $isAdmin ? ['data' => [], 'currentPage' => 1, 'lastPage' => 1, 'from' => null, 'to' => null, 'total' => 0, 'previousUrl' => null, 'nextUrl' => null] : $referralDirectory->paginate(
                 $search, isset($filters['kunjungan_id']) ? (int) $filters['kunjungan_id'] : null,
                 $doctorId, $isAdmin ? 'pelayanan.kunjungan.show' : null, true, 'referrals_page',
             ),
@@ -147,6 +149,8 @@ class PersuratanController extends Controller
             ],
             'templates' => CorrespondenceTemplate::query()->where('is_active', true)->orderBy('nama')->get(['id', 'nama', 'jenis']),
             'today' => today()->toDateString(),
+            'replaceableLetters' => $kunjungan->suratMedis()->whereIn('id', MedicalDocumentVerification::select('surat_medis_id'))
+                ->orderByDesc('id')->get(['id', 'jenis', 'nomor_surat']),
         ]);
     }
 
@@ -158,12 +162,26 @@ class PersuratanController extends Controller
             'konten' => ['nullable', 'string', 'max:10000'],
             'tanggal' => ['required', 'date'],
             'surat_template_id' => ['nullable', 'exists:correspondence_templates,id'],
+            'replacement_id' => ['nullable', 'integer'],
+            'replacement_reason' => ['required_with:replacement_id', 'nullable', 'string', 'min:10', 'max:2000'],
+            'signature_password' => ['required_with:replacement_id', 'nullable', 'current_password'],
         ]);
 
         $details = app(MedicalLetterData::class)->validate($request);
         DB::transaction(function () use ($request, $kunjungan, $notes, $data, $details): void {
             $visit = Kunjungan::query()->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeLetterIssue($request->user(), $visit, $notes);
+            $replacement = null;
+            if (filled($data['replacement_id'] ?? null)) {
+                $replacement = $visit->suratMedis()->whereKey($data['replacement_id'])->where('jenis', $data['jenis'])->firstOrFail();
+                $proof = MedicalDocumentVerification::where('surat_medis_id', $replacement->id)->lockForUpdate()->firstOrFail();
+                if (DB::table('medical_document_verification_events')->where('verification_id', $proof->id)->where('action', 'replaced')->exists()) {
+                    throw ValidationException::withMessages(['replacement_id' => 'Dokumen sudah memiliki pengganti. Pilih dokumen terakhir dalam rangkaian.']);
+                }
+                if (mb_strlen(trim($data['replacement_reason'])) < 10) {
+                    throw ValidationException::withMessages(['replacement_reason' => 'Tuliskan alasan penggantian minimal 10 karakter.']);
+                }
+            }
             $template = filled($data['surat_template_id'] ?? null)
                 ? CorrespondenceTemplate::query()->where('is_active', true)->lockForUpdate()->findOrFail($data['surat_template_id'])
                 : null;
@@ -185,11 +203,25 @@ class PersuratanController extends Controller
                     '[poli]' => $visit->poliklinik?->nama ?? '', '[tanggal]' => $date->locale('id')->isoFormat('D MMMM Y'),
                 ]);
             }
-            $visit->suratMedis()->create([
+            $letter = $visit->suratMedis()->create([
                 'dokter_id' => $visit->dokter_id, 'surat_template_id' => $template?->id,
                 'jenis' => $data['jenis'], 'konten' => $content, 'nomor_surat' => $number, 'tanggal' => $date,
-                'document_data' => $snapshot + ['details' => $details],
+                'document_data' => $snapshot + ['details' => $details, 'replacement' => $replacement ? [
+                    'document_id' => $replacement->id, 'number' => $replacement->nomor_surat,
+                    'reason' => trim($data['replacement_reason']), 'actor_id' => $request->user()->id,
+                    'recorded_at' => now()->toIso8601String(),
+                ] : null],
             ]);
+            app(MedicalDocumentVerificationService::class)->issue($letter, $request->user());
+            if ($replacement) {
+                DB::table('medical_document_verification_events')->insert([
+                    'verification_id' => $proof->id, 'action' => 'replaced',
+                    'reason' => json_encode(['replacement_id' => $letter->id, 'reason' => trim($data['replacement_reason'])], JSON_THROW_ON_ERROR),
+                    'actor_id' => $request->user()->id, 'recorded_at' => now(),
+                ]);
+                app(ClinicalAuditRecorder::class)->record($request, 'medical_letter.replaced', $visit->pasien_id, $visit->id,
+                    ['original_document_id' => $replacement->id, 'replacement_document_id' => $letter->id]);
+            }
             app(ClinicalAuditRecorder::class)->record($request, 'medical_letter.issue', $visit->pasien_id, $visit->id);
         }, attempts: 5);
 
@@ -260,6 +292,8 @@ class PersuratanController extends Controller
                 'type' => $suratMedis->jenis,
                 'date' => $suratMedis->tanggal?->locale('id')->isoFormat('D MMMM Y'),
                 'content' => $suratMedis->konten,
+                'verification' => app(MedicalDocumentVerificationService::class)->printData($suratMedis),
+                'replacementNumber' => $suratMedis->document_data['replacement']['number'] ?? null,
             ] + $this->documentReturn($request, $visit, 'surat', 'Kembali ke surat medis'),
         ]);
     }
@@ -309,7 +343,7 @@ class PersuratanController extends Controller
 
         return [
             'kind' => $kind,
-            'clinic' => app(ClinicDocumentProfile::class)->data(),
+            'clinic' => $snapshot['facility'] ?? app(ClinicDocumentProfile::class)->data(),
             'patient' => $snapshot['patient'],
             'clinical' => $kind === 'resep_luar' ? null : $snapshot['clinical'],
             'details' => $snapshot['details'] ?? [],
@@ -374,10 +408,6 @@ class PersuratanController extends Controller
 
     private function authorizeVisitDocument(User $user, Kunjungan $visit): void
     {
-        if ($user->role === 'admin') {
-            return;
-        }
-
         abort_unless($user->role === 'dokter' && $visit->dokter_id === $this->doctorId($user), 404);
     }
 }

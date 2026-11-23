@@ -108,6 +108,7 @@ final class VisitSchedulingService
         }
 
         $reservation ??= new Kunjungan([
+            'general_consent_required' => true,
             'no_kunjungan' => Kunjungan::generateNomor(),
             'kontrol_asal_id' => $source->id,
             'pasien_id' => $source->pasien_id,

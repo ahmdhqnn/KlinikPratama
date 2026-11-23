@@ -12,7 +12,7 @@ use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class NursingProcedureExport implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
+class NursingProcedureExport extends SafeSpreadsheetValueBinder implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
     /**
      * @param  array{dari?: ?string, sampai?: ?string, search?: ?string, status?: ?string}  $filters

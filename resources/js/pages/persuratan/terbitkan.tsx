@@ -1,5 +1,6 @@
 import { MedicalLetterFields, emptyLetterDetails, letterTypes } from '@/components/medical-letter-fields';
 import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -13,14 +14,15 @@ interface Props {
     visit: { id: number; number: string; date: string; patient: string; medicalRecordNumber: string; clinic: string; doctor: string };
     templates: { id: number; nama: string; jenis: string }[];
     today: string;
+    replaceableLetters?: { id: number; jenis: string; nomor_surat: string | null }[];
 }
 
-export default function IssueLetter({ visit, templates, today }: Props) {
-    const form = useForm({ jenis: 'sakit', tanggal: today, surat_template_id: '', konten: '', details: { ...emptyLetterDetails } });
+export default function IssueLetter({ visit, templates, today, replaceableLetters = [] }: Props) {
+    const form = useForm({ jenis: 'sakit', tanggal: today, surat_template_id: '', konten: '', details: { ...emptyLetterDetails }, replacement_id: '', replacement_reason: '', signature_password: '' });
 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        form.post(`/persuratan/terbitkan/${visit.id}`, { preserveScroll: true });
+        form.post(`/persuratan/terbitkan/${visit.id}`, { preserveScroll: true, onFinish: () => form.setData('signature_password', '') });
     }
 
     return <>
@@ -28,7 +30,7 @@ export default function IssueLetter({ visit, templates, today }: Props) {
         <div className="mx-auto max-w-5xl space-y-6">
             <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div><p className="text-sm font-medium text-neutral-700">Persuratan dokter</p><h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Terbitkan dokumen</h1><p className="mt-1 text-sm text-neutral-500">Pilih jenis surat dan lengkapi keterangan untuk kunjungan ini.</p></div>
-                <Button asChild variant="secondary"><Link href="/persuratan"><ArrowLeft className="size-4" />Kembali ke persuratan</Link></Button>
+                <div className="flex flex-wrap gap-2"><Button asChild variant="secondary"><Link href={`/pelepasan-informasi/${visit.id}`}>Register pelepasan</Link></Button><Button asChild variant="secondary"><Link href="/persuratan"><ArrowLeft className="size-4" />Kembali ke persuratan</Link></Button></div>
             </header>
 
             <Card>
@@ -53,11 +55,22 @@ export default function IssueLetter({ visit, templates, today }: Props) {
                 <CardContent>
                     <form className="space-y-5" onSubmit={submit}>
                         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                            <Field error={form.errors.jenis} htmlFor="letter-type" label="Jenis surat" required><Select id="letter-type" onChange={(event) => form.setData((data) => ({ ...data, jenis: event.target.value, surat_template_id: '', details: { ...emptyLetterDetails } }))} value={form.data.jenis}>{letterTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
+                            <Field error={form.errors.jenis} htmlFor="letter-type" label="Jenis surat" required><Select id="letter-type" onChange={(event) => form.setData((data) => ({ ...data, jenis: event.target.value, surat_template_id: '', replacement_id: '', replacement_reason: '', signature_password: '', details: { ...emptyLetterDetails } }))} value={form.data.jenis}>{letterTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
                             <Field error={form.errors.surat_template_id} htmlFor="letter-template" label="Template surat"><Select id="letter-template" onChange={(event) => form.setData('surat_template_id', event.target.value)} value={form.data.surat_template_id}><option value="">Format standar klinik</option>{templates.filter((template) => template.jenis === form.data.jenis).map((template) => <option key={template.id} value={template.id}>{template.nama}</option>)}</Select></Field>
                             <Field error={form.errors.tanggal} htmlFor="letter-date" label="Tanggal surat" required><DatePicker id="letter-date" onChange={(event) => form.setData('tanggal', event.target.value)} value={form.data.tanggal} /></Field>
                         </div>
                         <MedicalLetterFields type={form.data.jenis} value={form.data.details} onChange={(details) => form.setData('details', details)} errors={form.errors} />
+                        <Field label="Dokumen yang diganti" htmlFor="replacement-letter" error={form.errors.replacement_id}>
+                            <Select id="replacement-letter" value={form.data.replacement_id} onChange={(event) => form.setData('replacement_id', event.target.value)}>
+                                <option value="">Terbitkan dokumen baru</option>
+                                {replaceableLetters.filter((letter) => letter.jenis === form.data.jenis).map((letter) => <option key={letter.id} value={letter.id}>{letter.nomor_surat ?? `Dokumen #${letter.id}`}</option>)}
+                            </Select>
+                        </Field>
+                        {form.data.replacement_id && <div className="space-y-4">
+                            <p className="text-sm text-neutral-500">Dokumen sebelumnya ditandai tidak berlaku. Arsip dan nomor lama tetap tersimpan.</p>
+                            <Field label="Alasan penggantian" htmlFor="replacement-reason" error={form.errors.replacement_reason} required><Textarea id="replacement-reason" value={form.data.replacement_reason} onChange={(event) => form.setData('replacement_reason', event.target.value)} /></Field>
+                            <Field label="Kata sandi dokter" htmlFor="replacement-password" error={form.errors.signature_password} required><Input id="replacement-password" type="password" autoComplete="current-password" value={form.data.signature_password} onChange={(event) => form.setData('signature_password', event.target.value)} /></Field>
+                        </div>}
                         <Field error={form.errors.konten} htmlFor="letter-content" label="Keterangan tambahan"><Textarea id="letter-content" maxLength={10000} onChange={(event) => form.setData('konten', event.target.value)} placeholder="Keterangan tambahan sesuai kondisi pasien. Kosongkan untuk mengikuti format klinik atau isi template." rows={6} value={form.data.konten} /></Field>
                         <div className="flex flex-col-reverse gap-2 border-t border-neutral-100 pt-4 sm:flex-row sm:justify-end"><Button asChild variant="secondary"><Link href="/persuratan">Batal</Link></Button><Button disabled={form.processing} type="submit"><Plus className="size-4" />{form.processing ? 'Menerbitkan…' : 'Terbitkan surat'}</Button></div>
                     </form>

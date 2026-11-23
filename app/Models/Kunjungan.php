@@ -22,6 +22,7 @@ class Kunjungan extends Model
         'tanggal', 'status', 'jenis_pasien', 'catatan', 'hak_layanan_snapshot', 'verified_by', 'verified_at',
         'unit_kerja', 'kategori_peserta', 'tindakan_started_at',
         'kontrol_asal_id', 'kontrol_pending', 'kontrol_catatan', 'rujukan_internal_id',
+        'cancelled_at', 'cancelled_by', 'cancellation_reason', 'general_consent_required',
     ];
 
     protected $casts = ['tanggal' => 'date', 'kontrol_pending' => 'boolean', 'hak_layanan_snapshot' => 'array', 'verified_at' => 'datetime', 'lampiran' => 'array', 'tindakan_started_at' => 'datetime'];
@@ -29,7 +30,7 @@ class Kunjungan extends Model
     protected $hidden = ['lampiran', 'kontrol_catatan'];
 
     /** @return array<int, array{id: string, name: string, note: ?string, size: int, mime: string, downloadUrl: string, deleteUrl: string}> */
-    public function attachmentSummaries(): array
+    public function attachmentSummaries(bool $archived = false): array
     {
         return array_map(fn (array $attachment): array => [
             'id' => $attachment['id'],
@@ -37,9 +38,17 @@ class Kunjungan extends Model
             'note' => $attachment['note'],
             'size' => $attachment['size'],
             'mime' => $attachment['mime'],
-            'downloadUrl' => route('pelayanan.kunjungan.attachments.show', [$this, $attachment['id']]),
+            'downloadUrl' => route('pelayanan.kunjungan.attachments.show', [$this, $attachment['id'], ...($archived ? ['archive' => 1] : [])]),
             'deleteUrl' => route('pelayanan.kunjungan.attachments.destroy', [$this, $attachment['id']]),
-        ], $this->lampiran ?? []);
+            'restoreUrl' => route('pelayanan.kunjungan.attachments.restore', [$this, $attachment['id']]),
+            'voidedAt' => $attachment['voided_at'] ?? null,
+            'voidReason' => $attachment['void_reason'] ?? null,
+        ], array_values(array_filter($this->lampiran ?? [], fn (array $attachment): bool => ! empty($attachment['voided_at']) === $archived)));
+    }
+
+    protected static function booted(): void
+    {
+        static::deleting(fn () => throw new \LogicException('Kunjungan tidak boleh dihapus. Gunakan pembatalan beralasan.'));
     }
 
     public function pasien(): BelongsTo

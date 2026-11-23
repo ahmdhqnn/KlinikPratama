@@ -10,8 +10,11 @@ use App\Models\FarmasiMandiri;
 use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\Pasien;
+use App\Models\PharmacyDirectReview;
 use App\Models\ResepObat;
+use App\PatientAllergyHistory;
 use App\PersediaanRecorder;
+use App\PharmacyStaffAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -80,7 +83,7 @@ class FarmasiMandiriController extends Controller
             'adminAssistance' => $request->user()->isAdmin(),
             'requestKey' => (string) Str::uuid(),
             'search' => $search,
-            'patients' => $patients->map(fn (Pasien $patient): array => ['id' => $patient->id, 'name' => $patient->nama, 'medicalRecordNumber' => $patient->no_rm, 'allergies' => $patient->riwayat_alergi]),
+            'patients' => $patients->map(fn (Pasien $patient): array => ['id' => $patient->id, 'name' => $patient->nama, 'medicalRecordNumber' => $patient->no_rm, 'allergies' => app(PatientAllergyHistory::class)->forPatient($patient)['riwayat_alergi']]),
             'medicines' => $medicines->map(fn (Obat $medicine): array => ['id' => $medicine->id, 'name' => $medicine->nama, 'unit' => $medicine->satuan_kecil, 'stock' => (float) $medicine->usable_stock]),
         ]);
     }
@@ -94,6 +97,11 @@ class FarmasiMandiriController extends Controller
             'jumlah' => ['required', 'integer', 'min:1'], 'aturan_pakai' => ['required', 'string', 'max:255'],
             'dasar_pemberian' => ['required', 'string', 'max:2000'],
             'catatan' => ['nullable', 'string', 'max:2000'],
+            'administrative_review' => ['required', 'accepted'], 'pharmaceutical_review' => ['required', 'accepted'], 'clinical_review' => ['required', 'accepted'],
+            'review_notes' => ['required', 'string', 'min:10', 'max:3000'],
+            'recipient_name' => ['required', 'string', 'max:200'], 'recipient_relationship' => ['required', 'string', 'max:200'],
+            'recipient_verified' => ['required', 'accepted'], 'counseling_completed' => ['required', 'accepted'],
+            'counseling_notes' => ['required', 'string', 'min:10', 'max:2000'],
         ]);
         $record = DB::transaction(function () use ($data, $request, $inventory, $audit, $assistance): FarmasiMandiri {
             $patient = Pasien::query()->whereKey($data['pasien_id'])->lockForUpdate()->firstOrFail();
@@ -106,15 +114,28 @@ class FarmasiMandiriController extends Controller
                     return $existing;
                 }
             }
+            $credential = app(PharmacyStaffAccess::class)->current($request->user());
+            if ($credential?->qualification !== 'apoteker') {
+                throw ValidationException::withMessages(['clinical_review' => 'Pemberian langsung memerlukan review dan penyerahan oleh apoteker terverifikasi.']);
+            }
             $medicine = Obat::query()->whereKey($data['obat_id'])->where('is_active', true)->where('jenis', 'obat')
                 ->where('boleh_diberikan_langsung', true)->first();
             if (! $medicine) {
                 throw ValidationException::withMessages(['obat_id' => 'Obat belum disetujui untuk diberikan tanpa pemeriksaan.']);
             }
             $record = FarmasiMandiri::create([
-                ...$data, 'request_fingerprint' => $fingerprint, 'nomor' => 'FMD-'.today()->format('Ymd').'-'.Str::ulid(),
+                ...collect($data)->only(['request_key', 'pasien_id', 'obat_id', 'jumlah', 'aturan_pakai', 'dasar_pemberian', 'catatan'])->all(),
+                'request_fingerprint' => $fingerprint, 'nomor' => 'FMD-'.today()->format('Ymd').'-'.Str::ulid(),
                 'petugas_id' => $request->user()->id, 'diserahkan_pada' => now(),
             ]);
+            PharmacyDirectReview::create(['farmasi_mandiri_id' => $record->id, 'credential_id' => $credential->id,
+                'actor_id' => $request->user()->id, 'recorded_at' => now(), 'data' => [
+                    'review' => collect($data)->only(['administrative_review', 'pharmaceutical_review', 'clinical_review', 'review_notes',
+                        'recipient_name', 'recipient_relationship', 'recipient_verified', 'counseling_completed', 'counseling_notes'])->all(),
+                    'patient_id' => $patient->id, 'allergy' => app(PatientAllergyHistory::class)->forPatient($patient),
+                    'medicine_id' => $medicine->id, 'medicine_name' => $medicine->nama, 'quantity' => $data['jumlah'],
+                    'instructions' => $data['aturan_pakai'], 'basis' => $data['dasar_pemberian'],
+                ]]);
             $inventory->issueWithoutVisit($medicine->id, (int) $data['jumlah'], $request->user(), $patient, 'FarmasiMandiri', $record->id);
             $audit->record($request, 'pharmacy.direct_dispensed', $patient->id, metadata: ['record_id' => $record->id, 'medicine_id' => $medicine->id, ...$assistance]);
 

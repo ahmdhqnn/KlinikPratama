@@ -38,6 +38,7 @@ import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Empty } from '@/components/ui/empty';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { SessionSecurity } from '@/components/session-security';
 import { PageLoading } from '@/components/page-loading';
 import type { PageProps } from '@inertiajs/core';
 import { activeNavigationHref } from '@/lib/navigation';
@@ -73,7 +74,6 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         { label: 'Ringkasan', items: [{ label: 'Dasbor', href: '/', icon: LayoutDashboard, exact: true }] },
         { label: 'Operasional', items: [
             { label: 'Kunjungan & antrean', href: '/pelayanan/antrian', activePaths: ['/pelayanan/kunjungan', '/pendaftaran/kunjungan-per-poli', '/pendaftaran/kunjungan'], icon: Activity },
-            { label: 'Pendaftaran pasien', href: '/pendaftaran/pendaftaran-baru', activePaths: ['/pendaftaran/pendaftaran-lama'], icon: UserRoundPlus },
             { label: 'Jadwal praktik', href: '/pendaftaran/jadwal-praktik', icon: CalendarDays },
         ] },
         { label: 'Pengelolaan', items: [
@@ -86,31 +86,13 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Referensi medis', href: '/master/terminologi-klinis', icon: ClipboardList },
                 { label: 'Master obat & BHP', href: '/master/obat', icon: Pill },
             ] },
-            { label: 'Pelayanan klinis', icon: Stethoscope, children: [
-                { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
-                { label: 'Pemeriksaan dokter', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
-                { label: 'Tindakan perawat', href: '/pelayanan/tindakan-perawat', icon: ClipboardCheck },
-                { label: 'Persuratan', href: '/persuratan', icon: FileText },
-            ] },
             { label: 'Farmasi & persediaan', icon: Pill, children: [
-                { label: 'Penyerahan obat', href: '/pelayanan/farmasi', icon: Pill },
-                { label: 'Obat langsung', href: '/farmasi/pemberian-obat', icon: FilePlus2 },
-                { label: 'Resep luar', href: '/farmasi/resep-luar', icon: FileText },
-                { label: 'Riwayat farmasi pasien', href: '/farmasi/pasien', icon: UsersRound },
                 { label: 'Mutasi & stok farmasi', href: '/stok/persediaan', icon: Boxes },
+                { label: 'Template surat', href: '/persuratan', icon: FileText },
             ] },
             { label: 'Laporan & analitik', icon: BarChart3, children: [
                 { label: 'Pusat laporan', href: '/admin/laporan', icon: BarChart3, exact: true },
-                { label: 'Kunjungan pasien', href: '/laporan/kunjungan', activePaths: ['/pendaftaran/laporan-kunjungan'], icon: ClipboardList },
-                { label: 'Pengkajian awal', href: '/admin/laporan/pengkajian', icon: HeartPulse },
-                { label: 'Tindakan perawat', href: '/admin/laporan/tindakan-perawat', icon: ClipboardCheck },
-                { label: 'Pemeriksaan dokter', href: '/admin/laporan/pemeriksaan', icon: Stethoscope },
-                { label: 'Tindakan dokter', href: '/admin/laporan/dokter/tindakan', icon: ClipboardCheck },
-                { label: 'Resep dokter', href: '/admin/laporan/dokter/obat', icon: Pill },
-                { label: 'Diagnosis terbanyak', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
-                { label: 'Penyerahan obat', href: '/farmasi/laporan/penyerahan-obat', icon: Pill },
-                { label: 'Obat langsung', href: '/farmasi/laporan/pemberian-langsung', icon: FilePlus2 },
-                { label: 'Resep luar', href: '/farmasi/laporan/resep-luar', icon: FileText },
+                { label: 'Ringkasan pelayanan', href: '/laporan/kunjungan', icon: ClipboardList },
                 { label: 'Stok obat & BHP', href: '/laporan/stok', icon: Boxes },
             ] },
             { label: 'Audit & aktivitas', icon: ShieldCheck, children: [
@@ -200,7 +182,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             { label: 'Riwayat farmasi pasien', href: '/farmasi/pasien', icon: UsersRound },
         ] },
         { label: 'Pengelolaan obat', items: [
-            { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Boxes },
+            { label: 'Mutasi & stok farmasi', href: '/stok/persediaan', icon: Boxes },
             { label: 'Data pasien', href: '/pelayanan/pasien', icon: UsersRound },
         ] },
         { label: 'Laporan', items: [
@@ -230,7 +212,7 @@ function getPageTitle(component: string): string {
         'dashboard/index': 'Dasbor',
         'kepesertaan/index': 'Kepesertaan',
         'kepesertaan/show': 'Detail kepesertaan',
-        'stok/persediaan/index': 'Persediaan & batch',
+        'stok/persediaan/index': 'Mutasi & stok farmasi',
         'stok/persediaan/show': 'Batch & kartu stok',
         'pendaftaran/rujukan-internal': 'Rujukan internal',
         'pendaftaran/dashboard': 'Dasbor pendaftaran',
@@ -415,7 +397,7 @@ function AccountMenu({ user, isSidebar = false, isCollapsed = false }: { user: A
                     <DropdownMenu.Item asChild className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus:bg-neutral-100">
                         <Link href="/profile"><UserRound aria-hidden="true" className="size-4" />Profil saya</Link>
                     </DropdownMenu.Item>
-                    <DropdownMenu.Item className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus:bg-neutral-100" onSelect={() => router.post('/logout')}>
+                    <DropdownMenu.Item className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-neutral-700 outline-none transition-colors hover:bg-neutral-100 focus:bg-neutral-100" onSelect={() => router.post('/logout', {}, { onFinish: () => { if (typeof BroadcastChannel !== 'undefined') { const channel = new BroadcastChannel('clinic-session'); channel.postMessage({ type: 'signed-out', userId: user?.id }); channel.close(); } } })}>
                         <LogOut aria-hidden="true" className="size-4" />Keluar dari aplikasi
                     </DropdownMenu.Item>
                 </DropdownMenu.Content>
@@ -648,7 +630,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </header>
 
                 <main className={`mx-auto min-w-0 w-full p-4 print:max-w-none print:p-0 sm:p-6 lg:p-8 ${['pelayanan/pasien/rekam-medis', 'pelayanan/pemeriksaan/show'].includes(page.component) ? 'max-w-none' : 'max-w-[1600px]'}`}>
-                    <PageLoading>{children}</PageLoading>
+                    <SessionSecurity /><PageLoading>{children}</PageLoading>
                 </main>
             </div>
         </div>

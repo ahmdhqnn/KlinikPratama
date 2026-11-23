@@ -26,20 +26,24 @@ class AdminPharmacyAssistanceTest extends TestCase
 
     #[TestWith(['umum', 2])]
     #[TestWith(['gigi', 1])]
-    public function test_admin_dispensing_requires_reason_rolls_back_bad_stock_and_is_idempotent(string $type, int $quantity): void
+    public function test_only_pharmacy_dispensing_rolls_back_bad_stock_and_is_idempotent(string $type, int $quantity): void
     {
         [$doctor, , $visit] = $this->context($type);
         $medicine = Obat::create(['kode' => 'ADMIN-OB', 'nama' => 'Obat uji', 'satuan_kecil' => 'tablet', 'stok' => 10, 'jenis' => 'obat', 'is_active' => true]);
         $batch = ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 10]);
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['obat_id' => $medicine->id, 'jumlah' => 2, 'jenis' => 'jadi', 'aturan_pakai' => 'Sesuai dokter'])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
-        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $admin = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
         $item = $visit->resep()->sole()->resepObat()->sole();
         $payload = ['items' => [['resep_obat_id' => $item->id, 'obat_id' => $medicine->id, 'jumlah_diberikan' => $quantity]], 'catatan' => $quantity < 2 ? 'Sisa obat ditindaklanjuti sesuai instruksi' : null];
-        $this->actingAs($admin)->post(route('pelayanan.farmasi.store', $visit), $payload)->assertSessionHasErrors('assistance_reason');
-        $this->post(route('pelayanan.farmasi.selesai', $visit), $payload)->assertSessionHasErrors('assistance_reason');
+        $operator = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $this->actingAs($operator)->post(route('pelayanan.farmasi.store', $visit), $payload)->assertForbidden();
+        $this->post(route('pelayanan.farmasi.selesai', $visit), $payload)->assertForbidden();
+        $this->actingAs($admin);
         $payload['assistance_reason'] = 'Akun farmasi sedang mengalami gangguan.';
         $this->post(route('pelayanan.farmasi.store', $visit), $payload)->assertSessionHasNoErrors();
+        $this->reviewSyntheticPharmacyPlan($visit, $admin);
+        $payload += $this->syntheticPharmacyHandover();
         $batch->update(['expired_at' => today()]);
         $this->post(route('pelayanan.farmasi.selesai', $visit), $payload)->assertSessionHasErrors('items');
         $this->assertSame('farmasi', $visit->fresh()->status);
@@ -53,53 +57,63 @@ class AdminPharmacyAssistanceTest extends TestCase
         $this->assertDatabaseHas('farmasi', ['kunjungan_id' => $visit->id, 'dispensed_by' => $admin->id]);
         $event = DB::table('clinical_audit_events')->where('action', 'pharmacy.dispensed')->sole();
         $this->assertSame($admin->id, $event->actor_id);
-        $this->assertSame($payload['assistance_reason'], json_decode($event->metadata, true)['assistance_reason']);
+        $this->assertSame('farmasi', $event->actor_role);
     }
 
-    public function test_admin_external_prescription_requires_signed_note_and_preserves_doctor_order(): void
+    public function test_only_pharmacy_external_prescription_requires_signed_note_and_preserves_doctor_order(): void
     {
         [$doctor, , $visit] = $this->context();
         $medicine = Obat::create(['kode' => 'EMPTY-OB', 'nama' => 'Obat kosong', 'satuan_kecil' => 'tablet', 'stok' => 0, 'jenis' => 'obat', 'is_active' => true]);
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['obat_id' => $medicine->id, 'jumlah' => 2, 'jenis' => 'jadi', 'aturan_pakai' => 'Sesuai dokter'])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $item = $visit->resep()->sole()->resepObat()->sole();
-        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $admin = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
         $reason = ['assistance_reason' => 'Bantuan farmasi saat akun petugas terganggu.'];
-        $this->actingAs($admin)->post(route('pelayanan.farmasi.resep-luar', [$visit, $item]), [])->assertSessionHasErrors('assistance_reason');
+        $operator = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $this->actingAs($operator)->post(route('pelayanan.farmasi.resep-luar', [$visit, $item]), [])->assertForbidden();
+        $this->actingAs($admin);
         $this->post(route('pelayanan.farmasi.resep-luar', [$visit, $item]), $reason)->assertSessionHasNoErrors();
         $this->assertFalse($item->fresh()->is_resep_luar);
         $this->assertDatabaseHas('farmasi_resep_luar', ['resep_obat_id' => $item->id, 'petugas_id' => $admin->id]);
         $this->get(route('farmasi.resep-luar.cetak', $visit))->assertOk();
-        $this->post(route('pelayanan.farmasi.selesai', $visit), [...$reason, 'items' => []])->assertSessionHasNoErrors();
+        $this->reviewSyntheticPharmacyPlan($visit, $admin);
+        $this->post(route('pelayanan.farmasi.selesai', $visit), [...$reason, 'items' => [], ...$this->syntheticPharmacyHandover()])->assertSessionHasNoErrors();
         $this->assertSame('selesai', $visit->fresh()->status);
         $this->assertSame(0, (int) $medicine->fresh()->stok);
     }
 
-    public function test_admin_cannot_bypass_pending_procedures_or_tampered_clinical_note(): void
+    public function test_pharmacy_cannot_bypass_pending_procedures_or_tampered_clinical_note(): void
     {
         [$doctor, , $visit, $examination] = $this->context();
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan tertunda', 'jumlah' => 1])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->classifySyntheticProceduresAsNotRequiringConsent($visit, $doctor);
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $visit->update(['status' => 'farmasi']);
-        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $admin = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
         $payload = ['assistance_reason' => 'Bantuan layanan farmasi diperlukan.', 'items' => []];
         $this->actingAs($admin)->post(route('pelayanan.farmasi.selesai', $visit), $payload)->assertUnprocessable();
         $visit->tindakanKunjungan()->update(['execution_status' => 'completed']);
         $version = ClinicalNoteVersion::sole();
-        $version->update(['payload' => [...$version->payload, 'anamnesis' => 'Isi versi diubah tanpa hash baru']]);
+        // Simulasi penyerang dengan hak DDL; akun runtime tidak boleh mempunyai hak ini di produksi.
+        DB::unprepared('DROP TRIGGER protect_clinical_note_versions_update');
+        DB::table('clinical_note_versions')->where('id', $version->id)->update(['payload' => json_encode([...$version->payload, 'anamnesis' => 'Isi versi diubah tanpa hash baru'])]);
         $this->post(route('pelayanan.farmasi.store', $visit), $payload)->assertUnprocessable();
         $this->assertDatabaseCount('farmasi', 0);
     }
 
-    public function test_direct_admin_dispensing_requires_reason_and_retries_return_the_same_record(): void
+    public function test_direct_pharmacy_dispensing_denies_admin_and_retries_return_the_same_record(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $admin = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
+        $this->verifySyntheticPharmacyStaff($admin);
         $patient = Pasien::create(['no_rm' => 'RM-DIRECT', 'nama' => 'Pasien Sintetis']);
         $medicine = Obat::create(['kode' => 'DIRECT', 'nama' => 'Obat langsung', 'satuan_kecil' => 'tablet', 'jenis' => 'obat', 'stok' => 10, 'is_active' => true, 'boleh_diberikan_langsung' => true]);
         ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 10]);
         $payload = ['pasien_id' => $patient->id, 'obat_id' => $medicine->id, 'jumlah' => 2, 'aturan_pakai' => 'Sesuai instruksi', 'dasar_pemberian' => 'Permintaan pasien sesuai kriteria', 'request_key' => (string) Str::uuid()];
-        $this->actingAs($admin)->post(route('farmasi.pemberian-obat.store'), $payload)->assertSessionHasErrors('assistance_reason');
+        $operator = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $this->actingAs($operator)->post(route('farmasi.pemberian-obat.store'), $payload)->assertForbidden();
+        $this->actingAs($admin);
         $payload['assistance_reason'] = 'Akun farmasi sedang mengalami gangguan.';
+        $payload += $this->syntheticDirectPharmacyReview();
         $medicine->update(['boleh_diberikan_langsung' => false]);
         $this->post(route('farmasi.pemberian-obat.store'), $payload)->assertSessionHasErrors('obat_id');
         $medicine->update(['boleh_diberikan_langsung' => true]);
@@ -116,7 +130,7 @@ class AdminPharmacyAssistanceTest extends TestCase
         $this->post(route('farmasi.pemberian-obat.store'), [...$payload, 'jumlah' => 3])->assertStatus(409);
         $this->assertSame(8, (int) $medicine->fresh()->stok);
         $this->assertSame(1, DB::table('clinical_audit_events')->where('action', 'pharmacy.direct_dispensed')->count());
-        $other = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $other = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
         $this->actingAs($other)->post(route('farmasi.pemberian-obat.store'), $payload)->assertStatus(409);
         $this->assertDatabaseCount('farmasi_mandiris', 1);
     }

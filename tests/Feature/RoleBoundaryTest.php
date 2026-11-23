@@ -10,12 +10,12 @@ class RoleBoundaryTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_can_open_pharmacy_services_and_reports(): void
+    public function test_admin_cannot_open_pharmacy_services_or_identifiable_reports(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
 
         foreach (['pelayanan.farmasi.index', 'farmasi.pemberian-obat.index', 'farmasi.pemberian-obat.create', 'farmasi.resep-luar.index', 'farmasi.laporan', 'farmasi.laporan.pemberian-langsung', 'farmasi.laporan.resep-luar'] as $routeName) {
-            $this->actingAs($admin)->get(route($routeName))->assertOk();
+            $this->actingAs($admin)->get(route($routeName))->assertForbidden();
         }
     }
 

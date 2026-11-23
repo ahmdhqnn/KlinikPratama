@@ -11,6 +11,7 @@ use App\Models\Kunjungan;
 use App\Models\TindakanKunjungan;
 use App\NursingProcedureReportQuery;
 use App\PerawatClinicResolver;
+use App\ProcedureConsentService;
 use App\VisitCareWorkflow;
 use App\VisitSchedulingService;
 use Illuminate\Database\Eloquent\Builder;
@@ -142,10 +143,10 @@ class TindakanPerawatController extends Controller
         ]);
     }
 
-    public function show(Request $request, Kunjungan $kunjungan, PerawatClinicResolver $clinics, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit): Response
+    public function show(Request $request, Kunjungan $kunjungan, PerawatClinicResolver $clinics, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit, ProcedureConsentService $consent): Response
     {
         $this->authorizeVisit($request, $kunjungan, $clinics);
-        $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'pemeriksaan', 'tindakanKunjungan.performedBy', 'tindakanKunjungan.tindakan']);
+        $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'pemeriksaan', 'tindakanKunjungan.performedBy', 'tindakanKunjungan.tindakan', 'tindakanKunjungan.informedConsents']);
         abort_unless($kunjungan->tindakanKunjungan->contains('execution_role', 'perawat'), 404);
         abort_unless($kunjungan->pemeriksaan?->signed_at && $notes->verify($kunjungan->pemeriksaan), 422, 'Catatan dokter belum ditandatangani atau integritasnya tidak valid.');
         $payload = $kunjungan->pemeriksaan->clinicalNoteVersions()->latest('version')->firstOrFail()->payload;
@@ -170,25 +171,29 @@ class TindakanPerawatController extends Controller
                     'instructions' => $item->catatan, 'status' => $item->execution_status,
                     'result' => $item->execution_result, 'performedBy' => $item->performedBy?->name,
                     'performedAt' => $item->performed_at?->format('d/m/Y H:i'),
+                    'consent' => $consent->summary($item),
                     'completeUrl' => route('pelayanan.tindakan.complete', [$kunjungan, $item]),
                 ])->values(),
             ],
         ]);
     }
 
-    public function start(Request $request, Kunjungan $kunjungan, PerawatClinicResolver $clinics, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit): RedirectResponse
+    public function start(Request $request, Kunjungan $kunjungan, PerawatClinicResolver $clinics, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit, ProcedureConsentService $consent): RedirectResponse
     {
         $this->authorizeVisit($request, $kunjungan, $clinics);
 
         $data = $this->assistanceData($request);
 
-        DB::transaction(function () use ($request, $kunjungan, $clinics, $notes, $audit, $data): void {
+        DB::transaction(function () use ($request, $kunjungan, $clinics, $notes, $audit, $consent, $data): void {
             $visit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeVisit($request, $visit, $clinics);
             abort_unless($visit->status === 'tindakan', 422, 'Kunjungan tidak berada pada tahap tindakan perawat.');
             $examination = $visit->pemeriksaan()->first();
             abort_unless($examination?->signed_at && $notes->verify($examination), 422, 'Catatan dokter belum ditandatangani atau integritasnya tidak valid.');
             abort_unless($visit->tindakanKunjungan()->where('execution_role', 'perawat')->where('execution_status', 'pending')->exists(), 422, 'Tidak ada tindakan perawat yang menunggu pelaksanaan.');
+            foreach ($visit->tindakanKunjungan()->where('execution_role', 'perawat')->where('execution_status', 'pending')->orderBy('id')->lockForUpdate()->get() as $procedure) {
+                $consent->ensureCanPerform($procedure);
+            }
 
             if ($visit->tindakan_started_at === null) {
                 $visit->update(['tindakan_started_at' => now()]);
@@ -199,7 +204,7 @@ class TindakanPerawatController extends Controller
         return redirect()->route('pelayanan.tindakan.show', $kunjungan)->with('success', 'Tindakan perawat dimulai.');
     }
 
-    public function complete(Request $request, Kunjungan $kunjungan, TindakanKunjungan $tindakanKunjungan, PerawatClinicResolver $clinics, VisitCareWorkflow $workflow, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit): RedirectResponse
+    public function complete(Request $request, Kunjungan $kunjungan, TindakanKunjungan $tindakanKunjungan, PerawatClinicResolver $clinics, VisitCareWorkflow $workflow, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit, ProcedureConsentService $consent): RedirectResponse
     {
         $this->authorizeVisit($request, $kunjungan, $clinics);
         abort_unless($tindakanKunjungan->kunjungan_id === $kunjungan->id, 404);
@@ -208,7 +213,7 @@ class TindakanPerawatController extends Controller
         }
         $data = [...$this->assistanceData($request), ...$request->validate(['execution_result' => ['required', 'string', 'min:3', 'max:5000']])];
 
-        DB::transaction(function () use ($request, $kunjungan, $tindakanKunjungan, $clinics, $workflow, $notes, $audit, $data): void {
+        DB::transaction(function () use ($request, $kunjungan, $tindakanKunjungan, $clinics, $workflow, $notes, $audit, $consent, $data): void {
             $visit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeVisit($request, $visit, $clinics);
             $procedure = $visit->tindakanKunjungan()->whereKey($tindakanKunjungan->id)->lockForUpdate()->firstOrFail();
@@ -219,6 +224,7 @@ class TindakanPerawatController extends Controller
             abort_unless($visit->status === 'tindakan' && $visit->tindakan_started_at !== null && $procedure->execution_status === 'pending', 422, 'Mulai tindakan perawat terlebih dahulu.');
             $examination = $visit->pemeriksaan()->lockForUpdate()->first();
             abort_unless($examination?->signed_at && $notes->verify($examination), 422, 'Catatan dokter belum ditandatangani atau integritasnya tidak valid.');
+            $consent->ensureCanPerform($procedure);
             $workflow->consumeSupplies($procedure, $visit, $request->user());
             $procedure->update([
                 'execution_status' => 'completed', 'performed_by' => $request->user()->id,

@@ -24,6 +24,11 @@ class Pasien extends Model
         'tanggal_lahir' => 'date',
     ];
 
+    public function latestGeneralConsent(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(GeneralConsent::class)->latestOfMany();
+    }
+
     public function kepesertaan(): BelongsTo
     {
         return $this->belongsTo(Kepesertaan::class);

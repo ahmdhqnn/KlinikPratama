@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useState } from 'react';
@@ -39,6 +40,11 @@ interface PatientForm extends VisitFormValues {
     kelurahan: string;
     kecamatan: string;
     riwayat_alergi: string;
+    general_consent_confirmed: string;
+    general_consent_version: string;
+    general_consent_relationship: string;
+    general_consent_representative: string;
+    general_consent_authority: string;
 }
 
 interface Props {
@@ -49,25 +55,29 @@ interface Props {
     today: string;
     doctorsUrl: string;
     initialTab: 'manual' | 'directory' | 'registered';
+    generalConsent: { text: string; version: string };
 }
 
-export default function NewPatientRegistration({ clinics, today, doctorsUrl, initialTab, initialPatient, internalReferral, referralBackUrl }: Props) {
+export default function NewPatientRegistration({ clinics, today, doctorsUrl, initialTab, initialPatient, internalReferral, referralBackUrl, generalConsent }: Props) {
     const [registrationType, setRegistrationType] = useState<'directory' | 'manual' | 'registered'>(initialTab);
     const defaultData: PatientForm = {
         registration_type: 'directory', kepesertaan_id: '', nama: '', nik: '', nip: '', unit_kerja: '', tempat_lahir: '', tanggal_lahir: '', jenis_kelamin: '', golongan_darah: '',
         agama: '', telepon: '', alamat: '', rt: '', rw: '', kelurahan: '', kecamatan: '',
         riwayat_alergi: '', poliklinik_id: clinics.find((clinic) => clinic.type === 'umum')?.id.toString() ?? '', dokter_id: '', tanggal: today, catatan: '',
+        general_consent_confirmed: '', general_consent_version: generalConsent?.version ?? '', general_consent_relationship: 'patient',
+        general_consent_representative: '', general_consent_authority: '',
     };
     const manualForm = useForm<PatientForm>({ ...defaultData, registration_type: 'manual' });
     const directoryForm = useForm<PatientForm>(defaultData);
     const form = registrationType === 'manual' ? manualForm : directoryForm;
 
     function updateField(field: keyof PatientForm, value: string) {
-        form.setData((data) => ({ ...data, [field]: value }));
+        form.setData((data) => ({ ...data, general_consent_confirmed: '', [field]: value }));
     }
 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (!form.data.general_consent_confirmed) return;
         if (registrationType === 'directory' && !form.data.kepesertaan_id) {
             const formElement = event.currentTarget;
             form.setError('kepesertaan_id', 'Pilih peserta dari hasil pencarian.');
@@ -122,7 +132,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                                 kelurahan: form.data.kelurahan || null, kecamatan: form.data.kecamatan || null,
                             }}
                             onSelect={(member) => form.setData((data) => ({
-                                ...data, telepon: '', riwayat_alergi: '', kepesertaan_id: String(member.id), nama: member.name, nik: member.nik ?? '', nip: member.nip ?? '', unit_kerja: member.unit,
+                                ...data, general_consent_confirmed: '', telepon: '', riwayat_alergi: '', kepesertaan_id: String(member.id), nama: member.name, nik: member.nik ?? '', nip: member.nip ?? '', unit_kerja: member.unit,
                                 tempat_lahir: member.tempatLahir ?? '', tanggal_lahir: member.tanggalLahir ?? '', jenis_kelamin: member.jenisKelamin ?? '',
                                 golongan_darah: member.golonganDarah ?? '', agama: member.agama ?? '', alamat: member.alamat ?? '',
                                 rt: member.rt ?? '', rw: member.rw ?? '', kelurahan: member.kelurahan ?? '', kecamatan: member.kecamatan ?? '',
@@ -133,9 +143,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                                 <Input autoComplete="tel" id="telepon" onChange={(event) => updateField('telepon', event.target.value)} placeholder={identityPlaceholders.telepon} type="tel" value={form.data.telepon} />
                             </Field>
                         </div>
-                        <Field error={form.errors.riwayat_alergi} htmlFor="riwayat_alergi" label="Riwayat alergi">
-                            <Textarea id="riwayat_alergi" onChange={(event) => updateField('riwayat_alergi', event.target.value)} placeholder={identityPlaceholders.riwayat_alergi} value={form.data.riwayat_alergi} />
-                        </Field>
+
                     </CardContent>
                 </Card>
 
@@ -165,8 +173,35 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                     </CardContent>
                 </Card>
 
+                {generalConsent && <Card>
+                    <CardHeader>
+                        <CardTitle>Persetujuan umum pasien baru</CardTitle>
+                        <CardDescription>Jelaskan ketentuan ini dan konfirmasi keputusan sebelum mendaftarkan kunjungan pertama.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <p className="text-sm leading-6 text-neutral-700">{generalConsent.text}</p>
+                        <Field label="Pemberi keputusan" htmlFor="registration-consent-relationship" error={form.errors.general_consent_relationship}>
+                            <Select id="registration-consent-relationship" value={form.data.general_consent_relationship} onChange={(event) => form.setData((data) => ({ ...data, general_consent_relationship: event.target.value, general_consent_confirmed: '' }))}>
+                                <option value="patient">Pasien sendiri</option><option value="parent">Orang tua</option><option value="spouse">Suami / istri</option><option value="guardian">Wali / pengampu</option><option value="other">Wakil lain yang sah</option>
+                            </Select>
+                        </Field>
+                        {form.data.general_consent_relationship !== 'patient' && <>
+                            <Field label="Nama wakil" htmlFor="registration-consent-name" error={form.errors.general_consent_representative} required>
+                                <Input id="registration-consent-name" required minLength={2} maxLength={150} value={form.data.general_consent_representative} onChange={(event) => updateField('general_consent_representative', event.target.value)} />
+                            </Field>
+                            <Field label="Dasar kewenangan wakil" htmlFor="registration-consent-authority" error={form.errors.general_consent_authority} required>
+                                <Textarea id="registration-consent-authority" required minLength={10} maxLength={1000} value={form.data.general_consent_authority} onChange={(event) => updateField('general_consent_authority', event.target.value)} />
+                            </Field>
+                        </>}
+                        <label className="flex items-start gap-3 text-sm leading-6">
+                            <input className="mt-1 size-4 shrink-0" type="checkbox" checked={Boolean(form.data.general_consent_confirmed)} onChange={(event) => updateField('general_consent_confirmed', event.target.checked ? '1' : '')} />
+                            <span>Saya telah memberi penjelasan, memeriksa identitas, dan menerima persetujuan langsung dari pasien atau wakil yang sah.</span>
+                        </label>
+                        {(form.errors.general_consent_confirmed || form.errors.general_consent_version) && <p role="alert" className="text-sm text-red-600">{form.errors.general_consent_confirmed ?? form.errors.general_consent_version}</p>}
+                    </CardContent>
+                </Card>}
                 <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
-                    <Button disabled={form.processing} type="submit"><UserRoundPlus className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan dan buat kunjungan'}</Button>
+                    <Button disabled={form.processing || !form.data.general_consent_confirmed} type="submit"><UserRoundPlus className="size-4" />{form.processing ? 'Mendaftarkan…' : 'Daftarkan dan buat kunjungan'}</Button>
                 </div>
                     </form>}
                 </Tabs>}

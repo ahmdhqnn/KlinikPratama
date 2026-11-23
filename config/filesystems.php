@@ -29,6 +29,11 @@ return [
     */
 
     'disks' => [
+        'clinical_backups' => [
+            'driver' => 'local',
+            'root' => env('CLINIC_BACKUP_PATH', storage_path('app/clinical-backups')),
+            'throw' => true,
+        ],
 
         'local' => [
             'driver' => 'local',

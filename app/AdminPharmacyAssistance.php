@@ -10,23 +10,16 @@ final class AdminPharmacyAssistance
     /** @return array{assistance_reason?: string} */
     public function context(Request $request): array
     {
-        if (! $request->user()->isAdmin()) {
-            return [];
-        }
-        if (is_string($request->input('assistance_reason'))) {
-            $request->merge(['assistance_reason' => trim($request->input('assistance_reason'))]);
-        }
+        abort_unless($request->user()->role === 'farmasi', 403);
 
-        return $request->validate(['assistance_reason' => ['required', 'string', 'min:10', 'max:1000']]);
+        return [];
     }
 
     public function authorizeVisit(Request $request, Kunjungan $visit): void
     {
-        if (! $request->user()->isAdmin()) {
-            return;
-        }
+        abort_unless($request->user()->role === 'farmasi', 403);
         abort_unless($visit->poliklinik?->is_active && in_array($visit->poliklinik->jenis, ['umum', 'gigi'], true), 422);
-        abort_unless($visit->pemeriksaan?->signed_at && app(ClinicalNoteRecorder::class)->verify($visit->pemeriksaan), 422, 'Catatan dokter final harus terverifikasi sebelum bantuan farmasi.');
+        abort_unless($visit->pemeriksaan?->signed_at && app(ClinicalNoteRecorder::class)->verify($visit->pemeriksaan), 422, 'Catatan dokter final harus terverifikasi sebelum penyerahan obat.');
         abort_if($visit->tindakanKunjungan()->where('execution_role', 'perawat')->where('execution_status', 'pending')->exists(), 422, 'Selesaikan tindakan perawat sebelum pelayanan farmasi.');
     }
 }

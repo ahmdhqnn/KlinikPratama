@@ -117,6 +117,7 @@ class PatientAllergyContinuityTest extends TestCase
         $exam->update(['status' => 'selesai']);
         $visit->update(['status' => 'selesai']);
         $this->travelTo('2026-10-21 09:00:00');
+        $this->withSession(['clinical_last_activity' => now()->timestamp]);
         $next = Kunjungan::create([...$visit->only(['pasien_id', 'poliklinik_id', 'dokter_id']),
             'no_kunjungan' => 'AL-NEXT', 'tanggal' => today(), 'status' => 'menunggu']);
 

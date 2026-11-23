@@ -122,7 +122,7 @@ class UserController extends Controller
         $data['is_active'] = $request->boolean('is_active');
 
         DB::transaction(function () use ($data, $request, $audit): void {
-            $user = User::create($data);
+            $user = User::create([...$data, 'must_change_password' => true]);
             $this->syncNakesProfile($user, $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null);
             $audit->record($request, 'user.created', metadata: ['user_id' => $user->id, 'role' => $user->role]);
         });
@@ -162,7 +162,8 @@ class UserController extends Controller
         }
 
         DB::transaction(function () use ($data, $user, $request, $audit): void {
-            $user->update($data);
+            $user->update([...$data, 'session_version' => (int) $user->session_version + 1, 'remember_token' => null]);
+            $user->forceFill(['remember_token' => null])->save();
             $this->syncNakesProfile($user->fresh(), $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null);
             $audit->record($request, 'user.updated', metadata: ['user_id' => $user->id, 'role' => $user->role, 'active' => $user->is_active]);
         });
@@ -177,11 +178,11 @@ class UserController extends Controller
         }
 
         DB::transaction(function () use ($request, $user, $audit): void {
-            $user->delete();
-            $audit->record($request, 'user.deleted', metadata: ['user_id' => $user->id]);
+            $user->forceFill(['is_active' => false, 'session_version' => (int) $user->session_version + 1, 'remember_token' => null])->save();
+            $audit->record($request, 'user.deactivated', metadata: ['user_id' => $user->id, 'source' => 'legacy_delete', 'role' => $user->role]);
         });
 
-        return back()->with('success', 'Pengguna berhasil dihapus.');
+        return back()->with('success', 'Akun dinonaktifkan. Identitas operator dan bukti pelayanan tetap tersimpan.');
     }
 
     public function toggleActive(Request $request, User $user, ClinicalAuditRecorder $audit): RedirectResponse
@@ -195,7 +196,8 @@ class UserController extends Controller
         }
 
         DB::transaction(function () use ($request, $user, $audit): void {
-            $user->update(['is_active' => ! $user->is_active]);
+            $user->update(['is_active' => ! $user->is_active, 'session_version' => (int) $user->session_version + 1]);
+            $user->forceFill(['remember_token' => null])->save();
             $audit->record($request, 'user.status_changed', metadata: ['user_id' => $user->id, 'active' => $user->is_active]);
         });
 
@@ -207,7 +209,8 @@ class UserController extends Controller
         $request->validate(['password' => ['required', 'string', 'min:8']]);
 
         DB::transaction(function () use ($request, $user, $audit): void {
-            $user->update(['password' => Hash::make($request->password)]);
+            $user->update(['password' => Hash::make($request->password), 'must_change_password' => true, 'session_version' => (int) $user->session_version + 1]);
+            $user->forceFill(['remember_token' => null])->save();
             $audit->record($request, 'user.password_reset', metadata: ['user_id' => $user->id]);
         });
 

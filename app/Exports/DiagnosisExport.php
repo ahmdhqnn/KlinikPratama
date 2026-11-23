@@ -10,7 +10,7 @@ use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class DiagnosisExport implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
+class DiagnosisExport extends SafeSpreadsheetValueBinder implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
     public function __construct(private Builder $diagnoses) {}
 

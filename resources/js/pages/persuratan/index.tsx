@@ -1,3 +1,4 @@
+import { ServiceReportLinks } from '@/components/reports/service-report-links';
 import { InternalReferralTable, type InternalReferralPagination } from '@/components/kunjungan/internal-referral-table';
 import { letterTypes } from '@/components/medical-letter-fields';
 import { ActionButton } from '@/components/ui/action-button';
@@ -65,7 +66,7 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
     const templates = templatePagination.data;
     const letters = letterPagination.data;
     const [editingId, setEditingId] = useState<number | null>(null);
-    const [activeTab, setActiveTab] = useState('dokumen');
+    const [activeTab, setActiveTab] = useState(isAdmin ? 'template' : 'dokumen');
     const [showArchiveNotice, setShowArchiveNotice] = useState(true);
     const [showVisitNotice, setShowVisitNotice] = useState(true);
     const form = useForm(emptyTemplate);
@@ -140,7 +141,7 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
                 </section>
             <Tabs className="space-y-5" onValueChange={setActiveTab} value={activeTab}>
                     <TabsList aria-label="Bagian persuratan">
-                        <TabsTrigger value="dokumen">Dokumen terbit</TabsTrigger>
+                        {!isAdmin && <TabsTrigger value="dokumen">Dokumen terbit</TabsTrigger>}
                         {eligibleVisits && <TabsTrigger value="terbitkan">Penerbitan dokumen</TabsTrigger>}
                         {isAdmin && <TabsTrigger value="template">Template & penomoran</TabsTrigger>}
                     </TabsList>
@@ -201,5 +202,5 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
 }
 
 function SearchFilter({ search, onSearchChange, visitId }: { visitId?: number | null; search: string; onSearchChange: (value: string) => void }) {
-    return <FilterPanel><form className="flex flex-col gap-3 sm:flex-row" onSubmit={(event) => { event.preventDefault(); router.get('/persuratan', { search, kunjungan_id: visitId ?? '' }, { preserveState: true, preserveScroll: true, replace: true }); }}><Input aria-label="Cari dokumen atau pasien" placeholder="Cari nama, No. RM, nomor surat, atau template" value={search} onChange={(event) => onSearchChange(event.target.value)} /><FilterSubmit /></form></FilterPanel>;
+    return <FilterPanel actions={<ServiceReportLinks kind="letters" size="sm" />}><form className="flex flex-col gap-4 sm:flex-row" onSubmit={(event) => { event.preventDefault(); router.get('/persuratan', { search, kunjungan_id: visitId ?? '' }, { preserveState: true, preserveScroll: true, replace: true }); }}><Input aria-label="Cari dokumen atau pasien" placeholder="Cari nama, No. RM, nomor surat, atau template" value={search} onChange={(event) => onSearchChange(event.target.value)} /><FilterSubmit /></form></FilterPanel>;
 }

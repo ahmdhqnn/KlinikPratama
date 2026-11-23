@@ -40,7 +40,7 @@ class VisitAttachmentController extends Controller
                 $visit = Kunjungan::query()->lockForUpdate()->findOrFail($kunjungan->id);
                 $this->authorizeVisit($request, $visit, true);
                 $attachments = $visit->lampiran ?? [];
-                if (count($attachments) >= 10) {
+                if (count(array_filter($attachments, fn (array $item): bool => empty($item['voided_at']))) >= 10) {
                     throw ValidationException::withMessages(['file' => 'Maksimal 10 lampiran untuk satu kunjungan.']);
                 }
                 $file = $validated['file'];
@@ -55,6 +55,7 @@ class VisitAttachmentController extends Controller
                     'mime' => $file->getMimeType(), 'size' => $file->getSize(),
                     'note' => $validated['note'] ?? null,
                     'uploaded_at' => now()->toIso8601String(), 'uploaded_by' => $request->user()->id,
+                    'sha256' => hash_file('sha256', $file->getRealPath()),
                 ];
                 $visit->lampiran = $attachments;
                 $visit->save();
@@ -75,7 +76,11 @@ class VisitAttachmentController extends Controller
         $this->authorizeVisit($request, $kunjungan);
         $document = collect($kunjungan->lampiran ?? [])->firstWhere('id', $attachment);
         abort_unless($document && Storage::disk('local')->exists($document['path']), 404);
-        $this->audit->record($request, 'attachment.download', $kunjungan->pasien_id, $kunjungan->id, ['attachment_id' => $attachment]);
+        abort_if(! empty($document['voided_at']) && ! $request->boolean('archive'), 410, 'Lampiran telah dibatalkan; bukti asli tetap tersimpan.');
+        if (! empty($document['sha256'])) {
+            abort_unless(hash_equals($document['sha256'], hash_file('sha256', Storage::disk('local')->path($document['path']))), 409, 'Integritas lampiran perlu diperiksa.');
+        }
+        $this->audit->record($request, 'attachment.download', $kunjungan->pasien_id, $kunjungan->id, ['attachment_id' => $attachment, 'archived' => ! empty($document['voided_at'])]);
 
         return Storage::disk('local')->download($document['path'], $document['name'], [
             'Content-Type' => $document['mime'], 'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, no-store',
@@ -85,25 +90,59 @@ class VisitAttachmentController extends Controller
     public function destroy(Request $request, Kunjungan $kunjungan, string $attachment): RedirectResponse
     {
         $this->authorizeVisit($request, $kunjungan, true);
-        DB::transaction(function () use ($request, $kunjungan, $attachment): void {
+        $reason = $request->input('reason');
+        $request->merge(['reason' => is_string($reason) ? trim($reason) : $reason]);
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:1000']]);
+        DB::transaction(function () use ($request, $kunjungan, $attachment, $data): void {
             $visit = Kunjungan::query()->lockForUpdate()->findOrFail($kunjungan->id);
             $this->authorizeVisit($request, $visit, true);
             $documents = collect($visit->lampiran ?? []);
             $document = $documents->firstWhere('id', $attachment);
             abort_unless($document, 404);
-            $visit->lampiran = $documents->reject(fn (array $item): bool => $item['id'] === $attachment)->values()->all();
+            abort_if(! empty($document['voided_at']), 409, 'Lampiran sudah dibatalkan.');
+            $visit->lampiran = $documents->map(fn (array $item): array => $item['id'] === $attachment
+                ? [...$item, 'voided_at' => now()->toIso8601String(), 'voided_by' => $request->user()->id, 'void_reason' => trim($data['reason']), 'lifecycle' => [...($item['lifecycle'] ?? []), ['action' => 'void', 'at' => now()->toIso8601String(), 'by' => $request->user()->id, 'reason' => $data['reason']]]]
+                : $item)->all();
             $visit->save();
-            $this->audit->record($request, 'attachment.delete', $visit->pasien_id, $visit->id, ['attachment_id' => $attachment]);
-            DB::afterCommit(fn () => Storage::disk('local')->delete($document['path']));
+            $this->audit->record($request, 'attachment.voided', $visit->pasien_id, $visit->id, ['attachment_id' => $attachment, 'reason' => trim($data['reason']), 'sha256' => $document['sha256'] ?? null]);
         });
 
-        return back()->with('success', 'Lampiran berhasil dihapus.');
+        return back()->with('success', 'Lampiran dibatalkan. Bukti asli tetap tersimpan.');
+    }
+
+    public function restore(Request $request, Kunjungan $kunjungan, string $attachment): RedirectResponse
+    {
+        $this->authorizeVisit($request, $kunjungan, true);
+        $reason = $request->input('reason');
+        $request->merge(['reason' => is_string($reason) ? trim($reason) : $reason]);
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:1000']]);
+        DB::transaction(function () use ($request, $kunjungan, $attachment, $data): void {
+            $visit = Kunjungan::query()->lockForUpdate()->findOrFail($kunjungan->id);
+            $this->authorizeVisit($request, $visit, true);
+            $documents = collect($visit->lampiran ?? []);
+            $document = $documents->firstWhere('id', $attachment);
+            abort_unless($document, 404);
+            abort_if(empty($document['voided_at']), 409, 'Lampiran sudah aktif.');
+            abort_if($documents->filter(fn (array $item): bool => empty($item['voided_at']))->count() >= 10, 409, 'Maksimal 10 lampiran aktif untuk satu kunjungan.');
+            abort_unless(Storage::disk('local')->exists($document['path']), 409, 'Berkas arsip tidak tersedia.');
+            if (! empty($document['sha256'])) {
+                abort_unless(hash_equals($document['sha256'], hash_file('sha256', Storage::disk('local')->path($document['path']))), 409, 'Integritas lampiran perlu diperiksa.');
+            }
+            $events = $document['lifecycle'] ?? [['action' => 'void', 'at' => $document['voided_at'], 'by' => $document['voided_by'] ?? null, 'reason' => $document['void_reason'] ?? null]];
+            $visit->lampiran = $documents->map(fn (array $item): array => $item['id'] === $attachment
+                ? [...$item, 'voided_at' => null, 'lifecycle' => [...$events, ['action' => 'restore', 'at' => now()->toIso8601String(), 'by' => $request->user()->id, 'reason' => $data['reason']]]]
+                : $item)->all();
+            $visit->save();
+            $this->audit->record($request, 'attachment.restored', $visit->pasien_id, $visit->id, ['attachment_id' => $attachment, 'reason' => $data['reason'], 'sha256' => $document['sha256'] ?? null]);
+        });
+
+        return back()->with('success', 'Lampiran dipulihkan. Riwayat pembatalan tetap tersimpan.');
     }
 
     private function authorizeVisit(Request $request, Kunjungan $visit, bool $editing = false): void
     {
         $user = $request->user();
-        abort_unless(in_array($user->role, ['admin', 'perawat', 'dokter'], true), 403);
+        abort_unless(in_array($user->role, ['perawat', 'dokter'], true), 403);
         if ($user->role === 'perawat') {
             abort_unless((int) $visit->poliklinik_id === $this->nurses->clinicId($user), 404);
         }

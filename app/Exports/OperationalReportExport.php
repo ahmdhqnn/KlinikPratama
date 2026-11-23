@@ -19,12 +19,12 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class OperationalReportExport extends DefaultValueBinder implements FromQuery, WithCustomValueBinder, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
     public function __construct(
-        private readonly Builder $records,
+        private readonly Builder|\Illuminate\Database\Query\Builder $records,
         private readonly array $columns,
         private readonly Closure $rows,
     ) {}
 
-    public function query(): Builder
+    public function query(): Builder|\Illuminate\Database\Query\Builder
     {
         return $this->records;
     }

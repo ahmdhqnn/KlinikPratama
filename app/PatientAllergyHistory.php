@@ -9,6 +9,19 @@ use App\Models\Screening;
 
 class PatientAllergyHistory
 {
+    public function forPatient(Pasien $patient): array
+    {
+        $visit = $patient->kunjungan()->whereNotIn('status', ['batal', 'menunggu', 'screening'])->whereDate('tanggal', '<=', today())
+            ->with(['screening', 'pemeriksaan.clinicalNoteVersions'])->orderByDesc('tanggal')->orderByDesc('id')->first();
+        if ($visit) {
+            $visit->setRelation('pasien', $patient);
+
+            return $this->forVisit($visit);
+        }
+
+        return ['riwayat_alergi' => $this->normalize($patient->riwayat_alergi), 'alergi_jenis' => null, 'alergi_reaksi' => null];
+    }
+
     public function __construct(private ClinicalNoteRecorder $notes) {}
 
     /** @return array{riwayat_alergi: ?string, alergi_jenis: ?string, alergi_reaksi: ?string} */

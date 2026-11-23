@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ClinicalTerminology;
 use App\Models\JadwalDokter;
 use App\Models\Kepesertaan;
 use App\Models\Kunjungan;
@@ -110,6 +111,7 @@ class RmeEndToEndFlowTest extends TestCase
         $kunjungan = Kunjungan::where('pasien_id', $pasien->id)->first();
         $this->assertNotNull($kunjungan);
         $this->assertEquals('menunggu', $kunjungan->status);
+        $this->recordSyntheticGeneralConsent($kunjungan, $admin);
 
         // 4. Screening Tanda Vital
         $resScreening = $this->actingAs($nurse)->beginNursingAssessment($kunjungan)->post("/pelayanan/kunjungan/{$kunjungan->id}/screening", [
@@ -139,6 +141,7 @@ class RmeEndToEndFlowTest extends TestCase
             'pemeriksaan_fisik' => 'Faring hiperemis (-), Cor/Pulmo DBN',
         ]);
 
+        ClinicalTerminology::create(['code_system' => 'icd10_who', 'release' => 'WHO 2016', 'code' => 'R50.9', 'display' => 'Demam, tidak spesifik', 'code_type' => 'diagnosis', 'is_active' => true]);
         $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/diagnosa", [
             'kode_icd10' => 'R50.9',
             'nama_diagnosa' => 'Demam, tidak spesifik',
@@ -158,7 +161,8 @@ class RmeEndToEndFlowTest extends TestCase
         ]);
 
         // Pemeriksaan dokter -> tindakan perawat -> farmasi
-        $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/selesai", ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $kunjungan->fresh()->screening?->revisionToken(), 'signature_password' => 'password']);
+        $this->classifySyntheticProceduresAsNotRequiringConsent($kunjungan, $doctorUser);
+        $this->actingAs($doctorUser)->post("/pelayanan/pemeriksaan/{$kunjungan->id}/selesai", ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $kunjungan->fresh()->screening?->revisionToken(), 'signature_password' => 'password']);
         $kunjungan->refresh();
         $this->assertSame('tindakan', $kunjungan->status);
         $this->assertEquals(5, $supply->fresh()->stok);
@@ -171,7 +175,7 @@ class RmeEndToEndFlowTest extends TestCase
         $this->actingAs($doctorUser);
         $this->assertEquals(100, $obat->fresh()->stok);
         $this->assertEquals(3, $supply->fresh()->stok);
-        $this->post('/pelayanan/pemeriksaan/'.$kunjungan->id.'/selesai', ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $kunjungan->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertUnprocessable();
+        $this->post('/pelayanan/pemeriksaan/'.$kunjungan->id.'/selesai', ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $kunjungan->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertUnprocessable();
         $this->assertEquals(3, $supply->fresh()->stok);
 
         $this->actingAs($nurse)->post("/pelayanan/kunjungan/{$kunjungan->id}/screening", [
@@ -198,7 +202,8 @@ class RmeEndToEndFlowTest extends TestCase
         ]);
         $resFarmasiStore->assertSessionHasNoErrors();
 
-        $resFarmasiSelesai = $this->actingAs($pharmacist)->post("/pelayanan/farmasi/{$kunjungan->id}/selesai");
+        $this->reviewSyntheticPharmacyPlan($kunjungan, $pharmacist);
+        $resFarmasiSelesai = $this->actingAs($pharmacist)->post("/pelayanan/farmasi/{$kunjungan->id}/selesai", $this->syntheticPharmacyHandover());
         $resFarmasiSelesai->assertRedirect(route('pelayanan.farmasi.index'));
         $kunjungan->refresh();
         $this->assertEquals('selesai', $kunjungan->status);

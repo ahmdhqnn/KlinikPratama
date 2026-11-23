@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Pendaftaran;
 use App\ClinicalAuditRecorder;
 use App\ClinicDocumentNumber;
 use App\DateRangeFilter;
+use App\EffectiveDiagnosisReport;
 use App\Exports\DiagnosisExport;
 use App\Exports\KunjunganExport;
+use App\GeneralConsentService;
 use App\HakLayananVerifier;
 use App\Http\Controllers\Controller;
 use App\InternalReferralDirectory;
@@ -22,6 +24,7 @@ use App\Models\RujukanInternal;
 use App\PatientRegistrationService;
 use App\PerawatClinicResolver;
 use App\PracticeScheduleAccess;
+use App\VisitCancellation;
 use App\VisitOverviewService;
 use App\VisitQueryService;
 use App\VisitSchedulingService;
@@ -186,6 +189,7 @@ class RegistrationController extends Controller
 
         return Inertia::render('pendaftaran/pendaftaran-baru', [
             ...$this->registrationFormData(),
+            'generalConsent' => ['text' => GeneralConsentService::TEXT, 'version' => GeneralConsentService::VERSION],
             'initialPatient' => $patient ? $this->patientRegistrationData($patient) : null,
             'initialTab' => $referral ? 'registered' : (in_array($tab, ['manual', 'directory', 'registered'], true) ? $tab : 'manual'),
             'internalReferral' => $referral ? ['id' => $referral->id, 'number' => $referral->nomor_surat, 'clinicId' => $referral->ke_poli_id] : null,
@@ -193,7 +197,7 @@ class RegistrationController extends Controller
         ]);
     }
 
-    public function storePasienBaru(Request $request, PatientRegistrationService $registrationService): RedirectResponse
+    public function storePasienBaru(Request $request, PatientRegistrationService $registrationService, GeneralConsentService $consents): RedirectResponse
     {
         $request->mergeIfMissing(['registration_type' => 'directory']);
         $registrationType = $request->validate(['registration_type' => ['required', 'in:directory,manual']])['registration_type'];
@@ -204,7 +208,7 @@ class RegistrationController extends Controller
             'registration_type' => ['required', 'in:directory,manual'],
             'kepesertaan_id' => ['exclude_unless:registration_type,directory', 'required', 'integer', 'exists:kepesertaan,id', 'unique:pasien,kepesertaan_id'],
             'telepon' => ['nullable', 'string', 'max:20'],
-            'riwayat_alergi' => ['nullable', 'string', 'max:2000'],
+            'riwayat_alergi' => ['exclude'],
             'poliklinik_id' => ['required', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'dokter_id' => ['nullable', 'exists:nakes,id'],
             'tanggal' => ['nullable', 'date_format:Y-m-d'],
@@ -221,7 +225,18 @@ class RegistrationController extends Controller
         $validated['tanggal'] = $validated['tanggal'] ?? today()->toDateString();
         $validated['dokter_id'] = $this->scheduling->resolveDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], $validated['tanggal']);
 
-        $pasien = DB::transaction(function () use ($validated, $request, $manualData, $registrationService): Pasien {
+        $confirmation = $request->validate([
+            'general_consent_confirmed' => ['required', 'accepted'],
+            'general_consent_version' => ['required', Rule::in([GeneralConsentService::VERSION])],
+            'general_consent_relationship' => ['required', Rule::in(['patient', 'parent', 'spouse', 'guardian', 'other'])],
+            'general_consent_representative' => ['exclude_if:general_consent_relationship,patient', 'required', 'string', 'min:2', 'max:150'],
+            'general_consent_authority' => ['exclude_if:general_consent_relationship,patient', 'required', 'string', 'min:10', 'max:1000'],
+        ], [
+            'general_consent_confirmed.*' => 'Konfirmasi persetujuan pasien sebelum mendaftarkan kunjungan pertama.',
+            'general_consent_version.*' => 'Muat ulang formulir untuk membaca versi Persetujuan Umum yang berlaku.',
+        ]);
+
+        $pasien = DB::transaction(function () use ($validated, $request, $manualData, $registrationService, $consents, $confirmation): Pasien {
             if ($manualData !== null) {
                 $pasien = $registrationService->createManual($manualData);
             } else {
@@ -255,7 +270,8 @@ class RegistrationController extends Controller
                 ]);
             }
 
-            Kunjungan::create([
+            $visit = Kunjungan::create([
+                'general_consent_required' => true,
                 'no_kunjungan' => Kunjungan::generateNomor(),
                 'pasien_id' => $pasien->id,
                 'poliklinik_id' => $validated['poliklinik_id'],
@@ -266,6 +282,8 @@ class RegistrationController extends Controller
                 ...app(HakLayananVerifier::class)->patient($pasien, $request),
                 'catatan' => $validated['catatan'] ?? null,
             ]);
+
+            $consents->recordFirstAcceptance($request, $visit, $pasien, $confirmation);
 
             return $pasien;
         });
@@ -293,7 +311,7 @@ class RegistrationController extends Controller
             })
             ->latest('created_at')->latest('id')
             ->limit(10)
-            ->with('kepesertaan.penanggung')->get()
+            ->with(['kepesertaan.penanggung', 'latestGeneralConsent'])->get()
             ->map(fn (Pasien $patient): array => $this->patientRegistrationData($patient));
 
         return response()->json($pasien);
@@ -353,10 +371,11 @@ class RegistrationController extends Controller
             'unit_kerja' => $member?->unit_kerja ?? $patient->unit_kerja,
             'membership' => $member?->membershipLabel() ?? 'Menunggu verifikasi',
             'eligibilityReason' => app(HakLayananVerifier::class)->patientReason($patient),
+            'generalConsentSignedAt' => app(GeneralConsentService::class)->activeDate($patient->latestGeneralConsent),
         ];
     }
 
-    public function storePasienLama(Request $request): RedirectResponse
+    public function storePasienLama(Request $request, GeneralConsentService $consents): RedirectResponse
     {
         $validated = $request->validate([
             'rujukan_internal_id' => ['nullable', 'integer', 'min:1'],
@@ -377,7 +396,7 @@ class RegistrationController extends Controller
         $validated['tanggal'] = $validated['tanggal'] ?? today()->toDateString();
         $pasien = Pasien::findOrFail($validated['pasien_id']);
 
-        $visit = DB::transaction(function () use ($validated, $pasien, $request, $referralId): Kunjungan {
+        $visit = DB::transaction(function () use ($validated, $pasien, $request, $referralId, $consents): Kunjungan {
             $pasien = Pasien::whereKey($pasien->id)->lockForUpdate()->firstOrFail();
             if ($referralId) {
                 $referral = RujukanInternal::whereKey($referralId)->lockForUpdate()->firstOrFail();
@@ -394,7 +413,9 @@ class RegistrationController extends Controller
 
             $validated['dokter_id'] = $this->scheduling->resolveDoctor($validated['dokter_id'] ?? null, (int) $validated['poliklinik_id'], $validated['tanggal']);
             $this->scheduling->ensureNoDuplicate($pasien->id, (int) $validated['poliklinik_id'], $validated['tanggal']);
-            $visit = Kunjungan::create([
+            $consent = $pasien->latestGeneralConsent;
+            $visit = new Kunjungan([
+                'general_consent_required' => true,
                 'no_kunjungan' => Kunjungan::generateNomor(),
                 'pasien_id' => $pasien->id,
                 'poliklinik_id' => $validated['poliklinik_id'],
@@ -406,6 +427,7 @@ class RegistrationController extends Controller
                 ...app(HakLayananVerifier::class)->patient($pasien, $request),
                 'catatan' => $validated['catatan'] ?? null,
             ]);
+            $visit->forceFill(['general_consent_id' => $consents->activeDate($consent) ? $consent->id : null])->save();
             if ($referralId) {
                 app(ClinicalAuditRecorder::class)->record($request, 'internal_referral.register', $visit->pasien_id, $visit->id, ['referral_id' => (int) $referralId]);
             }
@@ -538,6 +560,9 @@ class RegistrationController extends Controller
                     : ($visit->status === 'batal' ? 'Detail' : 'Lihat RME'))
                 : 'Detail'),
             'ticketUrl' => $visit->status !== 'batal' && ! $visit->isPendingReservation() && $request->user()->role !== 'perawat' ? route('pendaftaran.cetak-antrian', $visit) : null,
+            'consentUrl' => in_array($role, ['admin', 'pendaftaran'], true) && in_array($visit->status, ['menunggu', 'screening'], true) && ! $visit->tanggal->isFuture() && ! $visit->isPendingReservation()
+                ? route('general-consent.show', $visit)
+                : null,
             'editUrl' => in_array($role, ['admin', 'pendaftaran'], true) && $visit->status === 'menunggu'
                 ? route('pendaftaran.edit-kunjungan', $visit)
                 : null,
@@ -616,8 +641,9 @@ class RegistrationController extends Controller
 
         return Inertia::render('pendaftaran/laporan-top-diagnosa', [
             'exportUrl' => in_array($request->user()->role, ['admin', 'pendaftaran'], true)
-                ? route('pendaftaran.laporan-top-diagnosa.export', ['tanggal_mulai' => $period->from, 'tanggal_selesai' => $period->to]) : null,
+                ? route('pendaftaran.laporan-top-diagnosa.export', ['tanggal_mulai' => $period->from, 'tanggal_selesai' => $period->to, 'search' => $request->input('search')]) : null,
             'filters' => [
+                'search' => $request->input('search', ''),
                 'tanggalMulai' => $period->from ?? '',
                 'tanggalSelesai' => $period->to ?? '',
             ],
@@ -655,19 +681,29 @@ class RegistrationController extends Controller
 
     private function diagnosisReportQuery(Request $request, DateRangeFilter $period): Builder
     {
-        return DB::table('diagnosa')
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+
+        $visits = DB::table('kunjungan')
+            ->when($period->from, fn ($query, string $date) => $query->whereDate('kunjungan.tanggal', '>=', $date))
+            ->when($period->to, fn ($query, string $date) => $query->whereDate('kunjungan.tanggal', '<=', $date))
+            ->when($request->user()->role === 'perawat', fn ($query) => $query->where('kunjungan.poliklinik_id', $this->perawatClinicResolver->clinicId($request->user())));
+
+        return app(EffectiveDiagnosisReport::class)->query($visits)
             ->join('pemeriksaan', 'diagnosa.pemeriksaan_id', '=', 'pemeriksaan.id')
             ->join('kunjungan', 'pemeriksaan.kunjungan_id', '=', 'kunjungan.id')
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($names) => $names->where('diagnosa.kode_icd10', 'like', "%{$search}%")->orWhere('diagnosa.nama_diagnosa', 'like', "%{$search}%")))
             ->select('diagnosa.kode_icd10 as kode', 'diagnosa.nama_diagnosa as nama', DB::raw('COUNT(*) as total'))
             ->when($period->from, fn ($query, string $date) => $query->whereDate('kunjungan.tanggal', '>=', $date))
             ->when($period->to, fn ($query, string $date) => $query->whereDate('kunjungan.tanggal', '<=', $date))
             ->when($request->user()->role === 'perawat', fn ($query) => $query->where('kunjungan.poliklinik_id', $this->perawatClinicResolver->clinicId($request->user())))
-            ->groupBy('diagnosa.kode_icd10', 'diagnosa.nama_diagnosa');
+            ->groupBy('diagnosa.kode_icd10', 'diagnosa.nama_diagnosa')
+            ->when(in_array($request->user()->role, ['admin', 'pendaftaran', 'manajemen'], true), fn ($query) => $query->havingRaw('COUNT(DISTINCT kunjungan.pasien_id) >= 5'));
     }
 
     public function jadwalPraktik(Request $request): Response
     {
         $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
             'dokter_id' => ['nullable', 'integer', 'exists:nakes,id'],
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
             'hari' => ['nullable', 'in:senin,selasa,rabu,kamis,jumat,sabtu,minggu'],
@@ -689,6 +725,9 @@ class RegistrationController extends Controller
         $hariList = JadwalDokter::getHariList();
 
         $jadwal = JadwalDokter::with(['dokter', 'poliklinik'])
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($names) => $names
+                ->whereHas('dokter', fn ($doctors) => $doctors->where('nama', 'like', "%{$search}%"))
+                ->orWhereHas('poliklinik', fn ($clinics) => $clinics->where('nama', 'like', "%{$search}%"))))
             ->where(fn ($query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', today()))
             ->when($filters['dokter_id'] ?? null, fn ($query, int $id) => $query->where('dokter_id', $id))
             ->when($assignedClinicId, fn ($query, int $id) => $query->where('poliklinik_id', $id))
@@ -710,6 +749,7 @@ class RegistrationController extends Controller
             'canManageHolidays' => $request->user()->hasRole('admin', 'pendaftaran', 'dokter'),
             'canSelectClinic' => $assignedClinicId === null,
             'filters' => [
+                'search' => $filters['search'] ?? '',
                 'dokterId' => (isset($filters['dokter_id']) ? (int) $filters['dokter_id'] : ''),
                 'poliklinikId' => $assignedClinicId ? (int) $assignedClinicId : (isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : ''),
                 'hari' => $filters['hari'] ?? '',
@@ -1070,13 +1110,9 @@ class RegistrationController extends Controller
         return redirect()->route('pendaftaran.kunjungan-per-poli', ['tanggal' => $date])->with('success', 'Data kunjungan berhasil diperbarui.');
     }
 
-    public function batalKunjungan(Kunjungan $kunjungan): RedirectResponse
+    public function batalKunjungan(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        DB::transaction(function () use ($kunjungan): void {
-            $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
-            abort_unless($lockedVisit->status === 'menunggu', 422, 'Kunjungan yang sudah dilayani tidak dapat dibatalkan.');
-            $lockedVisit->update(['status' => 'batal']);
-        });
+        app(VisitCancellation::class)->cancel($request, $kunjungan);
 
         return back()->with('success', 'Kunjungan berhasil dibatalkan.');
     }

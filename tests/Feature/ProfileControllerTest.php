@@ -182,7 +182,8 @@ class ProfileControllerTest extends TestCase
 
         $this->delete(route('profile.signature.delete'))->assertSessionHasNoErrors();
         $this->assertNull($user->fresh()->signature_path);
-        Storage::disk('local')->assertMissing($signaturePath);
+        Storage::disk('local')->assertExists($signaturePath);
+        $this->assertDatabaseHas('clinical_audit_events', ['action' => 'profile.signature_removed', 'actor_id' => $user->id]);
     }
 
     public function test_deactivated_session_cannot_reach_profile_or_role_pages(): void

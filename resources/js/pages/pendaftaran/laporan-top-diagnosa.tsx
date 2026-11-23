@@ -1,3 +1,4 @@
+import { Input } from '@/components/ui/input';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ interface Diagnosis {
 
 interface Props {
     exportUrl: string | null;
-    filters: { tanggalMulai: string; tanggalSelesai: string };
+    filters: { search?: string; tanggalMulai: string; tanggalSelesai: string };
     summary: { diagnosisCount: number; caseCount: number };
     diagnoses: PaginationData & { data: Diagnosis[] };
 }
@@ -32,6 +33,7 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         router.get('/pendaftaran/laporan-top-diagnosa', {
+            search: filters.search ?? '',
             tanggal_mulai: filters.tanggalMulai,
             tanggal_selesai: filters.tanggalSelesai,
         }, { preserveState: true, preserveScroll: true, replace: true });
@@ -44,15 +46,16 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Analisis rekam medis</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Diagnosis terbanyak</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Peringkat diagnosis berdasarkan frekuensi pencatatan pada periode kunjungan yang dipilih.</p>
+                    <p className="mt-1 text-sm text-neutral-500">Peringkat diagnosis berdasarkan frekuensi pencatatan pada periode kunjungan yang dipilih. Kelompok dengan kurang dari 5 pasien berbeda tidak ditampilkan untuk membatasi identifikasi pasien; angka ringkasan hanya mencakup kelompok yang ditampilkan.</p>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <StatCard label="Jenis diagnosis" value={summary.diagnosisCount} description="Jumlah jenis diagnosis dalam periode kunjungan." icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
-                    <StatCard label="Total catatan diagnosis" value={summary.caseCount} description="Jumlah seluruh pencatatan diagnosis dalam periode kunjungan." icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
+                    <StatCard label="Jenis diagnosis" value={summary.diagnosisCount} description="Jumlah jenis diagnosis sesuai periode dan filter." icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
+                    <StatCard label="Total catatan diagnosis" value={summary.caseCount} description="Jumlah pencatatan pada kelompok diagnosis yang ditampilkan." icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
                 </div>
                 <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}>
                     <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
+                        <Field htmlFor="registration-diagnoses-search" label="Cari diagnosis"><Input id="registration-diagnoses-search" maxLength={100} value={filters.search ?? ''} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Kode ICD atau nama diagnosis" /></Field>
                         <Field htmlFor="registration-diagnoses-period" label="Periode kunjungan">
                             <DateRangePicker id="registration-diagnoses-period" from={filters.tanggalMulai} onChange={(range) => setFilters({ ...filters, tanggalMulai: range.from, tanggalSelesai: range.to })} to={filters.tanggalSelesai} />
                         </Field>

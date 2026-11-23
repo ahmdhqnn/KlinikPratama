@@ -1,3 +1,4 @@
+import { type ConsentSummary } from '../kunjungan/general-consent';
 import { AssociatedSymptoms } from '@/components/kunjungan/associated-symptoms';
 import { ChoiceGroup } from '@/components/kunjungan/assessment-choice-group';
 import { ScreeningVersionHistory, type ScreeningVersionSummary } from '@/components/kunjungan/screening-version-history';
@@ -11,7 +12,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import { ArrowLeft, ChevronDown, ClipboardCheck, Play, Printer, Save, UserRound } from 'lucide-react';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -22,6 +23,7 @@ import { StatusBadge } from '@/components/dashboard/status-badge';
 import { VisitAttachments, type ClinicalAttachment } from '@/components/kunjungan/visit-attachments';
 
 type ScreeningValues = Record<ScalarField, string> & {
+    general_consent_emergency_reason: string;
     mukosa_mulut: MucosaAnswers;
     kebiasaan_gigi_opsi: string[];
     screening_revision?: string;
@@ -79,11 +81,12 @@ const assessmentPlaceholders = {
 const otherDetails = {"dental_red_flags": {"option": "other", "field": "dental_red_flags_other", "label": "Keterangan tanda bahaya lainnya"}, "risiko_medis_gigi": {"option": "lainnya", "field": "risiko_medis_gigi_lainnya", "label": "Keterangan kondisi sistemik lainnya"}, "pemicu_nyeri_gigi": {"option": "lainnya", "field": "pemicu_nyeri_gigi_lainnya", "label": "Keterangan pemicu lainnya"}, "riwayat_infeksi_gigi": {"option": "infeksi_lain", "field": "riwayat_infeksi_gigi_lainnya", "label": "Keterangan infeksi lainnya"}, "dental_medication_categories": {"option": "other", "field": "dental_medication_categories_other", "label": "Keterangan obat lainnya"}} as const;
 type Option = [string, string];
 interface Visit {
+    generalConsent?: ConsentSummary;
     submittedAt?: string | null; submittedBy?: string | null; reviewedAt?: string | null;
     screeningRevision?: string;
     oralHabitOptions?: Record<string, string>;
     medicationCategories?: Record<string, string>;
-    attachments?: ClinicalAttachment[]; attachmentUploadUrl?: string;
+    attachmentArchive?: ClinicalAttachment[]; attachments?: ClinicalAttachment[]; attachmentUploadUrl?: string;
     versions?: ScreeningVersionSummary[];
     id: number; number: string; status: string; examinationStarted: boolean; editable: boolean; submitted: boolean; clinic: string; clinicType: 'umum' | 'gigi'; doctor: string;
     patient: { name: string; medicalRecordNumber: string; gender: string | null; age: number | null; bloodType: string | null; allergyHistory: string | null };
@@ -201,7 +204,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         systems_notes: manualNarrative(String(originalGeneral.systems_notes ?? '')),
     } : originalGeneral;
     const dentalGeneral = dentalNursingAssessment(originalGeneral);
-    const form = useForm<ScreeningValues>({ ...values, general_assessment: visit.clinicType === 'gigi' ? dentalGeneral : savedGeneral, vitals_unmeasurable: visit.screening.vitals_unmeasurable === true, status_riwayat_obat: values.status_riwayat_obat || (list('dental_medication_categories').includes('none') ? 'tidak_ada' : values.riwayat_obat || list('dental_medication_categories').some(v => !['unknown', 'none'].includes(v)) ? 'ada' : ''), mukosa_mulut: typeof visit.screening.mukosa_mulut === 'object' && !Array.isArray(visit.screening.mukosa_mulut) ? visit.screening.mukosa_mulut as MucosaAnswers ?? {} : {}, kebiasaan_gigi_opsi: list('kebiasaan_gigi_opsi'), dental_vitals_unmeasurable: visit.screening.dental_vitals_unmeasurable === true, dental_medication_categories: list('dental_medication_categories'), dental_red_flags: list('dental_red_flags'), pemicu_nyeri_gigi: list('pemicu_nyeri_gigi'), risiko_medis_gigi: list('risiko_medis_gigi'), riwayat_infeksi_gigi: list('riwayat_infeksi_gigi'), konfirmasi_riwayat: false, assistance_reason: '' });
+    const form = useForm<ScreeningValues>({ ...values, general_assessment: visit.clinicType === 'gigi' ? dentalGeneral : savedGeneral, vitals_unmeasurable: visit.screening.vitals_unmeasurable === true, status_riwayat_obat: values.status_riwayat_obat || (list('dental_medication_categories').includes('none') ? 'tidak_ada' : values.riwayat_obat || list('dental_medication_categories').some(v => !['unknown', 'none'].includes(v)) ? 'ada' : ''), mukosa_mulut: typeof visit.screening.mukosa_mulut === 'object' && !Array.isArray(visit.screening.mukosa_mulut) ? visit.screening.mukosa_mulut as MucosaAnswers ?? {} : {}, kebiasaan_gigi_opsi: list('kebiasaan_gigi_opsi'), dental_vitals_unmeasurable: visit.screening.dental_vitals_unmeasurable === true, dental_medication_categories: list('dental_medication_categories'), dental_red_flags: list('dental_red_flags'), pemicu_nyeri_gigi: list('pemicu_nyeri_gigi'), risiko_medis_gigi: list('risiko_medis_gigi'), riwayat_infeksi_gigi: list('riwayat_infeksi_gigi'), konfirmasi_riwayat: false, general_consent_emergency_reason: '', assistance_reason: '' });
     const [expanded, setExpanded] = useState<Record<Section, boolean>>({ triage: true, complaint: true, history: true, vitals: true, anthropometry: false, dental: false, additional: false, ringkas: true, systems: false, nutrition: false, attachments: false });
     const [attachmentPending, setAttachmentPending] = useState(false);
     const [starting, setStarting] = useState(false);
@@ -660,7 +663,8 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                 </fieldset>
                 </TabsContent>
             </Tabs>
-            {section('attachments', 'Berkas pendukung', 'Tambahkan hasil pemeriksaan atau dokumen lain yang membantu dokter.', <VisitAttachments attachments={visit.attachments} uploadUrl={canFill ? visit.attachmentUploadUrl : undefined} disabled={!canFill || form.processing || starting} onPendingChange={setAttachmentPending} />)}
+            {visit.generalConsent && visit.generalConsent.required && !(['accepted', 'refused'].includes(visit.generalConsent.status) && visit.generalConsent.versionCurrent) && <Card><CardHeader><CardTitle>Dokumentasi persetujuan umum</CardTitle><CardDescription>Persetujuan umum belum lengkap atau sudah dicabut. Petugas pendaftaran mencatat keputusan pasien sebelum pengkajian dikirim.</CardDescription></CardHeader><CardContent className="space-y-4">{(form.errors as Record<string, string>).general_consent && <p role="alert" className="text-sm text-red-600">{(form.errors as Record<string, string>).general_consent}</p>}<Button asChild variant="secondary"><Link href={visit.generalConsent.url}>Tinjau persetujuan umum</Link></Button><Field label="Alasan penundaan administrasi pada kondisi darurat" htmlFor="general-consent-emergency" error={form.errors.general_consent_emergency_reason}><Textarea id="general-consent-emergency" value={form.data.general_consent_emergency_reason} minLength={20} maxLength={2000} onChange={(event) => form.setData('general_consent_emergency_reason', event.target.value)} placeholder="Hanya berlaku bila penilaian klinis menunjukkan kondisi darurat. Catat alasan dan tindak lanjut administrasi." /></Field><p className="text-xs text-neutral-500">Draf tetap dapat disimpan. Penundaan tidak membuat persetujuan fiktif dan dicatat dalam audit.</p></CardContent></Card>}
+            {section('attachments', 'Berkas pendukung', 'Tambahkan hasil pemeriksaan atau dokumen lain yang membantu dokter.', <VisitAttachments archive={visit.attachmentArchive} attachments={visit.attachments} uploadUrl={canFill ? visit.attachmentUploadUrl : undefined} disabled={!canFill || form.processing || starting} onPendingChange={setAttachmentPending} />)}
             {visit.submitted && <div className="rounded-xl bg-surface p-4">{text('revision_reason', 'Alasan revisi pengkajian terkirim', true, true)}</div>}
             <footer className="rounded-xl bg-surface p-4 sm:sticky sm:bottom-3 sm:z-10 sm:p-5">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

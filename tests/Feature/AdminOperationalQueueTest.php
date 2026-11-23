@@ -55,11 +55,11 @@ class AdminOperationalQueueTest extends TestCase
             ->where('todayVisits.currentPage', 1)->where('visits.currentPage', 2));
     }
 
-    #[TestWith(['menunggu', ['detail', 'rme', 'screening', 'issue', 'ticket', 'edit', 'cancel']])]
-    #[TestWith(['pemeriksaan', ['detail', 'rme', 'screening', 'print', 'examination', 'issue', 'ticket']])]
-    #[TestWith(['farmasi', ['detail', 'rme', 'print', 'examination', 'pharmacy', 'issue', 'ticket']])]
-    #[TestWith(['selesai', ['detail', 'rme', 'print', 'examination', 'issue', 'ticket']])]
-    #[TestWith(['batal', ['detail', 'rme', 'issue']])]
+    #[TestWith(['menunggu', ['detail', 'ticket', 'edit', 'cancel']])]
+    #[TestWith(['pemeriksaan', ['detail', 'ticket']])]
+    #[TestWith(['farmasi', ['detail', 'ticket']])]
+    #[TestWith(['selesai', ['detail', 'ticket']])]
+    #[TestWith(['batal', ['detail']])]
     public function test_queue_actions_follow_visit_workflow(string $status, array $expectedActions): void
     {
         $this->travelTo('2026-11-01 09:00:00');
@@ -70,7 +70,7 @@ class AdminOperationalQueueTest extends TestCase
         }
 
         $this->actingAs($admin)->get(route('pelayanan.antrian'))->assertInertia(fn (Assert $page) => $page
-            ->has('visits.data.0.actions', 11)
+            ->has('visits.data.0.actions', 4)
             ->where('visits.data.0.actions', fn ($actions) => collect($actions)->where('disabled', false)->pluck('action')->values()->all() === $expectedActions
                 && collect($actions)->where('disabled', true)->every(fn ($action) => $action['href'] === null && filled($action['disabledReason']))));
     }
@@ -84,11 +84,11 @@ class AdminOperationalQueueTest extends TestCase
         Pemeriksaan::create(['kunjungan_id' => $visit->id, 'started_at' => now(), 'status' => 'draft']);
 
         $this->actingAs($admin)->get(route('pelayanan.antrian'))->assertInertia(fn (Assert $page) => $page
-            ->where('visits.data.0.actions', fn ($actions) => collect($actions)->firstWhere('action', 'screening')['disabled'] === true));
+            ->where('visits.data.0.actions', fn ($actions) => collect($actions)->firstWhere('action', 'screening') === null));
         $visit->update(['status' => 'menunggu', 'tanggal' => '2026-11-02']);
         $this->get(route('pelayanan.antrian'))->assertInertia(fn (Assert $page) => $page
             ->where('todayVisits.total', 0)->where('visits.data.0.isReservation', true)
-            ->where('visits.data.0.actions', fn ($actions) => collect($actions)->where('disabled', false)->pluck('action')->values()->all() === ['detail', 'rme', 'issue', 'ticket', 'edit', 'cancel']));
+            ->where('visits.data.0.actions', fn ($actions) => collect($actions)->where('disabled', false)->pluck('action')->values()->all() === ['detail', 'ticket', 'edit', 'cancel']));
     }
 
     public function test_queue_filters_apply_only_to_all_visits_table_and_scope_correspondence_to_selected_visit(): void
@@ -106,7 +106,7 @@ class AdminOperationalQueueTest extends TestCase
                 ->where('todayVisits.data', fn ($rows) => collect($rows)->pluck('id')->all() === [$otherTodayVisit->id, $visit->id])
                 ->where('visits.data.0.id', $oldVisit->id));
         $this->get(route('persuratan.index', ['kunjungan_id' => $visit->id]))->assertInertia(fn (Assert $page) => $page
-            ->where('letters.total', 1)->where('letters.data.0.id', $letter->id)->where('filters.visitId', (string) $visit->id));
+            ->where('letters.total', 0)->missing('letters.data.0')->where('filters.visitId', (string) $visit->id));
         $this->get(route('pelayanan.antrian', ['status' => 'invalid']))->assertSessionHasErrors('status');
     }
 
@@ -149,7 +149,7 @@ class AdminOperationalQueueTest extends TestCase
 
         $this->actingAs($admin)->get(route('pelayanan.antrian'))
             ->assertInertia(fn (Assert $page) => $page
-                ->has('visits.data.0.actions', 11)
+                ->has('visits.data.0.actions', 4)
                 ->where('visits.data.0.actions', fn ($actions) => collect($actions)
                     ->whereIn('action', ['screening', 'print', 'examination', 'procedure', 'pharmacy'])
                     ->every(fn ($action) => $action['disabled'] && $action['href'] === null)));
@@ -168,8 +168,8 @@ class AdminOperationalQueueTest extends TestCase
         Farmasi::create(['kunjungan_id' => $visit->id, 'status' => 'selesai']);
 
         $this->actingAs($admin)->get(route('pelayanan.antrian'))->assertInertia(fn (Assert $page) => $page
-            ->where('visits.data.0.actions', fn ($actions) => collect($actions)->contains('href', route('pelayanan.tindakan.show', $visit))
-                && collect($actions)->contains('label', 'Lihat penyerahan obat')
+            ->where('visits.data.0.actions', fn ($actions) => ! collect($actions)->contains('href', route('pelayanan.tindakan.show', $visit))
+                && ! collect($actions)->contains('label', 'Lihat penyerahan obat')
                 && collect($actions)->firstWhere('action', 'cancel')['disabled'] === true));
     }
 

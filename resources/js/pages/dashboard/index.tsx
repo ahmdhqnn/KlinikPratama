@@ -7,12 +7,12 @@ import {
     ArrowUpRight,
     CalendarCheck2,
     CalendarPlus2,
-    ChartNoAxesCombined,
-    ClipboardPlus,
+    BarChart3,
+    Boxes,
+    ShieldCheck,
+    Activity,
     ClipboardList,
-    HeartPulse,
     Pill,
-    Stethoscope,
     UsersRound,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -61,10 +61,10 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
     const reportStatusUrl = (status: string) => `/laporan/kunjungan?dari=${today}&sampai=${today}&status=${status}`;
     const visitStatusUrls: Record<string, string> = canRegister ? {
         menunggu: `/pelayanan/antrian?tanggal=${today}&status=menunggu`,
-        screening: `/pelayanan/screening?tanggal=${today}`,
-        pemeriksaan: `/pelayanan/pemeriksaan?tanggal=${today}&status=pemeriksaan`,
-        tindakan: `/pelayanan/tindakan-perawat?tanggal=${today}&status=pending`,
-        farmasi: `/pelayanan/farmasi?tanggal=${today}`,
+        screening: `/pelayanan/antrian?tanggal=${today}&status=screening`,
+        pemeriksaan: `/pelayanan/antrian?tanggal=${today}&status=pemeriksaan`,
+        tindakan: `/pelayanan/antrian?tanggal=${today}&status=tindakan`,
+        farmasi: `/pelayanan/antrian?tanggal=${today}&status=farmasi`,
         selesai: reportStatusUrl('selesai'),
         batal: reportStatusUrl('batal'),
     } : Object.fromEntries(Object.keys(visitStatusFilterLabels).map((status) => [status, todayReportUrl]));
@@ -79,12 +79,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                         <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Selamat datang di Klinik Pratama</h2>
                         <p className="mt-1 text-sm text-neutral-500">Pantau aktivitas pelayanan klinik hari ini.</p>
                     </div>
-                    {canRegister && <Button asChild>
-                        <Link href="/pendaftaran/pendaftaran-baru">
-                            <ClipboardPlus className="size-4" />
-                            Buat kunjungan
-                        </Link>
-                    </Button>}
+
                 </div>
 
                 <section aria-label="Ringkasan klinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -117,7 +112,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                         description="Obat telah diserahkan hari ini"
                         icon={<Pill className="size-5" />}
                         label="Resep diserahkan"
-                        href={todayReportUrl}
+                        href={canRegister ? todayReportUrl : todayReportUrl}
                         value={stats.prescriptionsToday}
                     />
                 </section>
@@ -196,19 +191,18 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                 {canRegister && <Card>
                     <CardHeader>
                         <CardTitle>Akses cepat</CardTitle>
-                        <CardDescription>Buka layanan, persediaan, dan laporan yang sering digunakan.</CardDescription>
+                        <CardDescription>Buka monitoring, master data, persediaan, laporan, dan aktivitas pengguna.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {[
-                        { label: 'Pendaftaran pasien', href: '/pendaftaran/pendaftaran-baru', icon: UsersRound },
-                        { label: 'Kunjungan & antrean', href: '/pelayanan/antrian', icon: ClipboardPlus },
-                        { label: 'Pengkajian awal', href: '/pelayanan/screening', icon: HeartPulse },
-                        { label: 'Pemeriksaan dokter', href: '/pelayanan/pemeriksaan', icon: Stethoscope },
-                        { label: 'Tindakan perawat', href: '/pelayanan/tindakan-perawat', icon: ClipboardList },
-                        { label: 'Penyerahan obat', href: '/pelayanan/farmasi', icon: Pill },
-                        { label: 'Obat langsung', href: '/farmasi/pemberian-obat', icon: Pill },
-                        { label: 'Persediaan & batch', href: '/stok/persediaan', icon: Pill },
-                        { label: 'Pusat laporan', href: '/admin/laporan', icon: ChartNoAxesCombined },
+                        { label: 'Kunjungan & antrean', href: '/pelayanan/antrian', icon: Activity },
+                        { label: 'Pengguna & hak akses', href: '/users', icon: UsersRound },
+                        { label: 'Nakes & karyawan', href: '/master/nakes', icon: UsersRound },
+                        { label: 'Kepesertaan internal', href: '/kepesertaan', icon: ShieldCheck },
+                        { label: 'Master obat & BHP', href: '/master/obat', icon: Pill },
+                        { label: 'Mutasi & stok farmasi', href: '/stok/persediaan', icon: Boxes },
+                        { label: 'Pusat laporan', href: '/admin/laporan', icon: BarChart3 },
+                        { label: 'Log aktivitas', href: '/admin/log-aktivitas', icon: Activity },
                     ].map(({ href, icon: Icon, label }) => (
                         <Button asChild key={href} className="group h-auto w-full justify-start gap-3 py-3" variant="secondary">
                             <Link href={href}><Icon className="size-4 shrink-0" /><span>{label}</span><ArrowRight aria-hidden="true" className="ml-auto size-4 shrink-0 text-neutral-500 transition-transform group-hover:translate-x-0.5" /></Link>

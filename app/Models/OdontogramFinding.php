@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\RetainsCancelledClinicalEntries;
 use Database\Factories\OdontogramFindingFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,6 +10,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OdontogramFinding extends Model
 {
+    use RetainsCancelledClinicalEntries;
+
+    protected function clinicalCancellationAttributes(): array
+    {
+        return ['active_slot' => null];
+    }
+
     /** @use HasFactory<OdontogramFindingFactory> */
     use HasFactory;
 

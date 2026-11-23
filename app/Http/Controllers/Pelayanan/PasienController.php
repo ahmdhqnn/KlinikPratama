@@ -60,7 +60,7 @@ class PasienController extends Controller
 
         return Inertia::render('pelayanan/pasien/index', [
             'permissions' => [
-                'viewRme' => in_array($request->user()->role, ['admin', 'dokter', 'perawat'], true),
+                'viewRme' => in_array($request->user()->role, ['dokter', 'perawat'], true),
                 'managePatients' => $request->user()->role === 'admin',
             ],
             'patients' => [
@@ -129,12 +129,10 @@ class PasienController extends Controller
         $data = $request->validate([
             'kepesertaan_id' => ['required', 'integer', 'exists:kepesertaan,id'],
             'telepon' => ['nullable', 'string', 'max:20'],
-            'riwayat_alergi' => ['nullable', 'string', 'max:2000'],
+            'riwayat_alergi' => ['exclude'],
         ]);
 
-        $data['riwayat_alergi'] = filled($data['riwayat_alergi'] ?? null)
-            ? trim($data['riwayat_alergi'])
-            : null;
+        unset($data['riwayat_alergi']);
 
         $pasien = DB::transaction(function () use ($data): Pasien {
             $data['no_rm'] = app(ClinicDocumentNumber::class)->next('pasien', 'RM-', 6, 'pasien', 'no_rm');
@@ -267,7 +265,7 @@ class PasienController extends Controller
                 ? route('pendaftaran.pendaftaran-baru', ['tab' => 'registered', 'pasien_id' => $pasien->id])
                 : route('pelayanan.kunjungan.create', ['pasien_id' => $pasien->id]),
             'permissions' => [
-                'viewRme' => in_array(auth()->user()->role, ['admin', 'dokter', 'perawat'], true),
+                'viewRme' => in_array(auth()->user()->role, ['dokter', 'perawat'], true),
                 'editPatient' => in_array(auth()->user()->role, ['admin', 'pendaftaran'], true),
                 'openVisit' => in_array(auth()->user()->role, ['admin', 'pendaftaran'], true),
             ],
@@ -370,7 +368,7 @@ class PasienController extends Controller
         $data = $request->validate([
             'kepesertaan_id' => ['required', 'integer', 'exists:kepesertaan,id'],
             'telepon' => ['nullable', 'string', 'max:20'],
-            'riwayat_alergi' => ['nullable', 'string', 'max:2000'],
+            'riwayat_alergi' => ['exclude'],
         ]);
 
         if (array_key_exists('riwayat_alergi', $data)) {
@@ -562,6 +560,7 @@ class PasienController extends Controller
                     'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
                     'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
                     'attachments' => $visit->attachmentSummaries(),
+                    'attachmentArchive' => $visit->attachmentSummaries(true),
                     'screening' => $visit->screening ? [
                         'summary' => $visit->screening->handoverSummary(),
                         'submittedAt' => $visit->screening->submitted_at?->format('d/m/Y H:i'),

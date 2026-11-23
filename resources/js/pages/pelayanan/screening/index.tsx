@@ -1,3 +1,4 @@
+import { ServiceReportLinks } from '@/components/reports/service-report-links';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { DatePicker } from '@/components/ui/date-picker';
 import { ActionButton } from '@/components/ui/action-button';
@@ -78,11 +79,11 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
         <>
             <Head title="Pengkajian awal" />
             <div className="space-y-6">
-                <div>
+                <div className="flex flex-wrap items-end justify-between gap-4"><div>
                     <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pengkajian awal</h2>
                     <p className="mt-1 text-sm text-neutral-500">Mulai atau lanjutkan pengkajian yang belum dikirim. Pengkajian terkirim masih dapat diperbarui sebelum dokter mulai memeriksa.</p>
-                </div>
+                </div><ServiceReportLinks kind="screening" /></div>
                 <section aria-label="Ringkasan pengkajian hari ini" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Kunjungan poli hari ini" value={stats.total} description={serviceName} icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                     <StatCard label="Menunggu pengkajian" value={stats.waiting} description="Kunjungan hari ini yang belum selesai dikaji" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />

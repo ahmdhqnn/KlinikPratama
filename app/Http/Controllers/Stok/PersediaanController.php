@@ -49,8 +49,8 @@ class PersediaanController extends Controller
                 'id' => $movement->id, 'date' => $movement->created_at->format('d/m/Y H:i'), 'type' => $movement->jenis,
                 'batch' => $movement->batch?->nomor_batch, 'quantity' => (float) $movement->jumlah,
                 'before' => (float) $movement->stok_sebelum, 'after' => (float) $movement->stok_sesudah,
-                'actor' => $movement->actor?->name, 'reason' => $movement->keterangan,
-                'canReturn' => $movement->jenis === 'keluar' && in_array($movement->referensi_type, ['Farmasi', 'FarmasiMandiri'], true),
+                'actor' => $movement->actor?->name, 'reason' => request()->user()->role === 'admin' && in_array($movement->referensi_type, ['Farmasi', 'FarmasiMandiri', 'TindakanBhp'], true) ? 'Mutasi pelayanan tercatat' : $movement->keterangan,
+                'canReturn' => request()->user()->role === 'farmasi' && $movement->jenis === 'keluar' && in_array($movement->referensi_type, ['Farmasi', 'FarmasiMandiri'], true),
             ]);
 
         return Inertia::render('stok/persediaan/show', [
@@ -100,6 +100,7 @@ class PersediaanController extends Controller
 
     public function returnDispensing(Request $request, StokMutasi $mutasi, PersediaanRecorder $inventory): RedirectResponse
     {
+        abort_unless($request->user()->role === 'farmasi', 403);
         $data = $request->validate(['jumlah' => ['required', 'integer', 'min:1', 'max:99999999'], 'alasan' => ['required', 'string', 'min:5', 'max:1000']]);
         $inventory->returnDispensing($mutasi, (float) $data['jumlah'], $data['alasan'], $request->user());
 

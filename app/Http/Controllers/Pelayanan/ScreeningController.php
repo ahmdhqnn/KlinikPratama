@@ -7,6 +7,7 @@ use App\ClinicDocumentProfile;
 use App\CorrespondenceService;
 use App\Exports\ScreeningExport;
 use App\GeneralAssessment;
+use App\GeneralConsentService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreScreeningRequest;
 use App\Models\Kunjungan;
@@ -462,7 +463,9 @@ class ScreeningController extends Controller
                 'submittedBy' => $kunjungan->screening?->submittedBy?->name,
                 'reviewedAt' => $kunjungan->pemeriksaan?->signed_at?->format('d/m/Y H:i'),
 
+                'generalConsent' => app(GeneralConsentService::class)->summary($kunjungan),
                 'attachments' => $kunjungan->attachmentSummaries(),
+                'attachmentArchive' => $kunjungan->attachmentSummaries(true),
                 'attachmentUploadUrl' => route('pelayanan.kunjungan.attachments.store', $kunjungan),
             ],
             'staff' => $petugasList->map(fn (Nakes $staff): array => [
@@ -496,6 +499,7 @@ class ScreeningController extends Controller
         $requestHash = hash('sha256', json_encode($requestData, JSON_THROW_ON_ERROR));
         unset($data['request_id']);
         unset($data['screening_revision'], $data['revision_reason']);
+        unset($data['general_consent_emergency_reason']);
         unset($data['tindakan'], $data['konfirmasi_riwayat'], $data['assistance_reason']);
         foreach (Screening::SAFETY_FIELDS as $field) {
             $data[$field] = filled($data[$field] ?? null) ? trim($data[$field]) : null;
@@ -554,6 +558,9 @@ class ScreeningController extends Controller
             $lockedVisit = Kunjungan::with(['screening', 'pemeriksaan'])->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             abort_if($nurse && (int) $lockedVisit->poliklinik_id !== (int) $nurse->poliklinik_id, 404);
             abort_unless($lockedVisit->canUpdateScreening(), 422, 'Pengkajian hanya dapat diperbarui sebelum dokter memulai pemeriksaan.');
+            if (! $isDraft) {
+                app(GeneralConsentService::class)->ensureDocumented($request, $lockedVisit, ($data['prioritas_layanan'] ?? null) === 'darurat');
+            }
 
             abort_unless($lockedVisit->screening?->started_at !== null || $lockedVisit->screening?->submitted_at !== null, 422, 'Klik Mulai pengkajian sebelum menyimpan hasil.');
             $this->scheduling->ensureServiceDate($lockedVisit);

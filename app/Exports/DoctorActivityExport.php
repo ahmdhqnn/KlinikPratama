@@ -14,7 +14,7 @@ use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class DoctorActivityExport implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
+class DoctorActivityExport extends SafeSpreadsheetValueBinder implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
     public function __construct(
         private string $type,

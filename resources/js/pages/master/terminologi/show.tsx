@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
+import { Field } from '@/components/ui/field';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 
@@ -46,12 +47,12 @@ export default function ClinicalTerminologyShow({ catalog, codes, search: initia
                         <Button asChild className="mb-4" size="sm" variant="secondary"><Link href="/master/terminologi-klinis"><ArrowLeft className="size-4" />Kembali ke katalog</Link></Button>
                         <p className="text-sm font-medium text-neutral-700">Detail katalog terminologi</p>
                         <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{catalog.label}</h2>
-                        <p className="mt-1 text-sm text-neutral-500">Rilis {catalog.release} Â· {new Intl.NumberFormat('id-ID').format(catalog.count)} kode Â· Impor terakhir {catalog.importedAt ?? 'Belum diisi'}</p>
+                        <p className="mt-1 text-sm text-neutral-500">Rilis {catalog.release} · {new Intl.NumberFormat('id-ID').format(catalog.count)} kode · Impor terakhir {catalog.importedAt ?? 'Belum diisi'}</p>
                     </div>
                     <Button onClick={removeCatalog} variant="destructive"><Trash2 className="size-4" />Hapus katalog</Button>
                 </div>
-                <FilterPanel><form className="grid gap-3  sm:grid-cols-2 lg:grid-cols-4" onSubmit={applySearch}>
-                            <Input aria-label="Cari kode atau uraian" onChange={(event) => setSearch(event.target.value)} placeholder="Cari kode atau uraian" value={search} />
+                <FilterPanel contextKeys={['system', 'release']}><form className="grid gap-4 sm:grid-cols-2" onSubmit={applySearch}>
+                            <Field htmlFor="terminology-code-search" label="Cari kode atau uraian"><Input id="terminology-code-search" maxLength={100} onChange={(event) => setSearch(event.target.value)} placeholder="Cari kode atau uraian" value={search} /></Field>
                             <FilterSubmit />
                         </form></FilterPanel>
                 <Card className="overflow-hidden">

@@ -14,7 +14,7 @@ class ClinicalNoteRecorder
     public function snapshot(Kunjungan $visit, Pemeriksaan $examination): array
     {
         $examination->loadMissing('diagnosa');
-        $visit->loadMissing(['tindakanKunjungan.tindakan', 'resep.resepObat', 'rujukanInternal', 'odontogramFindings']);
+        $visit->loadMissing(['tindakanKunjungan.tindakan', 'tindakanKunjungan.informedConsents', 'resep.resepObat', 'rujukanInternal', 'odontogramFindings']);
 
         return [
             'supporting_exams' => $examination->supporting_exams,
@@ -37,6 +37,11 @@ class ClinicalNoteRecorder
             'pemeriksaan_ekstraoral' => ClinicalAnswer::normalize($examination->pemeriksaan_ekstraoral),
             'oral_hygiene_index' => $examination->oral_hygiene_index,
             'diagnosis_banding' => ClinicalAnswer::normalize($examination->diagnosis_banding),
+            'coding' => [
+                'status' => $examination->coding_status,
+                'unresolved_reason' => $examination->coding_unresolved_reason,
+                'review_due_at' => $examination->coding_review_due_at?->toIso8601String(),
+            ],
             'catatan' => ClinicalAnswer::normalize($examination->catatan),
             'edukasi' => ClinicalAnswer::normalize($examination->edukasi),
             'non_farmakologis' => ClinicalAnswer::normalize($examination->non_farmakologis),
@@ -46,6 +51,10 @@ class ClinicalNoteRecorder
                 'code' => $diagnosis->kode_icd10,
                 'code_system' => $diagnosis->code_system,
                 'code_release' => $diagnosis->code_release,
+                'coding_status' => $diagnosis->coding_status,
+                'coding_unresolved_reason' => $diagnosis->coding_unresolved_reason,
+                'coding_verified_by' => $diagnosis->coding_verified_by,
+                'coding_verified_at' => $diagnosis->coding_verified_at?->toIso8601String(),
                 'name' => $diagnosis->nama_diagnosa,
                 'note' => $diagnosis->keterangan,
                 'type' => $diagnosis->jenis,
@@ -53,18 +62,34 @@ class ClinicalNoteRecorder
                 'surfaces' => $diagnosis->surfaces ?? [],
                 'source_finding_code' => $diagnosis->source_finding_code,
             ])->values()->all(),
-            'treatments' => $visit->tindakanKunjungan->sortBy('id')->map(fn ($treatment): array => [
-                'id' => $treatment->id,
-                'name' => $treatment->nama_tindakan ?? $treatment->nama_tindakan_manual ?? $treatment->tindakan?->nama ?? 'Tindakan tidak tersedia',
-                'code' => $treatment->kode_icd9cm,
-                'code_system' => $treatment->code_system,
-                'code_release' => $treatment->code_release,
-                'quantity' => $treatment->jumlah,
-                'tooth_fdi' => $treatment->tooth_fdi,
-                'note' => $treatment->catatan,
-                'execution_role' => $treatment->execution_role,
-                'execution_status' => $treatment->execution_status,
-            ])->values()->all(),
+            'treatments' => $visit->tindakanKunjungan->sortBy('id')->map(function ($treatment): array {
+                $consent = $treatment->informedConsents->sortBy('id')->last();
+
+                return [
+                    'id' => $treatment->id,
+                    'name' => $treatment->nama_tindakan ?? $treatment->nama_tindakan_manual ?? $treatment->tindakan?->nama ?? 'Tindakan tidak tersedia',
+                    'code' => $treatment->kode_icd9cm,
+                    'code_system' => $treatment->code_system,
+                    'code_release' => $treatment->code_release,
+                    'coding_status' => $treatment->coding_status,
+                    'code_display' => $treatment->coding_display,
+                    'coding_review_reason' => $treatment->coding_review_reason,
+                    'coding_reviewed_by' => $treatment->coding_reviewed_by,
+                    'coding_reviewed_at' => $treatment->coding_reviewed_at?->toIso8601String(),
+                    'quantity' => $treatment->jumlah,
+                    'tooth_fdi' => $treatment->tooth_fdi,
+                    'note' => $treatment->catatan,
+                    'execution_role' => $treatment->execution_role,
+                    'execution_status' => $treatment->execution_status,
+                    'consent' => $consent ? [
+                        'id' => $consent->id,
+                        'decision' => $consent->decision,
+                        'text_version' => $consent->text_version,
+                        'plan_hash' => $consent->plan_hash,
+                        'recorded_at' => $consent->recorded_at?->toIso8601String(),
+                    ] : null,
+                ];
+            })->values()->all(),
             'prescriptions' => $visit->resep?->resepObat->sortBy('id')->map(fn ($item): array => [
                 'name' => $item->nama_obat,
                 'quantity' => $item->jumlah,
@@ -101,6 +126,21 @@ class ClinicalNoteRecorder
      */
     public function recordAddendum(Pemeriksaan $examination, array $payload, int $actorId, string $reason): ClinicalNoteVersion
     {
+        $previous = $examination->clinicalNoteVersions()->latest('version')->firstOrFail();
+        $changed = collect(array_unique([...array_keys($previous->payload), ...array_keys($payload)]))
+            ->reject(fn (string $key) => in_array($key, ['correction_context', 'coding_reconciliations'], true))
+            ->filter(fn (string $key) => ($previous->payload[$key] ?? null) !== ($payload[$key] ?? null))->values()->all();
+        $visit = $examination->kunjungan()->with('farmasi')->firstOrFail();
+        $payload['correction_context'] = [
+            'base_version_id' => $previous->id, 'base_hash' => $previous->content_hash,
+            'changed_fields' => $changed, 'recorded_at' => now()->toIso8601String(),
+            'after_48_hours' => $previous->recorded_at->copy()->addHours(48)->isPast(),
+            'pharmacy_status' => $visit->farmasi?->status,
+            'already_dispensed' => $visit->farmasi?->dispensed_at !== null,
+            'existing_document_count' => $visit->suratMedis()->count(),
+            'downstream_review_required' => array_intersect($changed, ['riwayat_alergi', 'diagnoses', 'prescriptions', 'treatments', 'kontrol_berikutnya']) !== [],
+        ];
+
         return $this->record($examination, 'addendum', $payload, $actorId, $reason);
     }
 

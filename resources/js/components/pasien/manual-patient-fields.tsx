@@ -36,7 +36,7 @@ interface Props {
     onChange: (field: keyof ManualPatientIdentity, value: string) => void;
 }
 
-export function ManualPatientFields({ value, errors, onChange, showAllergy = true, lockIdentity = false, suggestExisting = true }: Props) {
+export function ManualPatientFields({ value, errors, onChange, showAllergy = false, lockIdentity = false, suggestExisting = true }: Props) {
     return (
         <div className="space-y-5">
             {suggestExisting && <ExistingPatientSuggestions query={value.nik || value.nip || value.nama} />}

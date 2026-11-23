@@ -11,7 +11,7 @@ const appName = configuredAppName && !configuredAppName.includes('${') ? configu
 
 void createInertiaApp({
     title: (title) => (title ? `${title} · ${appName}` : appName),
-    layout: (name) => (name.startsWith('auth/') || name === 'error' ? PageLoading : AppLayout),
+    layout: (name) => (name.startsWith('auth/') || name === 'error' || name === 'persuratan/verifikasi' ? PageLoading : AppLayout),
     strictMode: true,
     withApp(app) {
         return (

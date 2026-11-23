@@ -18,21 +18,13 @@ class AdminMedicalRecordTest extends TestCase
 
     public function test_admin_reads_cross_clinic_history_with_filters_audit_and_document_return(): void
     {
-        [$patient, $general, $dental] = $this->context();
+        [$patient, $general] = $this->context();
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        $letter = SuratMedis::create(['kunjungan_id' => $general->id, 'jenis' => 'sakit', 'nomor_surat' => 'SK-001', 'tanggal' => today(), 'konten' => 'Surat yang sudah diterbitkan']);
-        $url = route('pelayanan.pasien.rekam-medis', $patient);
-        $response = $this->actingAs($admin)->get($url)->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('canSelectClinic', true)->has('visits', 2)->has('clinics', 2)->where('pagination.total', 2));
-        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
-        $this->assertDatabaseHas('clinical_audit_events', ['action' => 'medical_record.view', 'actor_id' => $admin->id, 'patient_id' => $patient->id]);
-        $this->get($url.'?poliklinik_id='.$dental->poliklinik_id)->assertInertia(fn (Assert $page) => $page->has('visits', 1)->where('visits.0.id', $dental->id));
-        $this->get($url.'?search=KNJ-GENERAL')->assertInertia(fn (Assert $page) => $page->has('visits', 1)->where('visits.0.documents.0.name', 'SK-001'));
-        $this->get(route('persuratan.surat.cetak', $letter).'?asal=rme')->assertInertia(fn (Assert $page) => $page->where('document.backUrl', $url)->where('document.backLabel', 'Kembali ke rekam medis pasien'));
-        $this->get(route('pelayanan.pasien.show', $patient))->assertInertia(fn (Assert $page) => $page->where('permissions.viewRme', true));
-        $this->get(route('persuratan.surat.create', $general))->assertForbidden();
-        $this->post(route('persuratan.surat.store', $general), [])->assertForbidden();
-        $this->assertDatabaseCount('surat_medis', 1);
+        $letter = SuratMedis::create(['kunjungan_id' => $general->id, 'jenis' => 'sakit', 'nomor_surat' => 'SK-001', 'tanggal' => today(), 'konten' => 'Konten klinis rahasia sintetis']);
+        $this->actingAs($admin)->get(route('pelayanan.pasien.rekam-medis', $patient))->assertForbidden();
+        $this->get(route('persuratan.surat.cetak', $letter))->assertForbidden();
+        $this->get(route('pelayanan.pasien.show', $patient))->assertInertia(fn (Assert $page) => $page->where('permissions.viewRme', false));
+        $this->assertDatabaseMissing('clinical_audit_events', ['action' => 'medical_record.view', 'actor_id' => $admin->id]);
     }
 
     public function test_admin_cannot_hide_a_patient_with_clinical_history(): void
@@ -61,7 +53,7 @@ class AdminMedicalRecordTest extends TestCase
         Nakes::create(['kode' => 'NUR-GENERAL', 'nama' => 'Perawat umum', 'kategori' => 'medis', 'jabatan' => 'perawat', 'poliklinik_id' => $general->poliklinik_id, 'user_id' => $nurse->id, 'is_active' => true]);
         $this->actingAs($nurse)->get($url)->assertInertia(fn (Assert $page) => $page->has('visits', 1)->where('visits.0.id', $general->id)->where('visits.0.documents', []));
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        $this->actingAs($admin)->withHeader('Referer', 'https://outside.example/path')->get($url)->assertInertia(fn (Assert $page) => $page->where('backUrl', route('pelayanan.pasien.show', $patient)));
+        $this->actingAs($admin)->withHeader('Referer', 'https://outside.example/path')->get($url)->assertForbidden();
         $admin->update(['is_active' => false]);
         $this->actingAs($admin)->get($url)->assertForbidden();
     }

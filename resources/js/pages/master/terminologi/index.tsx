@@ -1,8 +1,10 @@
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ActionButton } from '@/components/ui/action-button';
-import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ChevronDown, FileSpreadsheet, Upload } from 'lucide-react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { FileSpreadsheet, Upload } from 'lucide-react';
 import type { FormEvent } from 'react';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,8 +30,14 @@ interface Props {
 }
 
 export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props) {
-    const [importExpanded, setImportExpanded] = useState(true);
-    const importPanelId = useId();
+    const [importOpen, setImportOpen] = useState(false);
+    const { url } = usePage();
+    const query = new URLSearchParams(url.split('?')[1] ?? '');
+    const appliedSearch = query.get('search') ?? '';
+    const appliedSystem = query.get('system') ?? '';
+    const [search, setSearch] = useState(appliedSearch);
+    const [systemFilter, setSystemFilter] = useState(appliedSystem);
+    const visibleSystems = systems.filter((system) => (!appliedSystem || system.system === appliedSystem) && `${system.label} ${system.system} ${system.release}`.toLocaleLowerCase('id-ID').includes(appliedSearch.trim().toLocaleLowerCase('id-ID')));
     const form = useForm<{ file: File | null; code_system: string; custom_system: string; release: string }>({
         file: null,
         code_system: 'icd10_who',
@@ -39,7 +47,7 @@ export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props
 
     function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        form.post('/master/terminologi-klinis/import', { forceFormData: true, preserveScroll: true, onSuccess: () => form.reset('file', 'release') });
+        form.post('/master/terminologi-klinis/import', { forceFormData: true, preserveScroll: true, onSuccess: () => { form.reset('file', 'release'); setImportOpen(false); } });
     }
 
     function remove(system: TerminologySystem) {
@@ -57,14 +65,14 @@ export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Terminologi klinis</h2>
                     <p className="mt-1 text-sm text-neutral-500">Impor katalog resmi untuk pencarian kode dan uraian saat pencatatan klinis.</p>
                 </div>
-                <Card>
-                    <CardHeader>
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex min-w-0 items-center gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Upload className="size-5" /></span><div><CardTitle>Impor berkas terminologi</CardTitle><CardDescription className="mt-1">Unggah CSV atau Excel dari sumber resmi. Kode, uraian, dan tipe kolom dideteksi dari header; data divalidasi sebelum disimpan.</CardDescription></div></div>
-                            <Button aria-controls={importPanelId} aria-expanded={importExpanded} onClick={() => setImportExpanded((expanded) => !expanded)} size="sm" type="button" variant="secondary">{importExpanded ? 'Tutup' : 'Buka'}<ChevronDown className={`size-4 transition-transform ${importExpanded ? 'rotate-180' : ''}`} /></Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent hidden={!importExpanded} id={importPanelId}>
+                <FilterPanel actions={<Button onClick={() => setImportOpen(true)} size="sm" variant="secondary"><Upload className="size-4" />Impor terminologi</Button>}>
+                    <form className="grid gap-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); router.get('/master/terminologi-klinis', { search, system: systemFilter }, { preserveScroll: true, replace: true }); }}>
+                        <Field htmlFor="terminology-search" label="Cari katalog atau rilis"><Input id="terminology-search" maxLength={100} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nama sistem kode atau versi rilis" /></Field>
+                        <Field htmlFor="terminology-filter-system" label="Sistem kode"><Select id="terminology-filter-system" value={systemFilter} onChange={(event) => setSystemFilter(event.target.value)}><option value="">Semua sistem kode</option>{[...new Map(systems.map((system) => [system.system, system])).values()].map((system) => <option key={system.system} value={system.system}>{system.label}</option>)}</Select></Field>
+                        <FilterSubmit />
+                    </form>
+                </FilterPanel>
+                <Dialog open={importOpen} onOpenChange={setImportOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>Impor berkas terminologi</DialogTitle><DialogDescription>Unggah CSV atau Excel dari sumber resmi. Data divalidasi sebelum disimpan.</DialogDescription></DialogHeader>
                         <form className="space-y-4" encType="multipart/form-data" onSubmit={submit}>
                             <div className="grid gap-4 md:grid-cols-2">
                                 <Field error={form.errors.code_system} htmlFor="terminology-system" label="Sistem kode" required><Select id="terminology-system" onChange={(event) => form.setData('code_system', event.target.value)} value={form.data.code_system}>{codeSystems.map((system) => <option key={system.value} value={system.value}>{system.label}</option>)}<option value="other">Terminologi lain</option></Select></Field>
@@ -73,13 +81,12 @@ export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props
                                 <Field error={form.errors.file} htmlFor="terminology-file" label="Berkas CSV / Excel / ZIP ICD-9-CM" required><Input accept=".csv,.xls,.xlsx,.zip" id="terminology-file" onChange={(event) => form.setData('file', event.target.files?.[0] ?? null)} required type="file" /></Field>
                             </div>
                             <p className="text-xs text-neutral-500">Berkas CSV/Excel dideteksi dari header kode dan uraian. Arsip ZIP ICD-9-CM CMS dibaca langsung dari file uraian panjang DX/SG. Katalog versi berbeda disimpan terpisah. Maksimum 20 MB.</p>
-                            <div className="flex justify-end"><Button disabled={form.processing || !form.data.file} type="submit"><FileSpreadsheet className="size-4" />{form.processing ? 'Memproses…' : 'Validasi dan impor'}</Button></div>
+                            <div className="flex justify-end gap-2"><Button onClick={() => setImportOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={form.processing || !form.data.file} type="submit"><FileSpreadsheet className="size-4" />{form.processing ? 'Memproses…' : 'Validasi dan impor'}</Button></div>
                         </form>
-                    </CardContent>
-                </Card>
+                </DialogContent></Dialog>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><FileSpreadsheet className="size-5" /></span><div><CardTitle>Katalog terpasang</CardTitle><CardDescription className="mt-1">Setiap sistem dan rilis tetap terpisah untuk mempertahankan identitas kode aslinya.</CardDescription></div></div></CardHeader>
-                    <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[900px]"><TableHeader><TableRow><TableHead>Sistem kode</TableHead><TableHead>Rilis</TableHead><TableHead>Jumlah kode</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>{systems.length ? systems.map((system) => <TableRow key={`${system.system}-${system.releaseValue}`}><TableCell className="font-medium text-neutral-900">{system.label}</TableCell><TableCell>{system.release}</TableCell><TableCell>{new Intl.NumberFormat('id-ID').format(system.count)}</TableCell><TableCell><Badge variant="complete">Tersedia untuk pencarian</Badge></TableCell><TableCell><div className="flex flex-wrap items-center justify-center gap-2"><ActionButton asChild action="detail" label="Detail"><Link href={`/master/terminologi-klinis/detail?system=${encodeURIComponent(system.system)}&release=${encodeURIComponent(system.releaseValue)}`} /></ActionButton><ActionButton onClick={() => remove(system)} action="delete" label="Hapus" /></div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty description="Impor file terminologi yang telah dimiliki dan diizinkan untuk penggunaan instansi." size="compact" title="Belum ada katalog terminologi" /></TableCell></TableRow>}</TableBody></Table></div></CardContent>
+                    <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[900px]"><TableHeader><TableRow><TableHead>Sistem kode</TableHead><TableHead>Rilis</TableHead><TableHead>Jumlah kode</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>{visibleSystems.length ? visibleSystems.map((system) => <TableRow key={`${system.system}-${system.releaseValue}`}><TableCell className="font-medium text-neutral-900">{system.label}</TableCell><TableCell>{system.release}</TableCell><TableCell>{new Intl.NumberFormat('id-ID').format(system.count)}</TableCell><TableCell><Badge variant="complete">Tersedia untuk pencarian</Badge></TableCell><TableCell><div className="flex flex-wrap items-center justify-center gap-2"><ActionButton asChild action="detail" label="Detail"><Link href={`/master/terminologi-klinis/detail?system=${encodeURIComponent(system.system)}&release=${encodeURIComponent(system.releaseValue)}`} /></ActionButton><ActionButton onClick={() => remove(system)} action="delete" label="Hapus" /></div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty description={systems.length ? "Ubah kata pencarian atau sistem kode untuk melihat katalog lainnya." : "Impor berkas terminologi resmi yang diizinkan untuk penggunaan instansi."} size="compact" title={systems.length ? "Tidak ada katalog sesuai filter" : "Belum ada katalog terminologi"} /></TableCell></TableRow>}</TableBody></Table></div></CardContent>
                 </Card>
             </div>
         </>

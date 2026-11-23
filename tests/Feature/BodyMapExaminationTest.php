@@ -78,7 +78,7 @@ class BodyMapExaminationTest extends TestCase
         $this->assertNull($visit->pemeriksaan->fresh()->pemeriksaan_fisik);
         $this->assertSame($map, $visit->pemeriksaan->fresh()->body_map);
         Diagnosa::create(['pemeriksaan_id' => $visit->pemeriksaan->id, 'kode_icd10' => 'R22.0', 'nama_diagnosa' => 'Benjolan kepala', 'jenis' => 'utama']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertSessionHasNoErrors();
         $this->assertSame($map, ClinicalNoteVersion::sole()->payload['body_map']);
         $this->assertNull(ClinicalNoteVersion::sole()->payload['pemeriksaan_fisik']);
     }
@@ -108,7 +108,7 @@ class BodyMapExaminationTest extends TestCase
         $this->assertNull($visit->pemeriksaan->fresh()->body_map);
         Diagnosa::create(['pemeriksaan_id' => $visit->pemeriksaan->id, 'kode_icd10' => 'R22.0', 'nama_diagnosa' => 'Benjolan kepala', 'jenis' => 'utama']);
 
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertStatus(422);
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertStatus(422);
         $this->assertNull($visit->pemeriksaan->fresh()->signed_at);
     }
 
@@ -118,7 +118,7 @@ class BodyMapExaminationTest extends TestCase
         $map = $this->bodyMap();
         $this->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'pemeriksaan', 'body_map' => $map])->assertSessionHasNoErrors();
         Diagnosa::create(['pemeriksaan_id' => $visit->pemeriksaan->id, 'kode_icd10' => 'R22.0', 'nama_diagnosa' => 'Benjolan kepala', 'jenis' => 'utama']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertSessionHasNoErrors();
         $final = ClinicalNoteVersion::sole();
         $this->assertSame($map, $final->payload['body_map']);
         $this->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'pemeriksaan', 'body_map' => null])->assertUnprocessable();
@@ -136,6 +136,8 @@ class BodyMapExaminationTest extends TestCase
         $version = ClinicalNoteVersion::where('version', 2)->sole();
         $tampered = $version->payload;
         $tampered['body_map']['annotation']['strokes'] = [];
+        // Simulate a database-owner compromise; normal runtime updates are rejected by the trigger.
+        DB::unprepared('DROP TRIGGER protect_clinical_note_versions_update');
         DB::table('clinical_note_versions')->where('id', $version->id)->update(['payload' => json_encode($tampered)]);
         $this->assertFalse(app(ClinicalNoteRecorder::class)->verify($visit->pemeriksaan->fresh()));
     }

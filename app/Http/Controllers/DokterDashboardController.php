@@ -8,10 +8,10 @@ use App\DateRangeFilter;
 use App\DoctorAccessService;
 use App\DoctorActivityReportQuery;
 use App\DoctorExaminationReport;
+use App\EffectiveDiagnosisReport;
 use App\Exports\DoctorActivityExport;
 use App\Exports\PemeriksaanExport;
 use App\JadwalPraktikResolver;
-use App\Models\Diagnosa;
 use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\Models\Pasien;
@@ -19,6 +19,7 @@ use App\VisitOverviewService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -353,13 +354,17 @@ class DokterDashboardController extends Controller
         $period = DateRangeFilter::fromRequest($request);
         $dari = $period->from ?? '';
         $sampai = $period->to ?? '';
-        $diagnosa = Diagnosa::query()
+        $visits = DB::table('kunjungan')->where('dokter_id', $this->dokterId())
+            ->when($dari, fn ($query) => $query->whereDate('tanggal', '>=', $dari))
+            ->when($sampai, fn ($query) => $query->whereDate('tanggal', '<=', $sampai));
+        $diagnosa = app(EffectiveDiagnosisReport::class)->query($visits)
             ->select('kode_icd10', 'nama_diagnosa')
             ->selectRaw('COUNT(*) as jumlah')
-            ->whereHas('pemeriksaan.kunjungan', fn (Builder $query) => $query
-                ->where('dokter_id', $this->dokterId())
-                ->when($dari, fn (Builder $visits) => $visits->whereDate('tanggal', '>=', $dari))
-                ->when($sampai, fn (Builder $visits) => $visits->whereDate('tanggal', '<=', $sampai)))
+            ->join('pemeriksaan', 'pemeriksaan.id', '=', 'diagnosa.pemeriksaan_id')
+            ->join('kunjungan', 'kunjungan.id', '=', 'pemeriksaan.kunjungan_id')
+            ->where('kunjungan.dokter_id', $this->dokterId())
+            ->when($dari, fn ($query) => $query->whereDate('kunjungan.tanggal', '>=', $dari))
+            ->when($sampai, fn ($query) => $query->whereDate('kunjungan.tanggal', '<=', $sampai))
             ->groupBy('kode_icd10', 'nama_diagnosa')
             ->orderByDesc('jumlah')
             ->paginate(10)
@@ -368,7 +373,7 @@ class DokterDashboardController extends Controller
         return Inertia::render('dokter/top-diagnoses', [
             'filters' => ['dari' => $dari, 'sampai' => $sampai],
             'diagnoses' => [
-                'data' => $diagnosa->getCollection()->map(fn (Diagnosa $diagnosis): array => [
+                'data' => $diagnosa->getCollection()->map(fn ($diagnosis): array => [
                     'code' => $diagnosis->kode_icd10,
                     'name' => $diagnosis->nama_diagnosa,
                     'count' => (int) $diagnosis->jumlah,

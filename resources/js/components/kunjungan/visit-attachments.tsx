@@ -6,7 +6,7 @@ import { Attachment } from '@/components/ui/attachment';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Textarea } from '@/components/ui/textarea';
-import { confirmAction } from '@/components/ui/confirm-dialog';
+import { confirmReason } from '@/components/ui/confirm-dialog';
 
 export interface ClinicalAttachment {
     id: string;
@@ -16,10 +16,14 @@ export interface ClinicalAttachment {
     mime: string;
     downloadUrl: string;
     deleteUrl: string;
+    restoreUrl?: string;
+    voidedAt?: string | null;
+    voidReason?: string | null;
 }
 
-export function VisitAttachments({ attachments = [], uploadUrl, disabled = false, onPendingChange }: {
+export function VisitAttachments({ attachments = [], archive = [], uploadUrl, disabled = false, onPendingChange }: {
     attachments?: ClinicalAttachment[];
+    archive?: ClinicalAttachment[];
     uploadUrl?: string;
     disabled?: boolean;
     onPendingChange?: (pending: boolean) => void;
@@ -56,10 +60,18 @@ export function VisitAttachments({ attachments = [], uploadUrl, disabled = false
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
                     <ActionButton asChild action="download" label={`Unduh ${document.name}`}><a href={document.downloadUrl} /></ActionButton>
-                    {uploadUrl && <ActionButton disabled={busy} onClick={() => confirmAction(`Hapus lampiran “${document.name}” dari kunjungan ini?`, () => removal.delete(document.deleteUrl, { preserveScroll: true }), 'Hapus lampiran')} type="button" action="delete" label={`Hapus ${document.name}`} />}
+                    {uploadUrl && <ActionButton disabled={busy} onClick={() => confirmReason(`Batalkan lampiran “${document.name}”? Bukti asli tetap tersimpan.`, (reason) => { removal.transform(() => ({ reason })); removal.delete(document.deleteUrl, { preserveScroll: true }); }, 'Batalkan lampiran')} type="button" action="cancel" label={`Batalkan ${document.name}`} />}
                 </div>
             </li>)}
         </ul> : <p className="text-sm text-neutral-500">Belum ada lampiran pada kunjungan ini.</p>}
+        {archive.length > 0 && <details className="rounded-xl border border-neutral-200 p-4">
+            <summary className="cursor-pointer text-sm font-medium text-neutral-700">Arsip lampiran dibatalkan ({archive.length})</summary>
+            <p className="mt-3 text-xs leading-5 text-neutral-500">Bukti ini tidak termasuk lampiran aktif. Pembatalan dan pemulihan tetap dicatat.</p>
+            <ul className="mt-3 divide-y divide-neutral-100">{archive.map((document) => <li key={document.id} className="flex min-w-0 flex-col gap-3 py-3 sm:flex-row sm:items-start">
+                <div className="min-w-0 flex-1 space-y-1"><p className="break-words text-sm font-medium text-neutral-900">{document.name}</p><p className="whitespace-pre-wrap text-sm text-neutral-600">Alasan pembatalan: {document.voidReason || 'Belum tercatat pada data lama'}</p><p className="text-xs text-neutral-500">{document.voidedAt}</p></div>
+                <div className="flex shrink-0 gap-2"><ActionButton asChild action="download" label={`Unduh arsip ${document.name}`}><a href={document.downloadUrl} /></ActionButton>{uploadUrl && document.restoreUrl && <Button type="button" variant="secondary" disabled={busy} onClick={() => confirmReason(`Pulihkan “${document.name}” sebagai lampiran aktif?`, (reason) => { removal.transform(() => ({ reason })); removal.post(document.restoreUrl!, { preserveScroll: true }); }, 'Pulihkan lampiran')}>Pulihkan</Button>}</div>
+            </li>)}</ul>
+        </details>}
         {Object.values(removal.errors).map((error, index) => <p className="text-sm text-red-600" key={index} role="alert">{String(error)}</p>)}
         {uploadUrl && <fieldset disabled={busy} className="min-w-0 space-y-4">
             <div className="grid min-w-0 items-start gap-4 md:grid-cols-2">
@@ -69,7 +81,7 @@ export function VisitAttachments({ attachments = [], uploadUrl, disabled = false
                         form.setData('file', file);
                         if (file && file.size > 5 * 1024 * 1024) { form.setError('file', 'Ukuran setiap lampiran maksimal 5 MB.'); }
                     }} />
-                    <p className="text-xs leading-5 text-neutral-500">PDF, JPG, PNG, atau WebP. Maksimal 5 MB per berkas dan 10 berkas per kunjungan ({attachments.length}/10).</p>
+                    <p className="text-xs leading-5 text-neutral-500">PDF, JPG, PNG, atau WebP. Maksimal 5 MB per berkas dan 10 lampiran aktif per kunjungan ({attachments.length}/10).</p>
                 </div>
                 <Field htmlFor="attachment-note" label="Keterangan lampiran (opsional)" error={form.errors.note}>
                     <Textarea id="attachment-note" className="min-h-20" maxLength={1000} placeholder="Jenis dokumen, fasilitas penerbit, dan tanggal pemeriksaan" value={form.data.note} onChange={(event) => form.setData('note', event.target.value)} />

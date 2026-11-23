@@ -272,18 +272,8 @@ class SpecialtyScreeningTest extends TestCase
         $this->actingAs($nurse)->get(route('pelayanan.screening.show', $foreignVisit))->assertNotFound();
         $this->actingAs($nurse)->beginNursingAssessment($foreignVisit)->post(route('pelayanan.kunjungan.screening.store', $foreignVisit), $this->validScreeningPayload())->assertNotFound();
 
-        $this->actingAs($admin)->get(route('pelayanan.screening.index', [
-            'poliklinik_id' => $otherClinic->id,
-            'tanggal' => today()->toDateString(),
-        ]))->assertInertia(fn (Assert $page) => $page
-            ->where('canSelectClinic', true)
-            ->where('visits.total', 1)
-            ->where('visits.data.0.patient', 'Pasien Poli Gigi'));
-        $this->get(route('pelayanan.screening.index', ['search' => $screenedVisit->no_kunjungan]))
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('visits.total', 1)
-                ->where('visits.data.0.actionUrl', route('pelayanan.screening.show', $screenedVisit))
-                ->where('visits.data.0.actionLabel', 'Perbarui pengkajian'));
+        $this->actingAs($admin)->get(route('pelayanan.screening.index'))->assertForbidden();
+
     }
 
     public function test_dental_draft_can_be_resumed_with_all_specialty_answers(): void

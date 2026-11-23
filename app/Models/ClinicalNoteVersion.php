@@ -29,6 +29,12 @@ class ClinicalNoteVersion extends Model
         return $this->belongsTo(Pemeriksaan::class);
     }
 
+    protected static function booted(): void
+    {
+        static::updating(fn () => throw new \LogicException('Versi catatan klinis tidak boleh ditimpa.'));
+        static::deleting(fn () => throw new \LogicException('Versi catatan klinis tidak boleh dihapus.'));
+    }
+
     public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'actor_id');

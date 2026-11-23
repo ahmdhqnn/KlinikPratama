@@ -18,6 +18,7 @@ class Pemeriksaan extends Model
         'pemeriksaan_fisik_terstruktur' => 'array',
         'body_map' => 'array',
         'oral_hygiene_index' => 'decimal:2',
+        'coding_review_due_at' => 'datetime',
     ];
 
     protected $fillable = [
@@ -29,6 +30,7 @@ class Pemeriksaan extends Model
         'started_at', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu',
         'riwayat_penyakit_keluarga', 'riwayat_alergi', 'pemeriksaan_fisik_terstruktur',
         'pemeriksaan_ekstraoral', 'oral_hygiene_index', 'diagnosis_banding', 'body_map',
+        'coding_status', 'coding_unresolved_reason', 'coding_review_due_at',
     ];
 
     protected static function booted(): void

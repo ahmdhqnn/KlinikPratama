@@ -1,10 +1,10 @@
+import { ServiceReportLinks } from '@/components/reports/service-report-links';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { DatePicker } from '@/components/ui/date-picker';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Head, Link, router } from '@inertiajs/react';
-import { Activity, CalendarDays, ClipboardCheck, Clock3, FileText } from 'lucide-react';
+import { Activity, CalendarDays, ClipboardCheck, Clock3 } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
 interface Visit {
@@ -65,12 +65,12 @@ export default function NursingProcedureQueue({ stats, filters: initialFilters, 
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Tindakan perawat</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Lihat tindakan yang sudah disiapkan dokter untuk pasien di poli Anda.</p>
+                    <p className="mt-1 text-sm text-neutral-500">Pantau tindakan yang disiapkan dokter dan hasil pelaksanaannya sesuai akses poliklinik.</p>
                 </div>
-                <Button asChild variant="secondary"><Link href="/perawat/laporan-tindakan"><FileText className="size-4" />Laporan tindakan</Link></Button>
+                <ServiceReportLinks kind="procedures" />
             </div>
             <section aria-label="Ringkasan tindakan perawat" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard label="Kunjungan poli hari ini" value={stats.todayTotal} description="Kunjungan pada poli Anda hari ini" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                <StatCard label="Kunjungan poli hari ini" value={stats.todayTotal} description="Kunjungan dengan tindakan perawat hari ini" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 <StatCard label="Menunggu tindakan" value={stats.todayPending} description="Kunjungan hari ini dengan tindakan yang belum dilakukan" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 <StatCard label="Tindakan selesai hari ini" value={stats.todayCompleted} description="Kunjungan hari ini dengan seluruh tindakan perawat selesai" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 <StatCard label="Tindakan tertunda" value={stats.allPending} description="Termasuk kunjungan dari hari sebelumnya" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
