@@ -1,3 +1,4 @@
+import { ServiceReportLinks } from '@/components/reports/service-report-links';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { StatusBadge } from '@/components/dashboard/status-badge';
@@ -54,11 +55,11 @@ export default function ExaminationsIndex({ visits, todayVisits, date: initialDa
         <>
             <Head title="Pemeriksaan dokter" />
             <div className="space-y-6">
-                <div>
+                <div className="flex flex-wrap items-end justify-between gap-4"><div>
                     <p className="text-sm font-medium text-neutral-700">Layanan klinis</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pemeriksaan dokter</h2>
                     <p className="mt-1 text-sm text-neutral-500">Pasien yang menunggu pemeriksaan hari ini tampil lebih dulu. Cari kunjungan lain untuk meninjau catatan sebelumnya.</p>
-                </div>
+                </div><ServiceReportLinks kind="examinations" /></div>
                 <section aria-label="Ringkasan pemeriksaan hari ini" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Kunjungan dokter hari ini" value={stats.total} description="Kunjungan yang sudah memasuki tahap dokter atau layanan selanjutnya" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                     <StatCard label="Menunggu pemeriksaan" value={stats.waiting} description="Belum mulai diperiksa dokter" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />

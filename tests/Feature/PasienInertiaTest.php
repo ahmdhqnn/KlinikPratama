@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Kepesertaan;
 use App\Models\Pasien;
 use App\Models\User;
@@ -18,10 +17,7 @@ class PasienInertiaTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-JSON', 'nama' => 'Pasien Navigasi']);
-        $this->actingAs($admin)->get(route('pelayanan.pasien.rekam-medis', $patient), ['X-Inertia' => 'true', 'X-Inertia-Version' => (new HandleInertiaRequests)->version(request()) ?? ''])
-            ->assertOk()->assertHeader('X-Inertia', 'true')
-            ->assertJsonPath('component', 'pelayanan/pasien/rekam-medis')
-            ->assertHeader('Cache-Control', 'no-store, private');
+        $this->actingAs($admin)->getJson(route('pelayanan.pasien.rekam-medis', $patient))->assertForbidden();
     }
 
     public function test_legacy_membership_categories_are_rendered_without_breaking_patient_directory(): void
@@ -84,9 +80,7 @@ class PasienInertiaTest extends TestCase
             ->has('patient.visits', 0)
         );
 
-        $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
-            ->where('canSelectClinic', true)
-            ->has('visits', 0));
+        $this->get(route('pelayanan.pasien.rekam-medis', $patient))->assertForbidden();
 
         $this->get(route('pelayanan.pasien.edit', $patient))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/pasien/form')

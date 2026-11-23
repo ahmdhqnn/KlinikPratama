@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\ClinicalAuditRecorder;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,8 +36,14 @@ class LoginController extends Controller
             'password.string' => 'Masukkan kata sandi yang valid.',
         ]);
 
-        if (Auth::attempt([...$credentials, 'is_active' => true], $request->boolean('remember'))) {
+        if (Auth::attempt([...$credentials, 'is_active' => true], false)) {
             $request->session()->regenerate();
+            $request->session()->put('clinical_last_activity', now()->timestamp);
+            $request->session()->put('clinical_session_version', (int) $request->user()->session_version);
+            app(ClinicalAuditRecorder::class)->record($request, 'auth.login');
+            if ($request->user()->must_change_password) {
+                return redirect()->route('profile.show');
+            }
 
             $destination = match ($request->user()->role) {
                 'pendaftaran' => route('pendaftaran.dashboard'),
@@ -49,6 +56,8 @@ class LoginController extends Controller
             return redirect()->intended($destination);
         }
 
+        app(ClinicalAuditRecorder::class)->record($request, 'auth.failed_login', metadata: ['outcome' => 'denied']);
+
         return redirect()->route('login')->withErrors([
             'credentials' => 'Email atau kata sandi tidak cocok. Periksa kembali isian atau buka bantuan akses.',
         ])->onlyInput('email');
@@ -56,6 +65,9 @@ class LoginController extends Controller
 
     public function logout(Request $request): RedirectResponse
     {
+        if ($request->user()) {
+            app(ClinicalAuditRecorder::class)->record($request, 'auth.logout');
+        }
         Auth::logout();
 
         $request->session()->invalidate();

@@ -16,6 +16,7 @@ use App\Models\ResepObat;
 use App\Models\StokMutasi;
 use App\PatientAllergyHistory;
 use App\PersediaanRecorder;
+use App\PharmacyClinicalReviewService;
 use App\VisitQueryService;
 use App\VisitSchedulingService;
 use Illuminate\Database\Eloquent\Builder;
@@ -288,8 +289,12 @@ class FarmasiController extends Controller
                     'allergies' => $allergies->forVisit($kunjungan)['riwayat_alergi'],
                     'screeningAllergies' => $kunjungan->screening?->riwayat_alergi,
                     'examinationAllergies' => $allergies->examination($kunjungan->pemeriksaan),
+                    'weight' => $kunjungan->screening?->berat_badan !== null ? (float) $kunjungan->screening->berat_badan : null,
+                    'weightRecordedAt' => $kunjungan->screening?->submitted_at?->format('d/m/Y H:i'),
+                    'weightSource' => $kunjungan->screening?->berat_badan !== null ? 'Pengkajian perawat pada kunjungan ini' : null,
                 ],
                 'doctor' => $kunjungan->dokter?->nama,
+                'doctorSip' => $kunjungan->dokter?->no_sip,
                 'pharmacy' => $kunjungan->farmasi ? [
                     'status' => $kunjungan->farmasi->status,
                     'notes' => $kunjungan->farmasi->catatan,
@@ -484,6 +489,7 @@ class FarmasiController extends Controller
             if ($lockedVisit->resep?->resepObat->contains('stok_dikurangi', true)) {
                 throw ValidationException::withMessages(['items' => 'Reservasi lama harus direkonsiliasi sebelum penyerahan obat.']);
             }
+            app(PharmacyClinicalReviewService::class)->recordHandover($request, $lockedVisit);
             foreach ($farmasi->items->sortBy('obat_id') as $item) {
                 $inventory->issue((int) $item->obat_id, (float) $item->jumlah_diberikan, $request->user(), $lockedVisit, 'Farmasi', $farmasi->id, $item->id);
             }
@@ -619,7 +625,7 @@ class FarmasiController extends Controller
     /** @param array{items: array<int, array{resep_obat_id: int|null, obat_id: int|null, jumlah_diberikan: int, aturan_pakai: string|null, catatan: string|null}>, catatan: string|null} $data */
     private function replaceDispensingItems(Farmasi $farmasi, array $data): void
     {
-        $farmasi->items()->delete();
+        $farmasi->items()->update(['voided_at' => now(), 'voided_by' => request()->user()->id, 'void_reason' => 'Diganti dengan revisi draf penyerahan obat']);
 
         foreach ($data['items'] as $item) {
             if ((float) $item['jumlah_diberikan'] <= 0 || empty($item['obat_id'])) {

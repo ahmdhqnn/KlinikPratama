@@ -40,7 +40,7 @@ interface Props {
     title: string;
     clinicName: string;
     baseUrl?: string;
-    filters: { dari: string; sampai: string; search: string; status: string };
+    filters: { dari: string | null; sampai: string | null; search: string | null; status: string | null };
     stats: { total: number; visits: number; pending: number; completed: number };
     procedures: PaginationData & { data: ProcedureRow[] };
     exportUrl: string | null;
@@ -48,8 +48,8 @@ interface Props {
     printMode: boolean;
 }
 
-export default function NursingProcedureReport({ title, clinicName, baseUrl = '/perawat/laporan-tindakan', filters: initialFilters, stats, procedures, exportUrl, printUrl, printMode }: Props) {
-    const [filters, setFilters] = useState(initialFilters);
+export default function NursingProcedureReport({ title, clinicName, baseUrl = '/perawat/laporan-tindakan', filters: initialFilters, stats, procedures, exportUrl, printMode }: Props) {
+    const [filters, setFilters] = useState({ dari: initialFilters.dari ?? '', sampai: initialFilters.sampai ?? '', search: initialFilters.search ?? '', status: initialFilters.status ?? '' });
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -76,7 +76,6 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
             </section>
 
             {!printMode && <FilterPanel actions={<div className="flex flex-wrap gap-2">
-                {printUrl && <Button asChild size="sm" variant="secondary"><a href={printUrl} target="_blank" rel="noreferrer"><Printer className="size-4" />Cetak laporan</a></Button>}
                 {exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}
             </div>}>
                 <form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:items-end" onSubmit={applyFilters}>
@@ -117,7 +116,7 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
     </>;
 }
 
-function queryString(filters: Props['filters']): string {
+function queryString(filters: Record<keyof Props['filters'], string>): string {
     const query = new URLSearchParams(Object.fromEntries(Object.entries(filters).filter(([, value]) => value)));
     return query.size > 0 ? `?${query.toString()}` : '';
 }

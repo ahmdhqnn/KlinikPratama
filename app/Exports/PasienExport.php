@@ -10,7 +10,7 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class PasienExport implements FromCollection, WithHeadings, WithMapping, WithStyles
+class PasienExport extends SafeSpreadsheetValueBinder implements FromCollection, WithHeadings, WithMapping, WithStyles
 {
     public function collection(): Enumerable
     {

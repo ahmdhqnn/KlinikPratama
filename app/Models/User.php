@@ -21,6 +21,8 @@ class User extends Authenticatable
         'address',
         'photo_path',
         'signature_path',
+        'must_change_password',
+        'session_version',
     ];
 
     protected $hidden = [
@@ -36,6 +38,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'must_change_password' => 'boolean',
+            'session_version' => 'integer',
         ];
     }
 

@@ -83,24 +83,8 @@ class DoctorExaminationReportTest extends TestCase
         }
 
         $admin = User::factory()->create(['role' => 'admin']);
-        $filters = ['search' => '=Pasien gigi', 'dari' => today()->toDateString(), 'sampai' => today()->toDateString()];
-        $this->actingAs($admin)->get(route('admin.laporan.pemeriksaan', $filters))
-            ->assertInertia(fn (Assert $page) => $page->component('dokter/appointments')
-                ->where('isAdmin', true)
-                ->where('pageUrl', route('admin.laporan.pemeriksaan'))
-                ->where('exportUrl', route('admin.laporan.pemeriksaan.export', ['dari' => $filters['dari'], 'sampai' => $filters['sampai'], 'search' => $filters['search']]))
-                ->where('visits.total', 4)->where('stats.draft', 2)->where('stats.final', 2)
-                ->where('visits.data.0.doctor', 'Dokter lain')
-                ->where('visits.data.0.letterUrl', null));
+        $this->actingAs($admin)->get(route('admin.laporan.pemeriksaan'))->assertInertia(fn (Assert $page) => $page->component('laporan/agregat')->missing('visits'));
 
-        $this->get(route('admin.laporan.pemeriksaan.export', $filters))->assertOk();
-        Excel::assertDownloaded('laporan-pemeriksaan-'.today()->format('Y-m-d').'.xlsx', function (PemeriksaanExport $export): bool {
-            $rows = $export->query()->get();
-            $this->assertCount(4, $rows);
-            $this->assertSame('Dokter lain', $export->map($rows->first())[9]);
-
-            return true;
-        });
     }
 
     public function test_admin_examination_report_keeps_historical_rows_when_related_data_is_archived(): void
@@ -113,13 +97,10 @@ class DoctorExaminationReportTest extends TestCase
         $patient->delete();
         $clinic->delete();
 
-        $this->actingAs($admin)->get(route('admin.laporan.pemeriksaan'))
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('visits.total', 1)
-                ->where('visits.data.0.patient', 'Pasien tidak tersedia')
-                ->where('visits.data.0.clinic', 'Poliklinik tidak tersedia')
-                ->where('visits.data.0.recordUrl', null)
-                ->where('visits.data.0.examinationUrl', null));
+        $this->actingAs($admin)->get(route('laporan.kunjungan'))->assertInertia(fn (Assert $page) => $page
+            ->component('laporan/agregat')->has('rows')->missing('visits')->missing('screenings')->missing('procedures'));
+        $this->get(route('laporan.kunjungan.export'))->assertDownload();
+        $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'action' => 'aggregate_report.export']);
     }
 
     public function test_nurse_cannot_access_doctor_reports(): void
@@ -190,26 +171,9 @@ class DoctorExaminationReportTest extends TestCase
             $prescription->resepObat()->create(['nama_obat' => 'Obat '.ucfirst($type), 'jumlah' => 2, 'satuan' => 'tablet', 'aturan_pakai' => '2 kali sehari', 'is_resep_luar' => false]);
         }
 
-        $this->actingAs($admin)->get(route('admin.laporan.dokter', ['jenis' => 'tindakan']))
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('dokter/reports')
-                ->where('isAdmin', true)
-                ->where('baseUrl', route('admin.laporan.dokter', ['jenis' => 'tindakan']))
-                ->where('rows.total', 2)
-                ->where('rows.data.0.letterUrl', null));
-        $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'action' => 'admin.report.doctor.view']);
-
-        $this->get(route('admin.laporan.dokter', ['jenis' => 'obat']))
-            ->assertInertia(fn (Assert $page) => $page->where('rows.total', 2)->where('rows.data.0.name', 'Obat Gigi'));
-
-        Excel::fake();
-        $this->get(route('admin.laporan.dokter.export', ['jenis' => 'tindakan']))->assertOk();
-        Excel::assertDownloaded('laporan-tindakan-'.today()->format('Y-m-d').'.xlsx', function (DoctorActivityExport $export): bool {
-            $this->assertCount(2, $export->query()->get());
-
-            return true;
-        });
-
-        $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'action' => 'doctor.tindakan.report_export']);
+        $this->actingAs($admin)->get(route('laporan.kunjungan'))->assertInertia(fn (Assert $page) => $page
+            ->component('laporan/agregat')->has('rows')->missing('visits')->missing('screenings')->missing('procedures'));
+        $this->get(route('laporan.kunjungan.export'))->assertDownload();
+        $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'action' => 'aggregate_report.export']);
     }
 }

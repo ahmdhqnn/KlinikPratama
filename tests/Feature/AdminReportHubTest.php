@@ -14,20 +14,9 @@ class AdminReportHubTest extends TestCase
     public function test_admin_report_hub_groups_service_pharmacy_and_stock_reports(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-
-        $this->actingAs($admin)->get(route('admin.laporan.index'))
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('admin/laporan')
-                ->has('groups', fn (Assert $groups) => $groups
-                    ->where('0.title', 'Pelayanan klinik')
-                    ->has('0.reports', 7)
-                    ->where('0.reports.0.href', route('laporan.kunjungan'))
-                    ->where('0.reports.1.href', route('admin.laporan.pengkajian'))
-                    ->where('0.reports.2.href', route('admin.laporan.tindakan-perawat'))
-                    ->where('0.reports.3.href', route('admin.laporan.pemeriksaan'))
-                    ->where('0.reports.6.href', route('pendaftaran.laporan-top-diagnosa'))
-                    ->where('1.title', 'Farmasi dan persediaan')
-                    ->has('1.reports', 4)));
+        $this->actingAs($admin)->get(route('admin.laporan.index'))->assertInertia(fn (Assert $page) => $page
+            ->component('admin/laporan')->has('groups', 1)->has('groups.0.reports', 2)
+            ->where('groups.0.reports.0.href', route('laporan.kunjungan'))->where('groups.0.reports.1.href', route('laporan.stok')));
     }
 
     public function test_admin_can_open_every_report_listed_in_the_hub(): void

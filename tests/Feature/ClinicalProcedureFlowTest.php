@@ -16,7 +16,9 @@ use App\Models\Screening;
 use App\Models\Tindakan;
 use App\Models\TindakanKunjungan;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
@@ -24,6 +26,57 @@ use Tests\TestCase;
 class ClinicalProcedureFlowTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_cancelled_drafts_retain_original_values_and_are_visible_only_as_history(): void
+    {
+        [$doctor, $visit] = $this->clinicalContext('umum');
+        $diagnosis = $visit->pemeriksaan->diagnosa()->create(['nama_diagnosa' => 'Diagnosis draf sintetis', 'jenis' => 'utama']);
+        $prescription = $visit->resep()->create(['dokter_id' => $visit->dokter_id, 'no_resep' => 'RX-VOID-SYNTHETIC']);
+        $medicine = $prescription->resepObat()->create(['nama_obat' => 'Obat draf sintetis', 'jumlah' => 2, 'satuan' => 'tablet']);
+        $procedure = $visit->tindakanKunjungan()->create(['nama_tindakan' => 'Tindakan draf sintetis', 'jumlah' => 1]);
+        $this->actingAs($doctor);
+        foreach ([['diagnosa', $diagnosis], ['resep', $medicine], ['tindakan', $procedure]] as [$kind, $entry]) {
+            $url = route('pelayanan.pemeriksaan.'.$kind.'.destroy', $entry);
+            $this->delete($url, ['reason' => '     '])->assertSessionHasErrors('reason');
+            $this->assertNull(DB::table($entry->getTable())->where('id', $entry->id)->value('voided_at'));
+            $this->delete($url, ['reason' => 'Koreksi setelah verifikasi ulang'])->assertRedirect()->assertSessionHasNoErrors();
+            $this->assertDatabaseHas($entry->getTable(), ['id' => $entry->id, 'voided_by' => $doctor->id, 'void_reason' => 'Koreksi setelah verifikasi ulang']);
+            $this->assertNotNull(DB::table($entry->getTable())->where('id', $entry->id)->value('voided_at'));
+            $this->delete($url, ['reason' => 'Percobaan pembatalan kedua'])->assertNotFound();
+        }
+        $this->assertDatabaseHas('diagnosa', ['id' => $diagnosis->id, 'nama_diagnosa' => 'Diagnosis draf sintetis']);
+        $this->assertDatabaseHas('resep_obat', ['id' => $medicine->id, 'nama_obat' => 'Obat draf sintetis', 'jumlah' => 2]);
+        $this->assertDatabaseHas('tindakan_kunjungan', ['id' => $procedure->id, 'nama_tindakan' => 'Tindakan draf sintetis']);
+        $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->has('visit.cancelledDraftEntries', 3)->has('visit.diagnoses', 0)->has('visit.prescription.items', 0)->has('visit.treatments', 0));
+        try {
+            DB::table('diagnosa')->where('id', $diagnosis->id)->delete();
+            $this->fail('Entri yang dibatalkan tetap dilindungi dari penghapusan.');
+        } catch (QueryException $exception) {
+            $this->assertStringContainsString('Catatan klinis dilindungi', $exception->getMessage());
+        }
+    }
+
+    public function test_doctor_procedure_requires_explicit_execution_review_before_signing(): void
+    {
+        [$doctor, $visit] = $this->clinicalContext('umum');
+        $visit->pemeriksaan->diagnosa()->create(['kode_icd10' => 'Z00.0', 'nama_diagnosa' => 'Pemeriksaan sintetis', 'jenis' => 'utama']);
+        $procedure = $visit->tindakanKunjungan()->create(['dokter_id' => $visit->dokter_id, 'nama_tindakan' => 'Tindakan sintetis', 'jumlah' => 1, 'execution_role' => 'dokter', 'execution_status' => 'planned']);
+        $payload = ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->screening->revisionToken(), 'signature_password' => 'password'];
+        $this->actingAs($doctor);
+        foreach ([null, false] as $confirmation) {
+            $this->post(route('pelayanan.pemeriksaan.selesai', $visit), [...$payload, 'review_performed_procedures' => $confirmation])->assertSessionHasErrors('review_performed_procedures');
+            $this->assertNull($visit->pemeriksaan->fresh()->signed_at);
+            $this->assertSame('planned', $procedure->fresh()->execution_status);
+            $this->assertDatabaseCount('clinical_note_versions', 0);
+        }
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), [...$payload, 'review_performed_procedures' => true])->assertSessionHasNoErrors();
+        $this->assertSame('completed', $procedure->fresh()->execution_status);
+        $this->assertNull($visit->pemeriksaan->fresh()->diagnosis_banding);
+        $version = ClinicalNoteVersion::sole();
+        $this->assertSame($doctor->id, $version->payload['performed_procedures_review']['reviewed_by']);
+        $this->assertSame([$procedure->id], $version->payload['performed_procedures_review']['procedure_ids']);
+    }
 
     #[TestWith(['23.09'])]
     #[TestWith(['2309'])]
@@ -217,8 +270,9 @@ class ClinicalProcedureFlowTest extends TestCase
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), [
             'terminology_id' => $code->id, 'jumlah' => 1, 'catatan' => 'Catatan asli tindakan',
         ])->assertSessionHasNoErrors();
+        $this->classifySyntheticProceduresAsNotRequiringConsent($visit, $user);
 
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
 
         $final = ClinicalNoteVersion::where('pemeriksaan_id', $examination->id)->sole();
         $this->assertSame('23.09', $final->payload['treatments'][0]['code']);
@@ -235,7 +289,7 @@ class ClinicalProcedureFlowTest extends TestCase
             ->where('visits.0.treatments.0.code', '23.09')->where('visits.0.treatments.0.codeRelease', 'FY 2015')
             ->where('visits.0.treatments.0.note', 'Catatan asli tindakan')
         );
-        $this->delete(route('pelayanan.pemeriksaan.tindakan.destroy', $treatment))->assertUnprocessable();
+        $this->delete(route('pelayanan.pemeriksaan.tindakan.destroy', $treatment), ['reason' => 'Koreksi entri draf oleh dokter'])->assertUnprocessable();
         $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Sesudah final', 'jumlah' => 1])->assertUnprocessable();
         $this->assertDatabaseCount('clinical_note_versions', 1);
     }
@@ -267,7 +321,7 @@ class ClinicalProcedureFlowTest extends TestCase
         $treatment = TindakanKunjungan::sole();
 
         $this->actingAs($other)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['terminology_id' => $code->id, 'jumlah' => 1])->assertForbidden();
-        $this->delete(route('pelayanan.pemeriksaan.tindakan.destroy', $treatment))->assertForbidden();
+        $this->delete(route('pelayanan.pemeriksaan.tindakan.destroy', $treatment), ['reason' => 'Koreksi entri draf oleh dokter'])->assertForbidden();
 
         $this->assertDatabaseCount('tindakan_kunjungan', 1);
         $this->assertModelExists($treatment);
@@ -285,7 +339,7 @@ class ClinicalProcedureFlowTest extends TestCase
 
         $lookup = $this->actingAs($user)->getJson(route('pelayanan.icd9cm.search', ['q' => '23']));
         if ($role === 'admin') {
-            $lookup->assertOk();
+            $lookup->assertForbidden();
         } else {
             $lookup->assertForbidden();
         }
@@ -299,8 +353,8 @@ class ClinicalProcedureFlowTest extends TestCase
         [, $visit] = $this->clinicalContext('umum');
         $user = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
 
-        $this->actingAs($user)->get(route('pelayanan.icd9cm.search', ['q' => '23']))->assertRedirect(route('pendaftaran.dashboard'));
-        $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tidak berwenang', 'jumlah' => 1])->assertRedirect(route('pendaftaran.dashboard'));
+        $this->actingAs($user)->get(route('pelayanan.icd9cm.search', ['q' => '23']))->assertForbidden();
+        $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tidak berwenang', 'jumlah' => 1])->assertForbidden();
 
         $this->assertDatabaseCount('tindakan_kunjungan', 0);
     }
@@ -314,6 +368,7 @@ class ClinicalProcedureFlowTest extends TestCase
     #[TestWith(['gigi'])]
     public function test_manual_diagnoses_and_treatments_round_trip_to_signed_rme_without_inventing_codes(string $clinicType): void
     {
+        config(['clinical_coding.downtime_active' => true]);
         [$user, $visit] = $this->clinicalContext($clinicType);
         $this->procedure();
         ClinicalTerminology::create(['code_system' => 'icd10_who', 'release' => '2026', 'code' => 'Z00.0', 'display' => 'General examination', 'code_type' => 'diagnosis', 'is_active' => true]);
@@ -337,7 +392,8 @@ class ClinicalProcedureFlowTest extends TestCase
             'nama_tindakan_manual' => 'Tindakan manual dokter', 'jumlah' => 1, 'catatan' => 'Catatan tindakan',
             'tooth_fdis' => $clinicType === 'gigi' ? ['46'] : [],
         ])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->classifySyntheticProceduresAsNotRequiringConsent($visit, $user);
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true, 'coding_downtime_acknowledged' => true, 'coding_downtime_reason' => 'Gangguan katalog sintetis; rekonsiliasi coding setelah katalog pulih.'])->assertSessionHasNoErrors();
         $final = ClinicalNoteVersion::sole();
         $this->assertNull($final->payload['diagnoses'][0]['code']);
         $this->assertSame('manual', $final->payload['diagnoses'][0]['code_system']);

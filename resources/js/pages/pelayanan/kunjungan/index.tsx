@@ -13,7 +13,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { confirmAction } from '@/components/ui/confirm-dialog';
+import { confirmReason } from '@/components/ui/confirm-dialog';
 import { DatePicker } from '@/components/ui/date-picker';
 
 interface Visit {
@@ -58,7 +58,7 @@ export default function VisitsIndex({ visits, todayVisits, stats, filters: initi
     }
 
     function cancelVisit(id: number) {
-        confirmAction('Batalkan kunjungan ini?', () => { router.post(`/pelayanan/kunjungan/${id}/batal`, {}, { preserveScroll: true }); }, 'Batalkan');
+        confirmReason('Batalkan kunjungan ini?', (reason) => router.post(`/pelayanan/kunjungan/${id}/batal`, { reason }, { preserveScroll: true }), 'Batalkan');
     }
 
     return (

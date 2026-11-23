@@ -12,7 +12,7 @@ use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class PemeriksaanExport implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
+class PemeriksaanExport extends SafeSpreadsheetValueBinder implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
     public function __construct(private ?int $doctorId, private DateRangeFilter $period, private string $search = '') {}
 

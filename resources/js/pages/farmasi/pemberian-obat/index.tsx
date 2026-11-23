@@ -1,3 +1,4 @@
+import { ServiceReportLinks } from '@/components/reports/service-report-links';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { ActionButton } from '@/components/ui/action-button';
@@ -28,7 +29,7 @@ export default function DirectMedicineIndex({ stats, search: initialSearch, toda
     }
 
     return <><Head title="Obat langsung" /><div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Pelayanan farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Obat langsung</h2><p className="mt-1 text-sm text-neutral-500">Catat obat yang diberikan tanpa pemeriksaan dokter dan lihat riwayat penyerahannya.</p></div><Button asChild><Link href="/farmasi/pemberian-obat/baru"><FilePlus2 className="size-4" />Catat pemberian obat</Link></Button></div>
+        <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Pelayanan farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Obat langsung</h2><p className="mt-1 text-sm text-neutral-500">Catat obat yang diberikan tanpa pemeriksaan dokter dan lihat riwayat penyerahannya.</p></div><div className="flex flex-wrap justify-end gap-2"><ServiceReportLinks kind="direct" /><Button asChild><Link href="/farmasi/pemberian-obat/baru"><FilePlus2 className="size-4" />Catat pemberian obat</Link></Button></div></div>
         <section aria-label="Ringkasan obat langsung" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <StatCard label="Pemberian hari ini" value={stats.today} description="Obat langsung yang diserahkan hari ini" icon={<Pill className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
             <StatCard label="Pasien hari ini" value={stats.patients} description="Pasien yang menerima obat langsung" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />

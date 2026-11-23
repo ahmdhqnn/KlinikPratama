@@ -88,8 +88,7 @@ class PersuratanFlowTest extends TestCase
 
         $this->actingAs($admin)->get(route('persuratan.index'))->assertInertia(fn (Assert $page) => $page
             ->where('isAdmin', true)
-            ->where('eligibleVisits.total', 1)
-            ->where('eligibleVisits.data.0.letterUrl', null));
+            ->where('eligibleVisits', null)->where('letters.total', 0)->where('referrals.total', 0));
         $this->get(route('persuratan.surat.create', $visit))->assertForbidden();
     }
 
@@ -156,7 +155,7 @@ class PersuratanFlowTest extends TestCase
         $this->post($issue, ['ke_poli_id' => $destination->id])->assertSessionHasErrors('ke_poli_id');
         $referral = RujukanInternal::sole();
         $registration = route('pendaftaran.pendaftaran-baru', ['rujukan_internal_id' => $referral->id]);
-        $this->actingAs($admin)->get(route('persuratan.index'))->assertInertia(fn (Assert $page) => $page
+        $this->actingAs($admin)->get(route('pendaftaran.rujukan-internal'))->assertInertia(fn (Assert $page) => $page
             ->where('referrals.data.0.status', 'menunggu')->where('referrals.data.0.registrationUrl', $registration));
         $this->get($registration)->assertInertia(fn (Assert $page) => $page->where('initialTab', 'registered')
             ->where('initialPatient.id', $patient->id)->where('internalReferral.clinicId', $destination->id));
@@ -191,11 +190,11 @@ class PersuratanFlowTest extends TestCase
             ->where('referrals.data.0.registrationUrl', null)
             ->where('referrals.data.0.destinationUrl', route('pendaftaran.kunjungan.show', $visit)));
         $this->get(route('pendaftaran.kunjungan.show', $visit))->assertInertia(fn (Assert $page) => $page->where('backUrl', $directory));
-        $this->actingAs($admin)->get(route('persuratan.index', ['search' => $visit->no_kunjungan]))->assertInertia(fn (Assert $page) => $page
+        $this->actingAs($admin)->get(route('pendaftaran.rujukan-internal', ['search' => $visit->no_kunjungan]))->assertInertia(fn (Assert $page) => $page
             ->where('referrals.total', 1)->where('referrals.data.0.status', 'terdaftar')
             ->where('referrals.data.0.registrationUrl', null)->where('referrals.data.0.destinationVisit', $visit->no_kunjungan));
-        $this->post(route('pendaftaran.batal-kunjungan', $visit))->assertRedirect();
-        $this->get(route('persuratan.index'))->assertInertia(fn (Assert $page) => $page
+        $this->post(route('pendaftaran.batal-kunjungan', $visit), ['reason' => 'Pasien membatalkan kunjungan'])->assertRedirect();
+        $this->get(route('pendaftaran.rujukan-internal'))->assertInertia(fn (Assert $page) => $page
             ->where('referrals.data.0.status', 'batal')->where('referrals.data.0.registrationUrl', $registration));
 
         $this->post($register, $payload)->assertSessionHasNoErrors();
@@ -265,7 +264,7 @@ class PersuratanFlowTest extends TestCase
         ]);
         $visit->update(['dokter_id' => $replacementDoctor->id]);
 
-        $this->actingAs($viewer);
+        $this->actingAs($replacementUser);
         foreach ([route('persuratan.surat.cetak', $letter), route('persuratan.resep.cetak', $visit)] as $url) {
             $this->get($url)->assertOk()->assertInertia(fn (Assert $page) => $page
                 ->where('document.doctor.name', $doctor->nama)
@@ -295,7 +294,7 @@ class PersuratanFlowTest extends TestCase
             'status' => 'selesai', 'signed_at' => now(), 'signed_by_user_id' => $user->id,
         ]);
         $examination->diagnosa()->create(['nama_diagnosa' => 'Pulpitis', 'kode_icd10' => 'K04.0', 'jenis' => 'utama']);
-        app(ClinicalNoteRecorder::class)->recordFinal($examination, ['anamnesis' => $examination->anamnesis], $user->id);
+        app(ClinicalNoteRecorder::class)->recordFinal($examination, app(ClinicalNoteRecorder::class)->snapshot($visit, $examination), $user->id);
         $visit->update(['status' => 'selesai']);
         $cases = [
             'sakit' => ['rest_start' => '2026-11-01', 'rest_end' => '2026-11-03'],

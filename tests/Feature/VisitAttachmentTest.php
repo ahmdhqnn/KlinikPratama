@@ -102,16 +102,45 @@ class VisitAttachmentTest extends TestCase
         $this->get(route('pelayanan.kunjungan.attachments.show', [$visit, $document['id']]))->assertNotFound();
     }
 
-    public function test_attachment_can_be_removed_during_screening_and_cannot_be_downloaded_afterward(): void
+    public function test_attachment_is_voided_with_a_reason_and_the_original_file_is_retained(): void
     {
         [$nurse, $visit] = $this->context();
         $this->actingAs($nurse)->post(route('pelayanan.kunjungan.attachments.store', $visit), ['file' => $this->pdf()])->assertSessionHasNoErrors();
         $document = $visit->fresh()->lampiran[0];
-        $this->delete(route('pelayanan.kunjungan.attachments.destroy', [$visit, $document['id']]))->assertRedirect()->assertSessionHasNoErrors();
-        $this->assertSame([], $visit->fresh()->lampiran);
-        Storage::disk('local')->assertMissing($document['path']);
-        $this->get(route('pelayanan.kunjungan.attachments.show', [$visit, $document['id']]))->assertNotFound();
-        $this->assertDatabaseHas('clinical_audit_events', ['action' => 'attachment.delete', 'kunjungan_id' => $visit->id]);
+        $this->delete(route('pelayanan.kunjungan.attachments.destroy', [$visit, $document['id']]))->assertSessionHasErrors('reason');
+        $this->delete(route('pelayanan.kunjungan.attachments.destroy', [$visit, $document['id']]), ['reason' => 'Dokumen salah dipilih'])->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame([], $visit->fresh()->attachmentSummaries());
+        $this->assertSame($nurse->id, $visit->fresh()->lampiran[0]['voided_by']);
+        Storage::disk('local')->assertExists($document['path']);
+        $this->get(route('pelayanan.kunjungan.attachments.show', [$visit, $document['id']]))->assertGone();
+        $this->assertDatabaseHas('clinical_audit_events', ['action' => 'attachment.voided', 'kunjungan_id' => $visit->id]);
+    }
+
+    public function test_archive_access_and_reasoned_restore_preserve_file_and_lifecycle(): void
+    {
+        [$nurse, $visit] = $this->context();
+        $this->actingAs($nurse)->post(route('pelayanan.kunjungan.attachments.store', $visit), ['file' => $this->pdf()])->assertSessionHasNoErrors();
+        $document = $visit->fresh()->lampiran[0];
+        $this->delete(route('pelayanan.kunjungan.attachments.destroy', [$visit, $document['id']]), ['reason' => 'Dokumen perlu diperiksa ulang'])->assertSessionHasNoErrors();
+        $archives = $visit->fresh()->attachmentSummaries(true);
+        $this->assertCount(1, $archives);
+        $this->get($archives[0]['downloadUrl'])->assertDownload();
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $this->actingAs($admin)->get($archives[0]['downloadUrl'])->assertForbidden();
+        $url = route('pelayanan.kunjungan.attachments.restore', [$visit, $document['id']]);
+        $this->post($url, ['reason' => 'Tidak berwenang memulihkan'])->assertForbidden();
+        $this->actingAs($nurse)->post($url, ['reason' => '    '])->assertSessionHasErrors('reason');
+        $this->post($url, ['reason' => 'Sudah diverifikasi sesuai pasien'])->assertRedirect()->assertSessionHasNoErrors();
+        $restored = $visit->fresh()->lampiran[0];
+        $this->assertNull($restored['voided_at']);
+        $this->assertSame(['void', 'restore'], array_column($restored['lifecycle'], 'action'));
+        $this->assertSame($document['sha256'], $restored['sha256']);
+        Storage::disk('local')->assertExists($restored['path']);
+        $this->assertCount(1, $visit->fresh()->attachmentSummaries());
+        $this->post($url, ['reason' => 'Tidak boleh dipulihkan dua kali'])->assertStatus(409);
+        $this->assertDatabaseHas('clinical_audit_events', ['action' => 'attachment.restored', 'kunjungan_id' => $visit->id]);
+        $visit->update(['status' => 'pemeriksaan']);
+        $this->post($url, ['reason' => 'Sudah terkunci sesudah handoff'])->assertStatus(409);
     }
 
     /** @return array{User, Kunjungan} */

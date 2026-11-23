@@ -14,6 +14,7 @@ class PatientRegistrationService
     /** @return array<string, mixed> */
     public function validateManual(Request $request, bool $includeClinicalHistory = true): array
     {
+        $includeClinicalHistory = $includeClinicalHistory && in_array($request->user()?->role, ['dokter', 'perawat'], true);
         if ($request->boolean('grant_special_access')) {
             throw ValidationException::withMessages(['grant_special_access' => 'Verifikasi kepesertaan dilakukan oleh admin setelah pasien didaftarkan.']);
         }

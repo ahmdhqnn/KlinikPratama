@@ -45,6 +45,59 @@ async function renderPage(path, props, url = '/pendaftaran') {
 const singlePage = { currentPage: 1, lastPage: 1, from: 1, to: 9, total: 9, previousUrl: null, nextUrl: null };
 const pageOf = (data) => ({ currentPage: 1, lastPage: 1, from: data.length ? 1 : null, to: data.length || null, total: data.length, previousUrl: null, nextUrl: null, data });
 
+test('service report links respect admin and clinical role destinations', async () => {
+    const { ServiceReportLinks } = await server.ssrLoadModule('/resources/js/components/reports/service-report-links.tsx');
+    for (const [role, kind, expected] of [
+        ['admin', 'screening', null],
+        ['admin', 'procedures', null],
+        ['admin', 'examinations', null],
+        ['perawat', 'procedures', '/perawat/laporan-tindakan'],
+        ['dokter', 'examinations', '/dokter/laporan-pemeriksaan'],
+        ['admin', 'stock', '/laporan/stok'],
+        ['admin', 'external', null],
+        ['farmasi', 'handover', '/farmasi/laporan/penyerahan-obat'],
+        ['farmasi', 'direct', '/farmasi/laporan/pemberian-langsung'],
+        ['farmasi', 'stock', null],
+        ['pendaftaran', 'screening', null],
+    ]) {
+        const Component = () => createElement(ServiceReportLinks, { kind });
+        const result = await createInertiaApp({
+            page: { component: 'report-links', props: { errors: {}, auth: { user: { role } } }, url: '/', version: null, clearHistory: false, encryptHistory: false },
+            resolve: () => Component, render: renderToString,
+            setup: ({ App, props }) => createElement(App, props),
+        });
+        if (expected) assert.ok(result.body.includes(`href="${expected}"`), `${role}: ${kind}`);
+        else assert.doesNotMatch(result.body, /<a\b/);
+    }
+});
+
+test('terminology directory filters catalog systems and releases and keeps import in a dialog', async () => {
+    const html = await renderPage('master/terminologi/index', {
+        systems: [
+            { system: 'icd10_cm', label: 'ICD-10-CM', release: '2026', releaseValue: '2026', count: 4, importedAt: '' },
+            { system: 'icd9cm_procedure', label: 'ICD-9-CM tindakan', release: '2010', releaseValue: '2010', count: 3, importedAt: '' },
+        ], codeSystems: [],
+    }, '/master/terminologi-klinis?search=2010&system=icd9cm_procedure');
+    const table = html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? '';
+    assert.match(table, /ICD-9-CM tindakan/);
+    assert.doesNotMatch(table, /ICD-10-CM/);
+    assert.match(html, /Impor terminologi/);
+    assert.match(html, /id="terminology-search"/);
+    assert.match(html, /Reset filter/);
+    assert.doesNotMatch(html, /id="terminology-file"/);
+});
+
+test('terminology filter reset preserves catalog identity and release', async () => {
+    const html = await renderPage('master/terminologi/show', {
+        catalog: { system: 'icd10_cm', label: 'ICD-10-CM', release: '2026', releaseValue: '2026', count: 1, importedAt: '' },
+        codes: pageOf([]), search: '0',
+    }, '/master/terminologi-klinis/detail?system=icd10_cm&release=2026&search=0');
+    assert.match(html, /href="\/master\/terminologi-klinis\/detail\?system=icd10_cm&amp;release=2026"/);
+    assert.match(html, /Reset filter/);
+    assert.match(html, /aria-label="Filter aktif"/);
+    assert.doesNotMatch(html, /Â/);
+});
+
 test('general nursing assessment guides complaint follow-up and keeps unassessed systems explicit', async () => {
     const { GeneralNursingAssessment } = await server.ssrLoadModule('/resources/js/components/kunjungan/general-assessment.tsx');
     const html = renderToString(createElement(GeneralNursingAssessment, {
@@ -240,13 +293,51 @@ test('clinical drafts save sequentially and retain edits after validation or net
     assert.equal(second.isDirty, true);
 });
 
-test('diagnosis selector omits retired choices and draft save remains separate from signature', async () => {
+test('public document verification renders status without patient or clinical fields', async () => {
+    const html = await renderPage('persuratan/verifikasi', { status: 'void', issuedAt: '19/11/2026 10:00' });
+    assert.match(html, /Dokumen telah dibatalkan/);
+    assert.match(html, /bukan tanda tangan elektronik tersertifikasi/);
+    assert.doesNotMatch(html, /Nomor rekam medis|Diagnosis|Anamnesis|Dokter pemeriksa/);
+});
+
+test('medical letter QR and void watermark remain visible in the printable archive', async () => {
+    const { LetterSheet } = await server.ssrLoadModule('/resources/js/pages/persuratan/cetak.tsx');
+    const html = renderToString(createElement(LetterSheet, { document: {
+        kind: 'surat', type: 'ringkasan', number: 'RSM-SYNTHETIC', date: '19 November 2026',
+        clinic: { name: 'Klinik Sintetis' }, patient: { name: 'Pasien Sintetis', medicalRecordNumber: 'RM-SYNTHETIC' },
+        doctor: { name: 'Dokter Sintetis', signatureDataUrl: null }, clinical: { diagnoses: [] },
+        verification: { status: 'void', qrDataUrl: 'data:image/svg+xml;base64,PHN2Zy8+', url: '/verification-document/synthetic', voidUrl: '/void' },
+    } }));
+    assert.match(html, /DOKUMEN DIBATALKAN/);
+    assert.match(html, /alt="QR verifikasi arsip dokumen"/);
+    assert.match(html, /break-inside-avoid/);
+    assert.match(html, /Bukan tanda tangan elektronik tersertifikasi/);
+});
+
+test('diagnosis correction exposes explicit review and signing without direct prescription edits', async () => {
+    const html = await renderPage('pelayanan/pemeriksaan/diagnosis-correction', {
+        visit: { id: 7, patient: '<Pasien Uji>', number: 'K-007' },
+        diagnoses: [{ key: 0, code: null, name: 'Diagnosis naratif', type: 'utama', tooth: null, status: 'unresolved' }],
+        history: [], baseHash: 'a'.repeat(64), requestId: 'request-sintetis', storeUrl: '/koreksi', searchUrl: '/search', backUrl: '/pemeriksaan',
+    });
+    assert.match(html, /Koreksi coding diagnosis/);
+    assert.match(html, /&lt;Pasien Uji&gt;/);
+    assert.match(html, /id="correction-reason"/);
+    assert.match(html, /id="correction-password"[^>]*type="password"|type="password"[^>]*id="correction-password"/);
+    assert.match(html, /Saya telah memeriksa kesesuaian diagnosis/);
+    assert.match(html, /Simpan addendum coding/);
+    assert.doesNotMatch(html, /Tambah obat|Penyerahan obat/);
+});
+
+test('diagnosis selector uses WHO and draft save remains separate from signature', async () => {
     const props = examinationProps('umum');
+    props.initialTab = 'diagnosa';
     props.diagnosisCodeSystems = [{ value: 'icd10_who', label: 'ICD-10 WHO' }, { value: 'icd9cm_diagnosis', label: 'ICD-9-CM diagnosis' }, { value: 'icd10_cm', label: 'ICD-10-CM' }];
     const html = await renderPage('pelayanan/pemeriksaan/show', props);
     assert.match(html, /Simpan draf pemeriksaan/);
     assert.match(html, /Simpan perubahan pemeriksaan sebagai draf/);
-    assert.doesNotMatch(html, />ICD-10 WHO<|>ICD-9-CM diagnosis</);
+    assert.match(html.slice(html.indexOf('<div data-server-rendered')), /ICD-10 WHO/);
+    assert.doesNotMatch(html, />ICD-10-CM<|>ICD-9-CM diagnosis</);
 });
 
 for (const service of ['umum', 'gigi']) {
@@ -338,7 +429,8 @@ test('membership directory exposes management actions only to admin', async () =
     };
     const admin = await renderPage('kepesertaan/index', { ...props, canManage: true });
     assert.match(admin, /Tambah peserta/);
-    assert.match(admin, /Impor &amp; verifikasi/);
+    assert.match(admin, /Impor kepesertaan/);
+    assert.doesNotMatch(admin, /id="membership-file"/);
     assert.match(admin, /aria-label="Edit Pegawai Internal"/);
     assert.match(admin, /aria-label="Hapus Pegawai Internal"/);
     assert.match(admin, /Daftar peserta internal/);
@@ -347,7 +439,7 @@ test('membership directory exposes management actions only to admin', async () =
 
     const registration = await renderPage('kepesertaan/index', { ...props, canManage: false });
     assert.match(registration, /aria-label="Detail"/);
-    assert.doesNotMatch(registration, /Tambah peserta|Impor &amp; verifikasi/);
+    assert.doesNotMatch(registration, /Tambah peserta|Impor kepesertaan/);
     for (const label of ['Edit Pegawai Internal', 'Hapus Pegawai Internal']) {
         assert.match(registration.match(new RegExp('<button[^>]*aria-label="' + label + '"[^>]*>'))?.[0] ?? '', /disabled=""/);
     }
@@ -540,6 +632,7 @@ test('nursing procedures show today and all visits with pending and completed ac
     const pending = { id: 1, number: 'K-001', patient: 'Pasien Hari Ini', medicalRecordNumber: 'RM-001', clinic: 'Poli Umum', doctor: 'Dokter Uji', date: '28/10/2026', status: 'tindakan', treatmentStarted: false, pendingCount: 1, completedCount: 0, url: '/pelayanan/tindakan-perawat/1' };
     const completed = { ...pending, id: 2, number: 'K-002', patient: 'Pasien Sebelumnya', date: '27/10/2026', status: 'selesai', treatmentStarted: true, pendingCount: 0, completedCount: 1, url: '/pelayanan/tindakan-perawat/2' };
     const html = await renderPage('pelayanan/tindakan/index', {
+        auth: { user: { role: 'perawat' } },
         stats: { todayTotal: 1, todayPending: 1, todayCompleted: 0, allPending: 1 },
         filters: { search: '', tanggal: '', status: '' }, todayVisits: pageOf([pending]), visits: pageOf([pending, completed]),
     });
@@ -572,7 +665,7 @@ test('nursing procedure report has filter actions and prints the complete filter
     const report = await renderPage('pelayanan/tindakan/report', common);
     assert.match(report, /Laporan tindakan perawat/);
     assert.match(report, /Periode tanggal kunjungan/);
-    assert.match(report, /Cetak laporan/);
+    assert.doesNotMatch(report, /Cetak laporan/);
     assert.match(report, /Ekspor Excel/);
     assert.match(report, /Pasien nyaman setelah tindakan/);
 
@@ -690,7 +783,11 @@ test('dashboard summaries and day bars navigate to their related menus', async (
     assert.ok(globalDashboard.includes('href="/laporan/kunjungan?dari=2026-10-21&amp;sampai=2026-10-21"'));
 
     assert.match(globalDashboard, /Akses cepat/);
-    assert.match(globalDashboard, /href="\/farmasi\/pemberian-obat"/);
+    assert.match(globalDashboard, /href="\/users"/);
+    assert.match(globalDashboard, /href="\/admin\/log-aktivitas"/);
+    const quickAccess = globalDashboard.slice(globalDashboard.indexOf('Akses cepat'));
+    assert.equal((quickAccess.match(/<a /g) ?? []).length, 8);
+    assert.doesNotMatch(globalDashboard, /Buat kunjungan|href="\/pendaftaran\/pendaftaran-baru"/);
     assert.doesNotMatch(globalDashboard, /aria-label="[^"]+: 0\. Lihat daftar terkait"/);
 
     const registrationDashboard = await renderPage('pendaftaran/dashboard', {
@@ -950,11 +1047,7 @@ test('nurse sidebar shows actionable queue badges and hides empty counts', async
     const otherRole = await renderFor('admin', { assessment: 3, treatments: 105 });
     assert.doesNotMatch(otherRole, /memerlukan layanan|>99\+<\/span>/);
     const admin = await renderFor('admin', null, { assessment: 7, treatments: 105, examinations: 4, handovers: 2 });
-    assert.match(admin, /aria-label="Pengkajian awal, 7 memerlukan layanan"/);
-    assert.match(admin, /aria-label="Pemeriksaan dokter, 4 memerlukan layanan"/);
-    assert.match(admin, /aria-label="Tindakan perawat, 105 memerlukan layanan"/);
-    assert.match(admin, /aria-label="Penyerahan obat, 2 memerlukan layanan"/);
-    assert.match(admin, />99\+<\/span>/);
+    assert.doesNotMatch(admin, /href="\/pelayanan\/(screening|pemeriksaan|tindakan-perawat|farmasi)"/);
     const emptyAdmin = await renderFor('admin', null, { assessment: 0, treatments: 0, examinations: 0, handovers: 0 });
     assert.doesNotMatch(emptyAdmin, /memerlukan layanan/);
 });
@@ -1060,12 +1153,13 @@ test('internal referral archive exposes registration only for an actionable refe
 test('internal referral registration locks the patient and destination while leaving the date and doctor fields available', async () => {
     const html = await renderPage('pendaftaran/pendaftaran-baru', {
         initialTab: 'registered', internalReferral: { id: 1, number: 'RI-001', clinicId: 2 }, referralBackUrl: '/pendaftaran/rujukan-internal',
-        initialPatient: { id: 1, no_rm: 'RM-001', nama: 'Pasien Rujukan', jenis_kelamin: 'P' },
+        initialPatient: { id: 1, no_rm: 'RM-001', nama: 'Pasien Rujukan', jenis_kelamin: 'P', generalConsentSignedAt: '20-10-2026' },
         clinics: [{ id: 1, name: 'Poli Umum', type: 'umum' }, { id: 2, name: 'Poli Gigi', type: 'gigi' }],
         today: '2026-10-26', doctorsUrl: '/pendaftaran/dokter/terjadwal',
     });
     assert.match(html, /Pendaftaran rujukan internal/);
     assert.match(html, /Pasien Rujukan/);
+    assert.match(html, /Persetujuan Umum aktif · Ditandatangani 20-10-2026/);
     const clinicControl = html.match(/<button(?=[^>]*id="poliklinik_id")[^>]*>/)?.[0];
     assert.match(clinicControl ?? '', /\sdisabled=""/);
     assert.match(html, /id="dokter_id"/);
@@ -1077,6 +1171,7 @@ for (const initialTab of ['manual', 'directory', 'registered']) {
     test(`registration tab ${initialTab} renders only its own form`, async () => {
         const html = await renderPage('pendaftaran/pendaftaran-baru', {
             initialTab,
+            generalConsent: { text: 'Ketentuan persetujuan umum untuk pengujian', version: 'GC-TEST' },
             today: '2026-10-20',
             doctorsUrl: '/pendaftaran/dokter/by-poli',
             clinics: [{ id: 1, name: 'Poli Umum', type: 'umum' }, { id: 2, name: 'Poli Gigi', type: 'gigi' }],
@@ -1085,6 +1180,8 @@ for (const initialTab of ['manual', 'directory', 'registered']) {
         if (initialTab === 'manual') {
             assert.match(html, /id="manual-nip"/);
             assert.match(html, /Daftarkan dan buat kunjungan/);
+            assert.match(html, /Persetujuan umum pasien baru/);
+            assert.match(html, /<button[^>]*disabled=""[^>]*type="submit"|<button[^>]*type="submit"[^>]*disabled=""/);
         } else {
             assert.doesNotMatch(html, /id="manual-nama"/);
         }
@@ -1318,9 +1415,8 @@ test('user action icons reflect active status and disable protected self-account
         ]), filters: { search: '', role: '' }, roles: [], doctors: [], clinics: [],
     });
     const table = html.match(/<table\b[\s\S]*?<\/table>/)?.[0];
-    assertIconActions(table, 15);
-    assert.equal((table.match(/aria-label="Hapus"/g) ?? []).length, 3);
-    assert.match(table.match(/<button[^>]*aria-label="Hapus"[^>]*>/)?.[0] ?? '', /disabled=""/);
+    assertIconActions(table, 12);
+    assert.doesNotMatch(table, /aria-label="Hapus"/);
     assert.equal((table.match(/aria-label="Nonaktifkan pengguna"/g) ?? []).length, 2);
     assert.match(table.match(/<button[^>]*aria-label="Nonaktifkan pengguna"[^>]*>/)?.[0] ?? '', /disabled=""/);
     assert.equal((table.match(/aria-label="Aktifkan pengguna"/g) ?? []).length, 1);
@@ -1783,7 +1879,7 @@ async function renderRoleNavigation(role, url, clinicType = null) {
 }
 
 for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
-    ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Akun'], 36],
+    ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Akun'], 19],
     ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 10],
     ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
     ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
@@ -1818,10 +1914,10 @@ for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
 }
 
 test('admin shared reports select their own submenu and retain the report hub breadcrumb', async () => {
-    const html = await renderRoleNavigation('admin', '/farmasi/laporan/penyerahan-obat?search=obat');
+    const html = await renderRoleNavigation('admin', '/laporan/kunjungan');
     const navigation = html.match(/<nav\b[^>]*aria-label="Navigasi utama"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
     const breadcrumb = html.match(/<nav\b[^>]*aria-label="Breadcrumb"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
-    assert.match(navigation, /<a[^>]*aria-current="page"[^>]*href="\/farmasi\/laporan\/penyerahan-obat"/);
+    assert.match(navigation, /<a[^>]*aria-current="page"[^>]*href="\/laporan\/kunjungan"/);
     assert.match(breadcrumb, /href="\/admin\/laporan"/);
 });
 
@@ -3739,6 +3835,28 @@ test('general examination summaries and prescriptions share the recorded-table n
     }
 });
 
+test('dental finding import selects WHO catalog as a reviewable draft and preserves tooth surfaces', async () => {
+    const { default: ts } = await import('typescript');
+    const source = readFileSync(new URL('../resources/js/pages/pelayanan/pemeriksaan/show.tsx', import.meta.url), 'utf8');
+    const ast = ts.createSourceFile('show.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    let fn;
+    function collect(node) { if (ts.isFunctionDeclaration(node) && node.name?.text === 'importDentalDiagnosis') fn = node.getText(ast); ts.forEachChild(node, collect); }
+    collect(ast);
+    let draft; const searches = []; const sections = [];
+    const code = ts.transpileModule(fn + '\nimportDentalDiagnosis', { compilerOptions: { target: ts.ScriptTarget.ESNext } }).outputText;
+    const importFinding = runInNewContext(code, {
+        canEdit: true, saving: false, physicalChanged: false, dentalForm: { isDirty: false }, hasDiagnosisDraft: false,
+        isDentalDiagnosisRecorded: () => false, candidateFindings: () => [{ surface: 'O', notes: 'Temuan dokter' }], wholeToothFindingCodes: [],
+        dentalOptions: { diagnosisCatalog: [{ code: 'K02.1', codeSystem: 'icd10_cm', name: 'CM', release: 'FY 2026' }, { code: 'K02.1', codeSystem: 'icd10_who', name: 'Caries of dentine', release: 'WHO 2010' }] },
+        diagnosisCodeSystem: 'icd10_who', visit: { diagnoses: [] }, diagnosisForm: { setData(value) { draft = value; }, clearErrors() {} },
+        dentalSurfaceLabel: () => 'O', setDiagnosisCodeSystem() {}, setIcdResults() {}, setIcdQuery(value) { searches.push(value); }, navigateSection(value) { sections.push(value); }, toast: { info() {}, error() {} },
+    });
+    importFinding({ toothFdi: '46' }, { code: 'K02.1', findingCode: 'caries', exact: true });
+    assert.equal(draft.code_system, 'icd10_who'); assert.equal(draft.code_release, 'WHO 2010');
+    assert.equal(draft.nama_diagnosa, 'Caries of dentine'); assert.equal(draft.tooth_fdi, '46');
+    assert.deepEqual(Array.from(draft.surfaces), ['O']); assert.deepEqual(sections, ['diagnosa']); assert.deepEqual(searches, ['']);
+});
+
 test('suggested procedure searches preserve tooth context and do not treat tooth selection as a procedure draft', async () => {
     const { default: ts } = await import('typescript');
     const source = readFileSync(new URL('../resources/js/pages/pelayanan/pemeriksaan/show.tsx', import.meta.url), 'utf8');
@@ -4122,4 +4240,63 @@ test('nested navigation keeps matching leaves and collapses branches to accessib
     assert.match(html, /aria-haspopup="menu"/);
     assert.match(html, /aria-label="Audit"/);
     assert.doesNotMatch(html, /href="\/audit"/);
+});
+
+
+test('pharmacy review exposes signing only for a verified apoteker and keeps prior notes escaped', async () => {
+    const props = { visit: { id: 1, number: 'KNJ-SYNTHETIC', patient: 'Pasien sintetis' }, qualification: 'ttk', sourceHash: 'a'.repeat(64), currentId: 1, canReview: false,
+        history: { data: [{ id: 1, decision: 'hold', at: '20/11/2026 10:00', data: { notes: '<script>catatan</script>', clarification: 'pending' } }] } };
+    const readonly = await renderPage('pelayanan/farmasi/review', props);
+    assert.doesNotMatch(readonly, /Simpan review|<script>catatan/);
+    assert.match(readonly, /&lt;script&gt;catatan&lt;\/script&gt;/);
+    const writable = await renderPage('pelayanan/farmasi/review', { ...props, qualification: 'apoteker', canReview: true });
+    assert.match(writable, /Simpan review/);
+    assert.match(writable, /Klarifikasi dokter/);
+    assert.match(writable, /Kata sandi apoteker/);
+    assert.doesNotMatch(writable, /type="checkbox"[^>]*checked/);
+});
+
+test('information release keeps registration review administrative and escapes requester values', async () => {
+    const html = await renderPage('persuratan/pelepasan', {
+        visit: { id: 1, number: 'KNJ-SYNTHETIC', patient: 'Pasien sintetis' }, canAuthorize: false, documents: [],
+        events: { data: [{ id: 1, requestId: 'synthetic', version: 1, state: 'requested', at: '20/11/2026 10:00', data: {
+            requester: '<script>pemohon</script>', recipient: 'Pasien sintetis', scope: 'ringkasan', purpose: 'Salinan untuk pasien.',
+            identity_verification: 'Identitas diperiksa.', authority: 'Permintaan tertulis pasien.',
+        } }], links: [] },
+    });
+    assert.match(html, /Register permintaan/);
+    assert.match(html, /Dasar dan bukti verifikasi/);
+    assert.match(html, /&lt;script&gt;pemohon&lt;\/script&gt;/);
+    assert.doesNotMatch(html, /<script>pemohon|Tindak lanjuti|Dokumen yang diotorisasi|SOAP/);
+});
+
+test('general consent records separate decisions and renders no clinical narrative', async () => {
+    const props = {
+        visit: { id: 1, number: 'KNJ-SYNTHETIC', patientName: 'Pasien Sintetis', medicalRecordNumber: 'RM-SYNTHETIC' },
+        summary: { status: 'undocumented', currentId: null, recordedAt: null, versionCurrent: false, required: true, url: '/kunjungan/1/persetujuan-umum' },
+        text: 'Penjelasan hak pasien sintetis.', textVersion: 'GC-TEST', canWrite: true, storeUrl: '/kunjungan/1/persetujuan-umum', requestId: 'synthetic', backUrl: '/pelayanan/kunjungan/1', history: [],
+    };
+    const html = await renderPage('pelayanan/kunjungan/general-consent', props);
+    assert.match(html, /Belum terdokumentasi/);
+    assert.doesNotMatch(html, /type="file"/);
+    assert.match(html, /Konfirmasi penjelasan/);
+    assert.match(html, /Konfirmasi keputusan pasien/);
+    assert.doesNotMatch(html, /data-state="checked"/);
+    const readonly = await renderPage('pelayanan/kunjungan/general-consent', { ...props, canWrite: false });
+    assert.doesNotMatch(readonly, /Konfirmasi keputusan pasien/);
+    assert.match(readonly, /Petugas Pendaftaran atau Admin/);
+    assert.match(readonly, /Riwayat keputusan/);
+    const approved = await renderPage('pelayanan/kunjungan/general-consent', {
+        ...props,
+        summary: { ...props.summary, status: 'accepted', currentId: 1, versionCurrent: true },
+        history: [{ id: 1, decision: 'accepted', version: 'GC-TEST', signer: 'Pasien Sintetis', relationship: 'patient', reason: null, at: '23/11/2026 10:00', evidenceUrl: null, verificationUrl: '/verifikasi/persetujuan-umum/synthetic' }],
+    });
+    assert.match(approved, /Lihat \/ cetak bukti verifikasi/);
+    assert.match(approved, /Catat pencabutan/);
+    assert.doesNotMatch(approved, /Catat keputusan pasien|Konfirmasi keputusan pasien/);
+    const outdated = await renderPage('pelayanan/kunjungan/general-consent', {
+        ...props,
+        summary: { ...props.summary, status: 'accepted', currentId: 1, versionCurrent: false },
+    });
+    assert.match(outdated, /Konfirmasi keputusan pasien/);
 });

@@ -1,3 +1,4 @@
+import { ServiceReportLinks } from '@/components/reports/service-report-links';
 import { Head, Link, router } from '@inertiajs/react';
 import { Activity, CalendarDays, Clock3, RefreshCw } from 'lucide-react';
 import { useState, type ComponentProps, type FormEvent, type ReactNode } from 'react';
@@ -6,7 +7,7 @@ import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/sta
 import { ActionButton } from '@/components/ui/action-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { confirmAction } from '@/components/ui/confirm-dialog';
+import { confirmReason } from '@/components/ui/confirm-dialog';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
@@ -74,7 +75,7 @@ function QueueTable({ title, description, icon, visits }: { title: string; descr
                                     <TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} pendingReservation={visit.pendingReservation} status={visit.status} /></TableCell>
                                     <TableCell><div className="mx-auto grid w-fit grid-cols-5 gap-2">
                                         {visit.actions.map((action) => action.method === 'post'
-                                            ? <ActionButton key={action.action} disabled={action.disabled} disabledReason={action.disabledReason} action={action.action} label={action.label} onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} atas nama ${visit.patient}?`, () => router.post(action.href!, {}, { preserveScroll: true }), 'Batalkan')} />
+                                            ? <ActionButton key={action.action} disabled={action.disabled} disabledReason={action.disabledReason} action={action.action} label={action.label} onClick={() => confirmReason(`Batalkan kunjungan ${visit.number} atas nama ${visit.patient}?`, (reason) => router.post(action.href!, { reason }, { preserveScroll: true }), 'Batalkan')} />
                                             : <ActionButton key={action.action} asChild disabled={action.disabled} disabledReason={action.disabledReason} action={action.action} label={action.label}><Link href={action.href ?? ''} /></ActionButton>)}
                                     </div></TableCell>
                                 </TableRow>
@@ -101,7 +102,7 @@ export default function VisitQueue({ visits, todayVisits, today, queueUrl, servi
             <div className="space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div><p className="text-sm font-medium text-neutral-700">Operasional pelayanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Monitoring kunjungan & antrean</h2><p className="mt-1 text-sm text-neutral-500">Pusat pelayanan setelah pendaftaran: pengkajian, pemeriksaan, tindakan, persuratan, dan penyerahan obat.</p></div>
-                    <div className="flex flex-wrap gap-2"><Button asChild><Link href="/pendaftaran/pendaftaran-baru">Daftarkan pasien</Link></Button><Button asChild variant="secondary"><Link href="/pelayanan/kunjungan/create">Buka kunjungan</Link></Button><Button onClick={() => router.reload()} variant="secondary"><RefreshCw className="size-4" />Perbarui antrean</Button></div>
+
                 </div>
                 <section aria-label="Antrean aktif hari ini menurut tahap pelayanan" className="grid min-w-0 items-stretch gap-4 md:grid-cols-2 2xl:grid-cols-4">
                     {stages.map((stage) => {
@@ -120,7 +121,7 @@ export default function VisitQueue({ visits, todayVisits, today, queueUrl, servi
                     })}
                 </section>
                 <QueueTable icon={<Clock3 className="size-5" />} title="Kunjungan hari ini" description={`${today} · Seluruh kunjungan hari ini`} visits={todayVisits} />
-                <FilterPanel><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
+                <FilterPanel actions={<div className="flex flex-wrap items-center gap-2"><ServiceReportLinks kind="visits" size="sm" /><Button asChild size="sm"><Link href="/pendaftaran/pendaftaran-baru">Daftarkan pasien</Link></Button><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/kunjungan/create">Buka kunjungan</Link></Button><Button size="sm" onClick={() => router.reload()} variant="secondary"><RefreshCw className="size-4" />Perbarui antrean</Button></div>}><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
                     <p className="text-sm text-neutral-600 sm:col-span-2">Filter ini mengatur daftar kunjungan di bawah; pemantauan kunjungan hari ini tetap menampilkan seluruh pasien hari ini.</p>
                     <Field htmlFor="queue-search" label="Cari pasien"><Input id="queue-search" placeholder="Nama atau No. RM" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} /></Field>
                     <Field htmlFor="queue-clinic" label="Poliklinik"><Select id="queue-clinic" value={filters.clinicId} onChange={(event) => setFilters({ ...filters, clinicId: event.target.value })}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>

@@ -76,16 +76,45 @@ class MedicalLetterData
         $doctor?->loadMissing('user');
         $patient = $visit->pasien;
         $exam = $visit->pemeriksaan;
+        $effective = app(EffectiveClinicalNote::class)->resolve($exam);
+        if ($effective !== null) {
+            $exam = clone $exam;
+            $exam->forceFill(array_intersect_key($effective['payload'], array_flip([
+                'anamnesis', 'pemeriksaan_fisik', 'riwayat_alergi', 'non_farmakologis', 'edukasi', 'catatan',
+            ])));
+        }
         $screening = $visit->screening;
-        $therapies = $visit->resep?->resepObat->map(fn (ResepObat $item): string => trim(($item->nama_obat ?? $item->obat?->nama).' - '.$item->jumlah.' '.$item->satuan.'; '.$item->aturan_pakai))->all() ?? [];
-        foreach ($visit->tindakanKunjungan as $procedure) {
-            $therapies[] = ($procedure->nama_tindakan ?? $procedure->nama_tindakan_manual ?? $procedure->tindakan?->nama ?? 'Tindakan').($procedure->execution_role === 'perawat' && $procedure->execution_status !== 'selesai' ? ' (direncanakan)' : '');
+        $diagnoses = $effective !== null
+            ? collect($effective['payload']['diagnoses'] ?? [])->sortBy(fn (array $item): int => ($item['type'] ?? null) === 'utama' ? 0 : 1)
+                ->map(fn (array $item): string => ($item['name'] ?? '').(! empty($item['code']) ? ' ('.$item['code'].')' : ''))->values()->all()
+            : ($exam?->diagnosa->sortBy(fn (Diagnosa $diagnosis): int => $diagnosis->jenis === 'utama' ? 0 : 1)->map(fn (Diagnosa $diagnosis): string => $diagnosis->nama_diagnosa.($diagnosis->kode_icd10 ? ' ('.$diagnosis->kode_icd10.')' : ''))->values()->all() ?? []);
+        $therapies = $effective !== null
+            ? collect($effective['payload']['prescriptions'] ?? [])->map(fn (array $item): string => trim(($item['name'] ?? '').' - '.($item['quantity'] ?? '').' '.($item['unit'] ?? '').'; '.($item['instructions'] ?? '')))->all()
+            : ($visit->resep?->resepObat->map(fn (ResepObat $item): string => trim(($item->nama_obat ?? $item->obat?->nama).' - '.$item->jumlah.' '.$item->satuan.'; '.$item->aturan_pakai))->all() ?? []);
+        if ($effective !== null) {
+            $executions = $visit->tindakanKunjungan->keyBy('id');
+            foreach ($effective['payload']['treatments'] ?? [] as $procedure) {
+                $execution = $executions->get($procedure['id'] ?? null);
+                $completed = ($procedure['execution_status'] ?? null) === 'completed';
+                // Nursing execution follows the signed plan; only realization status comes
+                // from that matching transaction, never a mutable plan label/code.
+                if (($procedure['execution_role'] ?? null) === 'perawat' && $execution?->execution_role === 'perawat') {
+                    $completed = $execution->execution_status === 'completed';
+                }
+                $therapies[] = ($procedure['name'] ?? 'Tindakan').(! $completed ? ' (direncanakan)' : '');
+            }
+        } else {
+            foreach ($visit->tindakanKunjungan as $procedure) {
+                $therapies[] = ($procedure->nama_tindakan ?? $procedure->nama_tindakan_manual ?? $procedure->tindakan?->nama ?? 'Tindakan').($procedure->execution_status !== 'completed' ? ' (direncanakan)' : '');
+            }
         }
         if (filled($exam?->non_farmakologis)) {
             $therapies[] = $exam->non_farmakologis;
         }
 
         return [
+            'facility' => app(ClinicDocumentProfile::class)->data(),
+            'clinicalVersion' => $effective !== null ? ['id' => $effective['id'], 'version' => $effective['version'], 'hash' => $effective['hash']] : null,
             'patient' => [
                 'name' => $patient->nama, 'medicalRecordNumber' => $patient->no_rm,
                 'gender' => $patient->jenis_kelamin,
@@ -93,7 +122,7 @@ class MedicalLetterData
                 'birthDate' => $patient->tanggal_lahir?->format('d/m/Y'),
                 'address' => $patient->alamat, 'phone' => $patient->telepon,
                 'nip' => $patient->nip, 'department' => $visit->unit_kerja ?? $patient->unit_kerja,
-                'allergy' => $exam?->riwayat_alergi ?? $screening?->riwayat_alergi ?? $patient->riwayat_alergi,
+                'allergy' => $effective !== null ? ($effective['payload']['riwayat_alergi'] ?? null) : ($exam?->riwayat_alergi ?? $screening?->riwayat_alergi ?? $patient->riwayat_alergi),
             ],
             'doctor' => [
                 'name' => $doctor?->nama ?? 'Dokter klinik', 'sip' => $doctor?->no_sip,
@@ -101,7 +130,7 @@ class MedicalLetterData
             ],
             'clinical' => [
                 'anamnesis' => $exam?->anamnesis,
-                'diagnoses' => $exam?->diagnosa->sortBy(fn (Diagnosa $diagnosis): int => $diagnosis->jenis === 'utama' ? 0 : 1)->map(fn (Diagnosa $diagnosis): string => $diagnosis->nama_diagnosa.($diagnosis->kode_icd10 ? ' ('.$diagnosis->kode_icd10.')' : ''))->values()->all() ?? [],
+                'diagnoses' => $diagnoses,
                 'physicalExamination' => $exam?->pemeriksaan_fisik,
                 'height' => $screening?->tinggi_badan, 'weight' => $screening?->berat_badan,
                 'bloodPressure' => $screening?->td_sistole !== null && $screening?->td_diastole !== null ? $screening->td_sistole.'/'.$screening->td_diastole : null,

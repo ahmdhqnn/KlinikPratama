@@ -1,0 +1,6 @@
+import { Head } from '@inertiajs/react';
+
+export default function DocumentVerification({ status, issuedAt }: { status: 'valid' | 'void' | 'invalid'; issuedAt: string }) {
+    const labels = { valid: 'Dokumen terdaftar', void: 'Dokumen telah dibatalkan', invalid: 'Integritas dokumen perlu diperiksa' };
+    return <><Head title="Verifikasi dokumen" /><main className="mx-auto max-w-xl space-y-5 px-5 py-12"><section className="space-y-4 rounded-2xl bg-surface p-6"><h1 className="text-xl font-semibold">Verifikasi dokumen klinik</h1><p role="status" className={`rounded-xl border p-4 font-semibold ${status === 'valid' ? 'border-neutral-200 text-neutral-900' : 'border-amber-300 text-amber-900'}`}>{labels[status]}</p><p className="text-sm text-neutral-600">Waktu pencatatan: {issuedAt}</p><p className="text-sm leading-6 text-neutral-600">QR ini memeriksa status arsip penerbitan dalam sistem klinik. Identitas pasien dan isi medis hanya tersedia melalui petugas berwenang. QR ini bukan tanda tangan elektronik tersertifikasi.</p><p className="text-sm leading-6 text-neutral-600">Cocokkan salinan dengan dokumen yang diterima melalui klinik. QR yang disalin ke dokumen lain tidak membuktikan kesamaan isi salinan tersebut.</p></section></main></>;
+}

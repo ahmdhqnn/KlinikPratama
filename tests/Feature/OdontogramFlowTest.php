@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\ClinicalNoteRecorder;
 use App\Models\ClinicalNoteVersion;
+use App\Models\ClinicalTerminology;
 use App\Models\Diagnosa;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
@@ -14,13 +15,37 @@ use App\Models\Poliklinik;
 use App\Models\Screening;
 use App\Models\Tindakan;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class OdontogramFlowTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_draft_surface_revisions_keep_original_rows_and_protect_cancelled_values(): void
+    {
+        [$doctor, $visit] = $this->dentalExamination();
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'W', 'finding_code' => 'sound', 'notes' => 'Temuan pertama sintetis'])->assertSessionHasNoErrors();
+        $original = $visit->odontogramFindings()->sole();
+        $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => $this->cariesDetails(), 'notes' => 'Temuan kedua sintetis'])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('odontogram_findings', ['id' => $original->id, 'finding_code' => 'sound', 'notes' => 'Temuan pertama sintetis', 'active_slot' => null, 'voided_by' => $doctor->id]);
+        $this->assertSame(1, $visit->odontogramFindings()->count());
+        $this->assertSame(2, OdontogramFinding::withoutGlobalScope('active_clinical_entries')->count());
+        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['tooth_fdi' => '46', 'surface' => 'O'])->assertSessionHasErrors('reason');
+        $this->assertSame(1, $visit->odontogramFindings()->count());
+        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'reason' => 'Koreksi setelah peninjauan ulang'])->assertSessionHasNoErrors();
+        $this->assertSame(0, $visit->odontogramFindings()->count());
+        $this->assertSame(2, OdontogramFinding::withoutGlobalScope('active_clinical_entries')->count());
+        try {
+            DB::table('odontogram_findings')->where('id', $original->id)->update(['notes' => 'Mengganti bukti lama']);
+            $this->fail('Bukti pembatalan harus immutable.');
+        } catch (QueryException $exception) {
+            $this->assertStringContainsString('Entri klinis yang dibatalkan dilindungi', $exception->getMessage());
+        }
+    }
 
     public function test_dental_findings_and_tooth_location_are_versioned_after_finalization(): void
     {
@@ -58,7 +83,7 @@ class OdontogramFlowTest extends TestCase
             'nama_diagnosa' => 'Karies gigi', 'jenis' => 'utama',
         ]);
 
-        $this->actingAs($doctorUser)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertUnprocessable();
+        $this->actingAs($doctorUser)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertUnprocessable();
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), [
             'tooth_fdi' => '19', 'surface' => 'O', 'finding_code' => 'caries', 'details' => $this->cariesDetails(),
         ])->assertSessionHasErrors('tooth_fdi');
@@ -72,10 +97,10 @@ class OdontogramFlowTest extends TestCase
         $this->assertDatabaseHas('odontogram_findings', [
             'kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'recorded_by_user_id' => $doctorUser->id,
         ]);
-        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), [
+        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['reason' => 'Koreksi setelah pemeriksaan ulang',
             'tooth_fdi' => '46', 'surface' => 'O',
         ])->assertRedirect();
-        $this->assertDatabaseMissing('odontogram_findings', [
+        $this->assertDatabaseMissing('odontogram_findings', ['voided_at' => null,
             'kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O',
         ]);
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), [
@@ -100,7 +125,8 @@ class OdontogramFlowTest extends TestCase
         ])->assertSessionHasErrors('tooth_fdis');
         $this->assertDatabaseCount('tindakan_kunjungan', 2);
 
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
+        $this->classifySyntheticProceduresAsNotRequiringConsent($visit, $doctorUser);
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
         $final = ClinicalNoteVersion::where('pemeriksaan_id', $examination->id)->sole();
         $this->assertSame('46', $final->payload['odontogram'][1]['tooth_fdi']);
         $this->assertSame('caries', $final->payload['odontogram'][1]['finding_code']);
@@ -197,7 +223,7 @@ class OdontogramFlowTest extends TestCase
             'aturan_pakai' => 'Sesuai instruksi dokter', 'jenis' => 'jadi', 'is_resep_luar' => true,
         ])->assertSessionHasNoErrors();
 
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])
             ->assertRedirect(route('pelayanan.pemeriksaan.index'));
 
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'selesai']);
@@ -260,7 +286,7 @@ class OdontogramFlowTest extends TestCase
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'K04.0', 'nama_diagnosa' => 'Pulpitis', 'jenis' => 'utama']);
         OdontogramFinding::create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => $this->cariesDetails(), 'recorded_by_user_id' => $user->id]);
 
-        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertUnprocessable();
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertUnprocessable();
 
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'pemeriksaan']);
         $this->assertDatabaseMissing('clinical_note_versions', ['pemeriksaan_id' => $examination->id]);
@@ -272,7 +298,7 @@ class OdontogramFlowTest extends TestCase
         $examination->update(['oral_hygiene_index' => 1.25]);
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'K02.9', 'nama_diagnosa' => 'Karies', 'jenis' => 'utama']);
         OdontogramFinding::create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => $this->cariesDetails(), 'recorded_by_user_id' => $user->id]);
-        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
 
         $this->post(route('pelayanan.pemeriksaan.addendum', $visit), [
             'reason' => 'Koreksi nilai kebersihan mulut', 'oral_hygiene_index' => 4.5,
@@ -291,13 +317,13 @@ class OdontogramFlowTest extends TestCase
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'K02.9', 'nama_diagnosa' => 'Karies', 'jenis' => 'utama']);
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries'])->assertSessionHasNoErrors();
         $examination->update(['pemeriksaan_ekstraoral' => null]);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertUnprocessable();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertUnprocessable();
         $examination->update(['pemeriksaan_ekstraoral' => 'Simetris, tanpa pembengkakan, bukaan mulut baik']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertSessionHasErrors('review_dental_assessment');
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasErrors('dental_findings');
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertSessionHasErrors('review_dental_assessment');
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasErrors('dental_findings');
         $this->assertDatabaseMissing('clinical_note_versions', ['pemeriksaan_id' => $examination->id]);
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => $this->cariesDetails()])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $final = ClinicalNoteVersion::sole();
         $this->assertSame($user->id, $final->payload['dental_review']['reviewed_by']);
         $this->assertSame('5', $final->payload['odontogram'][0]['details']['icdas']);
@@ -315,10 +341,10 @@ class OdontogramFlowTest extends TestCase
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => ['icdas' => '9']])->assertSessionHasErrors('details.icdas');
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'W', 'finding_code' => 'missing'])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries'])->assertSessionHasErrors('finding_code');
-        $this->assertDatabaseCount('odontogram_findings', 1);
+        $this->assertSame(1, OdontogramFinding::query()->count());
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '36', 'surface' => 'O', 'finding_code' => 'restored'])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '36', 'surface' => 'W', 'finding_code' => 'unerupted'])->assertSessionHasErrors('finding_code');
-        $this->assertDatabaseCount('odontogram_findings', 2);
+        $this->assertSame(2, OdontogramFinding::query()->count());
         $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
         $this->actingAs($nurse)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '36', 'surface' => 'O', 'finding_code' => 'caries'])->assertForbidden();
     }
@@ -334,7 +360,7 @@ class OdontogramFlowTest extends TestCase
         $this->assertDatabaseHas('odontogram_findings', ['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'finding_code' => 'caries']);
         $this->assertDatabaseHas('odontogram_findings', ['kunjungan_id' => $visit->id, 'tooth_fdi' => '45', 'finding_code' => 'sound']);
         $this->post(route('pelayanan.pemeriksaan.odontogram.sound', $visit), ['teeth' => ['45'], 'confirmed' => true])->assertSessionHasNoErrors();
-        $this->assertDatabaseCount('odontogram_findings', 3);
+        $this->assertSame(3, OdontogramFinding::query()->count());
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '44', 'surface' => 'W', 'finding_code' => 'sound', 'details' => ['vitality' => 'guessed']])->assertSessionHasErrors('details.vitality');
         $this->actingAs(User::factory()->create(['role' => 'perawat', 'is_active' => true]))->post(route('pelayanan.pemeriksaan.odontogram.sound', $visit), ['teeth' => ['43'], 'confirmed' => true])->assertForbidden();
     }
@@ -345,10 +371,10 @@ class OdontogramFlowTest extends TestCase
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'K02.1', 'nama_diagnosa' => 'Karies dentin', 'jenis' => 'utama']);
         $payload = ['tooth_fdi' => '46', 'surface' => 'M', 'surfaces' => ['M', 'O', 'D'], 'finding_code' => 'caries', 'details' => $this->cariesDetails()];
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), [...$payload, 'surfaces' => ['M', 'W']])->assertSessionHasErrors('surface');
-        $this->assertDatabaseCount('odontogram_findings', 0);
+        $this->assertSame(0, OdontogramFinding::query()->count());
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), $payload)->assertSessionHasNoErrors();
         $this->assertSame(['D', 'M', 'O'], $visit->odontogramFindings()->orderBy('surface')->pluck('surface')->all());
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.odontogram.addendum', $visit), [...$payload, 'finding_code' => 'restored', 'reason' => 'Restorasi MOD telah dievaluasi ulang'])->assertSessionHasNoErrors();
         $this->assertDatabaseCount('clinical_note_versions', 2);
         $versions = $examination->clinicalNoteVersions()->orderBy('version')->get();
@@ -364,8 +390,8 @@ class OdontogramFlowTest extends TestCase
         unset($details['icdas']);
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'W', 'finding_code' => 'caries'])->assertSessionHasNoErrors();
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => $details])->assertSessionHasNoErrors();
-        $this->assertDatabaseMissing('odontogram_findings', ['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'W']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->assertDatabaseMissing('odontogram_findings', ['voided_at' => null, 'kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'W']);
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $this->assertNotNull($examination->fresh()->signed_at);
         $this->assertSame($details, ClinicalNoteVersion::sole()->payload['odontogram'][0]['details']);
     }
@@ -375,7 +401,7 @@ class OdontogramFlowTest extends TestCase
         [$user, $visit, $examination] = $this->dentalExamination();
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'K02.9', 'nama_diagnosa' => 'Karies', 'jenis' => 'utama']);
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '28', 'surface' => 'W', 'finding_code' => 'caries'])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])
             ->assertSessionHasErrors(['dental_findings' => 'Gigi 28: lengkapi permukaan spesifik (M/O/D/V/L), aktivitas lesi, jenis / lokasi lesi, kedalaman, diagnosis pulpa, diagnosis apikal, hasil pemeriksaan dan rencana perawatan.']);
         $this->assertNull($examination->fresh()->signed_at);
         $this->assertDatabaseCount('clinical_note_versions', 0);
@@ -388,12 +414,12 @@ class OdontogramFlowTest extends TestCase
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '36', 'surface' => 'W', 'finding_code' => 'sound'])->assertSessionHasNoErrors();
         $otherVisit = Kunjungan::create(['no_kunjungan' => 'KNJ-GIGI-LAIN', 'pasien_id' => $visit->pasien_id, 'poliklinik_id' => $visit->poliklinik_id, 'dokter_id' => $visit->dokter_id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
         $other = OdontogramFinding::factory()->create(['kunjungan_id' => $otherVisit->id, 'tooth_fdi' => '35']);
-        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['findings' => [['tooth_fdi' => '46', 'surface' => 'O']]])->assertSessionHasErrors('confirmed');
+        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['reason' => 'Koreksi setelah pemeriksaan ulang', 'findings' => [['tooth_fdi' => '46', 'surface' => 'O']]])->assertSessionHasErrors('confirmed');
         $this->assertSame(2, $visit->odontogramFindings()->count());
-        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['all' => true, 'confirmed' => true])->assertSessionHasErrors('all');
-        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['findings' => [['tooth_fdi' => '46', 'surface' => 'O'], ['tooth_fdi' => '35', 'surface' => 'O']], 'confirmed' => true])->assertSessionHasErrors('findings');
+        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['reason' => 'Koreksi setelah pemeriksaan ulang', 'all' => true, 'confirmed' => true])->assertSessionHasErrors('all');
+        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['reason' => 'Koreksi setelah pemeriksaan ulang', 'findings' => [['tooth_fdi' => '46', 'surface' => 'O'], ['tooth_fdi' => '35', 'surface' => 'O']], 'confirmed' => true])->assertSessionHasErrors('findings');
         $this->assertSame(2, $visit->odontogramFindings()->count());
-        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['findings' => [['tooth_fdi' => '46', 'surface' => 'O']], 'confirmed' => true])->assertSessionHasNoErrors();
+        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['reason' => 'Koreksi setelah pemeriksaan ulang', 'findings' => [['tooth_fdi' => '46', 'surface' => 'O']], 'confirmed' => true])->assertSessionHasNoErrors();
         $this->assertSame(1, $visit->odontogramFindings()->count());
         $this->assertDatabaseHas('odontogram_findings', ['kunjungan_id' => $visit->id, 'tooth_fdi' => '36', 'surface' => 'W']);
         $this->assertModelExists($other);
@@ -405,7 +431,7 @@ class OdontogramFlowTest extends TestCase
         [$user, $visit, $examination] = $this->dentalExamination();
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'K02.9', 'nama_diagnosa' => 'Karies', 'jenis' => 'utama']);
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'M', 'surfaces' => ['M', 'O', 'D'], 'finding_code' => 'caries', 'details' => $this->cariesDetails()])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $final = ClinicalNoteVersion::sole();
         $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['findings' => [['tooth_fdi' => '46', 'surface' => 'M'], ['tooth_fdi' => '46', 'surface' => 'O']], 'confirmed' => true])->assertSessionHasErrors('reason');
         $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['findings' => [['tooth_fdi' => '46', 'surface' => 'M'], ['tooth_fdi' => '46', 'surface' => 'O']], 'confirmed' => true, 'reason' => 'Pembatalan temuan terpilih setelah verifikasi ulang'])->assertSessionHasNoErrors();
@@ -426,6 +452,7 @@ class OdontogramFlowTest extends TestCase
 
     public function test_dental_diagnoses_are_separate_per_tooth_and_merge_surfaces_for_the_same_code(): void
     {
+        ClinicalTerminology::create(['code_system' => 'icd10_who', 'release' => 'WHO 2016', 'code' => 'K02.1', 'display' => 'Caries of dentine', 'code_type' => 'diagnosis', 'is_active' => true]);
         [$user, $visit, $examination] = $this->dentalExamination();
         OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'D', 'details' => $this->cariesDetails()]);
         OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'details' => $this->cariesDetails()]);
@@ -447,7 +474,7 @@ class OdontogramFlowTest extends TestCase
         $this->assertSame('tambahan', $first->fresh()->jenis);
         $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page->where('visit.diagnoses.0.toothFdi', '46')->where('visit.diagnoses.0.surfaces', ['O', 'D']));
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => $this->cariesDetails()])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $this->assertSame('46', ClinicalNoteVersion::sole()->payload['diagnoses'][0]['tooth_fdi']);
         $this->assertSame(['O', 'D'], ClinicalNoteVersion::sole()->payload['diagnoses'][0]['surfaces']);
         $this->patch(route('pelayanan.pemeriksaan.diagnosa.primary', $first))->assertUnprocessable();
@@ -477,10 +504,10 @@ class OdontogramFlowTest extends TestCase
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), $payload)->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), [...$payload, 'surface' => 'M', 'finding_code' => 'fractured_crown'])->assertSessionHasNoErrors();
         $this->assertSame(1, $visit->odontogramFindings()->count());
-        $this->assertDatabaseMissing('odontogram_findings', ['kunjungan_id' => $visit->id, 'tooth_fdi' => '35', 'finding_code' => 'sound']);
+        $this->assertDatabaseMissing('odontogram_findings', ['voided_at' => null, 'kunjungan_id' => $visit->id, 'tooth_fdi' => '35', 'finding_code' => 'sound']);
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'W', 'finding_code' => 'sound'])->assertSessionHasNoErrors();
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'nama_diagnosa' => 'Fraktur mahkota', 'kode_icd10' => 'S02.5', 'jenis' => 'utama']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $final = ClinicalNoteVersion::sole();
         $this->post(route('pelayanan.pemeriksaan.odontogram.addendum', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => $this->cariesDetails(), 'reason' => 'Temuan baru setelah pemeriksaan ulang'])->assertSessionHasNoErrors();
         $this->assertSame(['fractured_crown', 'caries'], array_column(ClinicalNoteVersion::latest('version')->firstOrFail()->payload['odontogram'], 'finding_code'));
@@ -489,29 +516,31 @@ class OdontogramFlowTest extends TestCase
 
     public function test_dental_diagnosis_context_is_checked_again_before_signing(): void
     {
+        ClinicalTerminology::create(['code_system' => 'icd10_who', 'release' => 'WHO 2016', 'code' => 'K02.1', 'display' => 'Caries of dentine', 'code_type' => 'diagnosis', 'is_active' => true]);
         [$user, $visit, $examination] = $this->dentalExamination();
         $payload = ['kode_icd10' => 'K02.1', 'nama_diagnosa' => 'Caries of dentine', 'jenis' => 'utama', 'tooth_fdi' => '46', 'surfaces' => ['D']];
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), $payload)->assertSessionHasErrors('tooth_fdi');
         $finding = OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'details' => $this->cariesDetails()]);
         $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), $payload)->assertSessionHasErrors('surfaces');
         $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), [...$payload, 'surfaces' => ['O']])->assertSessionHasNoErrors();
-        $finding->delete();
+        $finding->voidClinicalEntry($user, 'Temuan dibatalkan setelah pemeriksaan ulang.');
         OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '35', 'surface' => 'W', 'finding_code' => 'sound']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasErrors('dental_diagnoses');
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasErrors('dental_diagnoses');
         $this->assertNull($examination->fresh()->signed_at);
         $this->assertDatabaseCount('clinical_note_versions', 0);
         OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'details' => $this->cariesDetails()]);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $this->assertNotNull($examination->fresh()->signed_at);
     }
 
     public function test_oral_examination_can_finish_without_a_tooth_specific_diagnosis_or_procedure(): void
     {
+        ClinicalTerminology::create(['code_system' => 'icd10_who', 'release' => 'WHO 2016', 'code' => 'K13.7', 'display' => 'Kelainan mukosa bukal', 'code_type' => 'diagnosis', 'is_active' => true]);
         [$user, $visit, $examination] = $this->dentalExamination();
         $examination->update(['pemeriksaan_fisik' => 'Temuan jaringan lunak mukosa bukal', 'non_farmakologis' => 'Perawatan sesuai evaluasi dokter', 'edukasi' => 'Anjuran dan jadwal evaluasi dijelaskan']);
         OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'W', 'finding_code' => 'sound']);
-        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), ['is_manual' => true, 'nama_diagnosa' => 'Kelainan mukosa bukal', 'jenis' => 'utama', 'keterangan' => 'Temuan berasal dari pemeriksaan jaringan mulut', 'surfaces' => []])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), ['kode_icd10' => 'K13.7', 'code_system' => 'icd10_who', 'nama_diagnosa' => 'Kelainan mukosa bukal', 'jenis' => 'utama', 'keterangan' => 'Temuan berasal dari pemeriksaan jaringan mulut', 'surfaces' => []])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $this->assertSame('selesai', $visit->fresh()->status);
         $this->assertNull(ClinicalNoteVersion::sole()->payload['diagnoses'][0]['tooth_fdi']);
         $this->assertSame([], ClinicalNoteVersion::sole()->payload['treatments']);
@@ -543,7 +572,7 @@ class OdontogramFlowTest extends TestCase
         }
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => [...$this->cariesDetails(), 'pulpal' => 'previously_treated', 'endodontic' => 'treated', 'prosthesis' => 'crown', 'material' => 'porcelain']])->assertSessionHasNoErrors();
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'nama_diagnosa' => 'Diagnosis dokter', 'kode_icd10' => 'K02.1', 'jenis' => 'utama']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $payload = ClinicalNoteVersion::sole()->payload;
         $this->assertCount(15, $payload['odontogram']);
         $caries = collect($payload['odontogram'])->firstWhere('tooth_fdi', '46');
@@ -584,13 +613,14 @@ class OdontogramFlowTest extends TestCase
 
     public function test_diagnosis_source_finding_survives_signing_and_rejects_an_unrelated_source(): void
     {
+        ClinicalTerminology::create(['code_system' => 'icd10_who', 'release' => 'WHO 2016', 'code' => 'K02.1', 'display' => 'Karies dentin', 'code_type' => 'diagnosis', 'is_active' => true]);
         [$user, $visit, $examination] = $this->dentalExamination();
         OdontogramFinding::factory()->create(['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'surface' => 'O', 'details' => $this->cariesDetails()]);
         $payload = ['kode_icd10' => 'K02.1', 'nama_diagnosa' => 'Karies dentin', 'jenis' => 'utama', 'tooth_fdi' => '46', 'surfaces' => ['O'], 'source_finding_code' => 'implant'];
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), $payload)->assertSessionHasErrors('source_finding_code');
         $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), [...$payload, 'source_finding_code' => 'caries'])->assertSessionHasNoErrors();
         $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page->where('visit.diagnoses.0.sourceFindingCode', 'caries'));
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $this->assertSame('caries', ClinicalNoteVersion::sole()->payload['diagnoses'][0]['source_finding_code']);
     }
 
@@ -603,7 +633,7 @@ class OdontogramFlowTest extends TestCase
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), [...$data, 'details' => ['prosthesis_span' => '14,15,46']])->assertSessionHasErrors('details.prosthesis_span');
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), [...$data, 'details' => ['prosthesis_region' => 'lower']])->assertSessionHasErrors('details.prosthesis_region');
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'nama_diagnosa' => 'Evaluasi prostesis', 'kode_icd10' => null, 'code_system' => 'manual', 'jenis' => 'utama']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $final = ClinicalNoteVersion::sole();
         $this->post(route('pelayanan.pemeriksaan.odontogram.addendum', $visit), ['tooth_fdi' => '35', 'surface' => 'W', 'finding_code' => 'implant', 'details' => ['material' => 'porcelain'], 'reason' => 'Melengkapi riwayat implan setelah verifikasi'])->assertSessionHasNoErrors();
         $this->assertCount(1, $final->fresh()->payload['odontogram']);
@@ -623,7 +653,7 @@ class OdontogramFlowTest extends TestCase
         $exam->update(['riwayat_penyakit_sekarang' => 'Nyeri akut sejak pagi']);
         $exam->diagnosa()->create(['kode_icd10' => 'K04.0', 'code_system' => 'icd10_who', 'nama_diagnosa' => 'Pulpitis', 'jenis' => 'utama']);
         $payload = [
-            'review_final_plan' => true, 'signature_password' => 'password', 'review_dental_assessment' => true,
+            'review_final_plan' => true, 'review_performed_procedures' => true, 'signature_password' => 'password', 'review_dental_assessment' => true,
             'dental_scope' => 'emergency', 'dental_scope_reason' => 'Prioritas penilaian keluhan akut',
             'dental_focus' => 'Gigi 46: kavitas dan nyeri akut', 'dental_follow_up_plan' => 'Lengkapi odontogram saat kontrol',
         ];

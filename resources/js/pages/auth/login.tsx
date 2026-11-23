@@ -15,8 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -134,11 +132,6 @@ export default function LoginPage({ email = '' }: { email?: string }) {
                                     </Field>
 
                                     <div className="flex items-center justify-between text-sm">
-                                        <Label className="flex cursor-pointer items-center gap-2.5 text-sm text-neutral-600">
-                                            <Checkbox checked={form.data.remember} name="remember" onCheckedChange={(checked) => form.setData('remember', (checked === true))} />
-                                            Ingat saya
-                                        </Label>
-
                                         <Link className="text-xs font-medium text-neutral-700 underline-offset-4 hover:underline" href="/bantuan-akses">Lupa kata sandi?</Link>
                                     </div>
 

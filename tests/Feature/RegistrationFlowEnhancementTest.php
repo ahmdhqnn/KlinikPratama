@@ -31,7 +31,7 @@ class RegistrationFlowEnhancementTest extends TestCase
             ->where('patients.data.0.viewUrl', route('pelayanan.pasien.show', $patient))
             ->where('patients.data.0.editUrl', route('pelayanan.pasien.edit', $patient)));
         $this->get(route('pelayanan.pasien.show', $patient))->assertInertia(fn (Assert $page) => $page
-            ->where('permissions.editPatient', true)->where('permissions.viewRme', $role === 'admin')->where('patient.allergies', null));
+            ->where('permissions.editPatient', true)->where('permissions.viewRme', false)->where('patient.allergies', null));
         $this->get(route('pendaftaran.pendaftaran-baru', ['tab' => 'registered', 'pasien_id' => $patient->id]))
             ->assertInertia(fn (Assert $page) => $page->where('initialTab', 'registered')->where('initialPatient.id', $patient->id));
         $this->get(route('pelayanan.pasien.edit', $patient))->assertInertia(fn (Assert $page) => $page
@@ -132,10 +132,12 @@ class RegistrationFlowEnhancementTest extends TestCase
         $oldExam = Pemeriksaan::create(['kunjungan_id' => $older->id, 'status' => 'selesai']);
         Diagnosa::create(['pemeriksaan_id' => $oldExam->id, 'kode_icd10' => 'I10', 'nama_diagnosa' => 'Hipertensi', 'jenis' => 'utama']);
 
+        $this->expandSyntheticDiagnosisPopulation($visit);
+        $this->expandSyntheticDiagnosisPopulation($older);
         $page = $this->actingAs(User::factory()->create(['role' => 'pendaftaran']))->get(route('pendaftaran.laporan-top-diagnosa', ['tanggal_mulai' => '2026-10-26']));
         $response = $this->get($page->inertiaProps('exportUrl'))->assertDownload('laporan-diagnosis-2026-10-26.xlsx');
         $book = IOFactory::load($response->baseResponse->getFile()->getPathname());
-        $this->assertSame([['Kode ICD-10', 'Diagnosis', 'Jumlah kasus'], ['J00', 'Nasofaringitis', 1]], $book->getActiveSheet()->toArray(formatData: false));
+        $this->assertSame([['Kode ICD-10', 'Diagnosis', 'Jumlah kasus'], ['J00', 'Nasofaringitis', 5]], $book->getActiveSheet()->toArray(formatData: false));
         $book->disconnectWorksheets();
     }
 

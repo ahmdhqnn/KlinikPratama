@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\ClinicalNoteRecorder;
 use App\Http\Middleware\AuditAdminAssistanceFailures;
 use App\Models\ClinicalNoteVersion;
+use App\Models\ClinicalTerminology;
 use App\Models\JadwalDokter;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
@@ -51,58 +52,26 @@ class AdminClinicalAssistanceTest extends TestCase
     #[TestWith(['gigi'])]
     public function test_admin_draft_assistance_preserves_doctor_and_cannot_finalize(string $type): void
     {
-        [$doctor, $staff, $visit] = $this->visitContext();
+        [, $staff, $visit] = $this->visitContext();
         $visit->poliklinik->update(['jenis' => $type]);
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        $this->actingAs($admin)->get(route('pelayanan.pemeriksaan.index'))->assertOk();
-        $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page->where('assistance.isAdmin', true)->where('assistance.active', false));
-        $this->post(route('pelayanan.pemeriksaan.start', $visit))->assertForbidden();
-        $this->post(route('pelayanan.pemeriksaan.assist', $visit), [])->assertSessionHasErrors('reason');
-        $this->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => str_repeat(' ', 12)])->assertSessionHasErrors('reason');
-        $rejectedEvents = DB::table('clinical_audit_events')->where('actor_id', $admin->id)->where('action', 'admin_assistance.attempt_rejected')->where('route_name', 'pelayanan.pemeriksaan.assist')->get();
-        $this->assertCount(2, $rejectedEvents);
-        foreach ($rejectedEvents as $event) {
-            $metadata = json_decode($event->metadata, true, flags: JSON_THROW_ON_ERROR);
-            $this->assertSame(['failure_kind', 'status'], array_keys($metadata));
-            $this->assertSame('validation_or_workflow', $metadata['failure_kind']);
-            $this->assertSame(302, $metadata['status']);
-            $this->assertSame($visit->id, (int) $event->kunjungan_id);
-            $this->assertSame('pelayanan.pemeriksaan.assist', $event->route_name);
+        $this->actingAs($admin)->get(route('pelayanan.pemeriksaan.index'))->assertForbidden();
+        foreach (['start', 'assist', 'store', 'selesai', 'addendum'] as $action) {
+            $this->post(route('pelayanan.pemeriksaan.'.$action, $visit), ['reason' => 'Bantuan tidak memberikan kewenangan klinis'])->assertForbidden();
         }
-        $this->assertDatabaseHas('clinical_audit_events', [
-            'actor_id' => $admin->id,
-            'kunjungan_id' => $visit->id,
-            'action' => 'admin_assistance.attempt_rejected',
-            'route_name' => 'pelayanan.pemeriksaan.start',
-        ]);
-        $deniedEvent = DB::table('clinical_audit_events')->where('actor_id', $admin->id)->where('action', 'admin_assistance.attempt_rejected')->where('route_name', 'pelayanan.pemeriksaan.start')->first();
-        $this->assertSame(['failure_kind' => 'access_denied', 'status' => 403], json_decode($deniedEvent->metadata, true, flags: JSON_THROW_ON_ERROR));
-        $this->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Akun layanan sedang mengalami gangguan.'])->assertRedirect()->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.start', $visit))->assertRedirect()->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'anamnesis', 'anamnesis' => 'Keluhan pasien dicatat sesuai hasil pemeriksaan dokter.'])->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('pemeriksaan', 0);
         $this->assertSame($staff->id, $visit->fresh()->dokter_id);
-        $this->assertDatabaseHas('pemeriksaan', ['kunjungan_id' => $visit->id, 'dokter_id' => $staff->id, 'signed_at' => null]);
-        $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'kunjungan_id' => $visit->id, 'action' => 'admin_assistance.draft_write']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertForbidden();
-        $this->post(route('pelayanan.pemeriksaan.addendum', $visit), [])->assertForbidden();
-        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Bantuan pencatatan sementara.'])->assertForbidden();
-        $this->assertDatabaseMissing('clinical_audit_events', ['actor_id' => $doctor->id, 'action' => 'admin_assistance.attempt_rejected']);
+        $this->assertDatabaseHas('clinical_audit_events', ['action' => 'access.denied', 'actor_id' => $admin->id]);
     }
 
     public function test_assistance_is_scoped_to_actor_assignment_and_expiry(): void
     {
         [, , $visit] = $this->visitContext();
-        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Bantuan pencatatan sementara.'])->assertRedirect();
-        $other = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        $this->actingAs($other)->post(route('pelayanan.pemeriksaan.start', $visit))->assertForbidden();
-        DB::table('admin_clinical_assistances')->update(['expires_at' => now()->subMinute()]);
-        $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.start', $visit))->assertForbidden();
-        $this->assertDatabaseCount('pemeriksaan', 0);
-        $this->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Bantuan pencatatan sementara.'])->assertRedirect();
-        $visit->update(['dokter_id' => null]);
-        $this->post(route('pelayanan.pemeriksaan.start', $visit))->assertForbidden();
-        $this->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Bantuan pencatatan sementara.'])->assertUnprocessable();
+        foreach ([now()->addHour(), now()->subMinute()] as $expiry) {
+            $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+            DB::table('admin_clinical_assistances')->insert(['actor_id' => $admin->id, 'kunjungan_id' => $visit->id, 'dokter_id' => $visit->dokter_id, 'poliklinik_id' => $visit->poliklinik_id, 'service_date' => today(), 'reason' => 'Bukti bantuan historis', 'expires_at' => $expiry, 'created_at' => now(), 'updated_at' => now()]);
+            $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.start', $visit))->assertForbidden();
+        }
         $this->assertDatabaseCount('pemeriksaan', 0);
     }
 
@@ -111,11 +80,11 @@ class AdminClinicalAssistanceTest extends TestCase
         [, $staff, $visit] = $this->visitContext();
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $visit->screening()->update(['submitted_at' => null]);
-        $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Bantuan pencatatan sementara.'])->assertUnprocessable();
+        $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Bantuan pencatatan sementara.'])->assertForbidden();
         $this->assertDatabaseCount('admin_clinical_assistances', 0);
         $visit->screening()->update(['submitted_at' => now()]);
         $visit->pemeriksaan()->create(['dokter_id' => $staff->id, 'status' => 'selesai', 'signed_at' => now()]);
-        $this->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Bantuan pencatatan sementara.'])->assertUnprocessable();
+        $this->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Bantuan pencatatan sementara.'])->assertForbidden();
         $this->assertDatabaseCount('admin_clinical_assistances', 0);
     }
 
@@ -137,12 +106,13 @@ class AdminClinicalAssistanceTest extends TestCase
         if ($procedure) {
             $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan perawat sesuai rencana', 'jumlah' => 1, 'execution_role' => 'perawat', 'tooth_fdis' => $type === 'gigi' ? ['46'] : []])->assertSessionHasNoErrors();
         }
-        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertSessionHasErrors('review_admin_assistance');
+        $this->classifySyntheticProceduresAsNotRequiringConsent($visit, $doctor);
+        $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertSessionHasErrors('review_admin_assistance');
         $this->assertDatabaseCount('clinical_note_versions', 0);
         $page = $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertOk();
         $review = $page->inertiaProps('assistanceReview');
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), [
-            'review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
+            'review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
             'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash'],
         ])->assertRedirect()->assertSessionHasNoErrors();
         $this->assertSame($procedure ? 'tindakan' : ($medicine ? 'farmasi' : 'selesai'), $visit->fresh()->status);
@@ -158,7 +128,7 @@ class AdminClinicalAssistanceTest extends TestCase
         $this->assertSame($doctor->id, $reviewEvent->actor_id);
         $this->assertSame($admin->id, $metadata['operator_id']);
         $this->assertSame($version->content_hash, $metadata['content_hash']);
-        $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.store', $visit), ['anamnesis' => 'Menimpa catatan'])->assertUnprocessable();
+        $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.store', $visit), ['anamnesis' => 'Menimpa catatan'])->assertForbidden();
         if ($type === 'gigi') {
             $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'reason' => 'Koreksi catatan final oleh operator'])->assertForbidden();
             $this->assertDatabaseHas('odontogram_findings', ['kunjungan_id' => $visit->id, 'tooth_fdi' => '46']);
@@ -167,23 +137,24 @@ class AdminClinicalAssistanceTest extends TestCase
 
     public function test_follow_up_plan_syncs_a_pending_reservation_until_registration_confirms_it(): void
     {
-        [, $admin, $visit] = $this->assistedContext();
+        [$doctor, $admin, $visit] = $this->assistedContext();
         $date = today()->addDays(7);
         $data = ['section' => 'rencana', 'kontrol_berikutnya' => $date->toDateString(), 'catatan' => 'Evaluasi setelah terapi.'];
         $saveUrl = route('pelayanan.pemeriksaan.store', $visit);
 
-        $this->actingAs($admin)->post($saveUrl, $data)->assertSessionHasNoErrors();
+        $this->actingAs($doctor)->post($saveUrl, $data)->assertSessionHasNoErrors();
         $reservation = Kunjungan::where('kontrol_asal_id', $visit->id)->sole();
         $this->assertSame($data['catatan'], $reservation->kontrol_catatan);
         $this->assertTrue($reservation->isPendingReservation());
         $this->assertFalse($reservation->canUpdateScreening());
-        $this->get(route('pendaftaran.cetak-antrian', $reservation))->assertUnprocessable();
+        $this->get(route('pendaftaran.cetak-antrian', $reservation))->assertForbidden();
 
         $this->put(route('pelayanan.pemeriksaan.update', $visit), [...$data, 'catatan' => 'Catatan kontrol diperbarui.'])->assertSessionHasNoErrors();
         $this->assertSame('Catatan kontrol diperbarui.', $reservation->fresh()->kontrol_catatan);
         $this->assertDatabaseCount('kunjungan', 2);
 
-        $page = $this->get(route('pendaftaran.kunjungan-per-poli'))->inertiaProps('reservations');
+        $page = $this->actingAs($admin)->get(route('pendaftaran.kunjungan-per-poli'))->inertiaProps('reservations');
+        $this->actingAs($doctor);
         $this->assertSame($reservation->id, $page['data'][0]['id']);
 
         $registrar = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
@@ -197,7 +168,7 @@ class AdminClinicalAssistanceTest extends TestCase
         $confirmation = ['poliklinik_id' => $visit->poliklinik_id];
         $confirmUrl = route('pendaftaran.update-kunjungan', $reservation);
         $editorUrl = route('pendaftaran.edit-kunjungan', $reservation);
-        $this->get(route('pelayanan.kunjungan.edit', $reservation))->assertRedirect($editorUrl);
+        $this->actingAs($admin)->get(route('pelayanan.kunjungan.edit', $reservation))->assertRedirect($editorUrl);
         $this->actingAs($registrar)->get($editorUrl)->assertInertia(fn (Assert $page) => $page
             ->component('pendaftaran/edit-kunjungan')
             ->where('visit.date', $date->toDateString())
@@ -214,12 +185,13 @@ class AdminClinicalAssistanceTest extends TestCase
         $this->assertSame($date->toDateString(), $reservation->fresh()->tanggal->toDateString());
         $this->get(route('pendaftaran.cetak-antrian', $reservation))->assertOk();
 
-        $this->actingAs($admin);
+        $this->actingAs($doctor);
         $later = $date->copy()->addDay()->toDateString();
         $this->post($saveUrl, [...$data, 'kontrol_berikutnya' => $later])->assertSessionHasNoErrors();
         $this->assertSame($later, $reservation->fresh()->tanggal->toDateString());
         $this->assertTrue($reservation->fresh()->isPendingReservation());
-        $this->assertSame(0, $this->get(route('pendaftaran.kunjungan-per-poli'))->inertiaProps('reservations')['total']);
+        $this->assertSame(0, $this->actingAs($admin)->get(route('pendaftaran.kunjungan-per-poli'))->inertiaProps('reservations')['total']);
+        $this->actingAs($doctor);
         $this->post($saveUrl, [...$data, 'kontrol_berikutnya' => null])->assertSessionHasNoErrors();
         $this->assertSame('batal', $reservation->fresh()->status);
     }
@@ -228,43 +200,45 @@ class AdminClinicalAssistanceTest extends TestCase
     {
         [$doctor, $admin, $visit] = $this->assistedContext();
         $review = $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))->inertiaProps('assistanceReview');
-        $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'rencana', 'edukasi' => 'Perubahan edukasi terbaru'])->assertSessionHasNoErrors();
+        $visit->pemeriksaan()->update(['edukasi' => 'Perubahan edukasi terbaru']);
+        DB::table('clinical_audit_events')->insert(['actor_id' => $admin->id, 'kunjungan_id' => $visit->id, 'action' => 'admin_assistance.draft_write', 'occurred_at' => now()]);
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.selesai', $visit), [
-            'review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
+            'review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
             'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash'],
         ])->assertSessionHasErrors('assistance_review_id');
         $review = $this->get(route('pelayanan.pemeriksaan.show', $visit))->inertiaProps('assistanceReview');
         $visit->pemeriksaan()->update(['edukasi' => 'Isi berubah setelah tinjauan']);
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), [
-            'review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
+            'review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true,
             'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash'],
         ])->assertSessionHasErrors('assistance_review_hash');
         $this->assertDatabaseCount('clinical_note_versions', 0);
         $this->assertDatabaseMissing('clinical_audit_events', ['action' => 'admin_assistance.reviewed']);
     }
 
-    public function test_admin_can_correct_draft_entries_and_doctor_procedure_snapshot_uses_completed_state(): void
+    public function test_attending_doctor_corrects_legacy_assisted_draft_and_snapshot_uses_completed_state(): void
     {
         [$doctor, $admin, $visit] = $this->assistedContext('gigi');
         $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), ['is_manual' => true, 'nama_diagnosa' => 'Diagnosis tambahan sementara', 'jenis' => 'tambahan'])->assertSessionHasNoErrors();
         $diagnosis = $visit->pemeriksaan->diagnosa()->where('jenis', 'tambahan')->sole();
-        $this->delete(route('pelayanan.pemeriksaan.diagnosa.destroy', $diagnosis))->assertSessionHasNoErrors();
-        $this->assertDatabaseMissing('diagnosa', ['id' => $diagnosis->id]);
+        $this->delete(route('pelayanan.pemeriksaan.diagnosa.destroy', $diagnosis), ['reason' => 'Koreksi entri draf oleh dokter'])->assertSessionHasNoErrors();
+        $this->assertNotNull(DB::table('diagnosa')->where('id', $diagnosis->id)->value('voided_at'));
         $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['is_resep_luar' => true, 'nama_obat' => 'Obat resep luar', 'jumlah' => 2, 'satuan' => 'tablet', 'jenis' => 'jadi', 'aturan_pakai' => 'Sesuai instruksi dokter'])->assertSessionHasNoErrors();
         $item = $visit->resep()->sole()->resepObat()->sole();
-        $this->delete(route('pelayanan.pemeriksaan.resep.destroy', $item))->assertSessionHasNoErrors();
-        $this->assertDatabaseMissing('resep_obat', ['id' => $item->id]);
+        $this->delete(route('pelayanan.pemeriksaan.resep.destroy', $item), ['reason' => 'Koreksi entri draf oleh dokter'])->assertSessionHasNoErrors();
+        $this->assertNotNull(DB::table('resep_obat')->where('id', $item->id)->value('voided_at'));
         $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan sementara', 'jumlah' => 1])->assertSessionHasNoErrors();
         $procedure = $visit->tindakanKunjungan()->sole();
-        $this->delete(route('pelayanan.pemeriksaan.tindakan.destroy', $procedure))->assertSessionHasNoErrors();
-        $this->assertDatabaseMissing('tindakan_kunjungan', ['id' => $procedure->id]);
-        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['tooth_fdi' => '46', 'surface' => 'O'])->assertSessionHasNoErrors();
-        $this->assertDatabaseMissing('odontogram_findings', ['kunjungan_id' => $visit->id, 'tooth_fdi' => '46']);
+        $this->delete(route('pelayanan.pemeriksaan.tindakan.destroy', $procedure), ['reason' => 'Koreksi entri draf oleh dokter'])->assertSessionHasNoErrors();
+        $this->assertNotNull(DB::table('tindakan_kunjungan')->where('id', $procedure->id)->value('voided_at'));
+        $this->delete(route('pelayanan.pemeriksaan.odontogram.destroy', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'reason' => 'Koreksi setelah pemeriksaan ulang'])->assertSessionHasNoErrors();
+        $this->assertDatabaseMissing('odontogram_findings', ['kunjungan_id' => $visit->id, 'tooth_fdi' => '46', 'voided_at' => null]);
         $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => ['icdas' => '5', 'activity' => 'active', 'site' => 'primary', 'depth' => 'dentin', 'pulpal' => 'reversible', 'periapical' => 'normal', 'assessment' => 'Kavitas dentin, respons dingin singkat. Rencana restorasi.']])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan dokter', 'jumlah' => 1, 'execution_role' => 'dokter'])->assertSessionHasNoErrors();
         $this->actingAs($doctor);
+        $this->classifySyntheticProceduresAsNotRequiringConsent($visit, $doctor);
         $review = $this->get(route('pelayanan.pemeriksaan.show', $visit))->inertiaProps('assistanceReview');
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true, 'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash']])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true, 'review_admin_assistance' => true, 'assistance_review_id' => $review['auditId'], 'assistance_review_hash' => $review['draftHash']])->assertSessionHasNoErrors();
         $this->assertSame('selesai', $visit->fresh()->status);
         $this->assertSame($doctor->id, $visit->tindakanKunjungan()->sole()->performed_by);
         $this->assertSame('completed', ClinicalNoteVersion::sole()->payload['treatments'][0]['execution_status']);
@@ -276,13 +250,16 @@ class AdminClinicalAssistanceTest extends TestCase
         [$doctor, , $visit] = $this->visitContext();
         $visit->poliklinik->update(['jenis' => $type]);
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.assist', $visit), ['reason' => 'Bantuan pencatatan sesuai pemeriksaan dokter.'])->assertSessionHasNoErrors();
+        $this->actingAs($doctor);
         $this->post(route('pelayanan.pemeriksaan.start', $visit))->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.store', $visit), ['anamnesis' => 'Keluhan pasien dua hari', 'pemeriksaan_fisik' => 'Temuan pemeriksaan dokter', 'pemeriksaan_ekstraoral' => 'Wajah simetris tanpa pembengkakan', 'non_farmakologis' => 'Perawatan sesuai kondisi', 'edukasi' => 'Edukasi sesuai kondisi pasien'])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), ['is_manual' => true, 'nama_diagnosa' => 'Diagnosis klinis dokter', 'jenis' => 'utama'])->assertSessionHasNoErrors();
+        ClinicalTerminology::create(['code_system' => 'icd10_who', 'release' => 'WHO 2016', 'code' => 'Z00.0', 'display' => 'Diagnosis klinis dokter', 'code_type' => 'diagnosis', 'is_active' => true]);
+        $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), ['kode_icd10' => 'Z00.0', 'code_system' => 'icd10_who', 'nama_diagnosa' => 'Diagnosis klinis dokter', 'jenis' => 'utama'])->assertSessionHasNoErrors();
         if ($type === 'gigi') {
             $this->post(route('pelayanan.pemeriksaan.odontogram.store', $visit), ['tooth_fdi' => '46', 'surface' => 'O', 'finding_code' => 'caries', 'details' => ['icdas' => '5', 'activity' => 'active', 'site' => 'primary', 'depth' => 'dentin', 'pulpal' => 'reversible', 'periapical' => 'normal', 'assessment' => 'Kavitas dentin, respons dingin singkat. Rencana restorasi.'], 'notes' => 'Temuan dokter gigi'])->assertSessionHasNoErrors();
         }
+
+        DB::table('clinical_audit_events')->insert(['actor_id' => $admin->id, 'patient_id' => $visit->pasien_id, 'kunjungan_id' => $visit->id, 'action' => 'admin_assistance.draft_write', 'occurred_at' => now()]);
 
         return [$doctor, $admin, $visit];
     }

@@ -42,7 +42,7 @@ interface Props {
     canManage: boolean;
     canManageHolidays: boolean;
     canSelectClinic: boolean;
-    filters: { dokterId: number | ''; poliklinikId: number | ''; hari: string };
+    filters: { search?: string; dokterId: number | ''; poliklinikId: number | ''; hari: string };
     doctors: Option[];
     clinics: Option[];
     days: string[];
@@ -79,6 +79,7 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         router.get('/pendaftaran/jadwal-praktik', {
+            search: filters.search ?? '',
             dokter_id: filters.dokterId,
             poliklinik_id: filters.poliklinikId,
             hari: filters.hari,
@@ -199,6 +200,7 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                     </CardContent>
                 </ScheduleDisclosureCard>}
                 <FilterPanel><form className={`grid gap-4 sm:items-end ${canSelectClinic ? 'sm:grid-cols-2 xl:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-2'}`} onSubmit={applyFilters}>
+                            <Field htmlFor="schedule-search" label="Cari jadwal dokter atau poliklinik"><Input id="schedule-search" maxLength={100} value={filters.search ?? ''} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama dokter atau poliklinik" /></Field>
                             <Field htmlFor="schedule-doctor-filter" label="Dokter">
                                 <Select id="schedule-doctor-filter" onChange={(event) => setFilters({ ...filters, dokterId: event.target.value ? Number(event.target.value) : '' })} value={filters.dokterId}>
                                     <option value="">Semua dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}

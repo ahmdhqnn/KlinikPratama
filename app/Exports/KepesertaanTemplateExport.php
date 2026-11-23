@@ -7,7 +7,7 @@ use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
-class KepesertaanTemplateExport implements FromArray, WithColumnFormatting, WithHeadings
+class KepesertaanTemplateExport extends SafeSpreadsheetValueBinder implements FromArray, WithColumnFormatting, WithHeadings
 {
     public function array(): array
     {

@@ -12,7 +12,6 @@ use App\Models\Screening;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -264,7 +263,7 @@ class ScreeningWorkflowTest extends TestCase
             ->where('document.signatureDataUrl', null));
         $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $this->payload())->assertSessionHasNoErrors();
 
-        $this->actingAs($viewer)->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
+        $this->actingAs($nurse)->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('document.isDraft', false)
             ->where('document.signatureDataUrl', $signature));
         Storage::disk('local')->delete($path);
@@ -276,44 +275,22 @@ class ScreeningWorkflowTest extends TestCase
     #[TestWith(['gigi'])]
     public function test_admin_assessment_tracks_operator_reason_and_staff_without_using_the_staff_signature(string $type): void
     {
-        Storage::fake('local');
-        [$nurse, $visit, $staff] = $this->context($type);
-        $path = UploadedFile::fake()->image('nurse.png')->store('signatures', 'local');
-        $nurse->update(['signature_path' => $path]);
+        [, $visit, $staff] = $this->context();
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        $reason = 'Akun petugas sedang mengalami gangguan.';
-        $this->actingAs($admin)->post(route('pelayanan.screening.start', $visit), ['petugas_id' => $staff->id])->assertSessionHasErrors('assistance_reason');
-        $this->assertNull($visit->fresh()->screening?->submitted_at);
-        $this->post(route('pelayanan.screening.start', $visit), ['petugas_id' => $staff->id, 'assistance_reason' => $reason])->assertRedirect();
-        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', 'petugas_id' => $staff->id, 'tindakan' => 'draf', 'assistance_reason' => $reason, 'keluhan' => 'Keluhan awal'])->assertSessionHasNoErrors();
-        $this->assertSame('screening', $visit->fresh()->status);
-        $this->assertNull($visit->fresh()->screening->submitted_at);
-        $payload = [...$this->payload(), 'petugas_id' => $staff->id, 'assistance_reason' => $reason, 'risiko_medis_gigi' => ['tidak_ada']];
-        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
-        $this->assertSame('pemeriksaan', $visit->fresh()->status);
-        $this->assertDatabaseHas('screening', ['kunjungan_id' => $visit->id, 'petugas_id' => $staff->id, 'recorded_by_user_id' => $admin->id]);
-        $event = DB::table('clinical_audit_events')->where('action', 'admin_assistance.screening_write')->where('kunjungan_id', $visit->id)->latest('id')->first();
-        $this->assertSame($admin->id, $event->actor_id);
-        $this->assertSame($reason, json_decode($event->metadata, true)['reason']);
-        $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page->where('document.signatureDataUrl', null)->where('document.recordedBy', $admin->name));
-        $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), [...$payload, 'revision_reason' => 'Konfirmasi langsung oleh perawat', 'screening_revision' => $visit->fresh()->screening->revisionToken()])->assertSessionHasNoErrors();
-        $this->get(route('pelayanan.screening.print', $visit))->assertInertia(fn (Assert $page) => $page->where('document.signatureDataUrl', fn ($signature) => is_string($signature) && str_starts_with($signature, 'data:image/')));
-        Pemeriksaan::create(['kunjungan_id' => $visit->id, 'started_at' => now()]);
-        $this->actingAs($admin)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertUnprocessable();
+        $this->actingAs($admin)->post(route('pelayanan.screening.start', $visit), ['petugas_id' => $staff->id, 'assistance_reason' => 'Alasan tidak memberikan izin klinis'])->assertForbidden();
+        $this->post(route('pelayanan.screening.store', $visit), ['petugas_id' => $staff->id, 'tindakan' => 'draf'])->assertForbidden();
+        $this->assertDatabaseCount('screening', 0);
+
     }
 
     public function test_admin_assessment_rejects_blank_reason_and_staff_from_another_clinic(): void
     {
         [, $visit, $staff] = $this->context();
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-        $this->actingAs($admin)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new', 'tindakan' => 'draf', 'petugas_id' => $staff->id, 'assistance_reason' => str_repeat(' ', 20)])->assertSessionHasErrors('assistance_reason');
-        $other = Poliklinik::create(['kode' => 'OTHER', 'nama' => 'Poli Lain', 'jenis' => 'gigi', 'is_active' => true]);
-        $staff->update(['poliklinik_id' => $other->id]);
-        $payload = ['tindakan' => 'draf', 'petugas_id' => $staff->id, 'assistance_reason' => 'Bantuan diperlukan untuk pengkajian.'];
-        $this->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasErrors('petugas_id');
-        $this->post(route('pelayanan.screening.start', $visit), $payload)->assertSessionHasErrors('petugas_id');
-        $this->assertNull($visit->fresh()->screening?->submitted_at);
-        $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'screening']);
+        $this->actingAs($admin)->post(route('pelayanan.screening.start', $visit), ['petugas_id' => $staff->id, 'assistance_reason' => 'Alasan tidak memberikan izin klinis'])->assertForbidden();
+        $this->post(route('pelayanan.screening.store', $visit), ['petugas_id' => $staff->id, 'tindakan' => 'draf'])->assertForbidden();
+        $this->assertDatabaseCount('screening', 0);
+
     }
 
     /** @return array{User, Kunjungan, Nakes} */

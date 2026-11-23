@@ -149,7 +149,7 @@ class RegistrationRoleTest extends TestCase
 
         $visit->update(['status' => 'pemeriksaan']);
         $this->get(route('pendaftaran.edit-kunjungan', $visit))->assertUnprocessable();
-        $this->post(route('pendaftaran.batal-kunjungan', $visit))->assertUnprocessable();
+        $this->post(route('pendaftaran.batal-kunjungan', $visit), ['reason' => 'Pembatalan oleh pasien'])->assertUnprocessable();
         $this->get(route('pendaftaran.laporan-kunjungan'))->assertInertia(fn (Assert $page) => $page
             ->where('visits.data.0.editUrl', null)
             ->where('visits.data.0.cancelUrl', null)
@@ -405,6 +405,9 @@ class RegistrationRoleTest extends TestCase
             'alamat' => 'Jl. Melati', 'rt' => '001', 'rw' => '002', 'kelurahan' => 'Sukamaju', 'kecamatan' => 'Cibeunying',
         ]);
         $response = $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
+            'general_consent_confirmed' => true,
+            'general_consent_version' => \App\GeneralConsentService::VERSION,
+            'general_consent_relationship' => 'patient',
             'kepesertaan_id' => $member->id,
             'nama' => 'IDENTITAS PALSU',
             'nik' => '9999999999999999',
@@ -767,6 +770,7 @@ class RegistrationRoleTest extends TestCase
             'jenis' => 'utama',
         ]);
 
+        $this->expandSyntheticDiagnosisPopulation($kunjungan);
         $this->actingAs($user)
             ->get(route('pendaftaran.laporan-top-diagnosa', [
                 'tanggal_mulai' => today()->toDateString(),
@@ -775,7 +779,7 @@ class RegistrationRoleTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('pendaftaran/laporan-top-diagnosa')
                 ->where('summary.diagnosisCount', 1)
-                ->where('summary.caseCount', 1)
+                ->where('summary.caseCount', 5)
                 ->where('diagnoses.data.0.code', 'R50.9')
                 ->where('diagnoses.data.0.percentage', 100)
             );

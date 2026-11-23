@@ -6,7 +6,7 @@
         "build": "vite build",
         "dev": "vite",
         "types:check": "tsc --noEmit",
-        "test:frontend": "node --test tests/frontend-render.test.mjs"
+        "test:frontend": "node --test tests/frontend-render.test.mjs tests/session-security.test.mjs"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

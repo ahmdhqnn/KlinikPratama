@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pelayanan;
 
 use App\ClinicalAuditRecorder;
+use App\GeneralConsentService;
 use App\HakLayananVerifier;
 use App\Http\Controllers\Controller;
 use App\JadwalPraktikResolver;
@@ -12,6 +13,7 @@ use App\Models\Pasien;
 use App\Models\Poliklinik;
 use App\PatientAllergyHistory;
 use App\PerawatClinicResolver;
+use App\VisitCancellation;
 use App\VisitQueryService;
 use App\VisitSchedulingService;
 use Carbon\Carbon;
@@ -199,27 +201,6 @@ class KunjunganController extends Controller
         if ($request->user()->role !== 'admin') {
             return $actions;
         }
-        $supportedClinic = $visit->poliklinik?->is_active && in_array($visit->poliklinik->jenis, ['umum', 'gigi'], true);
-        $canServe = $supportedClinic && ! $visit->tanggal->isFuture() && ! $visit->isPendingReservation();
-        $serviceReason = match (true) {
-            ! $supportedClinic => 'Poliklinik tidak aktif atau tidak mendukung layanan ini.',
-            $visit->isPendingReservation() => 'Reservasi kontrol masih menunggu konfirmasi.',
-            default => 'Reservasi baru dapat dilayani pada tanggal kunjungan.',
-        };
-        $actions[] = $action('rme', 'Rekam medis pasien', route('pelayanan.pasien.rekam-medis', $visit->pasien_id), $visit->pasien !== null, 'Data pasien tidak tersedia.');
-        $actions[] = $action('screening', $visit->screening ? 'Perbarui pengkajian' : 'Mulai pengkajian', route('pelayanan.screening.show', $visit),
-            $canServe && $visit->canUpdateScreening(), ! $canServe ? $serviceReason : 'Pengkajian hanya dapat diubah sebelum dokter memulai pemeriksaan.');
-        $actions[] = $action('print', 'Cetak pengkajian', route('pelayanan.screening.print', $visit),
-            $canServe && $visit->screening?->submitted_at !== null, ! $canServe ? $serviceReason : 'Pengkajian belum dikirim.');
-        $actions[] = $action('examination', $visit->status === 'pemeriksaan' ? 'Buka pemeriksaan' : 'Lihat pemeriksaan', route('pelayanan.pemeriksaan.show', $visit),
-            $canServe && $visit->canOpenExamination(), ! $canServe ? $serviceReason : 'Pemeriksaan tersedia setelah pengkajian dikirim dan kunjungan tidak dibatalkan.');
-        $actions[] = $action('procedure', $visit->status === 'tindakan' ? 'Proses tindakan perawat' : 'Lihat tindakan perawat', route('pelayanan.tindakan.show', $visit),
-            $canServe && $visit->has_nurse_procedures && $visit->pemeriksaan?->signed_at !== null,
-            ! $canServe ? $serviceReason : 'Memerlukan instruksi tindakan perawat dan pemeriksaan yang sudah ditandatangani dokter.');
-        $actions[] = $action('pharmacy', $visit->farmasi?->status === 'selesai' ? 'Lihat penyerahan obat' : 'Proses penyerahan obat', route('pelayanan.farmasi.show', $visit),
-            $canServe && ($visit->status === 'farmasi' || $visit->farmasi?->status === 'selesai'),
-            ! $canServe ? $serviceReason : 'Penyerahan obat tersedia pada tahap farmasi atau untuk melihat penyerahan yang sudah selesai.');
-        $actions[] = $action('issue', 'Persuratan kunjungan', route('persuratan.index', ['kunjungan_id' => $visit->id]));
         $actions[] = $action('ticket', 'Cetak tiket antrean', route('pendaftaran.cetak-antrian', $visit),
             $visit->status !== 'batal' && ! $visit->isPendingReservation(), 'Tiket tersedia setelah reservasi dikonfirmasi dan kunjungan tidak dibatalkan.');
         $actions[] = $action('edit', 'Ubah kunjungan', route($visit->isPendingReservation() ? 'pendaftaran.edit-kunjungan' : 'pelayanan.kunjungan.edit', $visit), $visit->status === 'menunggu', 'Hanya kunjungan yang belum dilayani yang dapat diubah.');
@@ -291,7 +272,7 @@ class KunjunganController extends Controller
             $patient = Pasien::whereKey($data['pasien_id'])->lockForUpdate()->firstOrFail();
             $this->scheduling->ensureNoDuplicate($patient->id, (int) $data['poliklinik_id'], $data['tanggal']);
 
-            return Kunjungan::create([...$data, ...app(HakLayananVerifier::class)->patient($patient, $request)]);
+            return Kunjungan::create(['general_consent_required' => true, ...$data, ...app(HakLayananVerifier::class)->patient($patient, $request)]);
         });
 
         return redirect()->route('pelayanan.kunjungan.show', $kunjungan)
@@ -311,7 +292,7 @@ class KunjunganController extends Controller
 
         $role = $request->user()->role;
         $isRegistrationPage = $request->routeIs('pendaftaran.kunjungan.show');
-        $canViewRme = in_array($role, ['admin', 'perawat'], true);
+        $canViewRme = $role === 'perawat';
         $screeningCompleted = $kunjungan->screening !== null && ($kunjungan->screening->submitted_at !== null
             || ! in_array($kunjungan->status, ['menunggu', 'screening', 'batal'], true));
         $confirmedVisit = clone $kunjungan;
@@ -329,6 +310,7 @@ class KunjunganController extends Controller
         }
 
         return Inertia::render('pelayanan/kunjungan/show', [
+            'generalConsent' => app(GeneralConsentService::class)->summary($kunjungan),
             'backUrl' => $this->contextualVisitBackUrl($request, $fallbackBackUrl),
             'permissions' => [
                 'editVisit' => $canEdit,
@@ -345,7 +327,7 @@ class KunjunganController extends Controller
                         : route('pelayanan.pasien.show', $kunjungan->pasien))
                     : null,
                 'screening' => $canScreen ? route('pelayanan.screening.show', $kunjungan) : null,
-                'screeningPrint' => in_array($role, ['admin', 'perawat'], true) && $kunjungan->screening
+                'screeningPrint' => $role === 'perawat' && $kunjungan->screening
                     ? route('pelayanan.screening.print', $kunjungan) : null,
                 'medicalRecord' => $canViewRme && $kunjungan->pasien
                     ? route('pelayanan.pasien.rekam-medis', $kunjungan->pasien)
@@ -366,14 +348,14 @@ class KunjunganController extends Controller
                 'eligibility' => $kunjungan->hak_layanan_snapshot,
                 'verifiedAt' => $kunjungan->verified_at?->format('d/m/Y H:i'),
                 'patientType' => $kunjungan->jenis_pasien,
-                'notes' => $kunjungan->catatan,
+                'notes' => $canViewRme ? $kunjungan->catatan : null,
                 'patient' => [
                     'id' => $kunjungan->pasien?->id,
                     'name' => $kunjungan->pasien?->nama ?? 'Belum diisi',
                     'medicalRecordNumber' => $kunjungan->pasien?->no_rm ?? 'Belum diisi',
                     'gender' => $kunjungan->pasien?->jenis_kelamin,
                     'age' => $kunjungan->pasien?->umur,
-                    'bloodType' => $kunjungan->pasien?->golongan_darah,
+                    'bloodType' => $canViewRme ? $kunjungan->pasien?->golongan_darah : null,
                     'allergies' => $allergyHistory,
                 ],
                 'progress' => [
@@ -511,35 +493,16 @@ class KunjunganController extends Controller
         return redirect()->route('pelayanan.kunjungan.show', $kunjungan)->with('success', 'Kunjungan berhasil diperbarui.');
     }
 
-    public function destroy(Kunjungan $kunjungan): RedirectResponse
+    public function destroy(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        $result = DB::transaction(function () use ($kunjungan): string {
-            $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
-            abort_unless($lockedVisit->status === 'menunggu', 422, 'Kunjungan yang sudah dilayani tidak dapat dihapus.');
+        app(VisitCancellation::class)->cancel($request, $kunjungan);
 
-            if ($lockedVisit->rujukan_internal_id || $lockedVisit->screening()->exists() || $lockedVisit->resep()->exists() || $lockedVisit->pemeriksaan()->exists()) {
-                return 'pelayanan';
-            }
-
-            $lockedVisit->delete();
-
-            return 'deleted';
-        });
-
-        if ($result === 'pelayanan') {
-            return back()->with('error', 'Tidak dapat menghapus kunjungan yang sudah ada pelayanan medis.');
-        }
-
-        return redirect()->route('pelayanan.kunjungan.index')->with('success', 'Kunjungan berhasil dihapus.');
+        return back()->with('success', 'Kunjungan dibatalkan; riwayat tetap tersimpan.');
     }
 
-    public function batal(Kunjungan $kunjungan): RedirectResponse
+    public function batal(Request $request, Kunjungan $kunjungan): RedirectResponse
     {
-        DB::transaction(function () use ($kunjungan): void {
-            $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
-            abort_unless($lockedVisit->status === 'menunggu', 422, 'Kunjungan yang sudah dilayani tidak dapat dibatalkan.');
-            $lockedVisit->update(['status' => 'batal']);
-        });
+        app(VisitCancellation::class)->cancel($request, $kunjungan);
 
         return back()->with('success', 'Kunjungan berhasil dibatalkan.');
     }

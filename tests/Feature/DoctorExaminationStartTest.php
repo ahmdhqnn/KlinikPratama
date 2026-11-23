@@ -98,8 +98,7 @@ class DoctorExaminationStartTest extends TestCase
 
         $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('visit.examinationStarted', false));
-        $this->get(route('pelayanan.pemeriksaan.index'))->assertInertia(fn (Assert $page) => $page
-            ->where('visits.data.0.examinationStarted', false));
+        $this->get(route('pelayanan.pemeriksaan.index'))->assertInertia(fn (Assert $page) => $page->where('visits.data.0.examinationStarted', false));
         $this->get(route('dokter.dashboard'))->assertInertia(fn (Assert $page) => $page
             ->where('recentVisits.data.0.examinationStarted', false)
             ->where('recentVisits.data.0.actionLabel', 'Mulai pemeriksaan'));
@@ -110,16 +109,13 @@ class DoctorExaminationStartTest extends TestCase
             ->where('visits.data.0.examinationStarted', false));
         $this->get(route('pelayanan.antrian'))->assertInertia(fn (Assert $page) => $page
             ->where('visits.data.0.examinationStarted', false));
-        $this->get(route('pelayanan.pemeriksaan.index'))->assertInertia(fn (Assert $page) => $page
-            ->where('visits.data.0.examinationStarted', false));
+        $this->get(route('pelayanan.pemeriksaan.index'))->assertForbidden();
         $this->get(route('pendaftaran.kunjungan-per-poli'))->assertInertia(fn (Assert $page) => $page
             ->where('visits.data.0.examinationStarted', false));
-        $this->get(route('laporan.kunjungan'))->assertInertia(fn (Assert $page) => $page
-            ->where('visits.data.0.examinationStarted', false));
+        $this->get(route('laporan.kunjungan'))->assertInertia(fn (Assert $page) => $page->component('laporan/agregat')->missing('visits'));
         $this->get(route('pelayanan.pasien.show', $visit->pasien))->assertInertia(fn (Assert $page) => $page
             ->where('patient.visits.0.examinationStarted', false));
-        $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien))->assertInertia(fn (Assert $page) => $page
-            ->where('visits.0.examinationStarted', false));
+        $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien))->assertForbidden();
 
         $this->actingAs($registration)->get(route('pendaftaran.dashboard'))->assertInertia(fn (Assert $page) => $page
             ->where('visits.data.0.examinationStarted', false));
@@ -180,7 +176,7 @@ class DoctorExaminationStartTest extends TestCase
     public function test_examination_cannot_start_until_the_nurse_submits_the_assessment(): void
     {
         [$doctor, , $visit] = $this->visitContext();
-        $visit->screening()->delete();
+        $visit->screening()->update(['submitted_at' => null]);
 
         $this->actingAs($doctor)->postJson(route('pelayanan.pemeriksaan.start', $visit))
             ->assertUnprocessable()->assertJsonPath('message', 'Selesaikan pengkajian awal sebelum mencatat pemeriksaan dokter.');
@@ -210,7 +206,7 @@ class DoctorExaminationStartTest extends TestCase
         }
         $response = $this->actingAs($actor)->post(route('pelayanan.pemeriksaan.start', $visit));
         if ($role === 'pendaftaran') {
-            $response->assertRedirect(route('pendaftaran.dashboard'));
+            $response->assertForbidden();
         } else {
             $response->assertForbidden();
         }

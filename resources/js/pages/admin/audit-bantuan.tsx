@@ -1,9 +1,10 @@
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
-import { ClipboardCheck } from 'lucide-react';
+import { ClipboardCheck, Download, Printer } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { type PaginationData } from '@/components/dashboard/pagination';
 import { ReportTableCard } from '@/components/dashboard/report-table-card';
+import { Button } from '@/components/ui/button';
 import { Empty } from '@/components/ui/empty';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Field } from '@/components/ui/field';
@@ -25,12 +26,14 @@ interface AuditEvent {
 
 interface Props {
     activityLog?: boolean;
+    exportUrl?: string;
+    printUrl?: string;
     filters: { from: string; to: string; action: string; search: string };
     actions: Array<{ key: string; label: string }>;
     events: PaginationData & { data: AuditEvent[] };
 }
 
-export default function AssistanceAuditPage({ filters, actions, events, activityLog = false }: Props) {
+export default function AssistanceAuditPage({ filters, actions, events, activityLog = false, exportUrl, printUrl }: Props) {
     const [from, setFrom] = useState(filters.from);
     const [to, setTo] = useState(filters.to);
     const [action, setAction] = useState(filters.action);
@@ -50,7 +53,7 @@ export default function AssistanceAuditPage({ filters, actions, events, activity
                 <p className="mt-1 text-sm text-neutral-500">{activityLog ? 'Jejak akses, ekspor, bantuan layanan, dan pengelolaan akun yang dicatat aplikasi. Aktivitas sebelum pencatatan tersedia tidak direkonstruksi.' : 'Riwayat bantuan layanan oleh admin dan peninjauan draf oleh dokter.'}</p>
             </div>
 
-            <FilterPanel><form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" onSubmit={applyFilters}>
+            <FilterPanel actions={activityLog && <div className="flex flex-wrap gap-2">{exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}{printUrl && <Button asChild size="sm" variant="secondary"><a href={printUrl}><Printer className="size-4" />Cetak / PDF</a></Button>}</div>}><form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" onSubmit={applyFilters}>
                 <Field htmlFor="audit-period" label="Periode kegiatan"><DateRangePicker id="audit-period" from={from} to={to} onChange={(range) => { setFrom(range.from); setTo(range.to); }} /></Field>
                 <Field htmlFor="audit-action" label="Jenis kegiatan"><Select id="audit-action" onChange={(event) => setAction(event.target.value)} value={action}><option value="">Semua kegiatan</option>{actions.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</Select></Field>
                 <Field htmlFor="audit-search" label={activityLog ? 'Operator / No. kunjungan' : 'No. kunjungan'}><Input id="audit-search" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nomor kunjungan" value={search} /></Field>
@@ -67,7 +70,7 @@ export default function AssistanceAuditPage({ filters, actions, events, activity
                         <TableCell>{event.actor}</TableCell>
                         <TableCell className="font-sans tabular-nums text-xs">{event.visitNumber ?? 'Tidak terhubung'}</TableCell>
                         <TableCell>{event.clinic ?? '—'}</TableCell>
-                        {!activityLog && <TableCell className="max-w-xs whitespace-normal">{event.reason ?? 'Belum dicatat'}</TableCell>}
+                        {!activityLog && <TableCell className="max-w-xs whitespace-normal">{event.reason ?? 'Rincian dibatasi sesuai kewenangan'}</TableCell>}
                     </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty description="Coba ubah rentang tanggal atau jenis kegiatan." icon={<ClipboardCheck className="size-5" />} size="compact" title="Belum ada aktivitas pada filter ini." /></TableCell></TableRow>}</TableBody>
                 </Table>
             </ReportTableCard>

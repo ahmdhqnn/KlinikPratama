@@ -1,6 +1,6 @@
 import { AssistanceReasonField } from '@/components/kunjungan/assistance-reason-field';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeft, ClipboardCheck, Play, Printer, Save, Syringe, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ClipboardCheck, Play, Printer, Save, Syringe, UserRound } from 'lucide-react';
 import { type FormEvent } from 'react';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { AllergyHistory } from '@/components/kunjungan/allergy-history';
@@ -24,8 +24,12 @@ interface Treatment {
     result: string | null;
     performedBy: string | null;
     performedAt: string | null;
+    consent?: { decision: string; currentId: number | null; recordedAt: string | null; planMatches: boolean; requiredReview: boolean; url: string };
     completeUrl: string;
 }
+
+const consentAllowsExecution = (consent: Treatment['consent']) => !consent || (!consent.requiredReview && consent.decision === 'unreviewed')
+    || (consent.planMatches && ['accepted', 'not_required', 'emergency'].includes(consent.decision));
 
 interface Props {
     visit: {
@@ -51,7 +55,8 @@ interface Props {
 
 export default function NursingProcedureDetail({ visit }: Props) {
     const startForm = useForm({ assistance_reason: '' });
-    const canStart = visit.status === 'tindakan' && !visit.treatmentStartedAt && visit.treatments.some((item) => item.status === 'pending');
+    const blockedTreatments = visit.treatments.filter((item) => item.status === 'pending' && !consentAllowsExecution(item.consent));
+    const canStart = visit.status === 'tindakan' && !visit.treatmentStartedAt && visit.treatments.some((item) => item.status === 'pending') && blockedTreatments.length === 0;
     const canComplete = visit.status === 'tindakan' && Boolean(visit.treatmentStartedAt);
 
     function start() {
@@ -71,7 +76,7 @@ export default function NursingProcedureDetail({ visit }: Props) {
                 <dl className="grid gap-4 border-t border-neutral-100 bg-neutral-50/60 px-5 py-4 sm:grid-cols-3 sm:px-6"><div><dt className="text-xs text-neutral-500">Poliklinik</dt><dd className="mt-1 text-sm font-medium text-neutral-900">{visit.clinic}</dd></div><div><dt className="text-xs text-neutral-500">Dokter</dt><dd className="mt-1 text-sm font-medium text-neutral-900">{visit.doctor || 'Belum dicatat'}</dd></div><div><dt className="text-xs text-neutral-500">Mulai tindakan</dt><dd className="mt-1 text-sm font-medium text-neutral-900">{visit.treatmentStartedAt || 'Belum dimulai'}</dd></div></dl>
             </CardContent></Card>
             <Card><CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ClipboardCheck className="size-5" /></span><div><CardTitle>Instruksi dokter</CardTitle><CardDescription className="mt-1">{visit.diagnoses.length ? visit.diagnoses.join(', ') : 'Diagnosis belum dicatat'}</CardDescription></div></div></CardHeader><CardContent className="space-y-4"><AllergyHistory value={visit.allergies} unknownLabel="Belum diketahui; konfirmasi bersama pasien sebelum tindakan" /><div className="grid gap-4 md:grid-cols-2"><div><p className="text-sm font-medium">Perawatan tanpa obat</p><p className="whitespace-pre-wrap text-sm text-muted-foreground">{visit.nonPharmacological || 'Belum ada catatan'}</p></div><div><p className="text-sm font-medium">Edukasi dan anjuran</p><p className="whitespace-pre-wrap text-sm text-muted-foreground">{visit.education || 'Belum ada catatan'}</p></div></div><p className="text-sm text-muted-foreground">{visit.status === 'tindakan' ? (visit.hasMedication ? 'Setelah semua tindakan selesai, pasien melanjutkan ke farmasi.' : 'Setelah semua tindakan selesai, kunjungan berakhir dan pasien dapat pulang.') : visit.status === 'farmasi' ? 'Tindakan selesai. Pasien sedang menunggu pelayanan farmasi.' : 'Kunjungan telah selesai.'}</p></CardContent></Card>
-            <section id="pelaksanaan-tindakan" className="space-y-4 scroll-mt-6" aria-label="Pelaksanaan tindakan perawat"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="text-lg font-semibold text-neutral-950">Tindakan perawat</h3><p className="mt-1 text-sm text-neutral-500">Catat hasil tiap tindakan setelah dilaksanakan.</p></div>{canStart && <Button className="w-full sm:w-auto" disabled={startForm.processing} onClick={start} type="button"><Play className="size-4" />{startForm.processing ? 'Memulai…' : 'Mulai tindakan'}</Button>}</div>{visit.treatments.length ? visit.treatments.map((item) => <TreatmentForm adminAssistance={visit.adminAssistance === true} item={item} key={item.id} canComplete={canComplete} />) : <Empty title="Tidak ada tindakan perawat" />}</section>
+            <section id="pelaksanaan-tindakan" className="space-y-4 scroll-mt-6" aria-label="Pelaksanaan tindakan perawat"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="text-lg font-semibold text-neutral-950">Tindakan perawat</h3><p className="mt-1 text-sm text-neutral-500">Catat hasil tiap tindakan setelah dilaksanakan.</p></div>{canStart && <Button className="w-full sm:w-auto" disabled={startForm.processing} onClick={start} type="button"><Play className="size-4" />{startForm.processing ? 'Memulai…' : 'Mulai tindakan'}</Button>}</div>{blockedTreatments.length > 0 && <Alert variant="warning"><AlertTriangle className="size-4" /><AlertTitle>Pelaksanaan belum dapat dimulai</AlertTitle><AlertDescription>Dokter harus menyelesaikan tinjauan persetujuan untuk {blockedTreatments.map((item) => item.name).join(', ')}. Penolakan atau pencabutan tidak boleh dilewati.</AlertDescription></Alert>}{visit.treatments.length ? visit.treatments.map((item) => <TreatmentForm adminAssistance={visit.adminAssistance === true} item={item} key={item.id} canComplete={canComplete && consentAllowsExecution(item.consent)} />) : <Empty title="Tidak ada tindakan perawat" />}</section>
             <div className="flex justify-end border-t border-neutral-100 pt-5">{visit.recordUrl && <Button asChild variant="secondary"><Link href={visit.recordUrl}>Lihat rekam medis</Link></Button>}</div>
         </div>
     </>;
@@ -101,6 +106,7 @@ function TreatmentForm({ item, canComplete, adminAssistance }: { item: Treatment
             </CardHeader>
             <CardContent className="space-y-6">
                 <p className="whitespace-pre-wrap text-sm text-neutral-700">{item.instructions || 'Tidak ada instruksi tambahan.'}</p>
+                {item.consent && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 p-4"><div><p className="text-sm font-medium text-neutral-900">{item.consent.decision === 'accepted' ? 'Persetujuan pasien tercatat' : item.consent.decision === 'not_required' ? 'Dokter menetapkan consent tidak diperlukan' : item.consent.decision === 'emergency' ? 'Pengecualian darurat terdokumentasi' : item.consent.decision === 'refused' ? 'Pasien menolak tindakan' : item.consent.decision === 'withdrawn' ? 'Persetujuan dicabut' : 'Persetujuan belum ditinjau'}</p><p className="mt-1 text-xs text-neutral-500">{item.consent.recordedAt ? `Tercatat ${item.consent.recordedAt}` : item.consent.requiredReview ? 'Hubungi dokter sebelum tindakan.' : 'Tindakan legacy tanpa klaim consent historis.'}</p></div><Button asChild size="sm" variant="secondary"><Link href={item.consent.url}>Lihat riwayat consent</Link></Button></div>}
                 {completed ? (
                     <div className="space-y-2 rounded-xl border border-neutral-200 p-4">
                         <p className="whitespace-pre-wrap text-sm text-neutral-900">{item.result}</p>
@@ -119,7 +125,7 @@ function TreatmentForm({ item, canComplete, adminAssistance }: { item: Treatment
                             </Button>
                         </div>
                     </form>
-                ) : <p className="text-sm text-neutral-500">Mulai tindakan untuk membuka pencatatan hasil.</p>}
+                ) : <p className="text-sm text-neutral-500">{consentAllowsExecution(item.consent) ? 'Mulai tindakan untuk membuka pencatatan hasil.' : 'Pelaksanaan dikunci sampai dokter menyelesaikan tinjauan persetujuan.'}</p>}
             </CardContent>
         </Card>
     );

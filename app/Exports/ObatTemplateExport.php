@@ -7,7 +7,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class ObatTemplateExport implements FromArray, WithHeadings, WithStyles
+class ObatTemplateExport extends SafeSpreadsheetValueBinder implements FromArray, WithHeadings, WithStyles
 {
     public function array(): array
     {

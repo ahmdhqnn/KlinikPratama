@@ -11,7 +11,7 @@ import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DatePicker } from '@/components/ui/date-picker';
-import { confirmAction } from '@/components/ui/confirm-dialog';
+import { confirmReason } from '@/components/ui/confirm-dialog';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 
 interface Clinic {
@@ -33,6 +33,7 @@ interface Visit {
     isReservation?: boolean;
     actionUrl: string;
     actionLabel: string;
+    consentUrl?: string | null;
     ticketUrl: string | null;
     editUrl: string | null;
     cancelUrl: string | null;
@@ -181,8 +182,9 @@ function VisitActions({ visit, manageVisits }: { visit: Visit; manageVisits: boo
 
     return <div className="flex justify-center gap-2">
         <ActionButton asChild action={isScreeningAction ? 'screening' : isMedicalRecordAction ? 'rme' : 'detail'} label={visit.actionLabel}><Link href={visit.actionUrl} /></ActionButton>
+        {manageVisits && visit.consentUrl && <ActionButton asChild action="verify" label={`Persetujuan umum ${visit.number}`}><Link href={visit.consentUrl} /></ActionButton>}
         <ActionButton disabledReason={!manageVisits ? 'Akun Anda tidak memiliki akses mengubah kunjungan.' : 'Kunjungan yang sudah dilayani tidak dapat diubah.'} disabled={!(manageVisits && visit.editUrl)} asChild action="edit" label={visit.pendingReservation ? 'Konfirmasi reservasi' : `Perbarui kunjungan ${visit.number}`}><Link href={visit.editUrl ?? ''} /></ActionButton>
-        <ActionButton disabledReason={!manageVisits ? 'Akun Anda tidak memiliki akses membatalkan kunjungan.' : 'Kunjungan yang sudah dilayani tidak dapat dibatalkan.'} disabled={!(manageVisits && visit.cancelUrl)} onClick={() => confirmAction(`Batalkan kunjungan ${visit.number} untuk ${visit.patient}?`, () => { router.post(visit.cancelUrl as string, {}, { preserveScroll: true }); }, 'Batalkan')} type="button" action="cancel" label={`Batalkan kunjungan ${visit.number}`} />
+        <ActionButton disabledReason={!manageVisits ? 'Akun Anda tidak memiliki akses membatalkan kunjungan.' : 'Kunjungan yang sudah dilayani tidak dapat dibatalkan.'} disabled={!(manageVisits && visit.cancelUrl)} onClick={() => confirmReason(`Batalkan kunjungan ${visit.number} untuk ${visit.patient}?`, (reason) => router.post(visit.cancelUrl as string, { reason }, { preserveScroll: true }), 'Batalkan')} type="button" action="cancel" label={`Batalkan kunjungan ${visit.number}`} />
         <ActionButton disabledReason="Dokumen belum tersedia untuk dicetak." disabled={!visit.ticketUrl} asChild action="print" label={`Cetak antrean ${visit.number}`}><a href={visit.ticketUrl ?? ''} /></ActionButton>
     </div>;
 }

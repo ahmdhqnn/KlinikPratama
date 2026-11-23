@@ -11,6 +11,20 @@ class UserSettingsInertiaTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_legacy_user_delete_deactivates_and_retains_operator_identity(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $operator = User::factory()->create(['role' => 'dokter', 'is_active' => true, 'remember_token' => 'synthetic-token']);
+        $this->actingAs($admin)->delete(route('users.destroy', $operator))->assertRedirect()->assertSessionHas('success');
+        $this->assertModelExists($operator);
+        $this->assertFalse($operator->fresh()->is_active);
+        $this->assertSame(1, $operator->fresh()->session_version);
+        $this->assertNull($operator->fresh()->remember_token);
+        $this->assertDatabaseHas('clinical_audit_events', ['action' => 'user.deactivated', 'actor_id' => $admin->id]);
+        $this->delete(route('users.destroy', $admin))->assertSessionHas('error');
+        $this->assertTrue($admin->fresh()->is_active);
+    }
+
     public function test_admin_cannot_disable_or_change_the_role_of_their_own_account_through_edit(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);

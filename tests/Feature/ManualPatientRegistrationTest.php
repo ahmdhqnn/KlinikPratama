@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Exports\PasienExport;
 use App\HakLayananVerifier;
+use App\Models\ClinicalTerminology;
 use App\Models\JadwalDokter;
 use App\Models\Kepesertaan;
 use App\Models\KlinikSetting;
@@ -35,6 +36,7 @@ class ManualPatientRegistrationTest extends TestCase
         ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 10]);
 
         $this->actingAs($staff)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->consentConfirmation(),
             ...$this->identity(), 'unit_kerja' => 'Biro Umum', 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id, 'riwayat_alergi' => 'Penisilin',
         ])->assertSessionHasNoErrors();
         $visit = Kunjungan::sole();
@@ -42,7 +44,7 @@ class ManualPatientRegistrationTest extends TestCase
 
         $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new',
             'keluhan' => 'Keluhan pasien', 'lama_keluhan' => '2 hari', 'sumber_informasi' => 'pasien',
-            'status_alergi' => 'belum_diketahui', 'status_riwayat_penyakit' => 'belum_diketahui', 'konfirmasi_riwayat' => true,
+            'riwayat_alergi' => 'Penisilin', 'alergi_reaksi' => 'Belum diketahui', 'status_alergi' => 'ada', 'status_riwayat_penyakit' => 'belum_diketahui', 'konfirmasi_riwayat' => true,
             'triase_perawat' => 'hijau',
             'td_sistole' => 120, 'td_diastole' => 80, 'nadi' => 80, 'suhu' => 36.5, 'respirasi' => 18, 'berat_badan' => 60, 'tinggi_badan' => 160,
             'nyeri_dada' => 'tidak', 'kondisi_psikiatri' => 'normal', 'nadi_teraba' => 'teraba',
@@ -52,6 +54,7 @@ class ManualPatientRegistrationTest extends TestCase
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.store', $visit), [
             'anamnesis' => 'Keluhan uji', 'pemeriksaan_fisik' => 'Temuan uji',
         ])->assertSessionHasNoErrors();
+        ClinicalTerminology::create(['code_system' => 'icd10_who', 'release' => 'WHO 2016', 'code' => 'R50.9', 'display' => 'Diagnosis uji', 'code_type' => 'diagnosis', 'is_active' => true]);
         $this->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), ['kode_icd10' => 'R50.9', 'nama_diagnosa' => 'Diagnosis uji', 'jenis' => 'utama'])->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), [
             'obat_id' => $medicine->id, 'nama_obat' => 'Nama tidak sesuai master', 'satuan' => 'Satuan salah', 'jumlah' => 2, 'jenis' => 'jadi', 'aturan_pakai' => 'Petunjuk uji',
@@ -59,7 +62,7 @@ class ManualPatientRegistrationTest extends TestCase
         $prescriptionItem = $visit->fresh()->resep->resepObat->sole();
         $this->assertSame('Obat uji', $prescriptionItem->nama_obat);
         $this->assertSame('tablet', $prescriptionItem->satuan);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password'])->assertSessionHasNoErrors();
         $this->assertSame('farmasi', $visit->fresh()->status);
         $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien))->assertInertia(fn (Assert $page) => $page
             ->where('patient.birthPlace', 'Bandung')->where('patient.address', 'Jl. Merdeka')
@@ -68,11 +71,15 @@ class ManualPatientRegistrationTest extends TestCase
         $this->post(route('pelayanan.pemeriksaan.store', $visit), ['anamnesis' => 'Ubah setelah final'])->assertUnprocessable();
 
         $this->actingAs($pharmacist)->get(route('pelayanan.farmasi.show', $visit))->assertInertia(fn (Assert $page) => $page
-            ->where('visit.patient.examinationAllergies', 'Penisilin'));
-        $this->post(route('pelayanan.farmasi.selesai', $visit), ['items' => [[
+            ->where('visit.patient.examinationAllergies', 'Penisilin')
+            ->where('visit.patient.weight', 60)
+            ->where('visit.patient.weightSource', 'Pengkajian perawat pada kunjungan ini')
+            ->missing('visit.examination.anamnesis'));
+        $this->post(route('pelayanan.farmasi.store', $visit), ['items' => [[
             'resep_obat_id' => $prescriptionItem->id, 'obat_id' => $medicine->id, 'jumlah_diberikan' => 2,
         ]]])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.farmasi.selesai', $visit))->assertSessionHasNoErrors();
+        $this->reviewSyntheticPharmacyPlan($visit, $pharmacist);
+        $this->post(route('pelayanan.farmasi.selesai', $visit), $this->syntheticPharmacyHandover())->assertSessionHasNoErrors();
         $this->assertSame('selesai', $visit->fresh()->status);
         $this->assertSame(8, (int) $medicine->fresh()->stok);
         $this->assertDatabaseCount('stok_mutasi', 1);
@@ -84,6 +91,7 @@ class ManualPatientRegistrationTest extends TestCase
     {
         [$user, $clinic] = $this->registrationContext();
         $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->consentConfirmation(),
             ...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
         ])->assertSessionHasNoErrors()->assertRedirect();
 
@@ -98,6 +106,26 @@ class ManualPatientRegistrationTest extends TestCase
         $this->assertNull($visit->verified_by);
         $this->assertSame('pending_verification', $visit->hak_layanan_snapshot['status']);
         $this->assertDatabaseCount('kepesertaan', 0);
+        $this->assertSame($patient->latestGeneralConsent->id, $visit->general_consent_id);
+        $this->getJson(route('pendaftaran.pasien.search', ['q' => $patient->no_rm]))
+            ->assertJsonPath('0.generalConsentSignedAt', '20-10-2026');
+        $this->post(route('pendaftaran.store-pasien-lama'), [
+            'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => '2026-10-21',
+        ])->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('general_consents', 1);
+        $this->assertSame($visit->general_consent_id, Kunjungan::latest('id')->firstOrFail()->general_consent_id);
+    }
+
+    public function test_new_registration_without_confirmation_creates_neither_patient_nor_visit(): void
+    {
+        [$user, $clinic] = $this->registrationContext();
+
+        $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
+        ])->assertSessionHasErrors('general_consent_confirmed');
+
+        $this->assertDatabaseCount('pasien', 0);
+        $this->assertDatabaseCount('kunjungan', 0);
     }
 
     public function test_new_dental_patient_can_register_for_today_when_a_dentist_is_scheduled(): void
@@ -105,6 +133,7 @@ class ManualPatientRegistrationTest extends TestCase
         [$user, $clinic] = $this->registrationContext('gigi');
 
         $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->consentConfirmation(),
             ...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
         ])->assertSessionHasNoErrors()->assertRedirect();
 
@@ -122,6 +151,7 @@ class ManualPatientRegistrationTest extends TestCase
         unset($identity['rt'], $identity['rw'], $identity['kelurahan'], $identity['kecamatan']);
 
         $this->actingAs($staff)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->consentConfirmation(),
             ...$identity, 'unit_kerja' => 'Biro Umum', 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
         ])->assertSessionHasNoErrors();
 
@@ -179,6 +209,7 @@ class ManualPatientRegistrationTest extends TestCase
         KlinikSetting::create(['nama_klinik' => 'Klinik Uji', 'pelaksana_ttv' => 'pendaftaran']);
 
         $response = $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->consentConfirmation(),
             ...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
         ]);
         $response->assertSessionHasNoErrors()->assertRedirect(route('pendaftaran.kunjungan-per-poli', ['tanggal' => today()->toDateString()]));
@@ -192,6 +223,7 @@ class ManualPatientRegistrationTest extends TestCase
     {
         [$user, $clinic] = $this->registrationContext();
         $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->consentConfirmation(),
             ...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id, 'tanggal' => '2026-10-19',
         ])->assertSessionHasErrors('tanggal');
         $this->assertDatabaseCount('pasien', 0);
@@ -203,7 +235,7 @@ class ManualPatientRegistrationTest extends TestCase
         [$user, $clinic] = $this->registrationContext('gigi');
         $data = [...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id];
         $this->actingAs($user);
-        $this->post(route('pendaftaran.store-pasien-baru'), [...$data, 'tanggal' => '2026-10-21'])->assertSessionHasNoErrors();
+        $this->post(route('pendaftaran.store-pasien-baru'), [...$data, ...$this->consentConfirmation(), 'tanggal' => '2026-10-21'])->assertSessionHasNoErrors();
         $this->assertSame('2026-10-21', Kunjungan::sole()->tanggal->toDateString());
         $this->assertDatabaseCount('kepesertaan', 0);
     }
@@ -212,6 +244,7 @@ class ManualPatientRegistrationTest extends TestCase
     {
         [$user, $clinic] = $this->registrationContext('gigi');
         $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->consentConfirmation(),
             ...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
         ])->assertSessionHasNoErrors();
         $visit = Kunjungan::sole();
@@ -231,6 +264,7 @@ class ManualPatientRegistrationTest extends TestCase
         [$user, $clinic] = $this->registrationContext();
         Pasien::create(['no_rm' => 'RM-000001', 'nama' => 'Pasien terdaftar', $field => $this->identity()[$field]]);
         $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->consentConfirmation(),
             ...$this->identity(), 'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
         ])->assertSessionHasErrors($field);
         $this->assertDatabaseCount('pasien', 1);
@@ -241,6 +275,7 @@ class ManualPatientRegistrationTest extends TestCase
     {
         [$user, $clinic] = $this->registrationContext();
         $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->consentConfirmation(),
             ...$this->identity(), 'nik' => '123', 'nip' => 'ABC123',
             'registration_type' => 'manual', 'poliklinik_id' => $clinic->id,
         ])->assertSessionHasErrors(['nik', 'nip']);
@@ -331,6 +366,7 @@ class ManualPatientRegistrationTest extends TestCase
         $patient = Pasien::create(['no_rm' => 'RM-000001', 'nama' => 'Pasien terdaftar']);
         $this->actingAs($user)->post(route('pelayanan.pasien.verify-membership', $patient), [])->assertRedirect(route('pendaftaran.dashboard'));
         $this->post(route('pendaftaran.store-pasien-baru'), [
+            ...$this->consentConfirmation(),
             ...$this->identity(), 'registration_type' => 'manual', 'grant_special_access' => true, 'poliklinik_id' => $clinic->id,
         ])->assertSessionHasErrors('grant_special_access');
         $this->assertDatabaseCount('kepesertaan', 0);
@@ -372,6 +408,15 @@ class ManualPatientRegistrationTest extends TestCase
         }
 
         return [$user, $clinic];
+    }
+
+    private function consentConfirmation(): array
+    {
+        return [
+            'general_consent_confirmed' => true,
+            'general_consent_version' => \App\GeneralConsentService::VERSION,
+            'general_consent_relationship' => 'patient',
+        ];
     }
 
     /** @return array<string, string> */

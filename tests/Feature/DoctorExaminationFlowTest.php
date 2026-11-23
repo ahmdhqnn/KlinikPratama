@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ClinicalNoteVersion;
+use App\Models\ClinicalTerminology;
 use App\Models\Diagnosa;
 use App\Models\JadwalDokter;
 use App\Models\Kunjungan;
@@ -267,6 +268,7 @@ class DoctorExaminationFlowTest extends TestCase
             'riwayat_penyakit_dahulu' => 'Asma terkontrol',
         ]);
 
+        ClinicalTerminology::create(['code_system' => 'icd10_who', 'release' => 'WHO 2016', 'code' => 'R05', 'display' => 'Batuk', 'code_type' => 'diagnosis', 'is_active' => true]);
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.diagnosa.store', $visit), [
             'kode_icd10' => 'R05',
             'nama_diagnosa' => 'Batuk',
@@ -308,8 +310,8 @@ class DoctorExaminationFlowTest extends TestCase
         ]);
 
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasErrors('review_final_plan');
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
-        $this->assertDatabaseHas('pemeriksaan', ['kunjungan_id' => $visit->id, 'diagnosis_banding' => 'Tidak ada diagnosis banding lain yang dipertimbangkan setelah evaluasi']);
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
+        $this->assertDatabaseHas('pemeriksaan', ['kunjungan_id' => $visit->id, 'diagnosis_banding' => null]);
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'farmasi']);
 
         $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), [
@@ -586,7 +588,7 @@ class DoctorExaminationFlowTest extends TestCase
             'riwayat_penyakit_keluarga' => 'Tidak ada riwayat penyakit keluarga menurut pasien',
             'riwayat_alergi' => 'Tidak ada riwayat alergi menurut pasien',
         ])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
 
         $payload = ClinicalNoteVersion::sole()->payload;
         $this->assertSame('Tidak ada riwayat penyakit dahulu menurut pasien', $payload['riwayat_penyakit_dahulu']);
@@ -622,7 +624,7 @@ class DoctorExaminationFlowTest extends TestCase
         $examination->update([$field => 'Belum dicatat']);
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'R50.9', 'nama_diagnosa' => 'Demam', 'jenis' => 'utama']);
 
-        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertUnprocessable();
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertUnprocessable();
 
         $this->assertDatabaseMissing('clinical_note_versions', ['pemeriksaan_id' => $examination->id]);
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'pemeriksaan']);
@@ -638,7 +640,7 @@ class DoctorExaminationFlowTest extends TestCase
         Screening::where('kunjungan_id', $visit->id)->update(['riwayat_penyakit_keluarga' => 'Hipertensi pada ayah']);
         Diagnosa::create(['pemeriksaan_id' => $examination->id, 'kode_icd10' => 'R50.9', 'nama_diagnosa' => 'Demam', 'jenis' => 'utama']);
 
-        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
+        $this->actingAs($user)->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertRedirect();
 
         $payload = ClinicalNoteVersion::sole()->payload;
         $this->assertNull($payload['riwayat_penyakit_sekarang']);
@@ -694,9 +696,7 @@ class DoctorExaminationFlowTest extends TestCase
     #[TestWith(['gigi'])]
     public function test_shared_start_records_time_once_and_opens_the_doctor_examination(string $clinicType): void
     {
-        [$user, $visit, $examination] = $this->examinationWithSections($clinicType);
-        $examination->delete();
-        $visit->unsetRelation('pemeriksaan');
+        [$user, $visit] = $this->examinationWithSections($clinicType, false);
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.start', $visit))->assertSessionHasNoErrors();
         $started = $visit->pemeriksaan()->sole();
         $this->assertNotNull($started->started_at);
@@ -710,7 +710,7 @@ class DoctorExaminationFlowTest extends TestCase
     /**
      * @return array{User, Kunjungan, Pemeriksaan}
      */
-    private function examinationWithSections(string $clinicType): array
+    private function examinationWithSections(string $clinicType, bool $createExamination = true): array
     {
         $user = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
         $doctor = Nakes::create([
@@ -724,12 +724,12 @@ class DoctorExaminationFlowTest extends TestCase
             'dokter_id' => $doctor->id, 'tanggal' => today(), 'status' => 'pemeriksaan',
         ]);
         Screening::create(['kunjungan_id' => $visit->id, 'submitted_at' => now()]);
-        $examination = Pemeriksaan::create([
+        $examination = $createExamination ? Pemeriksaan::create([
             'kunjungan_id' => $visit->id, 'dokter_id' => $doctor->id,
             'anamnesis' => 'Keluhan awal', 'pemeriksaan_ekstraoral' => $clinicType === 'gigi' ? 'Simetris tanpa pembengkakan' : null, 'pemeriksaan_fisik' => 'Temuan awal', 'riwayat_alergi' => 'Penisilin',
             'diagnosis_banding' => 'Diagnosis banding awal', 'kontrol_berikutnya' => '2026-11-01',
             'catatan' => 'Catatan awal', 'edukasi' => 'Edukasi awal', 'oral_hygiene_index' => 1.25,
-        ]);
+        ]) : null;
 
         return [$user, $visit, $examination];
     }

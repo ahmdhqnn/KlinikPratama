@@ -186,7 +186,7 @@ class GeneralAssessmentAlignmentTest extends TestCase
         $this->assertSame('Sebagian TTV tidak dapat diukur', $visit->screening->vitalMeasurementSummary());
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.store', $visit), ['anamnesis' => 'Batuk', 'pemeriksaan_fisik' => 'Keadaan umum cukup'])->assertSessionHasNoErrors();
         $visit->fresh()->pemeriksaan->diagnosa()->create(['nama_diagnosa' => 'Batuk', 'jenis' => 'utama', 'code_system' => 'manual']);
-        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_final_plan' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening->revisionToken()])
+        $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['signature_password' => 'password', 'review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening->revisionToken()])
             ->assertSessionHasErrors('nursing_clarification');
         $this->assertDatabaseCount('clinical_note_versions', 0);
     }

@@ -26,7 +26,7 @@ class LaporanController extends Controller
     {
         $period = DateRangeFilter::fromRequest($request);
         $visits = new VisitQueryService;
-        $filters = array_intersect_key($visits->filters($request), array_flip(['poliklinik_id', 'status']));
+        $filters = array_intersect_key($visits->filters($request), array_flip(['poliklinik_id', 'status', 'search']));
         $dari = $period->from ?? '';
         $sampai = $period->to ?? '';
         $summary = $visits->filtered($filters, period: $period);
@@ -39,6 +39,7 @@ class LaporanController extends Controller
 
         return Inertia::render('laporan/kunjungan', [
             'filters' => [
+                'search' => $filters['search'] ?? '',
                 'from' => $dari,
                 'to' => $sampai,
                 'clinicId' => isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : '',
@@ -74,7 +75,7 @@ class LaporanController extends Controller
         $stokRendahCount = $this->stockQuery([...$filters, 'stok_rendah' => true])->count();
 
         return Inertia::render('laporan/stok', [
-            'filters' => ['type' => $filters['jenis'] ?? '', 'lowStockOnly' => $request->boolean('stok_rendah')],
+            'filters' => ['search' => $filters['search'] ?? '', 'type' => $filters['jenis'] ?? '', 'lowStockOnly' => $request->boolean('stok_rendah')],
             'exportUrl' => route('laporan.stok.export', $filters),
             'stats' => ['totalItems' => $totalItem, 'lowStockItems' => $stokRendahCount],
             'medicines' => $this->pagination($obat, fn (Obat $medicine): array => [
@@ -95,11 +96,11 @@ class LaporanController extends Controller
         $period = DateRangeFilter::fromRequest($request);
         $from = $period->from;
         $to = $period->to;
-        $filters = array_intersect_key((new VisitQueryService)->filters($request), array_flip(['poliklinik_id', 'status']));
+        $filters = array_intersect_key((new VisitQueryService)->filters($request), array_flip(['poliklinik_id', 'status', 'search']));
         $audit->record($request, 'visit_report.export', metadata: ['from' => $from, 'to' => $to, ...$filters]);
 
         return Excel::download(
-            new KunjunganExport($from, $to, $filters['poliklinik_id'] ?? null, $filters['status'] ?? null),
+            new KunjunganExport($from, $to, $filters['poliklinik_id'] ?? null, $filters['status'] ?? null, $filters['search'] ?? null),
             'laporan-kunjungan-'.date('Y-m-d').'.xlsx'
         );
     }
@@ -123,6 +124,7 @@ class LaporanController extends Controller
     private function stockFilters(Request $request): array
     {
         return $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
             'jenis' => ['nullable', 'in:obat,bhp'],
             'stok_rendah' => ['nullable', 'boolean'],
         ]);
@@ -131,6 +133,7 @@ class LaporanController extends Controller
     private function stockQuery(array $filters): Builder
     {
         return Obat::withSum(['batches as usable_stock' => fn (Builder $query) => $query->usable()], 'stok')
+            ->when($filters['search'] ?? null, fn (Builder $query, string $search) => $query->where(fn (Builder $items) => $items->where('nama', 'like', "%{$search}%")->orWhere('kode', 'like', "%{$search}%")))
             ->when($filters['jenis'] ?? null, fn (Builder $query, string $type) => $query->where('jenis', $type))
             ->when($filters['stok_rendah'] ?? false, fn (Builder $query) => $query->where(
                 ObatBatch::query()->usable()

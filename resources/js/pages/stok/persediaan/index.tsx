@@ -1,3 +1,5 @@
+import { Field } from '@/components/ui/field';
+import { ServiceReportLinks } from '@/components/reports/service-report-links';
 import { ActionButton } from '@/components/ui/action-button';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
@@ -17,12 +19,12 @@ interface Medicine { id: number; name: string; code: string; type: string; stock
 export default function Inventory({ medicines, filters, stats }: { medicines: PaginationData & { data: Medicine[] }; filters: { search?: string; jenis?: string }; stats: { medicines: number; supplies: number; lowStock: number } }) {
     const [search, setSearch] = useState(filters.search ?? '');
     const [type, setType] = useState(filters.jenis ?? '');
-    return <><Head title="Persediaan obat & BHP" /><div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Pengelolaan obat</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Obat & BHP</h2><p className="mt-1 text-sm text-neutral-500">Pantau ketersediaan obat dan bahan habis pakai, lalu periksa batch atau catat penerimaan stok.</p></div></div>
+    return <><Head title="Mutasi & stok farmasi" /><div className="space-y-6">
+        <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Pengelolaan obat</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Mutasi & stok farmasi</h2><p className="mt-1 text-sm text-neutral-500">Pantau ketersediaan obat dan bahan habis pakai, lalu periksa batch atau catat penerimaan stok.</p></div><ServiceReportLinks kind="stock" /></div>
         <section aria-label="Ringkasan persediaan" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"><StatCard label="Jenis obat" value={stats.medicines} description="Obat yang tercatat" icon={<Package className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" /><StatCard label="Jenis BHP" value={stats.supplies} description="Bahan habis pakai yang tercatat" icon={<Boxes className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" /><StatCard label="Perlu perhatian" value={stats.lowStock} description="Stok layak pakai mencapai batas minimum" icon={<TriangleAlert className="size-5" />} iconClassName={stats.lowStock ? 'bg-amber-50 text-amber-800' : 'bg-neutral-100 text-neutral-700'} /></section>
-        <FilterPanel><form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:items-center" onSubmit={(event) => { event.preventDefault(); router.get('/stok/persediaan', { search, jenis: type }, { preserveState: true, replace: true }); }}>
-            <Input aria-label="Cari obat atau BHP" placeholder="Cari nama atau kode" value={search} onChange={(event) => setSearch(event.target.value)} />
-            <Select className="w-full" aria-label="Jenis persediaan" value={type} onChange={(event) => setType(event.target.value)}><option value="">Obat & BHP</option><option value="obat">Obat</option><option value="bhp">BHP</option></Select>
+        <FilterPanel><form className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:items-end" onSubmit={(event) => { event.preventDefault(); router.get('/stok/persediaan', { search, jenis: type }, { preserveState: true, replace: true }); }}>
+            <Field className="min-w-0 flex-1" htmlFor="filter-stok-persediaan-index-1" label="Cari obat atau BHP"><Input id="filter-stok-persediaan-index-1" placeholder="Cari nama atau kode" value={search} onChange={(event) => setSearch(event.target.value)} /></Field>
+            <Field className="min-w-0 flex-1" htmlFor="filter-stok-persediaan-index-2" label="Jenis persediaan"><Select className="w-full" id="filter-stok-persediaan-index-2" value={type} onChange={(event) => setType(event.target.value)}><option value="">Obat & BHP</option><option value="obat">Obat</option><option value="bhp">BHP</option></Select></Field>
             <FilterSubmit />
         </form></FilterPanel>
         <Card className="overflow-hidden">
@@ -31,7 +33,7 @@ export default function Inventory({ medicines, filters, stats }: { medicines: Pa
                     <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Package className="size-5" /></span>
                     <div>
                         <CardTitle>Daftar persediaan</CardTitle>
-                        <CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(medicines.total)} item obat dan BHP tercatat.</CardDescription>
+                        <CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(medicines.total)} item obat dan BHP sesuai filter.</CardDescription>
                     </div>
                 </div>
             </CardHeader>

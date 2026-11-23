@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { identityPlaceholders } from '@/lib/form-placeholders';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, Save, UserRoundPlus } from 'lucide-react';
@@ -105,7 +104,6 @@ function PatientIdentityCard({ form }: { form: ReturnType<typeof useForm<FormDat
                     <div className="grid gap-4 md:grid-cols-2">
                         <Field error={form.errors.telepon} htmlFor="admin-patient-phone" label="Nomor telepon"><Input placeholder={identityPlaceholders.telepon} autoComplete="tel" id="admin-patient-phone" onChange={(event) => form.setData('telepon', event.target.value)} type="tel" value={form.data.telepon} /></Field>
                     </div>
-                    <Field error={form.errors.riwayat_alergi} htmlFor="admin-patient-allergy" label="Riwayat alergi"><Textarea id="admin-patient-allergy" onChange={(event) => form.setData('riwayat_alergi', event.target.value)} placeholder={identityPlaceholders.riwayat_alergi} value={form.data.riwayat_alergi} /></Field>
                 </section>
             </CardContent>
         </Card>

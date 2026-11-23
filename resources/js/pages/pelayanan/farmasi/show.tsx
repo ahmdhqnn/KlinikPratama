@@ -40,8 +40,9 @@ interface Visit {
     status: string;
     examinationSigned: boolean;
     prescriptionNumber: string | null;
-    patient: { id: number; name: string; medicalRecordNumber: string; allergies: string | null; screeningAllergies: string | null; examinationAllergies: string | null };
+    patient: { weight?: number | null; weightRecordedAt?: string | null; weightSource?: string | null; id: number; name: string; medicalRecordNumber: string; allergies: string | null; screeningAllergies: string | null; examinationAllergies: string | null };
     doctor: string | null;
+    doctorSip?: string | null;
     pharmacy: { status: string; notes: string | null; items: { prescriptionItemId: number | null; medicineId: number | null; dispensedQuantity: number; instructions: string | null; notes: string | null }[] } | null;
     prescriptionItems: PrescriptionItem[];
     allocations: { medicine: string; batch: string | null; expiry: string | null; quantity: number; actor: string | null; at: string | null }[];
@@ -56,6 +57,12 @@ interface DispenseItem {
 }
 
 interface FormData {
+    pharmacy_review?: string;
+    recipient_name: string;
+    recipient_relationship: string;
+    recipient_verified: boolean;
+    counseling_completed: boolean;
+    counseling_notes: string;
     assistance_reason: string;
     items: DispenseItem[];
     catatan: string;
@@ -65,6 +72,7 @@ export default function PharmacyDispensing({ adminAssistance = false, visit, tod
     const [etiketItem, setEtiketItem] = useState<{ name: string; instructions: string } | null>(null);
     const [allocationsExpanded, setAllocationsExpanded] = useState(false);
     const form = useForm<FormData>({
+        recipient_name: '', recipient_relationship: '', recipient_verified: false, counseling_completed: false, counseling_notes: '',
         assistance_reason: '',
         items: visit.prescriptionItems.map((item) => ({
             resep_obat_id: item.id,
@@ -123,6 +131,7 @@ export default function PharmacyDispensing({ adminAssistance = false, visit, tod
         <>
             <Head title={`Penyerahan obat ${visit.patient.name}`} />
             <div className="space-y-6">
+                {alreadyComplete && <Button asChild variant="secondary"><Link href={`/pelayanan/farmasi/${visit.id}/review`}>Riwayat review dan penyerahan</Link></Button>}
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-neutral-700">Penyerahan obat</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{visit.patient.name}</h2><p className="mt-1 text-sm text-neutral-500">{visit.patient.medicalRecordNumber} · Kunjungan {visit.number}</p></div><Button asChild variant="secondary"><Link href="/pelayanan/farmasi"><ArrowLeft className="size-4" />Kembali ke penyerahan obat</Link></Button></div>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
@@ -131,13 +140,14 @@ export default function PharmacyDispensing({ adminAssistance = false, visit, tod
                     </CardHeader>
                     <CardContent className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_minmax(15rem,1.4fr)] lg:items-center">
                         <div><p className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Nomor resep</p><p className="mt-1 break-all font-sans tabular-nums text-lg font-semibold text-neutral-950">{visit.prescriptionNumber ?? 'Belum diisi'}</p></div>
-                        <div><p className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Dokter peresep</p><p className="mt-1 text-sm font-medium text-neutral-900">{visit.doctor ?? 'Belum ditentukan'}</p></div>
+                        <div><p className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Dokter peresep</p><p className="mt-1 text-sm font-medium text-neutral-900">{visit.doctor ?? 'Belum ditentukan'}</p><p className="mt-1 text-xs text-neutral-500">SIP: {visit.doctorSip || 'Belum terdokumentasi'}</p></div>
                         <div><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-600">Status</p><StatusBadge context={pharmacyStatus ? 'pharmacy' : 'visit'} status={pharmacyStatus ?? visit.status} /></div>
                         <div className={allergyStatus.state === 'reported' ? 'flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900' : 'flex items-start gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm text-neutral-700'}>
                             {allergyStatus.state === 'reported' ? <TriangleAlert className="mt-0.5 size-4 shrink-0" /> : allergyStatus.state === 'none' ? <CircleCheck className="mt-0.5 size-4 shrink-0 text-neutral-500" /> : <CircleHelp className="mt-0.5 size-4 shrink-0 text-neutral-500" />}
                             <span><strong>Status alergi:</strong> {allergyStatus.label}</span>
                         </div>
                     </CardContent>
+                    <CardContent className="border-t border-neutral-100 pt-4"><p className="text-sm"><strong>Berat badan:</strong> {visit.patient.weight == null ? 'Belum diukur pada kunjungan ini' : `${visit.patient.weight} kg`}</p>{visit.patient.weight != null && <p className="mt-1 text-xs text-neutral-500">{visit.patient.weightSource ?? 'Pengkajian kunjungan ini'} · {visit.patient.weightRecordedAt ?? 'Waktu pengkajian belum tercatat'}</p>}</CardContent>
                 </Card>
                 <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Pill className="size-5" /></span><div><CardTitle>{alreadyComplete ? 'Rincian penyerahan resep' : 'Verifikasi dan penyiapan obat'}</CardTitle><CardDescription className="mt-1">{alreadyComplete ? 'Jumlah dan aturan pakai yang tercatat pada kunjungan ini.' : 'Periksa jumlah dan aturan pakai. Stok keluar saat obat diserahkan. Catat alasan dan tindak lanjut jika resep belum terpenuhi seluruhnya.'}</CardDescription></div></div></CardHeader>
                     {adminAssistance && !alreadyComplete && <CardContent className="space-y-4 pt-5 sm:pt-6"><p className="text-sm text-neutral-600">Bantuan farmasi admin. Akun Anda dicatat sebagai pelaku penyerahan; alasan bantuan dipisahkan dari catatan tindak lanjut resep.</p><AssistanceReasonField error={form.errors.assistance_reason} id="pharmacy-assistance" value={form.data.assistance_reason} onChange={(value) => form.setData('assistance_reason', value)} disabled={form.processing} /></CardContent>}
@@ -167,6 +177,15 @@ export default function PharmacyDispensing({ adminAssistance = false, visit, tod
                             </TableRow>;
                         }) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={alreadyComplete ? 5 : 6}><Empty size="compact" title="Tidak ada item resep." /></TableCell></TableRow>}
                     </TableBody></Table></div></CardContent>
+                    {!alreadyComplete && <CardContent className="space-y-4 border-t border-neutral-100 pt-5">
+                        <Button asChild variant="secondary"><Link href={`/pelayanan/farmasi/${visit.id}/review`}>Review resep oleh apoteker</Link></Button>
+                        <p className="text-sm text-neutral-500">Simpan rencana penyerahan sebelum review. Perubahan resep atau rencana penyerahan memerlukan review ulang.</p>
+                        {form.errors.pharmacy_review && <p role="alert" className="text-sm text-red-600">{form.errors.pharmacy_review}</p>}
+                        <div className="grid gap-4 sm:grid-cols-2"><Field label="Nama penerima obat / resep luar" htmlFor="pharmacy-recipient" error={form.errors.recipient_name}><Input id="pharmacy-recipient" value={form.data.recipient_name} onChange={(event) => form.setData('recipient_name', event.target.value)} maxLength={200} /></Field><Field label="Hubungan dengan pasien" htmlFor="pharmacy-recipient-relationship" error={form.errors.recipient_relationship}><Input id="pharmacy-recipient-relationship" value={form.data.recipient_relationship} onChange={(event) => form.setData('recipient_relationship', event.target.value)} maxLength={200} /></Field></div>
+                        <Field label="Identitas penerima telah diperiksa" htmlFor="pharmacy-recipient-verified" error={form.errors.recipient_verified}><input id="pharmacy-recipient-verified" type="checkbox" checked={form.data.recipient_verified} onChange={(event) => form.setData('recipient_verified', event.target.checked)} /></Field>
+                        <Field label="Konseling penggunaan, penyimpanan dan tindak lanjut telah diberikan" htmlFor="pharmacy-counseling" error={form.errors.counseling_completed}><input id="pharmacy-counseling" type="checkbox" checked={form.data.counseling_completed} onChange={(event) => form.setData('counseling_completed', event.target.checked)} /></Field>
+                        <Field label="Catatan konseling dan pemahaman penerima" htmlFor="pharmacy-counseling-notes" error={form.errors.counseling_notes}><Input id="pharmacy-counseling-notes" value={form.data.counseling_notes} onChange={(event) => form.setData('counseling_notes', event.target.value)} maxLength={2000} /></Field>
+                    </CardContent>}
                     {alreadyComplete ? (visit.pharmacy?.notes && <div className="space-y-1 border-t border-neutral-100 p-5 sm:p-6"><p className="text-sm font-medium text-neutral-900">Catatan penyerahan</p><p className="whitespace-pre-wrap break-words text-sm text-neutral-700">{visit.pharmacy.notes}</p></div>) : <div className="space-y-4 border-t border-neutral-100 p-5 sm:p-6"><Field error={form.errors.catatan} htmlFor="catatan-farmasi" label="Catatan tambahan"><Input id="catatan-farmasi" onChange={(event) => form.setData('catatan', event.target.value)} placeholder="Informasi penyerahan atau penyimpanan obat" value={form.data.catatan} /></Field>{form.errors.items && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{form.errors.items}</p>}
                         {form.isDirty && <p role="status" className="text-sm text-muted-foreground">Perubahan akan disimpan saat layanan diselesaikan.</p>}<div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><p className="text-xs text-neutral-500">{allExternal ? 'Siapkan dokumen resep luar untuk pasien. Tidak ada obat yang diserahkan dari stok klinik.' : 'Obat dari resep luar dicatat, tetapi tidak mengurangi persediaan klinik.'}</p><div className="flex flex-wrap justify-end gap-2"><Button asChild variant="secondary"><Link href="/pelayanan/farmasi">Batalkan</Link></Button><Button disabled={form.processing || alreadyComplete} type="submit" variant="secondary"><Save className="size-4" />Simpan draf</Button><Button disabled={form.processing || alreadyComplete || visit.prescriptionItems.length === 0} onClick={finishDispensing} type="button"><Check className="size-4" />{allExternal ? 'Selesaikan resep luar' : 'Serahkan obat & selesaikan'}</Button></div></div>
                     </div>}</form>

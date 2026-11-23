@@ -127,8 +127,8 @@ class KunjunganInertiaTest extends TestCase
             'tanggal' => today()->toDateString(),
             'jenis_pasien' => 'lama',
         ])->assertUnprocessable();
-        $this->post(route('pelayanan.kunjungan.batal', $visit))->assertUnprocessable();
-        $this->delete(route('pelayanan.kunjungan.destroy', $visit))->assertUnprocessable();
+        $this->post(route('pelayanan.kunjungan.batal', $visit), ['reason' => 'Pembatalan oleh pasien'])->assertUnprocessable();
+        $this->delete(route('pelayanan.kunjungan.destroy', $visit), ['reason' => 'Pembatalan oleh pasien'])->assertUnprocessable();
 
         $this->assertDatabaseHas('kunjungan', ['id' => $visit->id, 'status' => 'selesai']);
     }

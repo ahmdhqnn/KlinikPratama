@@ -108,8 +108,9 @@ class StaffAccountLinkTest extends TestCase
         $this->post(route('users.toggle-active', $user))->assertSessionHasNoErrors();
         $this->assertDatabaseHas('users', ['id' => $user->id, 'is_active' => false]);
         $this->delete(route('users.destroy', $user))->assertSessionHasNoErrors();
-        $this->assertModelMissing($user);
-        foreach (['user.password_reset', 'user.status_changed', 'user.deleted'] as $action) {
+        $this->assertModelExists($user);
+        $this->assertFalse($user->fresh()->is_active);
+        foreach (['user.password_reset', 'user.status_changed', 'user.deactivated'] as $action) {
             $event = DB::table('clinical_audit_events')->where('action', $action)->first();
             $this->assertSame($user->id, json_decode($event->metadata, true)['user_id']);
             $this->assertStringNotContainsString('new-password', $event->metadata);

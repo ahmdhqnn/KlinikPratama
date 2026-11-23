@@ -41,11 +41,21 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        if ($request->routeIs('medical-document.verify')) {
+            return parent::share($request);
+        }
         $doctorProfile = $request->user()?->role === 'dokter' ? $request->user()->nakes : null;
         $practiceClinic = $doctorProfile?->is_active ? $doctorProfile->poliklinik : null;
 
         return [
             ...parent::share($request),
+            'sessionSecurity' => $request->user() ? [
+                'userId' => $request->user()->id,
+                'serverNow' => now()->getTimestampMs(),
+                'expiresAt' => ((int) $request->session()->get('clinical_last_activity', now()->timestamp) + config('clinical_security.idle_minutes') * 60) * 1000,
+                'idleMinutes' => config('clinical_security.idle_minutes'),
+                'mustChangePassword' => (bool) $request->user()->must_change_password,
+            ] : null,
             'adminQueues' => fn (): ?array => $this->adminQueues($request),
             'nurseQueues' => fn (): ?array => $this->nurseQueues($request),
             'doctorQueues' => fn (): ?array => $this->doctorQueues($request),

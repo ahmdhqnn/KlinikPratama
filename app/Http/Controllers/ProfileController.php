@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\ClinicalAuditRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -68,7 +71,16 @@ class ProfileController extends Controller
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $request->user()->update(['password' => $data['password']]);
+        if (Hash::check($data['password'], $request->user()->password)) {
+            return back()->withErrors(['password' => 'Gunakan kata sandi baru yang berbeda dari kata sandi sementara atau sebelumnya.']);
+        }
+        DB::transaction(function () use ($request, $data): void {
+            $user = $request->user();
+            $user->forceFill(['password' => $data['password'], 'must_change_password' => false, 'session_version' => (int) $user->session_version + 1, 'remember_token' => null])->save();
+            app(ClinicalAuditRecorder::class)->record($request, 'auth.password_changed');
+        });
+        $request->session()->regenerate();
+        $request->session()->put('clinical_session_version', (int) $request->user()->session_version);
 
         return back()->with('success', 'Kata sandi berhasil diperbarui.');
     }
@@ -129,14 +141,17 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
-        $previousPath = $user->signature_path;
         $path = $request->file('signature')->store('signatures/'.$user->id, 'local');
         abort_unless(is_string($path), 500, 'Tanda tangan gagal disimpan.');
 
-        $user->update(['signature_path' => $path]);
-
-        if ($previousPath) {
-            Storage::disk('local')->delete($previousPath);
+        try {
+            DB::transaction(function () use ($request, $user, $path): void {
+                $user->update(['signature_path' => $path]);
+                app(ClinicalAuditRecorder::class)->record($request, 'profile.signature_changed', metadata: ['signature_sha256' => hash_file('sha256', Storage::disk('local')->path($path))]);
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($path);
+            throw $exception;
         }
 
         return back()->with('success', 'Tanda tangan berhasil diperbarui.');
@@ -145,12 +160,10 @@ class ProfileController extends Controller
     public function deleteSignature(Request $request): RedirectResponse
     {
         $user = $request->user();
-        $previousPath = $user->signature_path;
-        $user->update(['signature_path' => null]);
-
-        if ($previousPath) {
-            Storage::disk('local')->delete($previousPath);
-        }
+        DB::transaction(function () use ($request, $user): void {
+            $user->update(['signature_path' => null]);
+            app(ClinicalAuditRecorder::class)->record($request, 'profile.signature_removed');
+        });
 
         return back()->with('success', 'Tanda tangan berhasil dihapus.');
     }

@@ -81,7 +81,7 @@ class AdminAssistanceAuditController extends Controller
                         'occurredAt' => $event->occurred_at,
                         'visitNumber' => $event->visit_number,
                         'clinic' => $event->clinic_name,
-                        'reason' => $metadata['reason'] ?? $metadata['assistance_reason'] ?? null,
+                        'reason' => null,
                         'result' => $event->action === 'admin_assistance.attempt_rejected'
                             ? match ($metadata['failure_kind'] ?? null) {
                                 'access_denied' => 'Akses ditolak',

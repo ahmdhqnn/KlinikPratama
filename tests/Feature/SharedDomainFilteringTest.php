@@ -39,7 +39,8 @@ class SharedDomainFilteringTest extends TestCase
         $this->visit('OLD', '2026-09-01', 'farmasi');
         $this->visit('TODAY', '2026-10-20', 'farmasi');
 
-        $this->actingAs($user)->get(route($route))->assertInertia(fn (Assert $page) => $page->where('visits.total', 2));
+        $response = $this->actingAs($user)->get(route($route));
+        $response->assertInertia(fn (Assert $page) => $route === 'laporan.kunjungan' ? $page->has('rows', 2)->missing('visits') : $page->where('visits.total', 2));
     }
 
     public function test_visit_date_and_clinic_filters_use_the_frontend_contract(): void
@@ -72,7 +73,7 @@ class SharedDomainFilteringTest extends TestCase
         $this->visit('NEW', '2026-10-20');
 
         $this->actingAs($user)->get(route('laporan.kunjungan', ['sampai' => '2026-09-30']))
-            ->assertInertia(fn (Assert $page) => $page->where('visits.total', 1)->where('visits.data.0.id', $old->id)->where('stats.total', 1));
+            ->assertInertia(fn (Assert $page) => $page->has('rows', 1)->where('rows.0.total', 1)->missing('visits'));
 
         $this->assertSame([$old->id], (new KunjunganExport(null, '2026-09-30'))->query()->pluck('id')->all());
     }
@@ -115,7 +116,9 @@ class SharedDomainFilteringTest extends TestCase
         $visit = $this->visit('UPDATE', '2026-10-20', 'screening');
         $staff = Nakes::create(['kode' => 'UPDATE-NURSE', 'nama' => 'Petugas Skrining', 'kategori' => 'medis', 'jabatan' => 'perawat', 'poliklinik_id' => $visit->poliklinik_id, 'is_active' => true]);
 
-        $this->actingAs($user)->beginNursingAssessment($visit)->put(route('pelayanan.screening.update', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new',
+        $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        Nakes::create(['kode' => 'SHARED-NURSE', 'nama' => 'Perawat Uji', 'kategori' => 'medis', 'jabatan' => 'perawat', 'user_id' => $nurse->id, 'poliklinik_id' => $visit->poliklinik_id, 'is_active' => true]);
+        $this->actingAs($nurse)->beginNursingAssessment($visit)->put(route('pelayanan.screening.update', $visit), ['revision_reason' => 'Koreksi setelah konfirmasi ulang', 'screening_revision' => $visit->fresh()->screening?->revisionToken() ?? 'new',
             'petugas_id' => $staff->id, 'assistance_reason' => 'Bantuan pengkajian karena akun layanan terganggu.',
             'keluhan' => 'Keluhan pasien', 'lama_keluhan' => '2 hari', 'sumber_informasi' => 'pasien',
             'status_alergi' => 'belum_diketahui', 'status_riwayat_penyakit' => 'belum_diketahui', 'konfirmasi_riwayat' => true,
@@ -137,13 +140,14 @@ class SharedDomainFilteringTest extends TestCase
             $visit = $this->visit($code, $date, 'selesai');
             $examination = $visit->pemeriksaan()->create(['status' => 'selesai']);
             $examination->diagnosa()->create(['kode_icd10' => 'J00', 'nama_diagnosa' => 'Diagnosis uji', 'jenis' => 'utama']);
+            $this->expandSyntheticDiagnosisPopulation($visit);
         }
 
         $this->actingAs($user)->get(route('pendaftaran.laporan-top-diagnosa'))->assertInertia(fn (Assert $page) => $page
             ->where('filters.tanggalMulai', '')->where('filters.tanggalSelesai', '')
-            ->where('summary.diagnosisCount', 1)->where('summary.caseCount', 2)->where('diagnoses.data.0.count', 2));
+            ->where('summary.diagnosisCount', 1)->where('summary.caseCount', 10)->where('diagnoses.data.0.count', 10));
         $this->get(route('pendaftaran.laporan-top-diagnosa', ['tanggal_selesai' => '2026-09-30']))->assertInertia(fn (Assert $page) => $page
-            ->where('summary.caseCount', 1)->where('diagnoses.data.0.count', 1));
+            ->where('summary.caseCount', 5)->where('diagnoses.data.0.count', 5));
     }
 
     public function test_patient_directory_filters_gender_and_searches_nip(): void

@@ -24,14 +24,10 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
         $registration = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-SEC-1', 'nama' => 'Pasien Rahasia', 'riwayat_alergi' => 'Penisilin']);
 
-        $this->actingAs($admin)->get(route('pelayanan.pasien.rekam-medis', $patient))->assertInertia(fn (Assert $page) => $page
-            ->component('pelayanan/pasien/rekam-medis')
-            ->where('patient.name', 'Pasien Rahasia')
-            ->where('patient.allergies', 'Penisilin')
-        );
-        $this->assertDatabaseHas('clinical_audit_events', ['actor_id' => $admin->id, 'action' => 'medical_record.view', 'patient_id' => $patient->id]);
-        $this->get(route('pelayanan.pemeriksaan.index'))->assertOk();
-        $this->get(route('pelayanan.screening.index'))->assertOk();
+        $this->actingAs($admin)->get(route('pelayanan.pasien.rekam-medis', $patient))->assertForbidden();
+        $this->assertDatabaseMissing('clinical_audit_events', ['actor_id' => $admin->id, 'action' => 'medical_record.view']);
+        $this->get(route('pelayanan.pemeriksaan.index'))->assertForbidden();
+        $this->get(route('pelayanan.screening.index'))->assertForbidden();
         $this->get(route('perawat.dashboard'))->assertForbidden();
         $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page
             ->component('dashboard/index')
@@ -39,10 +35,10 @@ class ClinicalAccessAndTwoPoliTest extends TestCase
         );
         $this->get(route('pelayanan.pasien.show', $patient))->assertInertia(fn (Assert $page) => $page
             ->where('patient.allergies', null)
-            ->where('permissions.viewRme', true)
+            ->where('permissions.viewRme', false)
         );
 
-        $this->actingAs($registration)->get(route('pelayanan.pemeriksaan.index'))->assertRedirect(route('pendaftaran.dashboard'));
+        $this->actingAs($registration)->get(route('pelayanan.pemeriksaan.index'))->assertForbidden();
         $this->actingAs($registration)->get(route('pelayanan.pasien.rekam-medis', $patient))->assertForbidden();
         $this->assertDatabaseMissing('clinical_audit_events', ['actor_id' => $registration->id, 'action' => 'medical_record.view', 'patient_id' => $patient->id]);
         $this->get(route('pelayanan.pasien.export'))->assertRedirect(route('pendaftaran.dashboard'));

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\RetainsCancelledClinicalEntries;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FarmasiItem extends Model
 {
+    use RetainsCancelledClinicalEntries;
+
     protected $table = 'farmasi_item';
 
     protected $fillable = [

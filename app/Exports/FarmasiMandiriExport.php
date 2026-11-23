@@ -11,7 +11,7 @@ use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class FarmasiMandiriExport implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
+class FarmasiMandiriExport extends SafeSpreadsheetValueBinder implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
     /** @param array{dari?: string|null, sampai?: string|null, search?: string|null} $filters */
     public function __construct(private array $filters) {}

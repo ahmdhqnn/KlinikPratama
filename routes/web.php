@@ -3,18 +3,24 @@
 use App\Http\Controllers\AdminActivityLogController;
 use App\Http\Controllers\AdminAssistanceAuditController;
 use App\Http\Controllers\AdminReportController;
+use App\Http\Controllers\AggregateClinicalReportController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DiagnosisCodingCorrectionController;
 use App\Http\Controllers\DokterDashboardController;
 use App\Http\Controllers\DokterTindakanController;
 use App\Http\Controllers\FarmasiDashboardController;
 use App\Http\Controllers\FarmasiMandiriController;
+use App\Http\Controllers\GeneralConsentController;
 use App\Http\Controllers\KepesertaanController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\Master\ClinicalTerminologyController;
 use App\Http\Controllers\Master\NakesController;
 use App\Http\Controllers\Master\ObatController;
+use App\Http\Controllers\Master\PharmacyCredentialController;
 use App\Http\Controllers\Master\PoliklinikController;
+use App\Http\Controllers\MedicalDocumentVerificationController;
+use App\Http\Controllers\MedicalInformationReleaseController;
 use App\Http\Controllers\Pelayanan\FarmasiController;
 use App\Http\Controllers\Pelayanan\KunjunganController;
 use App\Http\Controllers\Pelayanan\PasienController;
@@ -25,11 +31,15 @@ use App\Http\Controllers\Pelayanan\VisitAttachmentController;
 use App\Http\Controllers\Pendaftaran\RegistrationController;
 use App\Http\Controllers\PerawatDashboardController;
 use App\Http\Controllers\PersuratanController;
+use App\Http\Controllers\PharmacyClinicalReviewController;
+use App\Http\Controllers\ProcedureConsentController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SessionActivityController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\Stok\PersediaanController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\AuditAdminAssistanceFailures;
+use App\Http\Middleware\EnforceClinicalSession;
 use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsureRegistrationRole;
 use App\Http\Middleware\EnsureRole;
@@ -37,10 +47,15 @@ use App\Http\Middleware\RedirectRegistrationRole;
 use Illuminate\Support\Facades\Route;
 
 // Auth
+Route::get('/verification-document/{token}', [MedicalDocumentVerificationController::class, 'show'])
+    ->where('token', '[a-f0-9]{64}')->middleware('throttle:30,1')
+    ->withoutMiddleware(EnforceClinicalSession::class)->name('medical-document.verify');
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
 Route::get('/bantuan-akses', [LoginController::class, 'assistance'])->name('auth.assistance');
 Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+Route::post('/session/activity', SessionActivityController::class)->middleware(['auth', 'throttle:30,1'])->name('session.activity');
+Route::get('/session/status', [SessionActivityController::class, 'status'])->middleware(['auth', 'throttle:60,1'])->name('session.status');
 
 Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pendaftaran,manajemen'])->prefix('profile')->name('profile.')->group(function (): void {
     Route::get('/', [ProfileController::class, 'show'])->name('show');
@@ -56,12 +71,36 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
 
 // Authenticated routes
 Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pendaftaran,manajemen', RedirectRegistrationRole::class])->group(function () {
+    Route::get('verifikasi/persetujuan-umum/{token}', [GeneralConsentController::class, 'verify'])
+        ->whereUuid('token')->middleware(EnsureRole::class.':admin,pendaftaran,perawat,dokter')
+        ->withoutMiddleware(RedirectRegistrationRole::class)->name('general-consent.verify');
+
+    Route::prefix('kunjungan/{kunjungan}/persetujuan-umum')->name('general-consent.')
+        ->middleware(EnsureRole::class.':admin,pendaftaran,perawat,dokter')->withoutMiddleware(RedirectRegistrationRole::class)->group(function (): void {
+            Route::get('/', [GeneralConsentController::class, 'show'])->name('show');
+            Route::post('/', [GeneralConsentController::class, 'store'])->name('store');
+            Route::get('/bukti/{consent}', [GeneralConsentController::class, 'evidence'])->name('evidence');
+        });
+
+    Route::prefix('kunjungan/{kunjungan}/tindakan/{procedure}/persetujuan')->name('procedure-consent.')
+        ->middleware(EnsureRole::class.':dokter,perawat')->group(function (): void {
+            Route::get('/', [ProcedureConsentController::class, 'show'])->name('show');
+            Route::post('/', [ProcedureConsentController::class, 'store'])->middleware(EnsureRole::class.':dokter')->name('store');
+            Route::get('/bukti/{consent}', [ProcedureConsentController::class, 'evidence'])->name('evidence');
+        });
+
+    Route::middleware(EnsureRole::class.':dokter,pendaftaran')->withoutMiddleware(RedirectRegistrationRole::class)->group(function (): void {
+        Route::get('/pelepasan-informasi/{kunjungan}', [MedicalInformationReleaseController::class, 'show'])->name('information-release.show');
+        Route::post('/pelepasan-informasi/{kunjungan}', [MedicalInformationReleaseController::class, 'store'])->name('information-release.store');
+    });
+
     Route::prefix('persuratan')->name('persuratan.')->middleware(EnsureRole::class.':admin,dokter')->group(function (): void {
         Route::get('/', [PersuratanController::class, 'index'])->name('index');
         Route::get('terbitkan/{kunjungan}', [PersuratanController::class, 'createLetter'])->name('surat.create');
         Route::post('terbitkan/{kunjungan}', [PersuratanController::class, 'storeLetter'])->name('surat.store');
         Route::get('kunjungan/{kunjungan}/resep', [PersuratanController::class, 'printPrescription'])->name('resep.cetak');
         Route::get('surat/{suratMedis}', [PersuratanController::class, 'printLetter'])->name('surat.cetak');
+        Route::post('surat/{suratMedis}/batalkan', [MedicalDocumentVerificationController::class, 'void'])->middleware(EnsureRole::class.':dokter')->name('surat.void');
         Route::get('rujukan/{rujukanInternal}', [PersuratanController::class, 'printReferral'])->name('rujukan.cetak');
         Route::middleware(EnsureAdminRole::class)->group(function (): void {
             Route::post('template', [PersuratanController::class, 'storeTemplate'])->name('template.store');
@@ -83,20 +122,22 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     Route::get('/admin/log-aktivitas', [AdminActivityLogController::class, 'index'])
         ->withoutMiddleware(RedirectRegistrationRole::class)
         ->middleware(EnsureAdminRole::class)->name('admin.log-aktivitas');
+    Route::get('/admin/log-aktivitas/export', [AdminActivityLogController::class, 'export'])->middleware(EnsureAdminRole::class)->name('admin.log-aktivitas.export');
+    Route::get('/admin/log-aktivitas/cetak', [AdminActivityLogController::class, 'print'])->middleware(EnsureAdminRole::class)->name('admin.log-aktivitas.print');
     Route::get('/admin/audit-bantuan', [AdminAssistanceAuditController::class, 'index'])
         ->middleware(EnsureAdminRole::class)
         ->name('admin.audit-bantuan');
     Route::prefix('admin/laporan')->name('admin.laporan.')->middleware(EnsureAdminRole::class)->group(function (): void {
         Route::get('/', [AdminReportController::class, 'index'])->name('index');
-        Route::get('pengkajian/export', [ScreeningController::class, 'exportReport'])->name('pengkajian.export');
-        Route::get('pengkajian', [ScreeningController::class, 'history'])->name('pengkajian');
-        Route::get('tindakan-perawat/cetak', [TindakanPerawatController::class, 'printReport'])->name('tindakan-perawat.cetak');
-        Route::get('tindakan-perawat/export', [TindakanPerawatController::class, 'exportReport'])->name('tindakan-perawat.export');
-        Route::get('tindakan-perawat', [TindakanPerawatController::class, 'report'])->name('tindakan-perawat');
-        Route::get('pemeriksaan', [DokterDashboardController::class, 'appointments'])->name('pemeriksaan');
-        Route::get('pemeriksaan/export', [DokterDashboardController::class, 'exportExaminations'])->name('pemeriksaan.export');
-        Route::get('dokter/{jenis}/export', [DokterDashboardController::class, 'exportActivityReport'])->where('jenis', 'tindakan|obat')->name('dokter.export');
-        Route::get('dokter/{jenis}', [DokterDashboardController::class, 'reports'])->where('jenis', 'tindakan|obat')->name('dokter');
+        Route::get('pengkajian/export', [AggregateClinicalReportController::class, 'export'])->name('pengkajian.export');
+        Route::get('pengkajian', [AggregateClinicalReportController::class, 'index'])->name('pengkajian');
+        Route::get('tindakan-perawat/cetak', [AggregateClinicalReportController::class, 'export'])->name('tindakan-perawat.cetak');
+        Route::get('tindakan-perawat/export', [AggregateClinicalReportController::class, 'export'])->name('tindakan-perawat.export');
+        Route::get('tindakan-perawat', [AggregateClinicalReportController::class, 'index'])->name('tindakan-perawat');
+        Route::get('pemeriksaan', [AggregateClinicalReportController::class, 'index'])->name('pemeriksaan');
+        Route::get('pemeriksaan/export', [AggregateClinicalReportController::class, 'export'])->name('pemeriksaan.export');
+        Route::get('dokter/{jenis}/export', [AggregateClinicalReportController::class, 'export'])->where('jenis', 'tindakan|obat')->name('dokter.export');
+        Route::get('dokter/{jenis}', [AggregateClinicalReportController::class, 'index'])->where('jenis', 'tindakan|obat')->name('dokter');
     });
     Route::get('/perawat/dashboard', PerawatDashboardController::class)
         ->middleware(EnsureRole::class.':perawat')
@@ -166,6 +207,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::delete('poliklinik/ruang/{ruang}', [PoliklinikController::class, 'destroyRuang'])->name('poliklinik.ruang.destroy');
 
         Route::resource('nakes', NakesController::class)->except(['create', 'show', 'edit']);
+        Route::get('nakes/{nakes}/kualifikasi-farmasi', [PharmacyCredentialController::class, 'show'])->name('nakes.pharmacy-credential.show');
+        Route::post('nakes/{nakes}/kualifikasi-farmasi', [PharmacyCredentialController::class, 'store'])->name('nakes.pharmacy-credential.store');
 
         Route::resource('obat', ObatController::class)->except(['create', 'show', 'edit']);
         Route::get('obat-export', [ObatController::class, 'export'])->name('obat.export');
@@ -184,6 +227,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::post('kunjungan/{kunjungan}/lampiran', [VisitAttachmentController::class, 'store'])->name('kunjungan.attachments.store');
             Route::delete('kunjungan/{kunjungan}/lampiran/{attachment}', [VisitAttachmentController::class, 'destroy'])
                 ->whereUuid('attachment')->name('kunjungan.attachments.destroy');
+            Route::post('kunjungan/{kunjungan}/lampiran/{attachment}/pulihkan', [VisitAttachmentController::class, 'restore'])
+                ->whereUuid('attachment')->name('kunjungan.attachments.restore');
         });
         Route::middleware(EnsureAdminRole::class)->group(function (): void {
             Route::post('pasien/{pasien}/verifikasi-kepesertaan', [PasienController::class, 'verifyMembership'])->name('pasien.verify-membership');
@@ -240,11 +285,14 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::post('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'store'])->name('pemeriksaan.store');
             Route::put('pemeriksaan/{kunjungan}', [PemeriksaanController::class, 'update'])->name('pemeriksaan.update');
             Route::post('pemeriksaan/{kunjungan}/diagnosa', [PemeriksaanController::class, 'storeDiagnosa'])->name('pemeriksaan.diagnosa.store');
+            Route::get('pemeriksaan/{kunjungan}/diagnosa/koreksi', [DiagnosisCodingCorrectionController::class, 'show'])->name('pemeriksaan.diagnosa.correction.show');
+            Route::post('pemeriksaan/{kunjungan}/diagnosa/koreksi', [DiagnosisCodingCorrectionController::class, 'store'])->name('pemeriksaan.diagnosa.correction.store');
             Route::patch('pemeriksaan/diagnosa/{diagnosa}/utama', [PemeriksaanController::class, 'primaryDiagnosa'])->name('pemeriksaan.diagnosa.primary');
             Route::delete('pemeriksaan/diagnosa/{diagnosa}', [PemeriksaanController::class, 'destroyDiagnosa'])->name('pemeriksaan.diagnosa.destroy');
             Route::post('pemeriksaan/{kunjungan}/resep', [PemeriksaanController::class, 'storeResep'])->name('pemeriksaan.resep.store');
             Route::delete('pemeriksaan/resep/{resepObat}', [PemeriksaanController::class, 'destroyResep'])->name('pemeriksaan.resep.destroy');
             Route::post('pemeriksaan/{kunjungan}/tindakan', [PemeriksaanController::class, 'storeTindakan'])->name('pemeriksaan.tindakan.store');
+            Route::post('pemeriksaan/{kunjungan}/tindakan/{procedure}/coding', [PemeriksaanController::class, 'reviewProcedureCoding'])->name('pemeriksaan.tindakan.coding');
             Route::delete('pemeriksaan/tindakan/{tindakanKunjungan}', [PemeriksaanController::class, 'destroyTindakan'])->name('pemeriksaan.tindakan.destroy');
             Route::post('pemeriksaan/{kunjungan}/surat', [PemeriksaanController::class, 'storeSurat'])->name('pemeriksaan.surat.store');
             Route::post('pemeriksaan/{kunjungan}/rujukan', [PemeriksaanController::class, 'storeRujukan'])->name('pemeriksaan.rujukan.store');
@@ -268,6 +316,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::middleware([AuditAdminAssistanceFailures::class, EnsureRole::class.':admin,farmasi'])->group(function (): void {
             Route::get('farmasi', [FarmasiController::class, 'index'])->name('farmasi.index');
             Route::get('farmasi/{kunjungan}', [FarmasiController::class, 'show'])->name('farmasi.show');
+            Route::get('farmasi/{kunjungan}/review', [PharmacyClinicalReviewController::class, 'show'])->name('farmasi.review.show');
+            Route::post('farmasi/{kunjungan}/review', [PharmacyClinicalReviewController::class, 'store'])->name('farmasi.review.store');
             Route::post('farmasi/{kunjungan}', [FarmasiController::class, 'store'])->name('farmasi.store');
             Route::post('farmasi/{kunjungan}/resep-luar/{resepObat}', [FarmasiController::class, 'markExternal'])->name('farmasi.resep-luar');
             Route::post('farmasi/{kunjungan}/selesai', [FarmasiController::class, 'selesai'])->name('farmasi.selesai');
@@ -279,10 +329,10 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
 
     // Laporan
     Route::prefix('laporan')->name('laporan.')->middleware(EnsureRole::class.':admin,manajemen')->group(function () {
-        Route::get('kunjungan', [LaporanController::class, 'kunjungan'])->name('kunjungan');
+        Route::get('kunjungan', [AggregateClinicalReportController::class, 'index'])->name('kunjungan');
         Route::get('stok', [LaporanController::class, 'stok'])->name('stok');
         Route::get('stok/export', [LaporanController::class, 'exportStok'])->name('stok.export');
-        Route::get('kunjungan/export', [LaporanController::class, 'exportKunjungan'])->name('kunjungan.export');
+        Route::get('kunjungan/export', [AggregateClinicalReportController::class, 'export'])->name('kunjungan.export');
     });
 
     // Setting

@@ -1,6 +1,11 @@
 import { ClinicalDocumentHeader } from '@/components/clinical-document-header';
 import { printWithFonts } from '@/lib/print-typography';
-import { Head } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { useState } from 'react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { returnToPreviousScreen } from '@/lib/navigation';
@@ -8,6 +13,7 @@ import { letterTypes, toothRows } from '@/components/medical-letter-fields';
 import type { ReactNode } from 'react';
 
 export interface DocumentData {
+    replacementNumber?: string | null;
     kind: 'resep_luar' | 'surat' | 'rujukan_internal';
     clinic: { name: string; address: string | null; phone: string | null; email: string | null; logoUrl: string | null };
     patient: { name: string; medicalRecordNumber: string; gender: string | null; age: number | null; address: string | null; birthDate?: string | null; phone?: string | null; nip?: string | null; department?: string | null; allergy?: string | null };
@@ -15,6 +21,7 @@ export interface DocumentData {
     clinicName: string;
     doctor: { name: string; sip: string | null; str: string | null; signatureDataUrl: string | null };
     number: string | null;
+    verification?: { status: 'valid' | 'void' | 'invalid'; url: string; qrDataUrl: string; voidUrl: string } | null;
     backUrl: string;
     backLabel: string;
     items?: { name: string; type: string; quantity: number; unit: string | null; instructions: string | null; note: string | null }[];
@@ -107,6 +114,8 @@ export function LetterSheet({ document: doc }: { document: DocumentData }) {
         `}</style>
         <div className="letter-head"><ClinicalDocumentHeader clinic={{ ...doc.clinic, name: 'Klinik Pratama' }} /></div>
         <div className="letter-title"><h1>{titleOf(doc)}</h1>{doc.number && <p>Nomor: {doc.number}</p>}</div>
+        {doc.replacementNumber && <p className="letter-box">Dokumen ini menggantikan dokumen nomor {doc.replacementNumber}.</p>}
+        {doc.verification && doc.verification.status !== 'valid' && <p className="letter-box" role="alert"><strong>{doc.verification.status === 'void' ? 'DOKUMEN DIBATALKAN — ARSIP' : 'INTEGRITAS DOKUMEN PERLU DIPERIKSA'}</strong></p>}
         {referral && <><p>Kepada TS Yth.<br />{doc.kind === 'rujukan_internal' ? doc.toClinic : details.recipient || '-'}<br />di {doc.kind === 'rujukan_internal' ? 'Klinik Pratama Kementerian Pariwisata' : details.recipient_address || '-'}</p><p>Mohon pemeriksaan dan penanganan lebih lanjut atas pasien:</p></>}
         {doc.type === 'sakit' && <p>Yang bertanda tangan di bawah ini menerangkan bahwa:</p>}
         {doc.type === 'sehat' && <p>Yang bertanda tangan di bawah ini menerangkan:</p>}
@@ -151,13 +160,18 @@ export function LetterSheet({ document: doc }: { document: DocumentData }) {
             {doc.doctor.signatureDataUrl ? <img className="object-contain" alt={`Tanda tangan ${doc.doctor.name}`} src={doc.doctor.signatureDataUrl} /> : <div className="signature-space" />}
             <p><strong><u>{doc.doctor.name}</u></strong></p>{doc.doctor.sip && <p className="letter-small">SIP: {doc.doctor.sip}</p>}
         </footer>
+        {doc.verification && <div className="mt-6 flex break-inside-avoid items-center gap-3 border-t border-neutral-300 pt-3"><div className="relative size-24 shrink-0 bg-white"><img src={doc.verification.qrDataUrl} alt="QR verifikasi arsip dokumen" className="size-full" /><img src="/logo_kemenpar.webp" alt="" className="absolute top-1/2 left-1/2 size-[12.5%] -translate-x-1/2 -translate-y-1/2 rounded-xs bg-white object-contain" /></div><p className="text-xs leading-5">Pindai untuk memeriksa status arsip penerbitan.<br />QR tidak memuat identitas atau isi medis pasien.<br />Bukan tanda tangan elektronik tersertifikasi.</p></div>}
     </article>;
 }
 
 export default function Cetak({ document }: { document: DocumentData }) {
+    const [voidOpen, setVoidOpen] = useState(false);
+    const voidForm = useForm({ reason: '', signature_password: '' });
     return <><Head title={`${titleOf(document)} · ${document.patient.name}`} />
         <div className="letter-print-main mx-auto w-full max-w-[210mm] space-y-4">
             <div className="letter-toolbar flex flex-wrap items-center justify-between gap-3 print:hidden"><Button onClick={() => returnToPreviousScreen(document.backUrl)} type="button" variant="secondary"><ArrowLeft className="size-4" />{document.backLabel}</Button><Button onClick={() => void printWithFonts()}><Printer className="size-4" />Cetak dokumen</Button></div>
             <LetterSheet document={document} />
+            {document.verification?.status === 'valid' && <div className="print:hidden"><Button variant="secondary" onClick={() => setVoidOpen(true)}>Batalkan dokumen</Button></div>}
+            <Dialog open={voidOpen} onOpenChange={setVoidOpen}><DialogContent><DialogHeader><DialogTitle>Batalkan dokumen</DialogTitle><DialogDescription>Arsip asli dipertahankan. Status pembatalan akan terlihat saat QR diverifikasi.</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (document.verification) voidForm.post(document.verification.voidUrl, { preserveScroll: true, onSuccess: () => setVoidOpen(false), onFinish: () => voidForm.reset('signature_password') }); }}><Field htmlFor="document-void-reason" label="Alasan pembatalan" required error={voidForm.errors.reason}><Textarea id="document-void-reason" required minLength={10} maxLength={2000} rows={3} value={voidForm.data.reason} onChange={(event) => voidForm.setData('reason', event.target.value)} /></Field><Field htmlFor="document-void-password" label="Kata sandi akun dokter" required error={voidForm.errors.signature_password}><Input id="document-void-password" type="password" autoComplete="current-password" required value={voidForm.data.signature_password} onChange={(event) => voidForm.setData('signature_password', event.target.value)} /></Field><div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setVoidOpen(false)}>Batal</Button><Button type="submit" variant="secondary" disabled={voidForm.processing || voidForm.data.reason.trim().length < 10}>Konfirmasi pembatalan</Button></div></form></DialogContent></Dialog>
         </div></>;
 }
