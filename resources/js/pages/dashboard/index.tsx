@@ -1,7 +1,7 @@
 import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { visitStatusFilterLabels } from '@/components/dashboard/status-badge';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePoll } from '@inertiajs/react';
 import {
     ArrowRight,
     ArrowUpRight,
@@ -26,10 +26,18 @@ interface DashboardProps {
         visitsToday: number;
         visitsThisMonth: number;
         prescriptionsToday: number;
+        waitingToday: number;
+        completedToday: number;
+        controlsConfirmed: number;
+        controlsPending: number;
+        asnVisits: number;
+        stockAlerts: number;
+        referralsThisMonth: number;
     };
+    isAdmin: boolean;
     canRegister: boolean;
     visitStatuses: Record<string, number>;
-    visitsByDay: Array<{ tanggal: string; jumlah: number }>;
+    visitsByDay: Array<{ tanggal: string; jumlah: number; poli: Partial<Record<'umum' | 'gigi', number>> }>;
 }
 
 function formatNumber(value: number): string {
@@ -53,9 +61,11 @@ const visitBarTones = [
     'bg-neutral-950/[0.46]',
 ] as const;
 
-export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRegister, followUp }: DashboardProps) {
+export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRegister, isAdmin, followUp }: DashboardProps) {
+    usePoll(30_000, { only: ['stats', 'visitStatuses', 'visitsByDay', 'followUp'] }, { autoStart: isAdmin });
     const activeStatuses = Object.entries(visitStatusFilterLabels).filter(([status]) => (visitStatuses[status] ?? 0) > 0);
-    const peakVisits = Math.max(1, ...visitsByDay.map((day) => day.jumlah));
+    const chartTotal = (day: DashboardProps['visitsByDay'][number]) => isAdmin ? (day.poli.umum ?? 0) + (day.poli.gigi ?? 0) : day.jumlah;
+    const peakVisits = Math.max(1, ...visitsByDay.map(chartTotal));
     const today = visitsByDay.at(-1)?.tanggal ?? '';
     const todayReportUrl = `/laporan/kunjungan?dari=${today}&sampai=${today}`;
     const reportStatusUrl = (status: string) => `/laporan/kunjungan?dari=${today}&sampai=${today}&status=${status}`;
@@ -82,7 +92,13 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
 
                 </div>
 
-                <section aria-label="Ringkasan klinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <section aria-label="Ringkasan klinik" className="grid auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {isAdmin ? <>
+                    <StatCard iconClassName="bg-neutral-100 text-neutral-700" description="Kunjungan bertanggal hari ini" icon={<CalendarCheck2 className="size-5" />} label="Kunjungan hari ini" href={`/pelayanan/antrian?tanggal=${today}`} value={stats.visitsToday} />
+                    <StatCard iconClassName="bg-neutral-100 text-neutral-700" description="Menunggu asesmen atau pemeriksaan" icon={<Activity className="size-5" />} label="Antrean aktif" href={`/pelayanan/antrian?tanggal=${today}`} value={stats.waitingToday} />
+                    <StatCard iconClassName="bg-neutral-100 text-neutral-700" description="Kunjungan berstatus selesai" icon={<ClipboardList className="size-5" />} label="Selesai dilayani" href={`/laporan/kunjungan?dari=${today}&sampai=${today}&status=selesai`} value={stats.completedToday} />
+                    <StatCard iconClassName="bg-neutral-100 text-neutral-700" description={`${formatNumber(stats.controlsConfirmed)} dikonfirmasi · ${formatNumber(stats.controlsPending)} belum konfirmasi`} icon={<CalendarPlus2 className="size-5" />} label="Reservasi kontrol" href={`/pelayanan/antrian?tanggal=${today}`} value={stats.controlsConfirmed + stats.controlsPending} />
+                    </> : <>
                     <StatCard
                         iconClassName="bg-neutral-100 text-neutral-700"
                         description="Data pasien terdaftar"
@@ -115,9 +131,8 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                         href={canRegister ? todayReportUrl : todayReportUrl}
                         value={stats.prescriptionsToday}
                     />
+                    </>}
                 </section>
-                <FollowUp data={followUp} />
-
                 <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(16rem,1fr)_minmax(0,1.6fr)]">
                     <Card>
                         <CardHeader>
@@ -162,14 +177,17 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                             {visitsByDay.length > 0 ? (
                                 <div className="grid min-h-0 flex-1 grid-cols-7 items-end gap-1 border-b border-neutral-100 pb-2 sm:gap-3">
                                     {visitsByDay.map((day, index) => (
-                                        <Link aria-label={`${formatNumber(day.jumlah)} kunjungan pada ${day.tanggal}. Lihat laporan`} className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2 rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" href={`/laporan/kunjungan?dari=${day.tanggal}&sampai=${day.tanggal}`} key={day.tanggal}>
-                                            <span className="text-xs font-medium text-neutral-500">{formatNumber(day.jumlah)}</span>
+                                        <Link aria-label={`${formatNumber(chartTotal(day))} kunjungan pada ${day.tanggal}. Lihat laporan`} className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2 rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" href={`/laporan/kunjungan?dari=${day.tanggal}&sampai=${day.tanggal}`} key={day.tanggal}>
+                                            <span className="text-xs font-medium text-neutral-500">{formatNumber(chartTotal(day))}</span>
                                             <div className="flex min-h-0 w-full flex-1 items-end justify-center">
-                                                <div
-                                                    aria-label={`${formatNumber(day.jumlah)} kunjungan`}
+                                                {isAdmin ? <div className="flex w-full max-w-12 flex-col-reverse overflow-hidden rounded-md" aria-label={`Poli Umum ${day.poli.umum ?? 0}, Poli Gigi ${day.poli.gigi ?? 0}`} style={{ height: `${chartTotal(day) / peakVisits * 100}%` }}>
+                                                    <div className="bg-neutral-900" style={{ flexGrow: day.poli.umum ?? 0 }} />
+                                                    <div className="bg-neutral-400" style={{ flexGrow: day.poli.gigi ?? 0 }} />
+                                                </div> : <div
+                                                    aria-label={`${formatNumber(chartTotal(day))} kunjungan`}
                                                     className={`w-full max-w-12 rounded-lg transition-colors group-hover:bg-neutral-950 group-focus-visible:bg-neutral-950 ${visitBarTones[index % visitBarTones.length]}`}
-                                                    style={{ height: `${(day.jumlah / peakVisits) * 100}%` }}
-                                                />
+                                                    style={{ height: `${(chartTotal(day) / peakVisits) * 100}%` }}
+                                                />}
                                             </div>
                                             <span className="text-xs text-neutral-500">{formatWeekday(day.tanggal)}</span>
                                         </Link>
@@ -179,7 +197,7 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                                 <Empty className="h-44 rounded-xl bg-neutral-50 px-4 py-4" description="Data kunjungan harian akan tampil di sini." size="compact" title="Belum ada data kunjungan dalam periode ini." />
                             )}
                             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
-                                <span>Data kunjungan harian</span>
+                                {isAdmin ? <span className="flex flex-wrap gap-3"><span><span className="mr-1 inline-block size-2 rounded-full bg-neutral-900" />Poli Umum</span><span><span className="mr-1 inline-block size-2 rounded-full bg-neutral-400" />Poli Gigi</span></span> : <span>Data kunjungan harian</span>}
                                 <Link className="inline-flex items-center gap-1 font-medium text-neutral-700 hover:text-neutral-800" href="/laporan/kunjungan">
                                     Lihat laporan <ArrowUpRight className="size-3.5" />
                                 </Link>
@@ -187,6 +205,13 @@ export default function DashboardPage({ stats, visitStatuses, visitsByDay, canRe
                         </CardContent>
                     </Card>
                 </section>
+
+                {isAdmin && <section aria-label="Indikator admin" className="grid auto-rows-fr gap-4 lg:grid-cols-3">
+                    <StatCard iconClassName="bg-neutral-100 text-neutral-700" description={`${formatNumber(stats.asnVisits)} kunjungan ASN aktif`} icon={<UsersRound className="size-5" />} label="Kunjungan bulan ini" href={`/laporan/kunjungan?kelompok=kepesertaan&dari=${today.slice(0, 7)}-01&sampai=${today}`} value={stats.visitsThisMonth} />
+                    <StatCard iconClassName="bg-neutral-100 text-neutral-700" description="Kunjungan dengan surat rujukan pada bulan berjalan" icon={<ArrowRight className="size-5" />} label="Rujukan keluar" href={`/laporan/kunjungan?kelompok=rujukan&dari=${today.slice(0, 7)}-01&sampai=${today}`} value={stats.referralsThisMonth} />
+                    <StatCard iconClassName="bg-neutral-100 text-neutral-700" description="Stok minimum atau kedaluwarsa dalam 90 hari" icon={<Boxes className="size-5" />} label="Perhatian stok obat & BHP" href="/laporan/stok?perhatian=1" value={stats.stockAlerts} />
+                </section>}
+                <FollowUp data={followUp} />
 
                 {canRegister && <Card>
                     <CardHeader>

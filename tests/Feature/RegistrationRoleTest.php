@@ -597,11 +597,11 @@ class RegistrationRoleTest extends TestCase
             );
         $this->get(route('pendaftaran.jadwal-praktik'))
             ->assertInertia(fn (Assert $page) => $page
-                ->where('canManage', true)
+                ->where('canManage', false)
                 ->has('schedules.data', 1)
             );
-        $this->post(route('pendaftaran.store-jadwal-praktik'))->assertSessionHasErrors();
-        $this->put(route('pendaftaran.update-jadwal-praktik', $schedule))->assertSessionHasErrors();
+        $this->post(route('pendaftaran.store-jadwal-praktik'))->assertForbidden();
+        $this->put(route('pendaftaran.update-jadwal-praktik', $schedule))->assertForbidden();
     }
 
     public function test_existing_patient_registration_uses_the_active_doctor_schedule(): void
@@ -659,7 +659,6 @@ class RegistrationRoleTest extends TestCase
     public function test_future_practice_schedules_keep_their_validity_period_and_reject_overlaps(): void
     {
         $this->travelTo('2026-10-16 09:00:00');
-        $registrationUser = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
         $clinic = Poliklinik::create(['kode' => 'UMUM', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
         $doctor = Nakes::create(['kode' => 'DR-10', 'nama' => 'Dokter Jadwal', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
         $scheduleData = [
@@ -672,7 +671,7 @@ class RegistrationRoleTest extends TestCase
             'berlaku_sampai' => '2026-10-30',
         ];
 
-        $this->actingAs($registrationUser)->post(route('pendaftaran.store-jadwal-praktik'), $scheduleData)
+        $this->actingAs(User::factory()->create(['role' => 'admin', 'is_active' => true]))->post(route('pendaftaran.store-jadwal-praktik'), $scheduleData)
             ->assertSessionHasNoErrors();
 
         $schedule = JadwalDokter::where('dokter_id', $doctor->id)->firstOrFail();

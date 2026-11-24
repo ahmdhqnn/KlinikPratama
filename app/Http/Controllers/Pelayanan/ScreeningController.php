@@ -13,6 +13,7 @@ use App\Http\Requests\StoreScreeningRequest;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Poliklinik;
+use App\Models\ProcedureSignatureSession;
 use App\Models\Screening;
 use App\PatientAllergyHistory;
 use App\PatientClinicalHistory;
@@ -464,6 +465,13 @@ class ScreeningController extends Controller
                 'reviewedAt' => $kunjungan->pemeriksaan?->signed_at?->format('d/m/Y H:i'),
 
                 'generalConsent' => app(GeneralConsentService::class)->summary($kunjungan),
+                'signatureWitnessQueue' => $request->user()->role === 'perawat'
+                    ? ProcedureSignatureSession::pending()->whereNotNull('signed_at')
+                        ->whereHas('procedure', fn ($query) => $query->where('kunjungan_id', $kunjungan->id)->whereNull('voided_at'))
+                        ->latest()->get()->map(fn (ProcedureSignatureSession $item): array => [
+                            'name' => $item->snapshot['plan']['name'],
+                            'url' => route('procedure-signature.show', $item),
+                        ]) : [],
                 'attachments' => $kunjungan->attachmentSummaries(),
                 'attachmentArchive' => $kunjungan->attachmentSummaries(true),
                 'attachmentUploadUrl' => route('pelayanan.kunjungan.attachments.store', $kunjungan),

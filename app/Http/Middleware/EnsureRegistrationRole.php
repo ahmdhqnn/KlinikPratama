@@ -2,15 +2,12 @@
 
 namespace App\Http\Middleware;
 
-use App\PracticeScheduleAccess;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureRegistrationRole
 {
-    public function __construct(private PracticeScheduleAccess $schedules) {}
-
     public function handle(Request $request, Closure $next): Response
     {
         if (! auth()->check()) {
@@ -23,13 +20,7 @@ class EnsureRegistrationRole
             return $next($request);
         }
 
-        if ($request->user()->role === 'dokter' && $request->routeIs('pendaftaran.jadwal-praktik', 'pendaftaran.store-jadwal-praktik', 'pendaftaran.update-jadwal-praktik', 'pendaftaran.destroy-jadwal-praktik', 'pendaftaran.jadwal-praktik.*')) {
-            return $next($request);
-        }
-
-        if ($request->user()->role === 'perawat'
-            && $request->routeIs('pendaftaran.store-jadwal-praktik', 'pendaftaran.update-jadwal-praktik', 'pendaftaran.destroy-jadwal-praktik', 'pendaftaran.jadwal-praktik.asn', 'pendaftaran.jadwal-praktik.pengecualian.*')
-            && $this->schedules->canManage($request->user())) {
+        if ($request->user()->hasRole('dokter') && $request->routeIs('pendaftaran.jadwal-praktik')) {
             return $next($request);
         }
 

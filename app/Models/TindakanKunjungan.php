@@ -19,11 +19,14 @@ class TindakanKunjungan extends Model
         'jumlah', 'tooth_fdi', 'catatan', 'bhp_consumed_at',
         'execution_role', 'execution_status', 'performed_by', 'performed_at', 'execution_result',
         'consent_review_required',
+        'doctor_started_at', 'doctor_start_consent_id',
         'coding_status', 'coding_display', 'coding_review_reason', 'coding_reviewed_by', 'coding_reviewed_at',
     ];
 
     protected $casts = [
         'performed_at' => 'datetime',
+        'doctor_started_at' => 'datetime',
+        'doctor_start_consent_id' => 'integer',
         'consent_review_required' => 'boolean',
         'coding_reviewed_at' => 'datetime',
     ];

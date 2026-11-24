@@ -8,7 +8,6 @@ use App\Exports\KunjunganExport;
 use App\Exports\OperationalReportExport;
 use App\Models\Kunjungan;
 use App\Models\Obat;
-use App\Models\ObatBatch;
 use App\Models\Poliklinik;
 use App\VisitQueryService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -75,7 +74,7 @@ class LaporanController extends Controller
         $stokRendahCount = $this->stockQuery([...$filters, 'stok_rendah' => true])->count();
 
         return Inertia::render('laporan/stok', [
-            'filters' => ['search' => $filters['search'] ?? '', 'type' => $filters['jenis'] ?? '', 'lowStockOnly' => $request->boolean('stok_rendah')],
+            'filters' => ['search' => $filters['search'] ?? '', 'type' => $filters['jenis'] ?? '', 'lowStockOnly' => $request->boolean('stok_rendah'), 'alertsOnly' => $request->boolean('perhatian')],
             'exportUrl' => route('laporan.stok.export', $filters),
             'stats' => ['totalItems' => $totalItem, 'lowStockItems' => $stokRendahCount],
             'medicines' => $this->pagination($obat, fn (Obat $medicine): array => [
@@ -87,6 +86,7 @@ class LaporanController extends Controller
                 'usable' => (float) $medicine->usable_stock,
                 'unit' => $medicine->satuan_kecil,
                 'minimumStock' => (float) $medicine->stok_minimum,
+                'nextExpiry' => $medicine->next_expiry,
             ]),
         ]);
     }
@@ -112,11 +112,12 @@ class LaporanController extends Controller
 
         return Excel::download(new OperationalReportExport(
             $this->stockQuery($filters),
-            ['Kode', 'Nama item', 'Jenis', 'Satuan', 'Stok fisik', 'Stok layak pakai', 'Stok minimum', 'Status'],
+            ['Kode', 'Nama item', 'Jenis', 'Satuan', 'Stok fisik', 'Stok layak pakai', 'Stok minimum', 'Status', 'Kedaluwarsa terdekat'],
             fn (Obat $item): array => [
                 $item->kode, $item->nama, strtoupper($item->jenis), $item->satuan_kecil,
                 (float) $item->stok, (float) $item->usable_stock, (float) $item->stok_minimum,
                 (float) $item->usable_stock <= 0 ? 'Habis' : ((float) $item->usable_stock <= (float) $item->stok_minimum ? 'Kritis' : 'Aman'),
+                $item->next_expiry,
             ],
         ), 'laporan-stok-'.today()->toDateString().'.xlsx');
     }
@@ -126,6 +127,7 @@ class LaporanController extends Controller
         return $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'jenis' => ['nullable', 'in:obat,bhp'],
+            'perhatian' => ['nullable', 'boolean'],
             'stok_rendah' => ['nullable', 'boolean'],
         ]);
     }
@@ -133,14 +135,11 @@ class LaporanController extends Controller
     private function stockQuery(array $filters): Builder
     {
         return Obat::withSum(['batches as usable_stock' => fn (Builder $query) => $query->usable()], 'stok')
+            ->withMin(['batches as next_expiry' => fn (Builder $query) => $query->usable()], 'expired_at')
             ->when($filters['search'] ?? null, fn (Builder $query, string $search) => $query->where(fn (Builder $items) => $items->where('nama', 'like', "%{$search}%")->orWhere('kode', 'like', "%{$search}%")))
             ->when($filters['jenis'] ?? null, fn (Builder $query, string $type) => $query->where('jenis', $type))
-            ->when($filters['stok_rendah'] ?? false, fn (Builder $query) => $query->where(
-                ObatBatch::query()->usable()
-                    ->whereColumn('obat_batch.obat_id', 'obat.id')->selectRaw('COALESCE(SUM(stok), 0)'),
-                '<=',
-                DB::raw('obat.stok_minimum'),
-            ))
+            ->when($filters['stok_rendah'] ?? false, fn (Builder $query) => $query->lowUsableStock())
+            ->when($filters['perhatian'] ?? false, fn (Builder $query) => $query->withStockAlert())
             ->orderBy('nama')->orderBy('id');
     }
 

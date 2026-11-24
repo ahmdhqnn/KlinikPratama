@@ -137,7 +137,7 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
         <>
             <form className="space-y-6" onSubmit={submit}>
                 {internalReferral && <Alert dismissLabel="Tutup informasi rujukan"><AlertDescription>Rujukan {internalReferral.number ?? 'internal'}. Pilih tanggal dan dokter yang praktik di poli tujuan.</AlertDescription></Alert>}
-                {form.errors.rujukan_internal_id && <Alert variant="destructive"><AlertDescription>{form.errors.rujukan_internal_id}</AlertDescription></Alert>}
+                {form.errors.rujukan_internal_id && <Alert key={form.errors.rujukan_internal_id} autoDismissMs={12000} variant="destructive"><AlertDescription>{form.errors.rujukan_internal_id}</AlertDescription></Alert>}
                 {selectedPatient?.eligibilityReason ? (
                     <Alert variant="destructive"><AlertDescription>{selectedPatient.eligibilityReason}</AlertDescription></Alert>
                 ) : selectedPatient && (

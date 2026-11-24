@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\JadwalPraktikResolver;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
+use App\Models\ProcedureSignatureSession;
 use App\NurseQueueCounts;
 use App\PerawatClinicResolver;
 use App\VisitOverviewService;
@@ -55,6 +56,21 @@ class PerawatDashboardController extends Controller
 
         return Inertia::render('perawat/dashboard', [
             'clinicName' => $nurse->poliklinik->nama,
+            'signatureWitnessQueue' => fn () => ProcedureSignatureSession::pending()
+                ->where(fn ($query) => $query->whereNull('signed_at')->orWhereDate('signed_at', $today))
+                ->whereHas('procedure', fn ($query) => $query->whereNull('voided_at')->whereNull('performed_at')
+                    ->where('execution_status', 'pending')->whereHas('kunjungan', fn ($visits) => $visits
+                    ->where('poliklinik_id', $clinicId)->whereIn('status', ['pemeriksaan', 'tindakan'])))
+                ->with('procedure.kunjungan.pasien')
+                ->orderByRaw('CASE WHEN signed_at IS NULL THEN 1 ELSE 0 END')->latest('signed_at')->latest()
+                ->get()->map(fn (ProcedureSignatureSession $session): array => [
+                    'id' => $session->id,
+                    'patient' => $session->procedure->kunjungan->pasien->nama,
+                    'visitNumber' => $session->procedure->kunjungan->no_kunjungan,
+                    'procedure' => $session->snapshot['plan']['name'],
+                    'signed' => $session->signed_at !== null,
+                    'url' => route('procedure-signature.show', $session),
+                ]),
             'schedules' => $schedules,
             'followUp' => [...app(VisitOverviewService::class)->summarize(Kunjungan::query()->where('poliklinik_id', $clinicId)), 'href' => route('pendaftaran.kunjungan-per-poli')],
             'stats' => $stats,

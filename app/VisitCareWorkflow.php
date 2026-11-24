@@ -22,6 +22,7 @@ class VisitCareWorkflow
             Farmasi::firstOrCreate(['kunjungan_id' => $visit->id], ['resep_id' => $prescription->id, 'status' => 'menunggu']);
             $visit->update(['status' => 'farmasi']);
         } else {
+            app(ProcedureConsentService::class)->ensureNoPendingSignature($visit);
             $prescription?->update(['status' => 'selesai']);
             $visit->update(['status' => 'selesai']);
         }

@@ -81,6 +81,8 @@ class ClinicalNoteRecorder
                     'note' => $treatment->catatan,
                     'execution_role' => $treatment->execution_role,
                     'execution_status' => $treatment->execution_status,
+                    'doctor_started_at' => $treatment->doctor_started_at?->toIso8601String(),
+                    'doctor_start_consent_id' => $treatment->doctor_start_consent_id,
                     'consent' => $consent ? [
                         'id' => $consent->id,
                         'decision' => $consent->decision,

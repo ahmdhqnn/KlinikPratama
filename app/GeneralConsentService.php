@@ -6,6 +6,7 @@ use App\Models\GeneralConsent;
 use App\Models\Kunjungan;
 use App\Models\Pasien;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -24,7 +25,7 @@ class GeneralConsentService
     {
         return $consent?->decision === 'accepted'
             && $consent->text_version === self::VERSION
-            && ($consent->signature_token ? $this->verifies($consent) : $consent->evidence_sha256)
+            && $this->evidenceIsIntact($consent)
             ? $consent->recorded_at->format('d-m-Y')
             : null;
     }
@@ -91,7 +92,7 @@ class GeneralConsentService
         $latest = $this->latest($visit);
 
         return [
-            'status' => $latest?->signature_token && ! $this->verifies($latest) ? 'invalid' : ($latest?->decision ?? 'undocumented'),
+            'status' => $latest && ! $this->evidenceIsIntact($latest) ? 'invalid' : ($latest?->decision ?? 'undocumented'),
             'currentId' => $latest?->id,
             'recordedAt' => $latest?->recorded_at->format('d/m/Y H:i'),
             'versionCurrent' => $latest?->text_version === self::VERSION,
@@ -105,7 +106,7 @@ class GeneralConsentService
         $consent = $this->latest($visit);
         if ($consent && in_array($consent->decision, ['accepted', 'refused'], true)
             && $consent->text_version === self::VERSION
-            && ($consent->signature_token ? $this->verifies($consent) : $consent->evidence_sha256)) {
+            && $this->evidenceIsIntact($consent)) {
             $visit->forceFill(['general_consent_id' => $consent->id])->save();
 
             return;
@@ -121,5 +122,25 @@ class GeneralConsentService
             return;
         }
         throw ValidationException::withMessages(['general_consent' => 'Dokumentasikan persetujuan atau penolakan umum melalui petugas pendaftaran. Pada kondisi darurat, catat alasan penundaan administrasi minimal 20 karakter.']);
+    }
+
+    /**
+     * A signed in-person attestation is verified by its HMAC. Uploaded evidence
+     * must additionally be present and match its immutable content hash.
+     */
+    public function evidenceIsIntact(GeneralConsent $consent): bool
+    {
+        if ($consent->signature_token) {
+            return $this->verifies($consent);
+        }
+
+        if (! $consent->evidence_path || ! $consent->evidence_sha256
+            || ! Storage::disk('local')->exists($consent->evidence_path)) {
+            return false;
+        }
+
+        $actual = hash_file('sha256', Storage::disk('local')->path($consent->evidence_path));
+
+        return is_string($actual) && hash_equals((string) $consent->evidence_sha256, $actual);
     }
 }

@@ -82,6 +82,7 @@ const otherDetails = {"dental_red_flags": {"option": "other", "field": "dental_r
 type Option = [string, string];
 interface Visit {
     generalConsent?: ConsentSummary;
+    signatureWitnessQueue?: { name: string; url: string }[];
     submittedAt?: string | null; submittedBy?: string | null; reviewedAt?: string | null;
     screeningRevision?: string;
     oralHabitOptions?: Record<string, string>;
@@ -663,6 +664,10 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                 </fieldset>
                 </TabsContent>
             </Tabs>
+            {Boolean(visit.signatureWitnessQueue?.length) && <Card>
+                <CardHeader><CardTitle>Konfirmasi saksi tindakan</CardTitle><CardDescription>Buka sesi jika Anda menyaksikan tanda tangan pasien atau wakil.</CardDescription></CardHeader>
+                <CardContent className="flex flex-wrap gap-2">{visit.signatureWitnessQueue?.map((item) => <Button key={item.url} asChild variant="secondary"><Link href={item.url}>{item.name}</Link></Button>)}</CardContent>
+            </Card>}
             {visit.generalConsent && visit.generalConsent.required && !(['accepted', 'refused'].includes(visit.generalConsent.status) && visit.generalConsent.versionCurrent) && <Card><CardHeader><CardTitle>Dokumentasi persetujuan umum</CardTitle><CardDescription>Persetujuan umum belum lengkap atau sudah dicabut. Petugas pendaftaran mencatat keputusan pasien sebelum pengkajian dikirim.</CardDescription></CardHeader><CardContent className="space-y-4">{(form.errors as Record<string, string>).general_consent && <p role="alert" className="text-sm text-red-600">{(form.errors as Record<string, string>).general_consent}</p>}<Button asChild variant="secondary"><Link href={visit.generalConsent.url}>Tinjau persetujuan umum</Link></Button><Field label="Alasan penundaan administrasi pada kondisi darurat" htmlFor="general-consent-emergency" error={form.errors.general_consent_emergency_reason}><Textarea id="general-consent-emergency" value={form.data.general_consent_emergency_reason} minLength={20} maxLength={2000} onChange={(event) => form.setData('general_consent_emergency_reason', event.target.value)} placeholder="Hanya berlaku bila penilaian klinis menunjukkan kondisi darurat. Catat alasan dan tindak lanjut administrasi." /></Field><p className="text-xs text-neutral-500">Draf tetap dapat disimpan. Penundaan tidak membuat persetujuan fiktif dan dicatat dalam audit.</p></CardContent></Card>}
             {section('attachments', 'Berkas pendukung', 'Tambahkan hasil pemeriksaan atau dokumen lain yang membantu dokter.', <VisitAttachments archive={visit.attachmentArchive} attachments={visit.attachments} uploadUrl={canFill ? visit.attachmentUploadUrl : undefined} disabled={!canFill || form.processing || starting} onPendingChange={setAttachmentPending} />)}
             {visit.submitted && <div className="rounded-xl bg-surface p-4">{text('revision_reason', 'Alasan revisi pengkajian terkirim', true, true)}</div>}

@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.3",
         "bacon/bacon-qr-code": "^3.1",
+        "dompdf/dompdf": "~3.1.6",
         "inertiajs/inertia-laravel": "3.0",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",

@@ -303,7 +303,7 @@ function MedicalRecordPrint({ clinic, patient, visits, findingLabels }: { findin
                     ['Catatan tambahan', report['Catatan untuk dokter gigi'] ? null : normalizeClinicalAnswer(screening.dentalNotes)],
                 ]} />}
                 {exam && <>
-                    <PrintTable title="Anamnesis dokter" rows={[
+                    <PrintTable title="S · Subjektif — Anamnesis dokter" rows={[
                         ['Keluhan utama', normalizeClinicalAnswer(exam.anamnesis)],
                         ['Riwayat penyakit sekarang', normalizeClinicalAnswer(exam.currentHistory)],
                         ['Riwayat penyakit dahulu', normalizeClinicalAnswer(exam.pastHistory)],
@@ -312,7 +312,7 @@ function MedicalRecordPrint({ clinic, patient, visits, findingLabels }: { findin
                         ['Obat yang digunakan', exam.riwayat_obat], ['Riwayat perawatan gigi', exam.riwayat_perawatan_gigi],
                         ['Kebiasaan terkait gigi dan mulut', exam.kebiasaan_gigi], ...socialHistoryRow(exam),
                     ]} />
-                    <PrintTable title={visit.clinicType === 'gigi' ? 'Pemeriksaan gigi dan mulut' : 'Pemeriksaan fisik dokter'} rows={[
+                    <PrintTable title={visit.clinicType === 'gigi' ? 'O · Objektif — Pemeriksaan gigi dan mulut' : 'O · Objektif — Pemeriksaan fisik dokter'} rows={[
                         [visit.clinicType === 'gigi' ? 'Pemeriksaan intraoral' : 'Ringkasan pemeriksaan', normalizeClinicalAnswer(exam.physicalExamination)],
                         ['Ringkasan odontogram kunjungan', normalizeClinicalAnswer(exam.odontogramSummary)],
                         ['Pemeriksaan ekstraoral', exam.extraoralExamination === 'Belum diperiksa' ? null : normalizeClinicalAnswer(exam.extraoralExamination)],
@@ -342,14 +342,14 @@ function MedicalRecordPrint({ clinic, patient, visits, findingLabels }: { findin
                         <h2>Gambar anotasi pemeriksaan</h2>
                         <BodyAnnotationView value={{ strokes: bodyMap.annotation.strokes, note: '' }} />
                     </section>}
-                    <PrintTable title="Diagnosis" rows={[
+                    <PrintTable title="A · Asesmen — Diagnosis" rows={[
                         ...exam.diagnoses.map((item): PrintRow => [
                             [item.type === 'utama' ? 'Utama' : 'Tambahan', item.code, item.codeSystem].filter(Boolean).join(' · '),
                             [item.name, item.toothFdi && `Gigi ${item.toothFdi} ${dentalSurfaceLabel(item.surfaces ?? [])}`, dentalDiagnosisDescription(item)].filter(Boolean).join('\n'),
                         ]),
                         ['Diagnosis banding', normalizeClinicalAnswer(exam.differentialDiagnosis)],
                     ]} />
-                    <PrintTable title="Rencana tindak lanjut dan evaluasi akhir" rows={[
+                    <PrintTable title="P · Rencana — Tindak lanjut dan evaluasi akhir" rows={[
                         ['Terapi nonfarmakologis', exam.nonPharmacological], ['Edukasi', normalizeClinicalAnswer(exam.education)],
                         ['Catatan dokter', normalizeClinicalAnswer(exam.notes)], ['Kontrol berikutnya', exam.nextControl], ...finalEvaluationRows(exam),
                     ]} />

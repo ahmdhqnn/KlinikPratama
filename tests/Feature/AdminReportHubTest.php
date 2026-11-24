@@ -15,7 +15,7 @@ class AdminReportHubTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $this->actingAs($admin)->get(route('admin.laporan.index'))->assertInertia(fn (Assert $page) => $page
-            ->component('admin/laporan')->has('groups', 1)->has('groups.0.reports', 2)
+            ->component('admin/laporan')->has('groups', 2)->has('groups.0.reports', 2)->has('groups.1.reports', 6)
             ->where('groups.0.reports.0.href', route('laporan.kunjungan'))->where('groups.0.reports.1.href', route('laporan.stok')));
     }
 

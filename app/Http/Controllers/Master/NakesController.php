@@ -24,18 +24,24 @@ class NakesController extends Controller
             'search' => ['nullable', 'string', 'max:100'],
             'kategori' => ['nullable', 'in:medis,non_medis'],
             'jabatan' => ['nullable', 'string', 'max:50'],
+            'penugasan' => ['nullable', 'in:perlu-perhatian'],
         ]);
+        $needsClinic = Nakes::query()->where('is_active', true)
+            ->whereIn('jabatan', ['dokter', 'perawat', 'bidan', 'terapis_gigi'])
+            ->whereDoesntHave('poliklinik', fn ($query) => $query->registrable());
         $nakes = Nakes::with(['user', 'poliklinik'])
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($subquery) => $subquery
                 ->where('nama', 'like', "%{$search}%")
                 ->orWhere('kode', 'like', "%{$search}%")))
             ->when($filters['kategori'] ?? null, fn ($query, string $category) => $query->where('kategori', $category))
             ->when($filters['jabatan'] ?? null, fn ($query, string $position) => $query->where('jabatan', $position))
+            ->when(isset($filters['penugasan']), fn ($query) => $query->whereIn('id', (clone $needsClinic)->select('id')))
             ->orderBy('nama')
             ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('master/nakes/index', [
+            'missingClinicCount' => $needsClinic->count(),
             'staff' => [
                 'data' => $nakes->getCollection()->map(fn (Nakes $staffMember): array => [
                     'id' => $staffMember->id,
@@ -65,6 +71,7 @@ class NakesController extends Controller
                 'search' => $filters['search'] ?? '',
                 'category' => $filters['kategori'] ?? '',
                 'position' => $filters['jabatan'] ?? '',
+                'assignment' => $filters['penugasan'] ?? '',
             ],
             'categories' => [
                 ['value' => 'medis', 'label' => 'Tenaga medis'],
@@ -146,7 +153,7 @@ class NakesController extends Controller
             'jenis_kelamin' => ['nullable', 'in:L,P'],
             'kategori' => ['required', 'in:medis,non_medis'],
             'jabatan' => ['required', Rule::in(['dokter', 'perawat', 'bidan', 'terapis_gigi', 'farmasi', 'apotek', 'pendaftaran', 'lab', 'petugas_lab'])],
-            'poliklinik_id' => ['required_if:jabatan,perawat,bidan,terapis_gigi', 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
+            'poliklinik_id' => ['required_if:jabatan,dokter,perawat,bidan,terapis_gigi', 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'no_sip' => ['nullable', 'string', 'max:100'],
             'no_str' => ['nullable', 'string', 'max:100'],
             'telepon' => ['nullable', 'string', 'max:20'],

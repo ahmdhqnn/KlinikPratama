@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
-import { useState, type HTMLAttributes } from 'react';
+import { useEffect, useState, type HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 const alertVariants = cva('relative w-full rounded-xl border px-4 py-3 text-sm [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-3.5 [&>svg]:size-4 [&>svg~*]:pl-7', {
@@ -15,18 +15,27 @@ const alertVariants = cva('relative w-full rounded-xl border px-4 py-3 text-sm [
     defaultVariants: { variant: 'default' },
 });
 
-type AlertProps = HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants> & { dismissLabel?: string };
+type AlertProps = HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants> & { dismissLabel?: string; autoDismissMs?: number };
 
-export function Alert({ className, variant, role, children, dismissLabel, ...props }: AlertProps) {
+export function Alert({ className, variant, role, children, dismissLabel, autoDismissMs, ...props }: AlertProps) {
     const [dismissed, setDismissed] = useState(false);
+
+    const [paused, setPaused] = useState(false);
+    const duration = autoDismissMs ?? (dismissLabel || variant === 'success' ? 9000 : undefined);
+    const closeLabel = dismissLabel ?? (duration ? 'Tutup pesan' : undefined);
+    useEffect(() => {
+        if (!duration || paused || dismissed) return;
+        const timer = window.setTimeout(() => setDismissed(true), duration);
+        return () => window.clearTimeout(timer);
+    }, [duration, paused, dismissed]);
 
     if (dismissed) return null;
 
     return (
-        <div className={cn(alertVariants({ variant }), dismissLabel && 'min-h-12 pr-14', className)} role={role ?? (variant === 'destructive' ? 'alert' : 'status')} {...props}>
+        <div className={cn(alertVariants({ variant }), closeLabel && 'min-h-12 pr-14', className)} role={role ?? (variant === 'destructive' ? 'alert' : 'status')} {...props} onMouseEnter={() => setPaused(true)} onMouseLeave={(event) => setPaused(event.currentTarget.contains(document.activeElement))} onFocus={() => setPaused(true)} onBlur={(event) => setPaused(event.currentTarget.matches(':hover') || event.currentTarget.contains(event.relatedTarget))}>
             {children}
-            {dismissLabel && (
-                <button aria-label={dismissLabel} className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-neutral-500 [&:is(button)]:pl-0" onClick={() => setDismissed(true)} type="button">
+            {closeLabel && (
+                <button aria-label={closeLabel} className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-neutral-500 [&:is(button)]:pl-0" onClick={() => setDismissed(true)} type="button">
                     <X aria-hidden="true" className="size-4" />
                 </button>
             )}

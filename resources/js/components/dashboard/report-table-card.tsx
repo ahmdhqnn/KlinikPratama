@@ -6,7 +6,7 @@ export function ReportTableCard({ title, description, icon, pagination, children
     title: string;
     description: string;
     icon: ReactNode;
-    pagination: PaginationData;
+    pagination?: PaginationData;
     children: ReactNode;
 }) {
     return (
@@ -23,7 +23,7 @@ export function ReportTableCard({ title, description, icon, pagination, children
             <CardContent className="p-0">
                 <div className="overflow-x-auto">{children}</div>
             </CardContent>
-            <Pagination pagination={pagination} />
+            {pagination && <Pagination pagination={pagination} />}
         </Card>
     );
 }

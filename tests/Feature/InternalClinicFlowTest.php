@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\ClinicDocumentNumber;
 use App\Exports\KepesertaanTemplateExport;
+use App\GeneralConsentService;
 use App\HakLayananVerifier;
 use App\Models\JadwalDokter;
 use App\Models\Kepesertaan;
@@ -313,7 +314,13 @@ class InternalClinicFlowTest extends TestCase
         $clinic = Poliklinik::create(['kode' => 'DUP-TEST', 'nama' => 'Umum', 'jenis' => 'umum', 'is_active' => true]);
         $doctor = Nakes::create(['kode' => 'DR-DUP', 'nama' => 'Dokter Duplikat', 'kategori' => 'medis', 'jabatan' => 'dokter', 'is_active' => true]);
         JadwalDokter::create(['dokter_id' => $doctor->id, 'poliklinik_id' => $clinic->id, 'hari' => 'jumat', 'berlaku_mulai' => '2026-10-16', 'jam_mulai' => '08:00', 'jam_selesai' => '16:00', 'is_active' => true]);
-        $this->actingAs($actor)->post(route('pendaftaran.store-pasien-baru'), ['kepesertaan_id' => $member->id, 'nama' => 'PALSU', 'nik' => '9999999999999999', 'tanggal_lahir' => '1990-01-01', 'jenis_kelamin' => 'L', 'poliklinik_id' => $clinic->id])->assertSessionHasErrors('kepesertaan_id');
+        $this->actingAs($actor)->post(route('pendaftaran.store-pasien-baru'), [
+            'kepesertaan_id' => $member->id, 'nama' => 'PALSU', 'nik' => '9999999999999999',
+            'tanggal_lahir' => '1990-01-01', 'jenis_kelamin' => 'L', 'poliklinik_id' => $clinic->id,
+            'general_consent_confirmed' => true,
+            'general_consent_version' => GeneralConsentService::VERSION,
+            'general_consent_relationship' => 'patient',
+        ])->assertSessionHasErrors('kepesertaan_id');
         $this->assertDatabaseCount('pasien', 1);
         $this->assertDatabaseCount('kunjungan', 0);
     }
