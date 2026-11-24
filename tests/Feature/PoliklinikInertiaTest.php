@@ -13,7 +13,7 @@ class PoliklinikInertiaTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_can_manage_clinics_and_examination_rooms_inertia_pages(): void
+    public function test_admin_can_manage_rooms_of_an_existing_clinic(): void
     {
         $admin = User::create([
             'name' => 'Administrator',
@@ -47,15 +47,10 @@ class PoliklinikInertiaTest extends TestCase
                 ->where('clinic.rooms.0.name', 'Ruang 1')
             );
 
-        $this->post(route('master.poliklinik.store'), [
-            'kode' => 'GIGI',
-            'nama' => 'Poli Gigi',
-            'jenis' => 'gigi',
-            'is_active' => true,
-        ])->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('poliklinik', ['kode' => 'GIGI', 'nama' => 'Poli Gigi']);
+        $this->post('/master/poliklinik', ['kode' => 'LAIN'])->assertMethodNotAllowed();
 
-        $this->delete(route('master.poliklinik.ruang.destroy', $room))->assertSessionHasNoErrors();
-        $this->assertDatabaseMissing('ruang_poli', ['id' => $room->id]);
+        $this->put(route('master.poliklinik.ruang.update', $room), ['nama' => 'Ruang Pemeriksaan 1', 'is_active' => false])
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('ruang_poli', ['id' => $room->id, 'nama' => 'Ruang Pemeriksaan 1', 'is_active' => false]);
     }
 }

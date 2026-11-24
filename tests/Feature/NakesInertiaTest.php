@@ -84,6 +84,7 @@ class NakesInertiaTest extends TestCase
             'jenis_kelamin' => 'P',
             'kategori' => 'medis',
             'jabatan' => 'dokter',
+            'poliklinik_id' => $clinic->id,
             'no_sip' => 'SIP-001',
             'no_str' => 'STR-001',
             'telepon' => '08123456789',

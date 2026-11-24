@@ -297,7 +297,7 @@ class GeneralAssessmentAlignmentTest extends TestCase
             ->where('document.sections.history.Keluhan utama', 'Batuk sejak kemarin'));
     }
 
-    public function test_general_doctor_continues_nurse_history_and_systems_while_preserving_original_findings(): void
+    public function test_general_doctor_records_current_history_independently_and_keeps_nurse_findings(): void
     {
         [$nurse, $doctor, $visit] = $this->context();
         $payload = $this->payload();
@@ -309,14 +309,15 @@ class GeneralAssessmentAlignmentTest extends TestCase
         $source = $visit->fresh()->screening->general_assessment;
         $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
             ->where('visit.examinationFormDefaults.anamnesis', 'Batuk sejak kemarin')
-            ->where('visit.examinationFormDefaults.currentHistory', fn ($value) => str_contains($value, 'Pasien mengeluhkan Batuk sejak kemarin.') && str_contains($value, 'Keluhan berlangsung selama 1 hari.') && str_contains($value, 'Gejala penyerta: Mual; Demam.') && str_contains($value, 'Keluhan berlokasi di Dada.'))
+            ->where('visit.examinationFormDefaults.currentHistory', null)
             ->where('visit.examinationFormDefaults.reviewOfSystems', [])
             ->where('visit.screening.systemAssessment', $source['systems']));
         $this->post(route('pelayanan.pemeriksaan.start', $visit))->assertSessionHasNoErrors();
         $review = [...$source['systems'], 'respiratory' => ['status' => 'positive', 'notes' => 'Batuk berdahak, tanpa sesak setelah dikonfirmasi']];
-        $this->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'anamnesis', 'anamnesis' => 'Batuk sejak kemarin', 'review_of_systems' => $review])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'anamnesis', 'anamnesis' => 'Batuk sejak kemarin', 'riwayat_penyakit_sekarang' => 'Pasien mengonfirmasi batuk berdahak sejak dua hari.', 'review_of_systems' => $review])->assertSessionHasNoErrors();
         $this->assertSame($source, $visit->fresh()->screening->general_assessment);
         $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('visit.examinationFormDefaults.currentHistory', 'Pasien mengonfirmasi batuk berdahak sejak dua hari.')
             ->where('visit.examinationFormDefaults.reviewOfSystems.respiratory.notes', 'Batuk berdahak, tanpa sesak setelah dikonfirmasi')
             ->where('visit.screening.systemAssessment.respiratory.notes', 'Batuk berdahak'));
     }
@@ -332,13 +333,13 @@ class GeneralAssessmentAlignmentTest extends TestCase
         $this->assertStringNotContainsString('berkurang', $narrative);
     }
 
-    public function test_dental_current_history_continues_nurse_narrative_and_preserves_doctor_edits(): void
+    public function test_dental_current_history_starts_blank_and_preserves_doctor_edits(): void
     {
         [$nurse, $doctor, $visit] = $this->context('gigi');
         $payload = [...$this->payload(), 'keluhan' => 'Nyeri gigi geraham', 'general_assessment' => ['progression' => 'memburuk', 'progression_notes' => 'Lebih sering saat malam'], 'lokasi_nyeri_gigi' => 'Geraham kanan bawah', 'nyeri_karakter' => 'Berdenyut', 'durasi_keluhan_gigi' => 'Hilang timbul', 'pemicu_nyeri_gigi' => ['dingin'], 'nyeri_pereda' => 'Istirahat', 'keluhan_tambahan' => 'Mual', 'skala_nyeri' => 4];
         $this->actingAs($nurse)->beginNursingAssessment($visit)->post(route('pelayanan.screening.store', $visit), $payload)->assertSessionHasNoErrors();
         $this->actingAs($doctor)->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page
-            ->where('visit.examinationFormDefaults.currentHistory', fn ($value) => str_contains($value, 'Pasien mengeluhkan Nyeri gigi geraham.') && str_contains($value, 'Keluhan berlokasi di Geraham kanan bawah.') && str_contains($value, 'Keluhan dipicu oleh Dingin.') && str_contains($value, 'Keluhan memburuk.') && str_contains($value, 'Skala nyeri 4 dari 10.')));
+            ->where('visit.examinationFormDefaults.currentHistory', null));
         $this->post(route('pelayanan.pemeriksaan.start', $visit))->assertSessionHasNoErrors();
         $this->post(route('pelayanan.pemeriksaan.store', $visit), ['section' => 'anamnesis', 'anamnesis' => 'Nyeri gigi geraham', 'riwayat_penyakit_sekarang' => 'Hasil klarifikasi dokter gigi: nyeri spontan pada malam hari'])->assertSessionHasNoErrors();
         $this->get(route('pelayanan.pemeriksaan.show', $visit))->assertInertia(fn (Assert $page) => $page

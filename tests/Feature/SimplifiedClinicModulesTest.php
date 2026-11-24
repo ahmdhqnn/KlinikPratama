@@ -93,12 +93,11 @@ class SimplifiedClinicModulesTest extends TestCase
 
         $this->actingAs($admin)->get(route('master.poliklinik.index'))->assertInertia(fn (Assert $page) => $page
             ->has('clinics.data', 1)->missing('depots')
-            ->where('clinicTypes', fn ($types): bool => ! collect($types)->contains('value', 'lab')));
-        $this->put(route('master.poliklinik.update', $clinic), [
-            'kode' => 'UMUM', 'nama' => 'Poli Umum Klinik', 'jenis' => 'umum', 'is_active' => true, 'depo_obat_id' => '',
-        ])->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('poliklinik', ['id' => $clinic->id, 'nama' => 'Poli Umum Klinik', 'depo_obat_id' => $depot->id]);
-        $this->post(route('master.poliklinik.store'), ['kode' => 'LAB-NEW', 'nama' => 'Lab baru', 'jenis' => 'lab', 'is_active' => true])->assertSessionHasErrors('jenis');
+            ->where('clinics.data.0.type', 'umum')->missing('clinicTypes'));
+        $this->put('/master/poliklinik/'.$clinic->id, ['nama' => 'Poli Umum Klinik'])->assertMethodNotAllowed();
+        $this->post('/master/poliklinik', ['kode' => 'LAB-NEW', 'jenis' => 'lab'])->assertMethodNotAllowed();
+
+        $this->assertDatabaseHas('poliklinik', ['id' => $clinic->id, 'nama' => 'Poli umum', 'depo_obat_id' => $depot->id]);
         $this->assertDatabaseMissing('poliklinik', ['kode' => 'LAB-NEW']);
     }
 

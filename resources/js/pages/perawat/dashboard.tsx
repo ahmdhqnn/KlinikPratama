@@ -6,9 +6,11 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import { VisitTable, type DashboardVisit } from '@/components/dashboard/visit-table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 
 interface Props {
+    signatureWitnessQueue?: { id: string; patient: string; visitNumber: string; procedure: string; signed: boolean; url: string }[];
     clinicName: string;
     schedules: { id: number; doctorId: number; doctor: string; clinic: string; start: string; end: string }[];
     followUp: FollowUpData;
@@ -25,11 +27,11 @@ interface Props {
     visits: PaginationData & { data: Array<DashboardVisit & { triage: string | null; priority: string | null }> };
 }
 
-export default function NurseDashboard({ stats, visits, followUp, schedules, clinicName }: Props) {
+export default function NurseDashboard({ stats, visits, followUp, schedules, clinicName, signatureWitnessQueue = [] }: Props) {
     useEffect(() => {
         const refresh = () => {
             if (document.visibilityState === 'visible') {
-                router.reload({ only: ['stats', 'visits', 'schedules'], async: true });
+                router.reload({ only: ['stats', 'visits', 'schedules', 'signatureWitnessQueue'], async: true });
             }
         };
         const interval = window.setInterval(refresh, 15_000);
@@ -72,6 +74,29 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                     <StatCard description="Instruksi dokter yang menunggu pelaksanaan, termasuk kunjungan sebelumnya" href="/pelayanan/tindakan-perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Tindakan perawat" value={stats.menunggu_tindakan} />
                 </section>
                 <FollowUp data={followUp} />
+                <Card id="saksi-persetujuan" className="scroll-mt-6">
+                    <CardHeader>
+                        <CardTitle>Saksi persetujuan tindakan</CardTitle>
+                        <CardDescription>Konfirmasi setelah Anda menyaksikan langsung pasien atau wakil menandatangani keputusan.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {signatureWitnessQueue.length === 0 ? <p className="text-sm text-neutral-500">Belum ada sesi tanda tangan aktif di poli Anda.</p> :
+                            <ul className="divide-y divide-neutral-100">
+                                {signatureWitnessQueue.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                                    <div className="min-w-0">
+                                        <p className="break-words text-sm font-semibold">{item.patient} <span className="font-normal text-neutral-500">· {item.visitNumber}</span></p>
+                                        <p className="break-words text-sm text-neutral-600">{item.procedure}</p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Badge variant={item.signed ? 'warning' : 'examination'}>{item.signed ? 'Menunggu saksi' : 'Menunggu pasien'}</Badge>
+                                        <Button asChild size="sm" variant={item.signed ? 'default' : 'secondary'}>
+                                            <Link href={item.url}>{item.signed ? 'Konfirmasi saksi' : 'Lihat sesi'}</Link>
+                                        </Button>
+                                    </div>
+                                </li>)}
+                            </ul>}
+                    </CardContent>
+                </Card>
                 <Card>
                     <CardHeader>
                         <CardTitle>Akses cepat</CardTitle>

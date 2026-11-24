@@ -170,19 +170,6 @@ class PemeriksaanController extends Controller
         };
         $nurseGeneral = $kunjungan->poliklinik?->jenis === 'umum' && $kunjungan->screening?->submitted_at
             ? $kunjungan->screening->general_assessment ?? [] : [];
-        $nurseNarrativeData = $nurseGeneral;
-        if ($kunjungan->poliklinik?->jenis === 'gigi' && $kunjungan->screening?->submitted_at) {
-            $dentalSummary = $kunjungan->screening->handoverSummary();
-            $nurseNarrativeData = [
-                ...($kunjungan->screening->general_assessment ?? []),
-                'location' => $kunjungan->screening->lokasi_nyeri_gigi,
-                'character' => $kunjungan->screening->nyeri_karakter,
-                'pattern' => $kunjungan->screening->durasi_keluhan_gigi,
-                'triggers' => $dentalSummary['Pemicu keluhan'] ?? null,
-                'relief' => $kunjungan->screening->nyeri_pereda,
-            ];
-        }
-        $nurseCurrentHistory = GeneralAssessment::currentIllnessNarrative($nurseNarrativeData, $kunjungan->screening?->keluhan, $kunjungan->screening?->lama_keluhan, $kunjungan->screening?->keluhan_tambahan, $kunjungan->screening?->skala_nyeri);
         $examinationFormDefaults = [
             'reviewOfSystems' => is_array($effectiveNote) ? ($effectiveNote['review_of_systems'] ?? []) : ($kunjungan->pemeriksaan?->review_of_systems ?? []),
             'anamnesis' => is_array($effectiveNote)
@@ -190,7 +177,7 @@ class PemeriksaanController extends Controller
                 : $firstRecordedValue($kunjungan->pemeriksaan?->anamnesis, $kunjungan->screening?->keluhan),
             'currentHistory' => ClinicalAnswer::normalize(is_array($effectiveNote)
                 ? ($effectiveNote['riwayat_penyakit_sekarang'] ?? null)
-                : $firstRecordedValue($kunjungan->pemeriksaan?->riwayat_penyakit_sekarang, $nurseCurrentHistory)),
+                : $kunjungan->pemeriksaan?->riwayat_penyakit_sekarang),
             'pastHistory' => is_array($effectiveNote)
                 ? ClinicalAnswer::normalize($effectiveNote['riwayat_penyakit_dahulu'] ?? null)
                 : $clinicalHistory['riwayat_penyakit'],
@@ -380,6 +367,7 @@ class PemeriksaanController extends Controller
                         'executionRole' => is_array($item) ? ($item['execution_role'] ?? 'dokter') : $item->execution_role,
                         'codingStatus' => is_array($item) ? ($item['coding_status'] ?? 'legacy') : $item->coding_status,
                         'codingRevision' => $model ? app(ProcedureCodingReview::class)->revision($model) : null,
+                        'completed' => $model && ($model->performed_at !== null || $model->execution_status === 'completed'),
                         'consent' => $model ? $procedureConsent->summary($model) : null,
                     ];
                 })->values(),
@@ -757,6 +745,9 @@ class PemeriksaanController extends Controller
             $this->authorizeMutableVisit($visit);
             $procedure = $visit->tindakanKunjungan()->whereKey($procedure->id)->lockForUpdate()->firstOrFail();
             abort_if($procedure->performed_at !== null || $procedure->execution_status === 'completed', 409, 'Tindakan sudah dilaksanakan; koreksi harus melalui versi klinis.');
+            if (app(ProcedureConsentService::class)->hasPendingSignature($procedure)) {
+                throw ValidationException::withMessages(['revision' => 'Selesaikan atau batalkan sesi tanda tangan tindakan sebelum mengubah coding.']);
+            }
             $data = $request->validate([
                 'revision' => ['required', 'string', 'size:64'],
                 'classification' => ['required', Rule::in(['mapped', 'not_applicable'])],
@@ -999,13 +990,43 @@ class PemeriksaanController extends Controller
         });
     }
 
+    public function startDoctorProcedure(Request $request, Kunjungan $kunjungan, TindakanKunjungan $procedure, ProcedureConsentService $consent, ClinicalAuditRecorder $audit): RedirectResponse
+    {
+        $data = $request->validate(['consent_id' => ['required', 'integer'], 'confirmed' => ['required', 'accepted']]);
+
+        return DB::transaction(function () use ($request, $kunjungan, $procedure, $consent, $audit, $data): RedirectResponse {
+            $visit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeMutableVisit($visit);
+            $procedure = $visit->tindakanKunjungan()->whereKey($procedure->id)->lockForUpdate()->firstOrFail();
+            $current = $consent->ensureCanPerform($procedure);
+            if (! $consent->requiresDoctorStart($procedure, $current) || $current->id !== (int) $data['consent_id']) {
+                throw ValidationException::withMessages(['procedure_consent' => 'Status persetujuan berubah. Tinjau kembali tindakan sebelum memulai.']);
+            }
+
+            if ($procedure->doctor_started_at === null || $procedure->doctor_start_consent_id !== $current->id) {
+                $procedure->update(['doctor_started_at' => now(), 'doctor_start_consent_id' => $current->id]);
+                $audit->record($request, 'procedure.doctor_started', $visit->pasien_id, $visit->id, [
+                    'procedure_id' => $procedure->id, 'consent_id' => $current->id,
+                ]);
+            }
+
+            return back()->with('success', 'Mulai tindakan dokter tercatat.');
+        });
+    }
+
     public function destroyTindakan(TindakanKunjungan $tindakanKunjungan): RedirectResponse
     {
         return DB::transaction(function () use ($tindakanKunjungan): RedirectResponse {
             $kunjungan = Kunjungan::whereKey($tindakanKunjungan->kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeMutableVisit($kunjungan);
+            $tindakanKunjungan = $kunjungan->tindakanKunjungan()->whereKey($tindakanKunjungan->id)->lockForUpdate()->firstOrFail();
+            if ($tindakanKunjungan->performed_at !== null || $tindakanKunjungan->execution_status === 'completed') {
+                throw ValidationException::withMessages(['reason' => 'Tindakan sudah dilaksanakan. Catat koreksi melalui rekam medis.']);
+            }
+            if (app(ProcedureConsentService::class)->hasPendingSignature($tindakanKunjungan)) {
+                throw ValidationException::withMessages(['reason' => 'Buka Persetujuan tindakan untuk menyelesaikan atau membatalkan sesi tanda tangan sebelum membatalkan rencana.']);
+            }
             app(ClinicalAuditRecorder::class)->record(request(), 'clinical_draft.destroyTindakan', $kunjungan->pasien_id, $kunjungan->id);
-            $this->authorizeMutableVisit($tindakanKunjungan->load('kunjungan')->kunjungan);
             $tindakanKunjungan->cancelClinicalEntry(request());
 
             return back()->with('success', 'Rencana tindakan dibatalkan; catatan asli tetap tersimpan.');
@@ -1164,6 +1185,7 @@ class PemeriksaanController extends Controller
             $lockedVisit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
             $this->authorizeMutableVisit($lockedVisit);
             $assistedWrite = app(AdminClinicalAssistance::class)->latestWrite($lockedVisit);
+            app(ProcedureConsentService::class)->ensureNoPendingSignature($lockedVisit);
             if ($assistedWrite) {
                 $request->validate([
                     'review_admin_assistance' => ['required', 'accepted'],
@@ -1248,8 +1270,13 @@ class PemeriksaanController extends Controller
             }
 
             $allProcedures = $lockedVisit->tindakanKunjungan()->with('tindakan.bhp.obat')->orderBy('id')->lockForUpdate()->get();
+            $consentService = app(ProcedureConsentService::class);
             foreach ($allProcedures as $procedure) {
-                app(ProcedureConsentService::class)->ensureCanPerform($procedure);
+                $decision = $consentService->ensureCanPerform($procedure);
+                if ($consentService->requiresDoctorStart($procedure, $decision)
+                    && ($procedure->doctor_started_at === null || $procedure->doctor_start_consent_id !== $decision->id)) {
+                    throw ValidationException::withMessages(['procedure_start' => 'Catat mulai tindakan '.$consentService->plan($procedure)['name'].' dari tab Tindakan medis sebelum menandatangani pemeriksaan.']);
+                }
             }
             $procedures = $allProcedures->where('execution_role', 'dokter');
             if ($procedures->isNotEmpty()) {
@@ -1258,9 +1285,10 @@ class PemeriksaanController extends Controller
                     'review_performed_procedures.accepted' => 'Konfirmasi bahwa seluruh tindakan dokter yang dicatat benar-benar telah dilakukan.',
                 ]);
             }
-            $supplyIds = $procedures->flatMap(fn (TindakanKunjungan $procedure) => $procedure->tindakan?->bhp->pluck('obat_id') ?? collect())->unique()->sort()->values();
+            $proceduresToComplete = $procedures->filter(fn (TindakanKunjungan $procedure): bool => $procedure->performed_at === null && $procedure->execution_status !== 'completed');
+            $supplyIds = $proceduresToComplete->flatMap(fn (TindakanKunjungan $procedure) => $procedure->tindakan?->bhp->pluck('obat_id') ?? collect())->unique()->sort()->values();
             Obat::whereIn('id', $supplyIds)->orderBy('id')->lockForUpdate()->get();
-            foreach ($procedures as $procedure) {
+            foreach ($proceduresToComplete as $procedure) {
                 app(VisitCareWorkflow::class)->consumeSupplies($procedure, $lockedVisit, $request->user());
                 $procedure->update(['execution_status' => 'completed', 'performed_by' => $request->user()->id, 'performed_at' => now(), 'execution_result' => $procedure->catatan]);
             }

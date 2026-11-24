@@ -120,6 +120,14 @@ class LaporanInertiaTest extends TestCase
             ->component('laporan/agregat')->where('rows.0.total', 1)->missing('visits')
         );
 
+        $visit->update(['unit_kerja' => 'Unit Uji', 'kategori_peserta' => 'asn', 'hak_layanan_snapshot' => ['status_kepegawaian' => 'aktif']]);
+        $this->get(route('laporan.kunjungan', [
+            'kelompok' => 'unit', 'poli' => 'umum', 'kategori' => 'asn',
+            'status_kepegawaian' => 'aktif', 'dari' => today()->toDateString(), 'sampai' => today()->toDateString(),
+        ]))->assertInertia(fn (Assert $page) => $page
+            ->has('rows', 1)->where('rows.0.status', 'Unit Uji')->where('rows.0.total', 1)->missing('visits')
+        );
+
         $this->get('/laporan/pendapatan')->assertNotFound();
         $this->get('/laporan/utilisasi')->assertNotFound();
 

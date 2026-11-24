@@ -24,12 +24,13 @@ interface Treatment {
     result: string | null;
     performedBy: string | null;
     performedAt: string | null;
-    consent?: { decision: string; currentId: number | null; recordedAt: string | null; planMatches: boolean; requiredReview: boolean; url: string };
+    consent?: { decision: string; currentId: number | null; recordedAt: string | null; planMatches: boolean; requiredReview: boolean; signaturePending?: boolean; url: string };
     completeUrl: string;
 }
 
-const consentAllowsExecution = (consent: Treatment['consent']) => !consent || (!consent.requiredReview && consent.decision === 'unreviewed')
-    || (consent.planMatches && ['accepted', 'not_required', 'emergency'].includes(consent.decision));
+const consentAllowsExecution = (consent: Treatment['consent']) => !consent || (!consent.signaturePending
+    && ((!consent.requiredReview && consent.decision === 'unreviewed')
+        || (consent.planMatches && ['accepted', 'oral', 'not_required', 'emergency'].includes(consent.decision))));
 
 interface Props {
     visit: {
@@ -106,7 +107,7 @@ function TreatmentForm({ item, canComplete, adminAssistance }: { item: Treatment
             </CardHeader>
             <CardContent className="space-y-6">
                 <p className="whitespace-pre-wrap text-sm text-neutral-700">{item.instructions || 'Tidak ada instruksi tambahan.'}</p>
-                {item.consent && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 p-4"><div><p className="text-sm font-medium text-neutral-900">{item.consent.decision === 'accepted' ? 'Persetujuan pasien tercatat' : item.consent.decision === 'not_required' ? 'Dokter menetapkan consent tidak diperlukan' : item.consent.decision === 'emergency' ? 'Pengecualian darurat terdokumentasi' : item.consent.decision === 'refused' ? 'Pasien menolak tindakan' : item.consent.decision === 'withdrawn' ? 'Persetujuan dicabut' : 'Persetujuan belum ditinjau'}</p><p className="mt-1 text-xs text-neutral-500">{item.consent.recordedAt ? `Tercatat ${item.consent.recordedAt}` : item.consent.requiredReview ? 'Hubungi dokter sebelum tindakan.' : 'Tindakan legacy tanpa klaim consent historis.'}</p></div><Button asChild size="sm" variant="secondary"><Link href={item.consent.url}>Lihat riwayat consent</Link></Button></div>}
+                {item.consent && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 p-4"><div><p className="text-sm font-medium text-neutral-900">{item.consent.decision === 'accepted' ? 'Persetujuan pasien tercatat' : item.consent.decision === 'oral' ? 'Persetujuan lisan tercatat' : item.consent.decision === 'not_required' ? 'Dokter menetapkan consent tidak diperlukan' : item.consent.decision === 'emergency' ? 'Pengecualian darurat terdokumentasi' : item.consent.decision === 'refused' ? 'Pasien menolak tindakan' : item.consent.decision === 'withdrawn' ? 'Persetujuan dicabut' : 'Persetujuan belum ditinjau'}</p><p className="mt-1 text-xs text-neutral-500">{item.consent.recordedAt ? `Tercatat ${item.consent.recordedAt}` : item.consent.requiredReview ? 'Hubungi dokter sebelum tindakan.' : 'Tindakan legacy tanpa klaim consent historis.'}</p></div><Button asChild size="sm" variant="secondary"><Link href={item.consent.url}>Lihat riwayat consent</Link></Button></div>}
                 {completed ? (
                     <div className="space-y-2 rounded-xl border border-neutral-200 p-4">
                         <p className="whitespace-pre-wrap text-sm text-neutral-900">{item.result}</p>
@@ -115,7 +116,7 @@ function TreatmentForm({ item, canComplete, adminAssistance }: { item: Treatment
                 ) : canComplete ? (
                     <form className="space-y-5" onSubmit={submit}>
                         {adminAssistance && <AssistanceReasonField error={form.errors.assistance_reason} id={`assistance-${item.id}`} value={form.data.assistance_reason} onChange={(value) => form.setData('assistance_reason', value)} disabled={form.processing} />}
-                        {stockError && <Alert variant="destructive"><AlertTitle>Pelaksanaan belum tersimpan</AlertTitle><AlertDescription>{stockError}</AlertDescription></Alert>}
+                        {stockError && <Alert key={stockError} autoDismissMs={12000} variant="destructive"><AlertTitle>Pelaksanaan belum tersimpan</AlertTitle><AlertDescription>{stockError}</AlertDescription></Alert>}
                         <Field htmlFor={`result-${item.id}`} label="Hasil pelaksanaan dan respons pasien" error={form.errors.execution_result} required>
                             <Textarea id={`result-${item.id}`} maxLength={5000} minLength={3} required disabled={form.processing} value={form.data.execution_result} onChange={(event) => form.setData('execution_result', event.target.value)} placeholder="Catat tindakan yang benar-benar dilakukan, hasil, dan respons pasien." />
                         </Field>

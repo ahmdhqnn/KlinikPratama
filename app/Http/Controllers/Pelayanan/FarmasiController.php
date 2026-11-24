@@ -17,6 +17,7 @@ use App\Models\StokMutasi;
 use App\PatientAllergyHistory;
 use App\PersediaanRecorder;
 use App\PharmacyClinicalReviewService;
+use App\ProcedureConsentService;
 use App\VisitQueryService;
 use App\VisitSchedulingService;
 use Illuminate\Database\Eloquent\Builder;
@@ -417,6 +418,7 @@ class FarmasiController extends Controller
             }
 
             abort_unless($lockedVisit->status === 'farmasi', 422, 'Kunjungan tidak berada pada tahap farmasi.');
+            app(ProcedureConsentService::class)->ensureNoPendingSignature($lockedVisit);
             $this->scheduling->ensureServiceDate($lockedVisit);
             app(AdminPharmacyAssistance::class)->authorizeVisit($request, $lockedVisit);
 

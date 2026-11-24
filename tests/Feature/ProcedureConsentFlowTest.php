@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\ClinicalAuditRecorder;
+use App\Models\ClinicalTerminology;
 use App\Models\InformedConsent;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\Pasien;
 use App\Models\Poliklinik;
+use App\Models\ProcedureConsentTemplate;
+use App\Models\ProcedureSignatureSession;
 use App\Models\Screening;
 use App\Models\TindakanKunjungan;
 use App\Models\User;
@@ -26,6 +29,208 @@ class ProcedureConsentFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_finalization_requires_start_against_the_current_written_decision(): void
+    {
+        [$doctor, , $visit, $procedure] = $this->context();
+        $procedure->update(['kode_icd9cm' => null, 'coding_status' => 'not_applicable', 'coding_review_reason' => 'Tindakan sintetis untuk uji persetujuan.', 'coding_reviewed_by' => $doctor->id, 'coding_reviewed_at' => now()]);
+        $exam = $visit->pemeriksaan()->create([
+            'dokter_id' => $visit->dokter_id, 'anamnesis' => 'Keluhan sintetis dari pasien.', 'pemeriksaan_fisik' => 'Temuan pemeriksaan sintetis.',
+        ]);
+        $exam->diagnosa()->create(['kode_icd10' => 'Z00.0', 'nama_diagnosa' => 'Pemeriksaan sintetis', 'jenis' => 'utama']);
+        $performed = $visit->tindakanKunjungan()->create([
+            'nama_tindakan' => 'Tindakan legacy tercatat', 'jumlah' => 1, 'execution_role' => 'dokter',
+            'execution_status' => 'completed', 'performed_by' => $doctor->id, 'performed_at' => now()->subMinutes(10)->startOfSecond(),
+        ]);
+        $store = route('procedure-consent.store', [$visit, $procedure]);
+        $start = route('pelayanan.pemeriksaan.tindakan.start', [$visit, $procedure]);
+        $finish = route('pelayanan.pemeriksaan.selesai', $visit);
+        $review = ['review_final_plan' => true, 'review_nursing_assessment' => true, 'review_performed_procedures' => true,
+            'screening_revision' => $visit->screening->revisionToken(), 'signature_password' => 'password'];
+
+        $this->actingAs($doctor)->post($store, $this->decision($procedure))->assertSessionHasNoErrors();
+        $consent = InformedConsent::sole();
+        $this->post($finish, $review)->assertSessionHasErrors('procedure_start');
+        $this->assertNull($exam->fresh()->signed_at);
+
+        $this->post($start, ['consent_id' => $consent->id, 'confirmed' => true])->assertSessionHasNoErrors();
+        $this->post($store, [...$this->decision($procedure), 'current_id' => $consent->id, 'decision' => 'withdrawn'])->assertSessionHasNoErrors();
+        $withdrawal = InformedConsent::latest('id')->firstOrFail();
+        $this->post($finish, $review)->assertSessionHasErrors('procedure_consent');
+        $this->post($store, [...$this->decision($procedure), 'current_id' => $withdrawal->id])->assertSessionHasNoErrors();
+        $this->post($finish, $review)->assertSessionHasErrors('procedure_start');
+        $this->assertSame('pending', $procedure->fresh()->execution_status);
+
+        $newConsent = InformedConsent::latest('id')->firstOrFail();
+        $this->post($start, ['consent_id' => $newConsent->id, 'confirmed' => true])->assertSessionHasNoErrors();
+        $this->post($finish, $review)->assertSessionHasNoErrors();
+        $this->assertSame('completed', $procedure->fresh()->execution_status);
+        $this->assertSame($newConsent->id, $procedure->fresh()->doctor_start_consent_id);
+        $this->assertTrue($performed->fresh()->performed_at->equalTo($performed->performed_at));
+        $this->assertNotNull($exam->fresh()->signed_at);
+    }
+
+    public function test_qr_pairs_privately_and_only_a_clinic_witness_can_archive_the_signed_decision(): void
+    {
+        [$doctor, $nurse, $visit, $procedure] = $this->context();
+        $data = [...$this->decision($procedure), 'start_signature' => true, 'identity_verified' => true];
+        unset($data['evidence'], $data['witness_name']);
+        $this->actingAs($doctor)->post(route('procedure-consent.store', [$visit, $procedure]), $data)->assertSessionHasNoErrors();
+        $session = ProcedureSignatureSession::sole();
+        $dashboard = route('perawat.dashboard');
+        $this->actingAs($nurse)->get($dashboard)->assertInertia(fn (Assert $page) => $page
+            ->has('signatureWitnessQueue', 1)->where('signatureWitnessQueue.0.id', $session->id)
+            ->where('signatureWitnessQueue.0.signed', false));
+        $otherClinic = Poliklinik::create(['kode' => 'IC-OTHER', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+        $otherNurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        Nakes::create(['kode' => 'IC-OTHER-NURSE', 'nama' => 'Perawat Poli Lain', 'kategori' => 'medis', 'jabatan' => 'perawat',
+            'user_id' => $otherNurse->id, 'poliklinik_id' => $otherClinic->id, 'is_active' => true]);
+        $this->actingAs($otherNurse)->get($dashboard)->assertInertia(fn (Assert $page) => $page->has('signatureWitnessQueue', 0));
+        $this->get(route('procedure-signature.show', $session))->assertNotFound();
+        $this->actingAs($doctor);
+        $this->get(route('procedure-signature.show', $session))->assertInertia(
+            fn (Assert $page) => $page->where('status', 'waiting')->where('canWitness', false)->where('code', $session->credentials['code']),
+        );
+        $this->delete(route('pelayanan.pemeriksaan.tindakan.destroy', $procedure), ['reason' => 'Rencana sintetis dibatalkan.'])
+            ->assertSessionHasErrors('reason');
+        $this->assertNull($procedure->fresh()->voided_at);
+        try {
+            app(ProcedureConsentService::class)->ensureNoPendingSignature($visit);
+            $this->fail('Kunjungan dapat ditutup saat sesi QR masih terbuka.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('procedure_consent', $exception->errors());
+        }
+        $token = $session->credentials['token'];
+        $patient = route('procedure-signature.patient', $token);
+        $pair = route('procedure-signature.pair', $token);
+        $sign = route('procedure-signature.sign', $token);
+        $witness = route('procedure-signature.witness', $session);
+        $strokes = json_encode([[['x' => 50, 'y' => 70], ['x' => 70, 'y' => 45], ['x' => 90, 'y' => 65], ['x' => 120, 'y' => 50]]], JSON_THROW_ON_ERROR);
+        $this->post($witness, ['witnessed' => true])->assertForbidden();
+        auth()->guard()->logout();
+        $this->get($patient)->assertOk()->assertDontSee('Indikasi sintetis');
+        $this->post($sign, ['confirmed' => true, 'signature' => $strokes])->assertForbidden();
+        $this->from($patient)->post($pair, ['pair_code' => '000000'])->assertSessionHasErrors('pair_code');
+        $this->post($pair, ['pair_code' => $session->credentials['code']])->assertRedirect($patient);
+        $this->get($patient)->assertOk()->assertSee('Indikasi sintetis');
+        $this->post($sign, ['confirmed' => true, 'signature' => $strokes])->assertOk()->assertSee('Tanda tangan diterima');
+        $this->post($sign, ['confirmed' => true, 'signature' => $strokes])->assertStatus(410);
+        $this->assertDatabaseCount('informed_consent', 0);
+
+        $this->actingAs($nurse)->get(route('procedure-signature.show', $session))->assertInertia(
+            fn (Assert $page) => $page->where('status', 'signed')->where('canWitness', true)->where('code', null),
+        );
+        $this->get($dashboard)->assertInertia(fn (Assert $page) => $page
+            ->has('signatureWitnessQueue', 1)->where('signatureWitnessQueue.0.signed', true));
+        $this->actingAs($nurse)->post($witness, ['witnessed' => true])->assertRedirect()->assertSessionHasNoErrors();
+        $this->get($dashboard)->assertInertia(fn (Assert $page) => $page->has('signatureWitnessQueue', 0));
+        $record = InformedConsent::sole();
+        $this->assertSame($nurse->id, $record->procedure_snapshot['witness_user_id']);
+        $this->assertSame($doctor->id, $record->recorded_by);
+        $this->assertSame($data['explanation'], $record->explanation);
+        $this->assertStringStartsWith('%PDF-', Storage::disk('local')->get($record->evidence_path));
+        $this->assertSame($record->evidence_sha256, hash('sha256', Storage::disk('local')->get($record->evidence_path)));
+        $this->get(route('procedure-consent.evidence', [$visit, $procedure, $record]))->assertDownload();
+        $this->post($witness, ['witnessed' => true])->assertStatus(409);
+        $start = route('pelayanan.pemeriksaan.tindakan.start', [$visit, $procedure]);
+        $this->post($start, ['consent_id' => $record->id, 'confirmed' => true])->assertForbidden();
+        $this->actingAs($doctor)->post($start, ['consent_id' => $record->id, 'confirmed' => false])->assertSessionHasErrors('confirmed');
+        $this->post($start, ['consent_id' => $record->id + 1, 'confirmed' => true])->assertSessionHasErrors('procedure_consent');
+        $this->assertNull($procedure->fresh()->doctor_started_at);
+        $this->post($start, ['consent_id' => $record->id, 'confirmed' => true])->assertSessionHasNoErrors();
+        $this->post($start, ['consent_id' => $record->id, 'confirmed' => true])->assertSessionHasNoErrors();
+        $this->assertNotNull($procedure->fresh()->doctor_started_at);
+        $this->assertSame($record->id, $procedure->fresh()->doctor_start_consent_id);
+        $this->assertSame(1, DB::table('clinical_audit_events')->where('action', 'procedure.doctor_started')->count());
+        app(ProcedureConsentService::class)->ensureCanPerform($procedure);
+        app(ProcedureConsentService::class)->ensureNoPendingSignature($visit);
+        Storage::disk('local')->put($record->evidence_path, 'Arsip sintetis telah berubah');
+        $this->post($start, ['consent_id' => $record->id, 'confirmed' => true])->assertSessionHasErrors('procedure_consent');
+        $this->expectException(ValidationException::class);
+        app(ProcedureConsentService::class)->ensureNoPendingSignature($visit);
+    }
+
+    public function test_qr_rejects_changed_plans_and_expired_sessions(): void
+    {
+        [$doctor, , $visit, $procedure] = $this->context();
+        $data = [...$this->decision($procedure), 'start_signature' => true, 'identity_verified' => true];
+        unset($data['evidence']);
+        $this->actingAs($doctor)->post(route('procedure-consent.store', [$visit, $procedure]), $data)->assertSessionHasNoErrors();
+        $session = ProcedureSignatureSession::sole();
+        $token = $session->credentials['token'];
+        $this->post(route('procedure-signature.pair', $token), ['pair_code' => $session->credentials['code']])->assertRedirect();
+        $procedure->update(['jumlah' => 2]);
+        $this->get(route('procedure-signature.patient', $token))->assertStatus(409);
+        $this->travel(6)->minutes();
+        $this->get(route('procedure-signature.patient', $token))->assertStatus(410);
+        $this->assertDatabaseCount('informed_consent', 0);
+    }
+
+    public function test_only_published_sop_can_enable_oral_consent_and_accepted_text_is_preserved(): void
+    {
+        [$doctor, , $visit, $procedure] = $this->context();
+        $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        ClinicalTerminology::create([
+            'code_system' => 'icd9cm_procedure', 'code_type' => 'procedure', 'release' => 'TEST', 'code' => '86.3',
+            'display' => 'Entri sintetis pengujian', 'is_active' => true,
+        ]);
+        $procedure->update(['code_system' => 'icd9cm_procedure', 'code_release' => 'TEST']);
+        $payload = [
+            'code' => '86.3', 'release' => 'TEST', 'clinic_type' => 'umum', 'version' => 'v1', 'mode' => 'oral',
+            'sop_reference' => 'SOP-SINTETIS', 'explanation' => $this->base($procedure)['explanation'],
+        ];
+        $masterUrl = route('master.consent-templates.store');
+        $showUrl = route('procedure-consent.show', [$visit, $procedure]);
+        $this->actingAs($doctor)->post($masterUrl, $payload)->assertForbidden();
+        $this->actingAs($admin)->post($masterUrl, $payload)->assertSessionHasNoErrors();
+        $template = ProcedureConsentTemplate::sole();
+        $this->get(route('master.consent-templates.index'))->assertInertia(fn (Assert $page) => $page
+            ->component('master/terminologi/consent-templates')
+            ->where('templates.0.active', false));
+        $this->actingAs($doctor)->getJson($showUrl)->assertOk()->assertJsonPath('template', null);
+        $publishUrl = route('master.consent-templates.publish', $template);
+        $this->actingAs($admin)->post($publishUrl)->assertSessionHasErrors('approved');
+        $this->post($publishUrl, ['approved' => true])->assertSessionHasNoErrors();
+        $this->put(route('master.consent-templates.update', $template), $payload)->assertSessionHasErrors('approved');
+
+        $this->actingAs($doctor)->getJson($showUrl)->assertJsonPath('template.id', $template->id);
+        $storeUrl = route('procedure-consent.store', [$visit, $procedure]);
+        $oral = [...$this->base($procedure), 'decision' => 'oral', 'signer_name' => 'Pasien Consent Tindakan', 'signer_relationship' => 'patient'];
+        $this->post($storeUrl, $oral)->assertSessionHasErrors('template_id');
+        $this->post($storeUrl, [...$oral, 'template_id' => $template->id, 'template_revision' => $template->fresh()->revision()])->assertSessionHasNoErrors();
+
+        $record = InformedConsent::sole();
+        $this->assertSame('oral', $record->decision);
+        $this->assertSame('v1', $record->procedure_snapshot['consent_template']['version']);
+        $this->assertSame($oral['explanation'], $record->explanation);
+        $this->assertNull($record->evidence_path);
+        app(ProcedureConsentService::class)->ensureCanPerform($procedure);
+
+        $this->actingAs($admin)->post($masterUrl, [
+            ...$payload, 'version' => 'v2', 'mode' => 'conditional', 'trigger_condition' => 'Pemicu tertulis sintetis.',
+        ])->assertSessionHasNoErrors();
+        $revision = ProcedureConsentTemplate::latest('id')->firstOrFail();
+        $this->post(route('master.consent-templates.publish', $revision), ['approved' => true])->assertSessionHasNoErrors();
+        $freshOral = [...$oral, 'request_id' => (string) Str::uuid(), 'current_id' => $record->id, 'template_id' => $revision->id, 'template_revision' => $revision->fresh()->revision()];
+        $this->actingAs($doctor)->post($storeUrl, $freshOral)->assertSessionHasErrors('decision');
+        $this->post($storeUrl, [...$freshOral, 'written_trigger_absent' => true])->assertSessionHasNoErrors();
+        $this->assertTrue(InformedConsent::latest('id')->firstOrFail()->procedure_snapshot['written_trigger_absent']);
+        $this->assertSame('v1', $record->fresh()->procedure_snapshot['consent_template']['version']);
+
+        $this->actingAs($admin)->put(route('master.consent-templates.update', $revision), [
+            ...$payload, 'version' => 'v2', 'mode' => 'written', 'approved' => true,
+        ])->assertSessionHasNoErrors();
+        $this->actingAs($doctor)->getJson($showUrl)->assertJsonPath('summary.planMatches', false);
+        $stale = [...$freshOral, 'request_id' => (string) Str::uuid()];
+        $this->post($storeUrl, $stale)->assertSessionHasErrors('template_id');
+        $this->assertSame('v1', $record->fresh()->procedure_snapshot['consent_template']['version']);
+
+        $this->actingAs($admin)->delete(route('master.consent-templates.destroy', $revision))->assertSessionHasNoErrors();
+        $this->assertSoftDeleted($revision);
+        $this->actingAs($doctor)->getJson($showUrl)->assertJsonPath('template', null);
+        $this->actingAs($admin)->post(route('master.consent-templates.restore', $revision))->assertSessionHasNoErrors();
+        $this->actingAs($doctor)->getJson($showUrl)->assertJsonPath('template.mode', 'written');
+    }
+
     public function test_new_procedure_requires_review_and_accepted_evidence_is_private_immutable_and_idempotent(): void
     {
         [$doctor, , $visit, $procedure] = $this->context();
@@ -33,7 +238,11 @@ class ProcedureConsentFlowTest extends TestCase
         $this->actingAs($doctor)->get(route('procedure-consent.show', [$visit, $procedure]))
             ->assertInertia(fn (Assert $page) => $page->where('summary.decision', 'unreviewed')->where('summary.requiredReview', true)
                 ->where('planHash', $service->planHash($procedure))->where('canWrite', true));
+        $this->getJson(route('procedure-consent.show', [$visit, $procedure]))
+            ->assertOk()->assertJsonPath('summary.decision', 'unreviewed')->assertJsonPath('planHash', $service->planHash($procedure));
         $payload = $this->decision($procedure);
+        $this->post(route('procedure-consent.store', [$visit, $procedure]), [...$payload, 'witness_name' => null])
+            ->assertSessionHasErrors('witness_name');
         $this->post(route('procedure-consent.store', [$visit, $procedure]), $payload)->assertSessionHasNoErrors();
         $consent = InformedConsent::sole();
         $this->assertSame($procedure->id, $consent->tindakan_kunjungan_id);
@@ -58,6 +267,50 @@ class ProcedureConsentFlowTest extends TestCase
         $this->assertDatabaseHas('clinical_audit_events', ['action' => 'procedure_consent.recorded', 'actor_id' => $doctor->id]);
     }
 
+    public function test_short_classification_records_doctor_review_without_patient_evidence(): void
+    {
+        [$doctor, , $visit, $procedure] = $this->context();
+        $payload = $this->classification($procedure);
+        unset($payload['explanation']);
+        $url = route('procedure-consent.store', [$visit, $procedure]);
+
+        $this->actingAs($doctor)->post($url, [...$payload, 'explained' => false])->assertSessionHasErrors('explained');
+        $this->assertDatabaseCount('informed_consent', 0);
+        $this->post($url, $payload)->assertSessionHasNoErrors();
+
+        $record = InformedConsent::sole();
+        $this->assertSame('not_required', $record->decision);
+        $this->assertSame($doctor->id, $record->recorded_by);
+        $this->assertNull($record->explanation);
+        $this->assertNull($record->evidence_path);
+    }
+
+    public function test_password_confirmation_can_be_reused_for_the_same_visit_for_fifteen_minutes(): void
+    {
+        config(['clinical_security.idle_minutes' => 30]);
+        [$doctor, , $visit, $procedure] = $this->context();
+        $url = route('procedure-consent.store', [$visit, $procedure]);
+        $otherVisit = $visit->replicate();
+        $otherVisit->no_kunjungan = 'KNJ-IC-OUTSIDE-SESSION';
+        $otherVisit->save();
+        $otherProcedure = $procedure->replicate();
+        $otherProcedure->kunjungan_id = $otherVisit->id;
+        $otherProcedure->save();
+        $this->actingAs($doctor)->post($url, [...$this->decision($procedure), 'remember_verification' => true])
+            ->assertSessionHasNoErrors();
+        $this->getJson($url)->assertJsonPath('passwordVerified', true);
+
+        $outside = [...$this->classification($otherProcedure), 'signature_password' => null];
+        $this->post(route('procedure-consent.store', [$otherVisit, $otherProcedure]), $outside)->assertSessionHasErrors('signature_password');
+
+        $payload = [...$this->decision($procedure), 'current_id' => InformedConsent::sole()->id, 'signature_password' => null];
+        $this->post($url, $payload)->assertSessionHasNoErrors();
+        $this->travel(15)->minutes();
+        $this->getJson($url)->assertJsonPath('passwordVerified', false);
+        $this->post($url, $payload)->assertSessionHasErrors('signature_password');
+        $this->assertDatabaseCount('informed_consent', 2);
+    }
+
     public function test_roles_and_clinic_scope_limit_read_and_write_access(): void
     {
         [$doctor, $nurse, $visit, $procedure] = $this->context();
@@ -71,6 +324,7 @@ class ProcedureConsentFlowTest extends TestCase
         $otherClinic = Poliklinik::create(['kode' => 'IC-OTHER', 'nama' => 'Poli Gigi Lain', 'jenis' => 'gigi', 'is_active' => true]);
         Nakes::where('user_id', $nurse->id)->update(['poliklinik_id' => $otherClinic->id]);
         $this->actingAs($nurse)->get(route('procedure-consent.show', [$visit, $procedure]))->assertNotFound();
+        $this->getJson(route('procedure-consent.show', [$visit, $procedure]))->assertNotFound();
     }
 
     public function test_stale_plan_cross_visit_and_tampered_evidence_are_rejected(): void
@@ -93,6 +347,21 @@ class ProcedureConsentFlowTest extends TestCase
         $this->get(route('procedure-consent.evidence', [$visit, $procedure, $consent]))->assertStatus(409);
         $this->expectException(ValidationException::class);
         app(ProcedureConsentService::class)->ensureCanPerform($procedure->fresh());
+    }
+
+    public function test_changed_patient_approved_plan_cannot_be_reclassified_through_the_short_form(): void
+    {
+        [$doctor, , $visit, $procedure] = $this->context();
+        $url = route('procedure-consent.store', [$visit, $procedure]);
+        $this->actingAs($doctor)->post($url, $this->decision($procedure))->assertSessionHasNoErrors();
+        $consent = InformedConsent::sole();
+        $procedure->update(['jumlah' => 2]);
+        $payload = [...$this->classification($procedure->fresh()), 'current_id' => $consent->id];
+        unset($payload['explanation']);
+
+        $this->post($url, $payload)->assertSessionHasErrors('decision');
+
+        $this->assertDatabaseCount('informed_consent', 1);
     }
 
     public function test_refusal_and_withdrawal_lock_execution_and_cannot_be_reclassified_away(): void
@@ -118,14 +387,19 @@ class ProcedureConsentFlowTest extends TestCase
     public function test_emergency_requires_documented_triage_and_post_procedure_backdating_is_rejected(): void
     {
         [$doctor, , $visit, $procedure] = $this->context();
-        $payload = [...$this->classification($procedure), 'decision' => 'emergency'];
+        $payload = [...$this->classification($procedure), 'decision' => 'emergency', 'emergency_without_available_signer' => true];
         $this->actingAs($doctor)->post(route('procedure-consent.store', [$visit, $procedure]), $payload)->assertSessionHasErrors('decision');
         $visit->screening()->update(['prioritas_layanan' => 'darurat']);
+        $this->post(route('procedure-consent.store', [$visit, $procedure]), [...$payload, 'emergency_without_available_signer' => false])
+            ->assertSessionHasErrors('emergency_without_available_signer');
         $this->post(route('procedure-consent.store', [$visit, $procedure]), $payload)->assertSessionHasNoErrors();
+        $this->assertTrue(InformedConsent::sole()->procedure_snapshot['emergency_without_available_signer']);
         app(ProcedureConsentService::class)->ensureCanPerform($procedure->fresh());
 
         $second = $visit->tindakanKunjungan()->create(['nama_tindakan_manual' => 'Tindakan sudah selesai', 'nama_tindakan' => 'Tindakan sudah selesai', 'jumlah' => 1, 'execution_role' => 'dokter', 'execution_status' => 'completed', 'consent_review_required' => true, 'performed_by' => $doctor->id, 'performed_at' => now()]);
         $this->post(route('procedure-consent.store', [$visit, $second]), $this->decision($second))->assertStatus(409);
+        $this->delete(route('pelayanan.pemeriksaan.tindakan.destroy', $second), ['reason' => 'Alasan pembatalan uji sintetis.'])->assertSessionHasErrors('reason');
+        $this->assertNull($second->fresh()->voided_at);
         $this->assertDatabaseMissing('informed_consent', ['tindakan_kunjungan_id' => $second->id]);
         $this->assertSame([], Storage::disk('local')->allFiles('consents/procedures/'.$visit->id.'/'.$second->id));
     }

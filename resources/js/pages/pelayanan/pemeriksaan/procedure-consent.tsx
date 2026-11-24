@@ -6,7 +6,7 @@ import {
     FileCheck2,
     ShieldCheck,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Attachment } from "@/components/ui/attachment";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 type Decision =
     | "accepted"
+    | "oral"
     | "refused"
     | "withdrawn"
     | "not_required"
@@ -41,7 +42,8 @@ type Explanation = {
     prognosis: string;
 };
 
-interface Props {
+export interface ProcedureConsentProps {
+    onSaved?: () => void;
     visit: { id: number; patient: string; medicalRecordNumber: string };
     procedure: {
         id: number;
@@ -73,6 +75,14 @@ interface Props {
     textVersion: string;
     planHash: string;
     canWrite: boolean;
+    witnessSuggestion?: string | null;
+    diagnosisSuggestion?: string | null;
+    passwordVerified?: boolean;
+    template?: { id: number; revision: string; version: string; mode: string; sop_reference: string; trigger_condition: string | null; explanation: Explanation } | null;
+    templateArchived?: boolean;
+    signatureAvailable?: boolean;
+    emergencyAvailable?: boolean;
+    signatureSessionUrl?: string | null;
     requestId: string;
     storeUrl: string;
     backUrl: string;
@@ -80,6 +90,7 @@ interface Props {
 
 const labels: Record<Decision, string> = {
     accepted: "Disetujui pasien",
+    oral: "Disetujui secara lisan",
     refused: "Ditolak pasien",
     withdrawn: "Persetujuan dicabut",
     not_required: "Tidak memerlukan informed consent",
@@ -146,15 +157,31 @@ export default function ProcedureConsent({
     requestId,
     storeUrl,
     backUrl,
-}: Props) {
+    onSaved,
+    witnessSuggestion,
+    diagnosisSuggestion,
+    passwordVerified = false,
+    template,
+    templateArchived = false,
+    signatureAvailable = false,
+    emergencyAvailable = false,
+    signatureSessionUrl,
+}: ProcedureConsentProps) {
+    const [useQr, setUseQr] = useState(signatureAvailable);
     const form = useForm({
         request_id: requestId,
         current_id: summary.currentId,
         plan_hash: planHash,
+        template_id: template?.id ?? null,
+        template_revision: template?.revision ?? null,
+        written_trigger_absent: false,
         text_version: textVersion,
         decision: "" as Exclude<Decision, "unreviewed"> | "",
         signature_password: "",
+        remember_verification: false,
         explained: false,
+        emergency_without_available_signer: false,
+        identity_verified: false,
         signer_name: "",
         signer_relationship: "patient",
         representative_verification: "",
@@ -164,21 +191,30 @@ export default function ProcedureConsent({
         evidence: null as File | null,
     });
     const fieldErrors = form.errors as Record<string, string>;
-    const patientDecision = ["accepted", "refused", "withdrawn"].includes(
+    const classificationOnly = form.data.decision === "not_required";
+    const oralDecision = form.data.decision === "oral";
+    const emergencyDecision = form.data.decision === "emergency";
+    const reviewWrittenTrigger = oralDecision && template?.mode === "conditional";
+    const needsPassword = !passwordVerified || Boolean(form.errors.signature_password);
+    const patientDecision = ["accepted", "oral", "refused", "withdrawn"].includes(
         form.data.decision,
     );
+    const startQr = signatureAvailable && useQr && patientDecision && !oralDecision;
     const decisionBlocked =
         summary.decision === "refused" || summary.decision === "withdrawn";
     const ready = Boolean(
         form.data.decision &&
-        form.data.signature_password &&
-        form.data.reason.trim().length >= 20 &&
-        form.data.explained &&
-        explanationLabels.every(
+        (!needsPassword || form.data.signature_password) &&
+        (oralDecision && !form.data.reason.trim() || form.data.reason.trim().length >= 20) &&
+        (emergencyDecision ? form.data.emergency_without_available_signer : form.data.explained) &&
+        (!reviewWrittenTrigger || form.data.written_trigger_absent) &&
+        (startQr ? form.data.identity_verified : form.data.decision !== "accepted" || form.data.witness_name.trim()) &&
+        (classificationOnly || explanationLabels.every(
             ([key]) => form.data.explanation[key].trim().length >= 3,
-        ) &&
+        )) &&
         (!patientDecision ||
-            (form.data.signer_name.trim().length >= 2 && form.data.evidence)),
+            ((startQr && form.data.signer_relationship === "patient" || form.data.signer_name.trim().length >= 2)
+                && (startQr || oralDecision || form.data.evidence))),
     );
 
     useEffect(() => {
@@ -186,10 +222,16 @@ export default function ProcedureConsent({
             request_id: requestId,
             current_id: summary.currentId,
             plan_hash: planHash,
+            template_id: template?.id ?? null,
+            template_revision: template?.revision ?? null,
+            written_trigger_absent: false,
             text_version: textVersion,
             decision: "",
             signature_password: "",
+            remember_verification: false,
             explained: false,
+            emergency_without_available_signer: false,
+            identity_verified: false,
             signer_name: "",
             signer_relationship: "patient",
             representative_verification: "",
@@ -198,13 +240,13 @@ export default function ProcedureConsent({
             explanation: { ...emptyExplanation },
             evidence: null,
         });
-    }, [summary.currentId, planHash, requestId]);
+    }, [summary.currentId, planHash, requestId, template?.revision]);
 
     return (
         <>
-            <Head title="Persetujuan tindakan" />
+            {!onSaved && <Head title="Persetujuan tindakan" />}
             <div className="mx-auto max-w-5xl space-y-6">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                {!onSaved && <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>
                         <p className="text-sm font-medium text-neutral-700">
                             Dokumentasi klinis
@@ -222,7 +264,7 @@ export default function ProcedureConsent({
                             Kembali ke pelayanan
                         </Link>
                     </Button>
-                </div>
+                </div>}
 
                 <Alert
                     variant={
@@ -304,7 +346,11 @@ export default function ProcedureConsent({
                     </CardContent>
                 </Card>
 
-                {canWrite && (
+                {signatureSessionUrl && <Alert>
+                    <AlertDescription>Ada sesi tanda tangan yang perlu diselesaikan.</AlertDescription>
+                    <Button className="mt-2" size="sm" variant="secondary" asChild><Link href={signatureSessionUrl}>Buka sesi tanda tangan</Link></Button>
+                </Alert>}
+                {canWrite && !signatureSessionUrl && (
                     <Card>
                         <CardHeader>
                             <CardTitle>
@@ -321,9 +367,18 @@ export default function ProcedureConsent({
                                 className="space-y-6"
                                 onSubmit={(event) => {
                                     event.preventDefault();
+                                    form.transform(({ explanation, ...data }) => ({
+                                        ...data, ...(!classificationOnly ? { explanation } : {}),
+                                        ...(startQr ? {
+                                            start_signature: true, evidence: null, witness_name: "",
+                                            signer_name: data.signer_relationship === "patient" ? visit.patient : data.signer_name,
+                                        } : {}),
+                                    }));
                                     form.post(storeUrl, {
                                         forceFormData: true,
                                         preserveScroll: true,
+                                        preserveState: true,
+                                        onSuccess: onSaved,
                                     });
                                 }}
                             >
@@ -345,6 +400,9 @@ export default function ProcedureConsent({
                                                         .value as typeof form.data.decision,
                                                 );
                                                 form.setData("evidence", null);
+                                                form.setData("explained", false);
+                                                form.setData("emergency_without_available_signer", false);
+                                                form.setData("written_trigger_absent", false);
                                             }}
                                         >
                                             <option value="">
@@ -357,33 +415,33 @@ export default function ProcedureConsent({
                                                 Pasien / wakil menolak setelah
                                                 penjelasan
                                             </option>
-                                            {summary.decision ===
-                                                "accepted" && (
+                                            {["accepted", "oral"].includes(summary.decision) && (
                                                 <option value="withdrawn">
                                                     Pasien / wakil mencabut
                                                     persetujuan
                                                 </option>
                                             )}
-                                            <option value="not_required">
+                                            {["oral", "conditional"].includes(template?.mode ?? "") && !["accepted", "refused", "withdrawn"].includes(summary.decision) && <option value="oral">Pasien / wakil menyetujui secara lisan</option>}
+                                            {!template && !templateArchived && !["accepted", "oral", "refused", "withdrawn"].includes(summary.decision) && <option value="not_required">
                                                 Dokter menetapkan informed
                                                 consent tidak diperlukan
-                                            </option>
-                                            <option value="emergency">
+                                            </option>}
+                                            {emergencyAvailable && !["refused", "withdrawn"].includes(summary.decision) && <option value="emergency">
                                                 Pengecualian tindakan darurat
-                                            </option>
+                                            </option>}
                                         </Select>
                                     </Field>
                                     <Field
                                         label="Alasan keputusan / klasifikasi"
                                         htmlFor="procedure-reason"
                                         error={form.errors.reason}
-                                        required
+                                        required={!oralDecision}
                                     >
                                         <Textarea
                                             id="procedure-reason"
                                             minLength={20}
                                             maxLength={2000}
-                                            required
+                                            required={!oralDecision}
                                             value={form.data.reason}
                                             onChange={(event) =>
                                                 form.setData(
@@ -403,11 +461,7 @@ export default function ProcedureConsent({
                                             terdokumentasi
                                         </AlertTitle>
                                         <AlertDescription>
-                                            Pilihan ini hanya diterima bila
-                                            pengkajian kunjungan mencatat
-                                            prioritas darurat. Pilihan ini bukan
-                                            pengganti persetujuan untuk
-                                            pelayanan biasa.
+                                            Catat alasan tindakan perlu segera dilakukan serta kondisi pasien dan ketersediaan wakil.
                                         </AlertDescription>
                                     </Alert>
                                 )}
@@ -429,11 +483,35 @@ export default function ProcedureConsent({
                                     </Alert>
                                 )}
 
-                                <div className="space-y-4">
+                                {!classificationOnly && <div className="space-y-4">
                                     <div>
                                         <h3 className="text-sm font-semibold text-neutral-900">
                                             Materi penjelasan spesifik tindakan
                                         </h3>
+                                        {template && <div className="mt-2 space-y-2">
+                                            <p className="text-sm text-neutral-600">SOP {template.sop_reference} · Versi {template.version}</p>
+                                            {template.trigger_condition && <p className="whitespace-pre-wrap text-sm text-neutral-700">{template.trigger_condition}</p>}
+                                            {reviewWrittenTrigger && <label className="flex items-start gap-2 text-sm">
+                                                <Checkbox checked={form.data.written_trigger_absent} onCheckedChange={(value) => form.setData("written_trigger_absent", value === true)} />
+                                                <span>Saya telah memeriksa kondisi pasien dan memastikan pemicu persetujuan tertulis pada SOP tidak berlaku.</span>
+                                            </label>}
+                                            <Button type="button" size="sm" variant="secondary" onClick={() => form.setData((data) => ({
+                                                ...data,
+                                                explained: false,
+                                                explanation: Object.fromEntries(explanationLabels.map(([key]) => [
+                                                    key, data.explanation[key].trim() ? data.explanation[key] : template.explanation[key],
+                                                ])) as Explanation,
+                                            }))}>Muat draf SOP</Button>
+                                        </div>}
+                                        <Button type="button" size="sm" variant="secondary" className="mt-2" onClick={() => form.setData((data) => ({
+                                            ...data,
+                                            explained: false,
+                                            explanation: {
+                                                ...data.explanation,
+                                                indication: data.explanation.indication || (diagnosisSuggestion ? `Diagnosis utama: ${diagnosisSuggestion}\n` : ""),
+                                                method: data.explanation.method || [procedure.name, procedure.tooth ? `Gigi ${procedure.tooth}` : null].filter(Boolean).join(" · "),
+                                            },
+                                        }))}>Ambil diagnosis dan rencana tercatat</Button>
                                         <p className="mt-1 text-sm text-neutral-500">
                                             Isi sesuai kondisi pasien dan
                                             rencana di atas; jangan memakai
@@ -486,8 +564,17 @@ export default function ProcedureConsent({
                                             ),
                                         )}
                                     </div>
-                                </div>
+                                </div>}
 
+                                {signatureAvailable && patientDecision && !oralDecision && <Field htmlFor="procedure-evidence-method" label="Cara mengambil tanda tangan">
+                                    <Select id="procedure-evidence-method" value={useQr ? "qr" : "paper"} onChange={(event) => {
+                                        setUseQr(event.target.value === "qr");
+                                        form.setData("identity_verified", false);
+                                    }}>
+                                        <option value="qr">QR tatap muka</option>
+                                        <option value="paper">Unggah bukti kertas</option>
+                                    </Select>
+                                </Field>}
                                 {patientDecision && (
                                     <div className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                                         <div className="grid gap-4 md:grid-cols-2">
@@ -503,8 +590,9 @@ export default function ProcedureConsent({
                                                     maxLength={150}
                                                     required
                                                     value={
-                                                        form.data.signer_name
+                                                        startQr && form.data.signer_relationship === "patient" ? visit.patient : form.data.signer_name
                                                     }
+                                                    readOnly={startQr && form.data.signer_relationship === "patient"}
                                                     onChange={(event) =>
                                                         form.setData(
                                                             "signer_name",
@@ -587,13 +675,15 @@ export default function ProcedureConsent({
                                                     />
                                                 </Field>
                                             )}
-                                            <Field
-                                                label="Nama saksi (bila ada)"
+                                            {!startQr && <Field
+                                                label="Nama saksi tenaga medis / kesehatan"
                                                 htmlFor="procedure-witness"
                                                 error={form.errors.witness_name}
+                                                required={form.data.decision === "accepted"}
                                             >
                                                 <Input
                                                     id="procedure-witness"
+                                                    required={form.data.decision === "accepted"}
                                                     maxLength={150}
                                                     value={
                                                         form.data.witness_name
@@ -605,9 +695,20 @@ export default function ProcedureConsent({
                                                         )
                                                     }
                                                 />
-                                            </Field>
+                                                {witnessSuggestion && !form.data.witness_name && (
+                                                    <Button type="button" size="sm" variant="secondary" onClick={() => form.setData("witness_name", witnessSuggestion)}>
+                                                        Gunakan {witnessSuggestion} jika menyaksikan
+                                                    </Button>
+                                                )}
+                                            </Field>}
                                         </div>
-                                        <Attachment
+                                        {startQr && <Field htmlFor="procedure-identity-verified" label="Identitas penanda tangan" error={form.errors.identity_verified}>
+                                            <label className="flex items-start gap-2 text-sm">
+                                                <Checkbox id="procedure-identity-verified" checked={form.data.identity_verified} onCheckedChange={(value) => form.setData("identity_verified", value === true)} />
+                                                <span>Saya telah memeriksa langsung identitas pasien atau kewenangan wakil yang akan menggunakan QR.</span>
+                                            </label>
+                                        </Field>}
+                                        {!oralDecision && !startQr && <><Attachment
                                             id="procedure-evidence"
                                             required
                                             inputKey={summary.currentId ?? 0}
@@ -623,12 +724,12 @@ export default function ProcedureConsent({
                                             PDF, JPG atau PNG, maksimal 5 MB.
                                             Bukti harus sesuai pasien, tindakan,
                                             keputusan dan materi penjelasan ini.
-                                        </p>
+                                        </p></>}
                                     </div>
                                 )}
 
                                 <div className="space-y-4 border-t border-neutral-100 pt-5">
-                                    <Field
+                                    {needsPassword ? <Field
                                         label="Konfirmasi ulang kata sandi dokter"
                                         htmlFor="procedure-password"
                                         error={form.errors.signature_password}
@@ -648,32 +749,44 @@ export default function ProcedureConsent({
                                             }
                                             placeholder="Kata sandi akun yang sedang digunakan"
                                         />
-                                    </Field>
+                                        <label className="flex items-start gap-3 text-sm">
+                                            <Checkbox checked={form.data.remember_verification} onCheckedChange={(checked) => form.setData("remember_verification", checked === true)} />
+                                            <span>Gunakan konfirmasi ini selama 15 menit untuk persetujuan tindakan pada kunjungan ini.</span>
+                                        </label>
+                                    </Field> : <p className="text-sm text-neutral-600">Kata sandi sudah dikonfirmasi untuk kunjungan ini.</p>}
                                     <Field
                                         htmlFor="procedure-explained"
-                                        label="Konfirmasi penjelasan"
-                                        error={form.errors.explained}
+                                        label={classificationOnly || emergencyDecision ? "Konfirmasi dokter" : "Konfirmasi penjelasan"}
+                                        error={emergencyDecision ? form.errors.emergency_without_available_signer : form.errors.explained}
                                         required
                                     >
                                         <label className="flex items-start gap-3 text-sm leading-6 text-neutral-700">
                                             <Checkbox
                                                 id="procedure-explained"
-                                                checked={form.data.explained}
+                                                checked={emergencyDecision ? form.data.emergency_without_available_signer : form.data.explained}
                                                 onCheckedChange={(value) =>
                                                     form.setData(
-                                                        "explained",
+                                                        emergencyDecision ? "emergency_without_available_signer" : "explained",
                                                         value === true,
                                                     )
                                                 }
                                             />
-                                            <span>
-                                                Saya telah memeriksa rencana
+                                            <span>{classificationOnly ? (
+                                                "Saya telah meninjau rencana tindakan dan mencatat dasar klinis bahwa formulir persetujuan khusus tidak diperlukan. Tindakan invasif atau berisiko tinggi wajib memiliki persetujuan tertulis."
+                                            ) : emergencyDecision ? (
+                                                "Saya mengonfirmasi pasien memerlukan tindakan gawat darurat, tidak cakap memberi persetujuan, dan tidak ada pihak yang dapat dimintai persetujuan saat ini."
+                                            ) : startQr ? (
+                                                "Saya telah meninjau dan menjelaskan materi ini serta memberi kesempatan bertanya. Pasien atau wakil akan mengonfirmasi keputusan pada layar tanda tangan."
+                                            ) : (
+                                                <>
+                                                    Saya telah memeriksa rencana
                                                 tindakan, menjelaskan materi di
                                                 atas, memberi kesempatan
                                                 bertanya, memverifikasi
                                                 keputusan dan mencocokkan bukti
                                                 bila diwajibkan.
-                                            </span>
+                                                </>
+                                            )}</span>
                                         </label>
                                     </Field>
                                     {(
@@ -682,6 +795,7 @@ export default function ProcedureConsent({
                                             "request_id",
                                             "text_version",
                                             "plan_hash",
+                                            "template_id",
                                         ] as const
                                     ).map(
                                         (key) =>
@@ -701,7 +815,7 @@ export default function ProcedureConsent({
                                     >
                                         {form.processing
                                             ? "Menyimpan…"
-                                            : "Simpan keputusan tindakan"}
+                                            : startQr ? "Buat QR tanda tangan" : "Simpan keputusan tindakan"}
                                     </Button>
                                 </div>
                             </form>

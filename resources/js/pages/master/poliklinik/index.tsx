@@ -1,21 +1,15 @@
 import { ActionButton } from '@/components/ui/action-button';
 import { Badge } from '@/components/ui/badge';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
-import { Head, Link, router, useForm } from '@inertiajs/react';
-import { Building2, Plus } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { Building2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { confirmAction } from '@/components/ui/confirm-dialog';
 
 interface Clinic {
     id: number;
@@ -28,55 +22,22 @@ interface Clinic {
 interface Props {
     clinics: PaginationData & { data: Clinic[] };
     filters: { search: string };
-    clinicTypes: { value: string; label: string }[];
 }
 
-const emptyClinic = { kode: '', nama: '', jenis: 'umum', is_active: true };
-
-export default function ClinicIndex({ clinics, filters, clinicTypes }: Props) {
+export default function ClinicIndex({ clinics, filters }: Props) {
     const [search, setSearch] = useState(filters.search);
-    const [editingClinic, setEditingClinic] = useState<Clinic | null>(null);
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const form = useForm(emptyClinic);
-
     function applyFilter(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         router.get('/master/poliklinik', { search }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
-    function createClinic() {
-        setEditingClinic(null);
-        form.clearErrors();
-        form.setData({ ...emptyClinic });
-        setDialogOpen(true);
-    }
-
-    function editClinic(clinic: Clinic) {
-        setEditingClinic(clinic);
-        form.clearErrors();
-        form.setData({ kode: clinic.code, nama: clinic.name, jenis: clinic.type, is_active: clinic.active });
-        setDialogOpen(true);
-    }
-
-    function saveClinic(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        const options = { preserveScroll: true, onSuccess: () => setDialogOpen(false) };
-        if (editingClinic) form.put(`/master/poliklinik/${editingClinic.id}`, options);
-        else form.post('/master/poliklinik', options);
-    }
-
-    function deleteClinic(clinic: Clinic) {
-        confirmAction(`Hapus poliklinik ${clinic.name}?`, () => { router.delete(`/master/poliklinik/${clinic.id}`, { preserveScroll: true }); }, 'Hapus');
-    }
-
     return (
         <>
             <Head title="Poliklinik" />
-            <div className="space-y-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Konfigurasi layanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Poliklinik</h2><p className="mt-1 text-sm text-neutral-500">Kelola unit pelayanan dan ruang pemeriksaan klinik.</p></div><Button onClick={createClinic}><Plus className="size-4" />Tambah poliklinik</Button></div>
+            <div className="space-y-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Konfigurasi layanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Poliklinik</h2><p className="mt-1 text-sm text-neutral-500">Buka Poli Umum atau Poli Gigi untuk mengelola ruang periksa.</p></div></div>
                 <FilterPanel><form className="grid gap-4 sm:grid-cols-2" onSubmit={applyFilter}><Field htmlFor="clinic-search" label="Cari nama atau kode poli"><Input id="clinic-search" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama atau kode poli" value={search} /></Field><FilterSubmit /></form></FilterPanel>
-                <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Building2 className="size-5" /></span><div><CardTitle>Daftar poliklinik</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(clinics.total)} poliklinik sesuai filter.</CardDescription></div></div></CardHeader><CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[850px]"><TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Nama poliklinik</TableHead><TableHead>Jenis unit</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>{clinics.data.length ? clinics.data.map((clinic) => <TableRow key={clinic.id}><TableCell className="font-sans tabular-nums text-xs font-semibold">{clinic.code}</TableCell><TableCell className="font-medium text-neutral-900">{clinic.name}</TableCell><TableCell className="capitalize">{clinic.type}</TableCell><TableCell><Badge>{clinic.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell><TableCell><div className="flex flex-wrap items-center justify-center gap-2"><ActionButton asChild action="rooms" label="Ruang poli"><Link href={`/master/poliklinik/${clinic.id}`} /></ActionButton><ActionButton onClick={() => editClinic(clinic)} action="edit" label="Edit" /><ActionButton onClick={() => deleteClinic(clinic)} action="delete" label="Hapus" /></div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada poliklinik yang sesuai." /></TableCell></TableRow>}</TableBody></Table></div><Pagination pagination={clinics} /></CardContent></Card>
+                <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Building2 className="size-5" /></span><div><CardTitle>Daftar poliklinik</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(clinics.total)} poliklinik sesuai filter.</CardDescription></div></div></CardHeader><CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[850px]"><TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Nama poliklinik</TableHead><TableHead>Jenis unit</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>{clinics.data.length ? clinics.data.map((clinic) => <TableRow key={clinic.id}><TableCell className="font-sans tabular-nums text-xs font-semibold">{clinic.code}</TableCell><TableCell className="font-medium text-neutral-900">{clinic.name}</TableCell><TableCell className="capitalize">{clinic.type}</TableCell><TableCell><Badge>{clinic.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell><TableCell><div className="flex flex-wrap items-center justify-center gap-2"><ActionButton asChild action="rooms" label="Ruang poli"><Link href={`/master/poliklinik/${clinic.id}`} /></ActionButton></div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada poliklinik yang sesuai." /></TableCell></TableRow>}</TableBody></Table></div><Pagination pagination={clinics} /></CardContent></Card>
             </div>
-            <Dialog onOpenChange={setDialogOpen} open={dialogOpen}><DialogContent><DialogHeader><DialogTitle>{editingClinic ? 'Edit poliklinik' : 'Tambah poliklinik'}</DialogTitle><DialogDescription>Atur identitas, jenis layanan, dan status poliklinik.</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={saveClinic}><Field error={form.errors.kode} htmlFor="clinic-code" label="Kode" required><Input placeholder="Contoh: POL-001" id="clinic-code" maxLength={20} onChange={(event) => form.setData('kode', event.target.value)} required value={form.data.kode} /></Field><Field error={form.errors.nama} htmlFor="clinic-name" label="Nama poliklinik" required><Input placeholder="Contoh: Poli Umum" id="clinic-name" maxLength={100} onChange={(event) => form.setData('nama', event.target.value)} required value={form.data.nama} /></Field><Field error={form.errors.jenis} htmlFor="clinic-type" label="Jenis unit" required><Select id="clinic-type" onChange={(event) => form.setData('jenis', event.target.value)} value={form.data.jenis}>{clinicTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</Select></Field><Label className="flex items-center gap-2 text-sm text-neutral-700"><Checkbox checked={form.data.is_active} onCheckedChange={(checked) => form.setData('is_active', (checked === true))} />Poliklinik aktif</Label><div className="flex justify-end gap-2 border-t border-neutral-100 pt-4"><Button onClick={() => setDialogOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={form.processing} type="submit">{form.processing ? 'Menyimpan…' : 'Simpan poliklinik'}</Button></div></form></DialogContent></Dialog>
         </>
     );
 }

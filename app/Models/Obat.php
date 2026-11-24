@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -22,6 +24,19 @@ class Obat extends Model
         'is_active' => 'boolean',
         'boleh_diberikan_langsung' => 'boolean',
     ];
+
+    public function scopeLowUsableStock(Builder $query): Builder
+    {
+        return $query->where(ObatBatch::query()->usable()->whereColumn('obat_batch.obat_id', 'obat.id')
+            ->selectRaw('COALESCE(SUM(stok), 0)'), '<=', DB::raw('obat.stok_minimum'));
+    }
+
+    public function scopeWithStockAlert(Builder $query): Builder
+    {
+        return $query->where('is_active', true)->where(fn (Builder $items) => $items
+            ->lowUsableStock()
+            ->orWhereHas('batches', fn (Builder $batch) => $batch->usable()->whereBetween('expired_at', [today()->addDay()->toDateString(), today()->addDays(90)->toDateString()])));
+    }
 
     public function stokObat(): HasMany
     {

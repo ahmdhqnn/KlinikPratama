@@ -772,13 +772,18 @@ test('doctor treatment monitoring shows operational filters, compact statuses an
 
 test('dashboard summaries and day bars navigate to their related menus', async () => {
     const globalDashboard = await renderPage('dashboard/index', {
-        stats: { totalPatients: 12, visitsToday: 3, visitsThisMonth: 18, prescriptionsToday: 2 },
+        stats: { visitsToday: 3, visitsThisMonth: 18, waitingToday: 2, completedToday: 0, controlsConfirmed: 1, controlsPending: 2, asnVisits: 10, referralsThisMonth: 1, stockAlerts: 2 },
+        isAdmin: true,
         visitStatuses: { menunggu: 1, screening: 1, pemeriksaan: 1, farmasi: 0, selesai: 0, batal: 0 },
-        visitsByDay: [{ tanggal: '2026-10-21', jumlah: 2 }, { tanggal: '2026-10-22', jumlah: 3 }],
+        visitsByDay: [{ tanggal: '2026-10-21', jumlah: 2, poli: { umum: 2 } }, { tanggal: '2026-10-22', jumlah: 3, poli: { umum: 1, gigi: 2 } }],
         canRegister: true,
         followUp: { upcoming: 0, overdue: 0, href: '/laporan/kunjungan' },
     });
-    assert.ok(globalDashboard.includes('href="/pelayanan/pasien"'));
+    assert.match(globalDashboard, /aria-label="Indikator admin" class="[^"]*lg:grid-cols-3/);
+    assert.match(globalDashboard, /kelompok=kepesertaan/);
+    assert.match(globalDashboard, /1 dikonfirmasi · 2 belum konfirmasi/);
+    assert.match(globalDashboard, /Poli Umum 1, Poli Gigi 2/);
+    assert.match(globalDashboard, /href="\/laporan\/stok\?perhatian=1"/);
     assert.ok(globalDashboard.includes('href="/pelayanan/antrian?tanggal=2026-10-22"'));
     assert.ok(globalDashboard.includes('href="/laporan/kunjungan?dari=2026-10-21&amp;sampai=2026-10-21"'));
 
@@ -810,12 +815,17 @@ test('dashboard summaries and day bars navigate to their related menus', async (
 
     const nurseDashboard = await renderPage('perawat/dashboard', {
         clinicName: 'Poli Gigi',
+        signatureWitnessQueue: [
+            { id: 'signed', patient: 'Pasien Uji', visitNumber: 'KNJ-01', procedure: 'Tindakan A', signed: true, url: '/sesi/signed' },
+            { id: 'waiting', patient: 'Pasien Uji', visitNumber: 'KNJ-02', procedure: 'Tindakan B', signed: false, url: '/sesi/waiting' },
+        ],
         stats: { total_kunjungan: 18, total_kunjungan_hari_ini: 3, menunggu_ttv: 1, menunggu_ttv_hari_ini: 1, siap_dokter: 1, siap_dokter_hari_ini: 1, triase_darurat: 0, menunggu_tindakan: 0 },
         schedules: [{ id: 2, doctorId: 7, clinic: 'Poli Gigi', doctor: 'Dokter Gigi Uji', start: '08:00', end: '12:00' }],
         visits: pageOf([]),
         followUp: { upcoming: 0, overdue: 0, href: '/pelayanan/screening' },
     });
     const nurseStats = nurseDashboard.split('aria-label="Statistik keperawatan"')[1];
+    assert.match(nurseDashboard, /id="saksi-persetujuan"[\s\S]*?Menunggu saksi[\s\S]*?href="\/sesi\/signed"[^>]*>Konfirmasi saksi[\s\S]*?Menunggu pasien[\s\S]*?href="\/sesi\/waiting"[^>]*>Lihat sesi/);
     assert.ok(nurseStats.indexOf('Total kunjungan') < nurseStats.indexOf('Pengkajian awal'));
     assert.ok(nurseDashboard.indexOf('Jadwal praktik hari ini') < nurseDashboard.indexOf('Tindakan perawat'));
     assert.match(nurseDashboard, /Dokter Gigi Uji/);
@@ -1295,10 +1305,12 @@ for (const canManage of [true, false]) {
             filters: { dokterId: '', poliklinikId: '', hari: '' },
             doctors: [{ id: 1, name: 'Dokter Uji' }], clinics: [{ id: 1, name: schedule.clinic }],
             days: ['senin', 'selasa', 'rabu', 'kamis', 'jumat'], today: '2026-10-20',
-            schedules: { ...emptyPage, data: [schedule], total: 1 }, holidays: emptyPage, exceptions: emptyPage,
+            schedules: { ...emptyPage, data: [schedule], total: 1 },
+            holidays: { ...emptyPage, data: [{ id: 1, tanggal: '2026-10-21', nama: 'Libur uji', jenis: 'instansi', sumber: null }], total: 1 },
+            exceptions: { ...emptyPage, data: [{ id: 1, tanggal: '2026-10-21', dokter_id: 1, poliklinik_id: 1, is_active: false, alasan: 'Penyesuaian jam' }], total: 1 },
         });
         assert.match(html, /Detail jadwal Dokter Uji senin/);
-        assertIconActions(html.match(/<table\b[\s\S]*?<\/table>/)?.[0], 3);
+        assertIconActions(html.match(/<table\b[\s\S]*?<\/table>/)?.[0], canManage ? 3 : 1);
         const disclosures = [...html.matchAll(/<button[^>]*aria-expanded="(true|false)"[^>]*>(Tutup|Buka)<svg/g)]
             .map((match) => [match[1], match[2]]);
         assert.deepEqual(disclosures, canManage ? [['false', 'Buka'], ['true', 'Tutup']] : []);
@@ -1312,11 +1324,11 @@ for (const canManage of [true, false]) {
             assert.match(html, /<button[^>]*disabled=""[^>]*>Terapkan Senin/);
             assert.match(html, /Perbarui jadwal Dokter Uji senin/);
             assert.match(html, /Hapus jadwal Dokter Uji senin/);
+            assert.match(html, /Hapus libur 2026-10-21/);
+            assert.match(html, /Hapus pengecualian 2026-10-21/);
         } else {
             assert.doesNotMatch(html, /id="asn-doctor"|Terapkan jadwal ASN|Simpan pengecualian/);
-            for (const label of ['Perbarui jadwal Dokter Uji senin', 'Hapus jadwal Dokter Uji senin']) {
-                assert.match(html.match(new RegExp('<button[^>]*aria-label="' + label + '"[^>]*>'))?.[0] ?? '', /disabled=""/);
-            }
+            assert.doesNotMatch(html, /Perbarui jadwal Dokter Uji senin|Hapus jadwal Dokter Uji senin|Hapus libur 2026-10-21|Hapus pengecualian 2026-10-21/);
         }
     });
 }
@@ -1431,26 +1443,18 @@ test('dashboard RME links use the same medical record icon as patient tables', a
     assert.match(html, /href="\/pelayanan\/pasien\/7\/rekam-medis"/);
 });
 
-test('dental nurse schedule management locks assigned clinic and keeps shared holidays read only', async () => {
+test('dental nurse sees assigned clinic and shared holidays with read-only access', async () => {
     const emptyPage = pageOf([]);
     const html = await renderPage('pendaftaran/jadwal-praktik', {
-        canManage: true, canManageHolidays: false, canSelectClinic: false,
+        canManage: false, canManageHolidays: false, canSelectClinic: false,
         filters: { dokterId: '', poliklinikId: 2, hari: '' }, doctors: [{ id: 1, name: 'Dokter Gigi' }],
         clinics: [{ id: 2, name: 'Poli Gigi' }], days: ['senin'], today: '2026-10-24',
         schedules: emptyPage, holidays: pageOf([{ id: 1, tanggal: '2026-10-28', nama: 'Libur bersama', jenis: 'instansi', sumber: null }]), exceptions: emptyPage,
     });
     assert.match(html, /Jadwal praktik dokter/);
-    assert.match(html, /Atur jadwal praktik dan pengecualian layanan untuk [\s\S]*?Poli Gigi/);
-    assert.match(html, /Tambah jadwal praktik/);
-    assert.match(html, /Simpan pengecualian/);
-    for (const id of ['asn-clinic', 'schedule-clinic', 'exception-clinic']) {
-        const select = html.match(new RegExp(`<button[^>]*id="${id}"[^>]*>`))?.[0];
-        assert.ok(select, id);
-        assert.match(select, /disabled=""/);
-
-    }
-    assert.doesNotMatch(html, /id="holiday-date"|Simpan hari libur|id="schedule-clinic-filter"/);
-    assert.match(html, /<button[^>]*aria-label="Hapus libur[^"]*"[^>]*disabled=""/);
+    assert.match(html, /Poli Gigi/);
+    assert.match(html, /Libur bersama/);
+    assert.doesNotMatch(html, /Tambah jadwal praktik|Simpan pengecualian|Simpan hari libur|Hapus libur|id="schedule-clinic-filter"/);
 });
 
 for (const [history, expectedState] of [
@@ -1659,6 +1663,43 @@ function examinationProps(clinicType = 'gigi', overrides = {}) {
         },
     };
 }
+
+test('SOAP langsung shares the examination narrative and recorded diagnosis in both clinics', async () => {
+    for (const clinicType of ['umum', 'gigi']) {
+        const props = examinationProps(clinicType);
+        props.initialTab = 'soap';
+        const html = await renderPage('pelayanan/pemeriksaan/show', props);
+        const soap = examinationPanel(html, 'soap');
+        assert.match(soap, /Subjektif/);
+        assert.match(soap, /Objektif/);
+        assert.match(soap, /Asesmen/);
+        assert.match(soap, /Rencana/);
+        assert.match(soap, /K02\.9 · Karies/);
+        assert.match(soap, /id="soap-rps"[^>]*><\/textarea>/);
+        assert.equal(soap.includes('id="soap-extraoral"'), clinicType === 'gigi');
+        assert.doesNotMatch(soap, /id="body-location"|id="dental-tooth"/);
+    }
+});
+
+test('both doctor clinics offer start only after the written decision is ready', async () => {
+    for (const clinicType of ['umum', 'gigi']) {
+        const consent = { decision: 'accepted', currentId: 1, planMatches: true, requiredReview: true,
+            doctorStartRequired: true, url: '/persetujuan-tindakan/1/1' };
+        const props = examinationProps(clinicType, {
+            treatments: [
+                { id: 1, name: 'Tindakan siap', quantity: 1, executionRole: 'dokter', consent },
+                { id: 2, name: 'Tindakan menunggu', quantity: 1, executionRole: 'dokter', consent: { ...consent, signaturePending: true } },
+                { id: 3, name: 'Tindakan rutin', quantity: 1, executionRole: 'dokter', consent: { ...consent, decision: 'oral', doctorStartRequired: false } },
+            ],
+        });
+        props.initialTab = 'tindakan';
+        const panel = examinationPanel(await renderPage('pelayanan/pemeriksaan/show', props), 'tindakan');
+        assert.equal((panel.match(/>Mulai tindakan<\/button>/g) ?? []).length, 1);
+        assert.match(panel, /Menunggu tanda tangan atau saksi/);
+        assert.match(panel, /Lihat sesi tanda tangan/);
+        assert.match(panel, /Persetujuan lisan tercatat/);
+    }
+});
 
 test('dental nurse observation exposes explicit unknown answers and an immediate warning for airway symptoms', async () => {
     const html = await renderPage('pelayanan/screening/show', {
@@ -1879,7 +1920,7 @@ async function renderRoleNavigation(role, url, clinicType = null) {
 }
 
 for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
-    ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Akun'], 19],
+    ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Akun'], 20],
     ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 10],
     ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
     ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
@@ -1897,6 +1938,7 @@ for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
         assert.equal(links.length, linkCount, 'menu count matches the role scope');
         assert.equal(new Set(links).size, links.length, 'each destination appears once');
         assert.equal(links.includes('/pendaftaran/rujukan-internal'), role === 'pendaftaran');
+        assert.equal(links.includes('/master/template-persetujuan'), role === 'admin');
         if (role === 'dokter') {
             assert.ok(links.includes('/dokter/tindakan'));
             assert.ok(links.includes('/dokter/kunjungan'));
@@ -2224,11 +2266,11 @@ async function clinicalSaveHarness(pendingBodyFinding = false) {
     const ast = ts.createSourceFile(path.pathname, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const functions = [];
     function collect(node) {
-        if (ts.isFunctionDeclaration(node) && ['confirmSave', 'submitClinicalSection', 'submitForm', 'canSubmitEntry', 'submitAddendum', 'submitDentalFinding', 'focusDentalErrors', 'focusExaminationErrors'].includes(node.name?.text)) functions.push(node.getText(ast));
+        if (ts.isFunctionDeclaration(node) && ['advanceSection', 'confirmSave', 'submitClinicalSection', 'submitForm', 'canSubmitEntry', 'submitAddendum', 'submitDentalFinding', 'focusDentalErrors', 'focusExaminationErrors'].includes(node.name?.text)) functions.push(node.getText(ast));
         ts.forEachChild(node, collect);
     }
     collect(ast);
-    assert.equal(functions.length, 8);
+    assert.equal(functions.length, 9);
     const requests = [];
     const posts = [];
     const formNames = ['examinationForm', 'physicalForm', 'differentialForm', 'followUpForm', 'diagnosisForm', 'treatmentForm', 'prescriptionForm', 'externalPrescriptionForm', 'letterForm', 'referralForm', 'addendumForm', 'dentalForm'];
@@ -2261,9 +2303,38 @@ async function clinicalSaveHarness(pendingBodyFinding = false) {
     };
     Object.defineProperty(scope, 'saving', { get: () => Object.values(forms).some((form) => form.processing) });
     attachDerivedState(ts, ast, scope, ['savedAnamnesis', 'anamnesisChanged', 'physicalChanged', 'sectionSaveAllowed', 'addendumChanged', 'canSaveAddendum', 'dentalFindingUsesNaturalTooth', 'selectedDentalRecord', 'dentalFindingChanged', 'canSaveDentalFinding']);
-    const handlers = runInNewContext(code + '\n({ submitClinicalSection, submitForm, canSubmitEntry, submitAddendum, submitDentalFinding })', scope);
+    const handlers = runInNewContext(code + '\n({ advanceSection, submitClinicalSection, submitForm, canSubmitEntry, submitAddendum, submitDentalFinding })', scope);
     return { handlers, forms, requests, posts, scope, event: { preventDefault() {} } };
 }
+
+test('Lanjut ke tindakan waits for the diagnosis save and stays put on validation failure', async () => {
+    const { handlers, forms, posts, requests, scope } = await clinicalSaveHarness();
+    const navigations = [];
+    const messages = [];
+    Object.assign(scope, {
+        physicalTab: 'pemeriksaan',
+        hasDiagnosisDraft: true,
+        document: { querySelector: () => null },
+        saveClinicalDraft(_automatic, _keys, complete) { complete(); },
+        navigateSection(tab) { navigations.push(tab); },
+        toast: { error(message) { messages.push(message); } },
+    });
+
+    handlers.advanceSection('diagnosa', 'tindakan');
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].url, '/pelayanan/pemeriksaan/17/diagnosa');
+    assert.equal(requests.length, 0);
+    assert.deepEqual(navigations, []);
+
+    posts[0].options.onError({ kode_icd10: 'Periksa kode diagnosis.' });
+    assert.deepEqual(messages, ['Periksa kode diagnosis.']);
+    assert.deepEqual(navigations, []);
+
+    forms.diagnosisForm.processing = false;
+    handlers.advanceSection('diagnosa', 'tindakan');
+    posts[1].options.onSuccess();
+    assert.deepEqual(navigations, ['tindakan']);
+});
 
 test('saving clinical sections waits for confirmation, preserves position and retains entered data until a successful response', async () => {
     for (const [section, name, label] of [

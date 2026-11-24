@@ -17,7 +17,7 @@ class PoliklinikController extends Controller
     {
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
         $poliklinik = Poliklinik::query()
-            ->where('jenis', '!=', 'lab')
+            ->whereIn('jenis', ['umum', 'gigi'])
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(function ($query) use ($search): void {
                 $query->where('nama', 'like', "%{$search}%")
                     ->orWhere('kode', 'like', "%{$search}%");
@@ -45,22 +45,13 @@ class PoliklinikController extends Controller
                 'nextUrl' => $poliklinik->nextPageUrl(),
             ],
             'filters' => ['search' => $filters['search'] ?? ''],
-            'clinicTypes' => [
-                ['value' => 'umum', 'label' => 'Umum'],
-                ['value' => 'gigi', 'label' => 'Gigi'],
-                ['value' => 'kia', 'label' => 'KIA / Kebidanan'],
-                ['value' => 'mata', 'label' => 'Mata'],
-                ['value' => 'tht', 'label' => 'THT'],
-                ['value' => 'kulit', 'label' => 'Kulit'],
-                ['value' => 'radiologi', 'label' => 'Radiologi'],
-                ['value' => 'ugd', 'label' => 'UGD'],
-            ],
         ]);
     }
 
     public function show(Poliklinik $poliklinik): Response
     {
-        $poliklinik->load('ruangPoli');
+        abort_unless(in_array($poliklinik->jenis, ['umum', 'gigi'], true), 404);
+        $poliklinik->load(['ruangPoli' => fn ($query) => $query->orderBy('nama')]);
 
         return Inertia::render('master/poliklinik/show', [
             'clinic' => [
@@ -76,61 +67,30 @@ class PoliklinikController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'kode' => ['required', 'string', 'max:20', 'unique:poliklinik,kode'],
-            'nama' => ['required', 'string', 'max:100'],
-            'jenis' => ['required', 'string', Rule::notIn(['lab'])],
-            'is_active' => ['boolean'],
-        ]);
-
-        $data['is_active'] = $request->boolean('is_active');
-        Poliklinik::create($data);
-
-        return back()->with('success', 'Poliklinik berhasil ditambahkan.');
-    }
-
-    public function update(Request $request, Poliklinik $poliklinik): RedirectResponse
-    {
-        $data = $request->validate([
-            'kode' => ['required', 'string', 'max:20', "unique:poliklinik,kode,{$poliklinik->id}"],
-            'nama' => ['required', 'string', 'max:100'],
-            'jenis' => ['required', 'string', Rule::notIn(['lab'])],
-            'is_active' => ['boolean'],
-        ]);
-
-        $data['is_active'] = $request->boolean('is_active');
-        $poliklinik->update($data);
-
-        return back()->with('success', 'Poliklinik berhasil diperbarui.');
-    }
-
-    public function destroy(Poliklinik $poliklinik): RedirectResponse
-    {
-        $poliklinik->delete();
-
-        return back()->with('success', 'Poliklinik berhasil dihapus.');
-    }
-
     public function storeRuang(Request $request, Poliklinik $poliklinik): RedirectResponse
     {
-        $request->validate([
-            'nama' => ['required', 'string', 'max:100'],
+        abort_unless(in_array($poliklinik->jenis, ['umum', 'gigi'], true), 404);
+        $data = $request->validate([
+            'nama' => ['required', 'string', 'max:100', Rule::unique('ruang_poli')->where('poliklinik_id', $poliklinik->id)],
         ]);
 
         $poliklinik->ruangPoli()->create([
-            'nama' => $request->nama,
+            'nama' => $data['nama'],
             'is_active' => true,
         ]);
 
         return back()->with('success', 'Ruang poli berhasil ditambahkan.');
     }
 
-    public function destroyRuang(RuangPoli $ruang): RedirectResponse
+    public function updateRuang(Request $request, RuangPoli $ruang): RedirectResponse
     {
-        $ruang->delete();
+        abort_unless(in_array($ruang->poliklinik?->jenis, ['umum', 'gigi'], true), 404);
+        $data = $request->validate([
+            'nama' => ['required', 'string', 'max:100', Rule::unique('ruang_poli')->where('poliklinik_id', $ruang->poliklinik_id)->ignore($ruang)],
+            'is_active' => ['required', 'boolean'],
+        ]);
+        $ruang->update($data);
 
-        return back()->with('success', 'Ruang poli berhasil dihapus.');
+        return back()->with('success', 'Ruang poli berhasil diperbarui.');
     }
 }

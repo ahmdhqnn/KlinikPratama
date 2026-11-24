@@ -129,6 +129,21 @@ class GeneralConsentFlowTest extends TestCase
         $this->get(route('general-consent.evidence', [$visit, $consent]))->assertStatus(409);
     }
 
+    public function test_tampered_uploaded_evidence_cannot_satisfy_the_general_consent_gate(): void
+    {
+        [$staff, $nurse, $visit] = $this->context();
+        $this->actingAs($staff)->post(route('general-consent.store', $visit), $this->decision())->assertSessionHasNoErrors();
+        $consent = GeneralConsent::sole();
+        Storage::disk('local')->put($consent->evidence_path, 'Bukti yang berbeda setelah pencatatan');
+
+        $this->actingAs($nurse)->get(route('general-consent.show', $visit))
+            ->assertInertia(fn (Assert $page) => $page->where('summary.status', 'invalid'));
+        $this->actingAs($nurse)->beginNursingAssessment($visit);
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $this->assessment())
+            ->assertSessionHasErrors('general_consent');
+        $this->assertNull($visit->fresh()->general_consent_id);
+    }
+
     public function test_upload_rejects_executable_disguises_and_oversized_evidence(): void
     {
         [$staff, , $visit] = $this->context();

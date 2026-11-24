@@ -33,6 +33,8 @@ use App\Http\Controllers\PerawatDashboardController;
 use App\Http\Controllers\PersuratanController;
 use App\Http\Controllers\PharmacyClinicalReviewController;
 use App\Http\Controllers\ProcedureConsentController;
+use App\Http\Controllers\ProcedureConsentTemplateController;
+use App\Http\Controllers\ProcedureSignatureController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SessionActivityController;
 use App\Http\Controllers\SettingController;
@@ -50,6 +52,12 @@ use Illuminate\Support\Facades\Route;
 Route::get('/verification-document/{token}', [MedicalDocumentVerificationController::class, 'show'])
     ->where('token', '[a-f0-9]{64}')->middleware('throttle:30,1')
     ->withoutMiddleware(EnforceClinicalSession::class)->name('medical-document.verify');
+Route::prefix('tanda-tangan/tindakan/{token}')->where(['token' => '[a-f0-9]{64}'])
+    ->name('procedure-signature.')->withoutMiddleware(EnforceClinicalSession::class)->group(function (): void {
+        Route::get('/', [ProcedureSignatureController::class, 'patient'])->middleware('throttle:30,1')->name('patient');
+        Route::post('/hubungkan', [ProcedureSignatureController::class, 'pair'])->middleware('throttle:8,1')->name('pair');
+        Route::post('/kirim', [ProcedureSignatureController::class, 'sign'])->middleware('throttle:8,1')->name('sign');
+    });
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
 Route::get('/bantuan-akses', [LoginController::class, 'assistance'])->name('auth.assistance');
 Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:login']);
@@ -71,6 +79,12 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
 
 // Authenticated routes
 Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pendaftaran,manajemen', RedirectRegistrationRole::class])->group(function () {
+    Route::prefix('persetujuan-tindakan/sesi/{signing}')->name('procedure-signature.')
+        ->middleware(EnsureRole::class.':dokter,perawat')->group(function (): void {
+            Route::get('/', [ProcedureSignatureController::class, 'show'])->name('show');
+            Route::post('/saksi', [ProcedureSignatureController::class, 'witness'])->middleware(EnsureRole::class.':perawat')->name('witness');
+            Route::post('/batal', [ProcedureSignatureController::class, 'cancel'])->middleware(EnsureRole::class.':dokter')->name('cancel');
+        });
     Route::get('verifikasi/persetujuan-umum/{token}', [GeneralConsentController::class, 'verify'])
         ->whereUuid('token')->middleware(EnsureRole::class.':admin,pendaftaran,perawat,dokter')
         ->withoutMiddleware(RedirectRegistrationRole::class)->name('general-consent.verify');
@@ -198,13 +212,19 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
 
     // Master Data
     Route::prefix('master')->name('master.')->middleware(EnsureAdminRole::class)->group(function () {
+        Route::get('template-persetujuan', [ProcedureConsentTemplateController::class, 'index'])->name('consent-templates.index');
+        Route::post('template-persetujuan', [ProcedureConsentTemplateController::class, 'store'])->name('consent-templates.store');
+        Route::put('template-persetujuan/{template}', [ProcedureConsentTemplateController::class, 'update'])->name('consent-templates.update');
+        Route::delete('template-persetujuan/{template}', [ProcedureConsentTemplateController::class, 'destroy'])->name('consent-templates.destroy');
+        Route::post('template-persetujuan/{template}/pulihkan', [ProcedureConsentTemplateController::class, 'restore'])->whereNumber('template')->name('consent-templates.restore');
+        Route::post('template-persetujuan/{template}/terbitkan', [ProcedureConsentTemplateController::class, 'publish'])->name('consent-templates.publish');
         Route::get('terminologi-klinis', [ClinicalTerminologyController::class, 'index'])->name('terminologi.index');
         Route::get('terminologi-klinis/detail', [ClinicalTerminologyController::class, 'show'])->name('terminologi.show');
         Route::post('terminologi-klinis/import', [ClinicalTerminologyController::class, 'import'])->name('terminologi.import');
         Route::delete('terminologi-klinis', [ClinicalTerminologyController::class, 'destroy'])->name('terminologi.destroy');
-        Route::resource('poliklinik', PoliklinikController::class)->except(['create', 'edit']);
+        Route::resource('poliklinik', PoliklinikController::class)->only(['index', 'show']);
         Route::post('poliklinik/{poliklinik}/ruang', [PoliklinikController::class, 'storeRuang'])->name('poliklinik.ruang.store');
-        Route::delete('poliklinik/ruang/{ruang}', [PoliklinikController::class, 'destroyRuang'])->name('poliklinik.ruang.destroy');
+        Route::put('poliklinik/ruang/{ruang}', [PoliklinikController::class, 'updateRuang'])->name('poliklinik.ruang.update');
 
         Route::resource('nakes', NakesController::class)->except(['create', 'show', 'edit']);
         Route::get('nakes/{nakes}/kualifikasi-farmasi', [PharmacyCredentialController::class, 'show'])->name('nakes.pharmacy-credential.show');
@@ -293,6 +313,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::delete('pemeriksaan/resep/{resepObat}', [PemeriksaanController::class, 'destroyResep'])->name('pemeriksaan.resep.destroy');
             Route::post('pemeriksaan/{kunjungan}/tindakan', [PemeriksaanController::class, 'storeTindakan'])->name('pemeriksaan.tindakan.store');
             Route::post('pemeriksaan/{kunjungan}/tindakan/{procedure}/coding', [PemeriksaanController::class, 'reviewProcedureCoding'])->name('pemeriksaan.tindakan.coding');
+            Route::post('pemeriksaan/{kunjungan}/tindakan/{procedure}/mulai', [PemeriksaanController::class, 'startDoctorProcedure'])
+                ->middleware(EnsureRole::class.':dokter')->name('pemeriksaan.tindakan.start');
             Route::delete('pemeriksaan/tindakan/{tindakanKunjungan}', [PemeriksaanController::class, 'destroyTindakan'])->name('pemeriksaan.tindakan.destroy');
             Route::post('pemeriksaan/{kunjungan}/surat', [PemeriksaanController::class, 'storeSurat'])->name('pemeriksaan.surat.store');
             Route::post('pemeriksaan/{kunjungan}/rujukan', [PemeriksaanController::class, 'storeRujukan'])->name('pemeriksaan.rujukan.store');
@@ -379,14 +401,16 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::get('laporan-top-diagnosa', [RegistrationController::class, 'laporanTopDiagnosa'])->name('laporan-top-diagnosa');
 
         Route::get('jadwal-praktik', [RegistrationController::class, 'jadwalPraktik'])->name('jadwal-praktik');
-        Route::post('jadwal-praktik', [RegistrationController::class, 'storeJadwalPraktik'])->name('store-jadwal-praktik');
-        Route::put('jadwal-praktik/{jadwal}', [RegistrationController::class, 'updateJadwalPraktik'])->name('update-jadwal-praktik');
-        Route::delete('jadwal-praktik/{jadwal}', [RegistrationController::class, 'destroyJadwalPraktik'])->name('destroy-jadwal-praktik');
-        Route::post('jadwal-praktik/asn', [RegistrationController::class, 'applyAsnSchedule'])->name('jadwal-praktik.asn');
-        Route::post('jadwal-praktik/libur', [RegistrationController::class, 'storeHoliday'])->name('jadwal-praktik.libur.store');
-        Route::delete('jadwal-praktik/libur/{holiday}', [RegistrationController::class, 'destroyHoliday'])->name('jadwal-praktik.libur.destroy');
-        Route::post('jadwal-praktik/pengecualian', [RegistrationController::class, 'storeScheduleException'])->name('jadwal-praktik.pengecualian.store');
-        Route::delete('jadwal-praktik/pengecualian/{exception}', [RegistrationController::class, 'destroyScheduleException'])->name('jadwal-praktik.pengecualian.destroy');
+        Route::middleware(EnsureAdminRole::class)->group(function (): void {
+            Route::post('jadwal-praktik', [RegistrationController::class, 'storeJadwalPraktik'])->name('store-jadwal-praktik');
+            Route::put('jadwal-praktik/{jadwal}', [RegistrationController::class, 'updateJadwalPraktik'])->name('update-jadwal-praktik');
+            Route::delete('jadwal-praktik/{jadwal}', [RegistrationController::class, 'destroyJadwalPraktik'])->name('destroy-jadwal-praktik');
+            Route::post('jadwal-praktik/asn', [RegistrationController::class, 'applyAsnSchedule'])->name('jadwal-praktik.asn');
+            Route::post('jadwal-praktik/libur', [RegistrationController::class, 'storeHoliday'])->name('jadwal-praktik.libur.store');
+            Route::delete('jadwal-praktik/libur/{holiday}', [RegistrationController::class, 'destroyHoliday'])->name('jadwal-praktik.libur.destroy');
+            Route::post('jadwal-praktik/pengecualian', [RegistrationController::class, 'storeScheduleException'])->name('jadwal-praktik.pengecualian.store');
+            Route::delete('jadwal-praktik/pengecualian/{exception}', [RegistrationController::class, 'destroyScheduleException'])->name('jadwal-praktik.pengecualian.destroy');
+        });
         Route::get('dokter/by-poli', [RegistrationController::class, 'getDokterByPoli'])->name('dokter.by-poli');
         Route::get('dokter/terjadwal', [RegistrationController::class, 'getDokterTerjadwal'])->name('dokter.terjadwal');
     });

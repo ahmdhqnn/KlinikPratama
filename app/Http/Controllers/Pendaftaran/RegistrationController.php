@@ -741,12 +741,12 @@ class RegistrationController extends Controller
             ->orderBy('tanggal')->paginate(4, ['*'], 'holidays_page')->withQueryString();
         $exceptions = DB::table('jadwal_khusus_dokter')->where('tanggal', '>=', today()->toDateString())
             ->when($filters['dokter_id'] ?? null, fn ($query, int $id) => $query->where('dokter_id', $id))
-            ->when($assignedClinicId, fn ($query, int $id) => $query->where('poliklinik_id', $id))
+            ->when($assignedClinicId ?? ($filters['poliklinik_id'] ?? null), fn ($query, int $id) => $query->where('poliklinik_id', $id))
             ->orderBy('tanggal')->paginate(10, ['*'], 'exceptions_page')->withQueryString();
 
         return Inertia::render('pendaftaran/jadwal-praktik', [
             'canManage' => $canManage,
-            'canManageHolidays' => $request->user()->hasRole('admin', 'pendaftaran', 'dokter'),
+            'canManageHolidays' => $request->user()->isAdmin(),
             'canSelectClinic' => $assignedClinicId === null,
             'filters' => [
                 'search' => $filters['search'] ?? '',
