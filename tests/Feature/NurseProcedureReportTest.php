@@ -20,11 +20,13 @@ class NurseProcedureReportTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_nurse_report_print_and_excel_export_are_scoped_to_the_assigned_clinic_and_follow_filters(): void
+    public function test_nurse_report_print_and_excel_export_are_scoped_to_the_account_and_follow_filters(): void
     {
         $nurse = User::factory()->create(['role' => 'perawat', 'is_active' => true]);
+        $colleague = User::factory()->create(['role' => 'perawat']);
         $clinic = Poliklinik::create(['kode' => 'REP-OWN', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
         Nakes::create(['kode' => 'REP-NURSE', 'nama' => 'Perawat Uji', 'kategori' => 'medis', 'jabatan' => 'perawat', 'user_id' => $nurse->id, 'poliklinik_id' => $clinic->id, 'is_active' => true]);
+        Nakes::create(['kode' => 'REP-COLLEAGUE', 'nama' => 'Perawat Satu Poli', 'kategori' => 'medis', 'jabatan' => 'perawat', 'user_id' => $colleague->id, 'poliklinik_id' => $clinic->id, 'is_active' => true]);
         $foreignClinic = Poliklinik::create(['kode' => 'REP-OTHER', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-REP', 'nama' => '=Nama Pasien']);
         $catalog = Tindakan::create(['kode' => 'TD-REP', 'nama' => 'Perawatan luka', 'kategori' => 'medis', 'poliklinik_id' => $clinic->id, 'is_active' => true]);
@@ -36,7 +38,7 @@ class NurseProcedureReportTest extends TestCase
         ]);
         TindakanKunjungan::create([
             'kunjungan_id' => $visit->id, 'tindakan_id' => $catalog->id, 'nama_tindakan' => 'Perawatan luka lanjutan',
-            'jumlah' => 1, 'execution_role' => 'perawat', 'execution_status' => 'pending',
+            'jumlah' => 1, 'execution_role' => 'perawat', 'execution_status' => 'completed', 'performed_by' => $colleague->id,
         ]);
         $foreignPatient = Pasien::create(['no_rm' => 'RM-REP-OTHER', 'nama' => 'Pasien Poli Lain']);
         $foreignVisit = Kunjungan::create(['no_kunjungan' => 'KNJ-REP-OTHER', 'pasien_id' => $foreignPatient->id, 'poliklinik_id' => $foreignClinic->id, 'tanggal' => today(), 'status' => 'tindakan']);
@@ -48,11 +50,11 @@ class NurseProcedureReportTest extends TestCase
         $this->actingAs($nurse)->get(route('perawat.laporan-tindakan'))->assertInertia(fn (Assert $page) => $page
             ->component('pelayanan/tindakan/report')
             ->where('clinicName', 'Poli Umum')
-            ->where('stats.total', 2)
+            ->where('stats.total', 1)
             ->where('stats.visits', 1)
-            ->where('stats.pending', 1)
+            ->where('stats.pending', 0)
             ->where('stats.completed', 1)
-            ->where('procedures.total', 2)
+            ->where('procedures.total', 1)
             ->where('procedures.data.0.visitNumber', 'KNJ-REP'));
 
         $this->get(route('perawat.laporan-tindakan', ['status' => 'completed', 'search' => 'Perawatan luka']))->assertInertia(fn (Assert $page) => $page
@@ -68,6 +70,7 @@ class NurseProcedureReportTest extends TestCase
         Excel::fake();
         $this->get(route('perawat.laporan-tindakan.export', ['status' => 'completed']))->assertOk();
         Excel::assertDownloaded('laporan-tindakan-perawat-'.today()->format('Y-m-d').'.xlsx', function (NursingProcedureExport $export) use ($clinic, $completed): bool {
+            $this->assertSame([$completed->id], $export->query()->pluck('tindakan_kunjungan.id')->all());
             $this->assertSame($clinic->id, $export->query()->firstOrFail()->kunjungan->poliklinik_id);
             $this->assertSame(chr(39).'=Nama Pasien', $export->map($completed->fresh(['kunjungan.pasien', 'kunjungan.poliklinik', 'kunjungan.dokter']))[3]);
             $this->assertContains('Hasil pelaksanaan', $export->headings());

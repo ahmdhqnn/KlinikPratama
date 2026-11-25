@@ -1010,7 +1010,6 @@ for (const [role, url, expected] of [
     ['farmasi', '/farmasi/pasien', '/farmasi/pasien'],
     ['farmasi', '/farmasi/laporan/penyerahan-obat', '/farmasi/laporan/penyerahan-obat'],
     ['farmasi', '/farmasi/laporan/pemberian-langsung', '/farmasi/laporan/pemberian-langsung'],
-    ['manajemen', '/laporan/kunjungan', '/laporan/kunjungan'],
 ]) {
     test(`sidebar ${role} activates only the matching menu for ${url}`, async () => {
         const { default: Layout } = await server.ssrLoadModule('/resources/js/layouts/app-layout.tsx');
@@ -1135,6 +1134,53 @@ for (const [label, dates] of [
     });
 }
 
+test('correspondence uses shared filters and the admin template disclosure', async () => {
+    const props = { filters: { search: '', type: '', clinic: '' }, templates: pageOf([]), letters: pageOf([]), referrals: pageOf([]), eligibleVisits: null };
+    const admin = await renderPage('persuratan/index', { ...props, isAdmin: true });
+    assert.match(admin, /Template &amp; penomoran/);
+    assert.match(admin, /aria-expanded="false"[^>]*>Buka/);
+    assert.match(admin, /id="letter-type"/);
+    assert.doesNotMatch(admin, /Arsip dokumen dapat ditinjau/);
+    assert.match(admin, /aria-label="Ringkasan persuratan" class="balanced-stats"/);
+    assert.match(admin, /id="letter-status"/);
+    assert.ok(admin.indexOf('Template &amp; penomoran') < admin.indexOf('id="letter-search"'));
+    assert.ok(admin.indexOf('id="letter-search"') < admin.indexOf('Template tersedia'));
+    const doctor = await renderPage('persuratan/index', { ...props, isAdmin: false });
+    assert.match(doctor, /id="letter-search"/);
+    assert.match(doctor, /id="letter-clinic"/);
+    assert.match(doctor, /Terapkan filter/);
+    assert.doesNotMatch(doctor, /Template &amp; penomoran/);
+});
+
+test('master room and consent SOP filters show matching records', async () => {
+    const rooms = await renderPage('master/poliklinik/show', {
+        clinic: { id: 1, code: 'PU', name: 'Poli Umum', rooms: [
+            { id: 1, name: 'Ruang Mawar', active: true },
+            { id: 2, name: 'Ruang Melati', active: false },
+        ] },
+    }, '/master/poliklinik/1?search=mawar&status=aktif');
+    const roomTable = rooms.match(/<table[\s\S]*?<\/table>/)?.[0];
+    assert.match(roomTable, /Ruang Mawar/);
+    assert.doesNotMatch(roomTable, /Ruang Melati/);
+    assert.match(rooms, /Reset filter/);
+
+    const sop = await renderPage('master/terminologi/consent-templates', {
+        releases: ['2026'], templates: [
+            { id: 1, code: 'UJI-UMUM', release: '2026', clinic_type: 'umum', version: '1', mode: 'oral', active: true, published_at: '2026-11-25', deleted_at: null },
+            { id: 2, code: 'UJI-GIGI', release: '2026', clinic_type: 'gigi', version: '1', mode: 'oral', active: false, published_at: null, deleted_at: null },
+        ],
+    }, '/master/template-persetujuan?tab=template&poli=gigi&rilis=2026');
+    const sopTable = sop.match(/<table[\s\S]*?<\/table>/)?.[0];
+    assert.match(sopTable, /UJI-GIGI/);
+    assert.doesNotMatch(sopTable, /UJI-UMUM/);
+    assert.match(sop, /Reset filter/);
+    assert.match(sop, /Impor Excel/);
+    assert.match(sop, /href="\/master\/template-persetujuan\/template"/);
+    assert.match(sop, /href="\/master\/template-persetujuan\/export\?[^"]*poli=gigi/);
+    assert.match(sop, /Daftar template SOP/);
+    assert.match(rooms, /href="\/master\/export\/ruang-poli\?poliklinik_id=1"/);
+});
+
 test('internal referral archive exposes registration only for an actionable referral', async () => {
     const referral = { id: 1, number: 'RI-001', date: '26/10/2026', patient: 'Pasien Rujukan', visitNumber: 'KNJ-ASAL',
         fromClinic: 'Poli Umum', toClinic: 'Poli Gigi', doctor: 'Dokter Uji', printUrl: '/persuratan/rujukan/1' };
@@ -1243,6 +1289,17 @@ test('registration visit detail uses the accessible URLs supplied by the backend
     assert.ok(html.indexOf('Identitas pasien') < html.indexOf('Progres pelayanan'));
 });
 
+test('visit consent notice can be closed and the review action stays separate', async () => {
+    const html = await renderPage('pelayanan/kunjungan/show', {
+        visit: visitDetail, backUrl: '/pendaftaran/kunjungan-per-poli',
+        permissions: { editVisit: false, viewRme: false, processScreening: false },
+        links: { edit: null, patient: null, screening: null, medicalRecord: null },
+        generalConsent: { status: 'accepted', currentId: 1, recordedAt: '25/11/2026 09:40', required: true, versionCurrent: true, url: '/consent-review' },
+    });
+    assert.match(html.replaceAll("<!-- -->", ""), /role="status"[\s\S]*?Persetujuan umum: Disetujui[\s\S]*?Tutup pesan persetujuan umum/);
+    assert.match(html, /href="\/consent-review"[^>]*>Tinjau persetujuan umum/);
+});
+
 test('visit queue keeps all four stages in a balanced responsive grid', async () => {
     const visits = pageOf(['menunggu', 'pemeriksaan', 'tindakan', 'farmasi'].map((status, index) => ({
         id: index + 1, number: `KNJ-${index + 1}`, patient: `Pasien ${index + 1}`,
@@ -1307,7 +1364,7 @@ for (const canManage of [true, false]) {
             days: ['senin', 'selasa', 'rabu', 'kamis', 'jumat'], today: '2026-10-20',
             schedules: { ...emptyPage, data: [schedule], total: 1 },
             holidays: { ...emptyPage, data: [{ id: 1, tanggal: '2026-10-21', nama: 'Libur uji', jenis: 'instansi', sumber: null }], total: 1 },
-            exceptions: { ...emptyPage, data: [{ id: 1, tanggal: '2026-10-21', dokter_id: 1, poliklinik_id: 1, is_active: false, alasan: 'Penyesuaian jam' }], total: 1 },
+            exceptions: canManage ? { ...emptyPage, data: [{ id: 1, tanggal: '2026-10-21', dokter_id: 1, poliklinik_id: 1, is_active: false, alasan: 'Penyesuaian jam' }], total: 1 } : null,
         });
         assert.match(html, /Detail jadwal Dokter Uji senin/);
         assertIconActions(html.match(/<table\b[\s\S]*?<\/table>/)?.[0], canManage ? 3 : 1);
@@ -1315,8 +1372,8 @@ for (const canManage of [true, false]) {
             .map((match) => [match[1], match[2]]);
         assert.deepEqual(disclosures, canManage ? [['false', 'Buka'], ['true', 'Tutup']] : []);
         assert.match(html, /Kalender libur praktik/);
-        assert.match(html, /Pengecualian per tanggal/);
         if (canManage) {
+            assert.match(html, /Pengecualian per tanggal/);
             assert.match(html, /aria-expanded="false"[^>]*>Buka/);
             assert.match(html, /hidden=""[^>]*id="[^\"]+"[^>]*><form/);
             assert.match(html, /id="asn-doctor"/);
@@ -1327,7 +1384,7 @@ for (const canManage of [true, false]) {
             assert.match(html, /Hapus libur 2026-10-21/);
             assert.match(html, /Hapus pengecualian 2026-10-21/);
         } else {
-            assert.doesNotMatch(html, /id="asn-doctor"|Terapkan jadwal ASN|Simpan pengecualian/);
+            assert.doesNotMatch(html, /id="asn-doctor"|Terapkan jadwal ASN|Simpan pengecualian|Pengecualian per tanggal|Penyesuaian jam/);
             assert.doesNotMatch(html, /Perbarui jadwal Dokter Uji senin|Hapus jadwal Dokter Uji senin|Hapus libur 2026-10-21|Hapus pengecualian 2026-10-21/);
         }
     });
@@ -1927,7 +1984,6 @@ for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
     ['dokter', 'umum', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 13],
     ['dokter', 'gigi', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 13],
     ['farmasi', null, '/farmasi/dashboard', '/pelayanan/farmasi', ['Ringkasan', 'Operasional', 'Pengelolaan obat', 'Laporan', 'Akun'], 11],
-    ['manajemen', null, '/', '/laporan/kunjungan', ['Ringkasan', 'Laporan', 'Akun'], 4],
 ]) {
     test(role + ' ' + (clinicType ?? '') + ' groups its menus and places primary work immediately after dashboard', async () => {
         const html = await renderRoleNavigation(role, primary, clinicType);

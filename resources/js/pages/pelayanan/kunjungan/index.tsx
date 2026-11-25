@@ -73,12 +73,12 @@ export default function VisitsIndex({ visits, todayVisits, stats, filters: initi
                     <StatCard label="Kunjungan selesai hari ini" value={stats.completedToday} description="Pelayanan selesai pada tanggal hari ini" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 </section>
                 <VisitList icon={<Clock3 className="size-5" />} title="Kunjungan hari ini" description="Seluruh kunjungan hari ini sesuai akses poliklinik." visits={todayVisits} canManageVisits={canManageVisits} onCancel={cancelVisit} />
-                <FilterPanel><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
+                <FilterPanel><form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4" onSubmit={applyFilters}>
                     <Field htmlFor="visit-search" label="Cari pasien"><Input id="visit-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama atau No. RM" value={filters.search} /></Field>
                     <Field htmlFor="visit-date-filter" label="Tanggal kunjungan"><DatePicker id="visit-date-filter" onChange={(event) => setFilters({ ...filters, date: event.target.value })} value={filters.date} /></Field>
                     <Field htmlFor="visit-status-filter" label="Status"><Select id="visit-status-filter" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}><option value="">Semua status</option>{statuses.map((status) => <option key={status} value={status}>{visitStatusFilterLabels[status]}</option>)}</Select></Field>
                     {canSelectClinic && <Field htmlFor="visit-clinic-filter" label="Poliklinik"><Select id="visit-clinic-filter" onChange={(event) => setFilters({ ...filters, clinicId: event.target.value })} value={filters.clinicId}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>}
-                    <div className="flex flex-wrap gap-2 sm:col-span-2"><FilterSubmit /></div>
+                    <FilterSubmit />
                 </form></FilterPanel>
                 <VisitList icon={<CalendarDays className="size-5" />} title="Daftar kunjungan pasien" description={`${new Intl.NumberFormat('id-ID').format(visits.total)} kunjungan sesuai filter poli, tanggal, dan status.`} visits={visits} canManageVisits={canManageVisits} onCancel={cancelVisit} />
             </div>

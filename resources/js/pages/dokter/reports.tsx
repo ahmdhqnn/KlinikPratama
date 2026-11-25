@@ -75,7 +75,7 @@ export default function DoctorReports({ type, baseUrl = `/dokter/laporan/${type}
                     <StatCard label={type === 'tindakan' ? 'Kunjungan terkait' : 'Resep terkait'} value={stats.related} description="Sesuai filter laporan" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 </section>
                 <FilterPanel actions={<Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}>
-                    <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={applyFilters}>
+                    <form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={applyFilters}>
                         <Field htmlFor="doctor-report-search" label="Cari pasien atau catatan"><Input id="doctor-report-search" onChange={(event) => setValues({ ...values, search: event.target.value })} placeholder="Nama, No. RM, atau nama catatan" value={values.search} /></Field>
                         <Field htmlFor="doctor-report-period" label="Periode kunjungan"><DateRangePicker from={values.dari} id="doctor-report-period" onChange={(range) => setValues({ ...values, dari: range.from, sampai: range.to })} to={values.sampai} /></Field>
                         <FilterSubmit />

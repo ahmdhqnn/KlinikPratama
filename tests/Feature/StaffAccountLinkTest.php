@@ -102,7 +102,7 @@ class StaffAccountLinkTest extends TestCase
     public function test_admin_account_changes_record_targets_without_password_material(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $user = User::factory()->create(['role' => 'manajemen']);
+        $user = User::factory()->create(['role' => 'dokter']);
         $this->actingAs($admin)->post(route('users.reset-password', $user), ['password' => 'new-password'])->assertSessionHasNoErrors();
         $this->assertTrue(Hash::check('new-password', $user->fresh()->password));
         $this->post(route('users.toggle-active', $user))->assertSessionHasNoErrors();

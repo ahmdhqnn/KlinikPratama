@@ -17,11 +17,11 @@ class NursingProcedureExport extends SafeSpreadsheetValueBinder implements FromQ
     /**
      * @param  array{dari?: ?string, sampai?: ?string, search?: ?string, status?: ?string}  $filters
      */
-    public function __construct(private array $filters, private ?int $clinicId) {}
+    public function __construct(private array $filters, private ?int $clinicId, private ?int $userId = null) {}
 
     public function query(): Builder
     {
-        return (new NursingProcedureReportQuery)->query($this->filters, $this->clinicId);
+        return (new NursingProcedureReportQuery)->query($this->filters, $this->clinicId, $this->userId);
     }
 
     public function headings(): array

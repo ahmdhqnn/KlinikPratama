@@ -1,3 +1,4 @@
+import { PharmacyClinicTabs } from '@/components/dashboard/pharmacy-clinic-tabs';
 import { ServiceReportLinks } from '@/components/reports/service-report-links';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -16,7 +17,8 @@ import { useState, type FormEvent } from 'react';
 interface Prescription { id: number; date: string; number: string; visitNumber: string; patient: string; medicalRecordNumber: string; clinic: string; doctor: string; itemCount: number; printUrl: string }
 type PrescriptionPage = PaginationData & { data: Prescription[] };
 
-export default function ExternalPrescriptions({ stats, filters, todayRecords, records }: {
+export default function ExternalPrescriptions({ stats, filters, todayRecords, records, clinicType }: {
+    clinicType?: string | null;
     stats: { today: number; all: number };
     filters: { search: string; tanggal: string };
     todayRecords: PrescriptionPage;
@@ -26,14 +28,15 @@ export default function ExternalPrescriptions({ stats, filters, todayRecords, re
     const [date, setDate] = useState(filters.tanggal);
     function apply(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get('/farmasi/resep-luar', { search, tanggal: date }, { preserveState: true, preserveScroll: true, replace: true });
+        router.get('/farmasi/resep-luar', { search, tanggal: date, poli: clinicType ?? undefined }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     return <><Head title="Resep luar" /><div className="space-y-6">
         <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Pelayanan farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Resep luar</h2><p className="mt-1 text-sm text-neutral-500">Lihat dan cetak resep dari dokter untuk obat yang ditebus di luar klinik. Obat ini tidak mengurangi persediaan klinik.</p></div><ServiceReportLinks kind="external" /></div>
+        <PharmacyClinicTabs clinicType={clinicType} />
         <section aria-label="Ringkasan resep luar" className="grid gap-4 sm:grid-cols-2"><StatCard label="Resep luar hari ini" value={stats.today} description="Kunjungan hari ini dengan resep luar yang sudah ditandatangani" icon={<CalendarDays className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" /><StatCard label="Seluruh resep luar" value={stats.all} description="Riwayat resep luar yang siap dicetak" icon={<FileText className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" /></section>
         <PrescriptionList title="Resep luar hari ini" description="Resep dari kunjungan hari ini yang pemeriksaannya sudah ditandatangani." records={todayRecords} />
-        <FilterPanel><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={apply}><Field htmlFor="external-prescription-search" label="Cari pasien"><Input id="external-prescription-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama atau No. RM" value={search} /></Field><Field htmlFor="external-prescription-date" label="Tanggal kunjungan"><DatePicker id="external-prescription-date" onChange={(event) => setDate(event.target.value)} value={date} /></Field><FilterSubmit /></form></FilterPanel>
+        <FilterPanel contextKeys={['poli']}><form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={apply}><Field htmlFor="external-prescription-search" label="Cari pasien atau resep"><Input id="external-prescription-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama, No. RM, No. kunjungan, atau No. resep" value={search} /></Field><Field htmlFor="external-prescription-date" label="Tanggal kunjungan"><DatePicker id="external-prescription-date" onChange={(event) => setDate(event.target.value)} value={date} /></Field><FilterSubmit /></form></FilterPanel>
         <PrescriptionList title="Semua resep luar" description={`${records.total.toLocaleString('id-ID')} resep sesuai filter.`} records={records} />
     </div></>;
 }

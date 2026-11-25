@@ -1,3 +1,5 @@
+import { PharmacyClinicTabs } from '@/components/dashboard/pharmacy-clinic-tabs';
+import { Select } from '@/components/ui/select';
 import { ServiceReportLinks } from '@/components/reports/service-report-links';
 import { ActionButton } from '@/components/ui/action-button';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -27,6 +29,8 @@ interface Visit {
 }
 
 interface Props {
+    clinicType?: string | null;
+    pharmacyStatus?: string;
     visits: PaginationData & { data: Visit[] };
     todayVisits: PaginationData & { data: Visit[] };
     stats: { today: number; waiting: number; processing: number; completed: number };
@@ -34,8 +38,9 @@ interface Props {
     search: string;
 }
 
-export default function PharmacyQueue({ visits, todayVisits, stats, date: initialDate, search: initialSearch }: Props) {
+export default function PharmacyQueue({ visits, todayVisits, stats, date: initialDate, search: initialSearch, pharmacyStatus = '', clinicType }: Props) {
     const [date, setDate] = useState(initialDate);
+    const [status, setStatus] = useState(pharmacyStatus);
     const [search, setSearch] = useState(initialSearch);
 
     useEffect(() => {
@@ -52,7 +57,7 @@ export default function PharmacyQueue({ visits, todayVisits, stats, date: initia
 
     function filterQueue(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get('/pelayanan/farmasi', { tanggal: date, search }, { preserveState: true, preserveScroll: true, replace: true });
+        router.get('/pelayanan/farmasi', { tanggal: date, search, poli: clinicType ?? undefined, status_farmasi: status }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     return (
@@ -60,6 +65,7 @@ export default function PharmacyQueue({ visits, todayVisits, stats, date: initia
             <Head title="Penyerahan obat" />
             <div className="space-y-6">
                 <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Pelayanan obat</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Penyerahan obat</h2><p className="mt-1 text-sm text-neutral-500">Siapkan resep, periksa jumlah dan aturan pakai, lalu catat penyerahan obat kepada pasien.</p></div><ServiceReportLinks kind="handover" /></div>
+                <PharmacyClinicTabs clinicType={clinicType} />
                 <section aria-label="Ringkasan penyerahan obat" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Resep hari ini" value={stats.today} description="Kunjungan poli yang memerlukan layanan obat" icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                     <StatCard label="Menunggu penyerahan" value={stats.waiting} description="Resep hari ini yang belum diproses" icon={<Timer className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
@@ -67,7 +73,9 @@ export default function PharmacyQueue({ visits, todayVisits, stats, date: initia
                     <StatCard label="Selesai hari ini" value={stats.completed} description="Obat yang diserahkan hari ini" icon={<CheckCircle2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 </section>
                 <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><CardTitle>Menunggu penyerahan hari ini</CardTitle><CardDescription>Resep aktif hari ini, diurutkan dari waktu tunggu terlama.</CardDescription></CardHeader><CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[850px]"><TableHeader><TableRow><TableHead className="text-center">No. resep</TableHead><TableHead className="text-center">Pasien</TableHead><TableHead className="text-center">Poliklinik</TableHead><TableHead className="text-center">Jumlah item</TableHead><TableHead className="text-center">Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>{todayVisits.data.length ? todayVisits.data.map((visit) => <TableRow key={visit.id}><TableCell className="text-center font-sans tabular-nums text-xs">{visit.prescriptionNumber ?? 'Belum diisi'}</TableCell><TableCell className="text-center"><p className="font-medium">{visit.patient}</p><p className="text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell><TableCell className="text-center">{visit.clinic}</TableCell><TableCell className="text-center">{visit.itemCount} item</TableCell><TableCell className="text-center"><StatusBadge context="pharmacy" status={visit.pharmacyStatus} /></TableCell><TableCell className="text-center"><div className="flex justify-center gap-2"><ActionButton action="detail" disabled disabledReason="Detail penyerahan tersedia setelah obat diserahkan." label="Lihat detail penyerahan" /><ActionButton asChild action="pharmacy" label="Proses penyerahan"><Link href={`/pelayanan/farmasi/${visit.id}`} /></ActionButton></div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={6}><Empty size="compact" title="Tidak ada resep yang menunggu hari ini." /></TableCell></TableRow>}</TableBody></Table></div><Pagination pagination={todayVisits} /></CardContent></Card>
-                <FilterPanel><form className="grid gap-4 md:grid-cols-2 md:items-end" onSubmit={filterQueue}><Field htmlFor="pharmacy-search" label="Cari pasien atau No. RM"><Input id="pharmacy-search" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama atau No. RM" value={search} /></Field><Field htmlFor="pharmacy-visit-date" label="Tanggal kunjungan"><DatePicker id="pharmacy-visit-date" onChange={(event) => setDate(event.target.value)} value={date} /></Field><FilterSubmit /></form></FilterPanel>
+                <FilterPanel contextKeys={['poli']}><form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={filterQueue}><Field htmlFor="pharmacy-search" label="Cari pasien atau resep"><Input id="pharmacy-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama, No. RM, No. kunjungan, atau No. resep" value={search} /></Field><Field htmlFor="pharmacy-visit-date" label="Tanggal kunjungan"><DatePicker id="pharmacy-visit-date" onChange={(event) => setDate(event.target.value)} value={date} /></Field><Field htmlFor="pharmacy-status" label="Status farmasi"><Select id="pharmacy-status" value={status} onChange={(event) => setStatus(event.target.value)}>
+                    <option value="">Semua status</option><option value="menunggu">Menunggu</option><option value="diproses">Diproses</option><option value="selesai">Selesai</option>
+                </Select></Field><FilterSubmit /></form></FilterPanel>
                 <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><ClipboardList className="size-5" /></span><div><CardTitle>Semua penyerahan obat</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(visits.total)} resep sesuai filter, termasuk yang sudah selesai.</CardDescription></div></div></CardHeader>
                     <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[980px]"><TableHeader><TableRow><TableHead className="text-center">No. resep</TableHead><TableHead className="text-center">Tanggal kunjungan</TableHead><TableHead className="text-center">Pasien</TableHead><TableHead className="text-center">Poliklinik</TableHead><TableHead className="text-center">Dokter</TableHead><TableHead className="text-center">Jumlah item</TableHead><TableHead className="text-center">Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>{visits.data.length ? visits.data.map((visit) => {
                         const isComplete = visit.pharmacyStatus === 'selesai';

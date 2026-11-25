@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\GeneralConsentService;
 use App\Models\Diagnosa;
 use App\Models\JadwalDokter;
 use App\Models\Kepesertaan;
@@ -95,6 +96,7 @@ class RegistrationRoleTest extends TestCase
         ]);
         $visit = Kunjungan::create([
             'no_kunjungan' => 'KNJ-009901',
+            'registered_by' => $user->id,
             'pasien_id' => $patient->id,
             'poliklinik_id' => $clinic->id,
             'tanggal' => today(),
@@ -334,7 +336,7 @@ class RegistrationRoleTest extends TestCase
         $this->actingAs($user)->get(route('users.index'))->assertOk();
     }
 
-    public function test_admin_can_create_perawat_account_and_matching_nakes_profile(): void
+    public function test_admin_links_perawat_account_to_an_existing_profile(): void
     {
         $admin = User::create([
             'name' => 'Administrator',
@@ -357,12 +359,18 @@ class RegistrationRoleTest extends TestCase
             'role' => 'perawat',
             'is_active' => '1',
         ];
-        $this->actingAs($admin)->post(route('users.store'), $accountData)->assertSessionHasErrors('poliklinik_id');
+        $this->actingAs($admin)->post(route('users.store'), $accountData)->assertSessionHasErrors(['poliklinik_id', 'nakes_id']);
         $this->assertDatabaseMissing('users', ['email' => 'perawat-baru@klinik.test']);
+
+        $staff = Nakes::create([
+            'kode' => 'ACCOUNT-PRW', 'nama' => 'Perawat Baru', 'jabatan' => 'perawat',
+            'kategori' => 'medis', 'is_active' => true, 'poliklinik_id' => $clinic->id,
+        ]);
 
         $response = $this->actingAs($admin)->post(route('users.store'), [
             ...$accountData,
             'poliklinik_id' => $clinic->id,
+            'nakes_id' => $staff->id,
         ]);
 
         $response->assertRedirect();
@@ -406,7 +414,7 @@ class RegistrationRoleTest extends TestCase
         ]);
         $response = $this->actingAs($user)->post(route('pendaftaran.store-pasien-baru'), [
             'general_consent_confirmed' => true,
-            'general_consent_version' => \App\GeneralConsentService::VERSION,
+            'general_consent_version' => GeneralConsentService::VERSION,
             'general_consent_relationship' => 'patient',
             'kepesertaan_id' => $member->id,
             'nama' => 'IDENTITAS PALSU',

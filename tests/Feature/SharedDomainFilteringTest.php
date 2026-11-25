@@ -36,8 +36,8 @@ class SharedDomainFilteringTest extends TestCase
     {
         $this->travelTo('2026-10-20 10:00:00');
         $user = User::factory()->create(['role' => $role, 'is_active' => true]);
-        $this->visit('OLD', '2026-09-01', 'farmasi');
-        $this->visit('TODAY', '2026-10-20', 'farmasi');
+        $this->visit('OLD', '2026-09-01', 'farmasi')->update(['registered_by' => $user->id]);
+        $this->visit('TODAY', '2026-10-20', 'farmasi')->update(['registered_by' => $user->id]);
 
         $response = $this->actingAs($user)->get(route($route));
         $response->assertInertia(fn (Assert $page) => $route === 'laporan.kunjungan' ? $page->has('rows', 2)->missing('visits') : $page->where('visits.total', 2));

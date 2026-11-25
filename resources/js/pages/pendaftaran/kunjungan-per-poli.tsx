@@ -125,7 +125,7 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                         <Pagination pagination={reservations} />
                     </CardContent>
                 </Card>}
-                <FilterPanel><form className={`grid gap-4 sm:items-end ${access.selectClinic ? 'sm:grid-cols-2 xl:grid-cols-2' : 'sm:grid-cols-2'}`} onSubmit={applyFilters}>
+                <FilterPanel><form className={access.selectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'grid gap-4 sm:grid-cols-2'} onSubmit={applyFilters}>
                             {access.selectClinic && <Field htmlFor="visits-by-clinic" label="Poliklinik">
                                 <Select id="visits-by-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
                                     <option value="">Semua poliklinik</option>

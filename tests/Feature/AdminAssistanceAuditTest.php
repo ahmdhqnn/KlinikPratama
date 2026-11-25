@@ -66,7 +66,7 @@ class AdminAssistanceAuditTest extends TestCase
             ]);
         }
 
-        $this->actingAs(User::factory()->create(['role' => 'admin', 'is_active' => true]))
+        $this->actingAs($adminActor)
             ->get(route('admin.audit-bantuan'))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('events.total', 2)

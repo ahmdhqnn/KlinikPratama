@@ -8,16 +8,22 @@ use App\JadwalPraktikResolver;
 use App\Models\Nakes;
 use App\Models\Poliklinik;
 use App\Models\User;
+use App\Rules\AvailableAccountEmail;
+use App\StaffAccountAccess;
+use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class NakesController extends Controller
 {
+    public function __construct(private StaffAccountAccess $access) {}
+
     public function index(Request $request): Response
     {
         $filters = $request->validate([
@@ -42,6 +48,7 @@ class NakesController extends Controller
 
         return Inertia::render('master/nakes/index', [
             'missingClinicCount' => $needsClinic->count(),
+            'loginPositions' => array_keys(array_diff(Nakes::LOGIN_POSITIONS, User::occupiedSingleRoles())),
             'staff' => [
                 'data' => $nakes->getCollection()->map(fn (Nakes $staffMember): array => [
                     'id' => $staffMember->id,
@@ -56,6 +63,7 @@ class NakesController extends Controller
                     'str' => $staffMember->no_str,
                     'phone' => $staffMember->telepon,
                     'email' => $staffMember->user?->email,
+                    'accountActive' => $staffMember->user?->is_active && $staffMember->user->hasRole(...User::ROLES),
                     'active' => $staffMember->is_active,
                 ])->values(),
                 'currentPage' => $nakes->currentPage(),
@@ -93,6 +101,7 @@ class NakesController extends Controller
 
     public function store(Request $request, JadwalPraktikResolver $schedule, ClinicalAuditRecorder $audit): RedirectResponse
     {
+        $this->normalizeIdentity($request);
         $requiresLogin = $request->boolean('buat_akun');
         $data = $request->validate([
             'kode' => ['required', 'string', 'max:30', 'unique:nakes,kode'],
@@ -102,23 +111,30 @@ class NakesController extends Controller
             'jabatan' => ['required', Rule::in(['dokter', 'perawat', 'bidan', 'terapis_gigi', 'farmasi', 'apotek', 'pendaftaran', 'lab', 'petugas_lab'])],
             'poliklinik_id' => ['required_if:jabatan,dokter,perawat,bidan,terapis_gigi', 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'no_sip' => ['nullable', 'string', 'max:100'],
-            'no_str' => ['nullable', 'string', 'max:100'],
+            'no_str' => ['nullable', 'string', 'max:100', $this->uniqueStr()],
             'telepon' => ['nullable', 'string', 'max:20'],
             'is_active' => ['boolean'],
             'buat_akun' => ['boolean'],
-            'email' => [Rule::requiredIf($requiresLogin), 'nullable', 'email', 'unique:users,email'],
-            'password' => [Rule::requiredIf($requiresLogin), 'nullable', 'string', 'min:8'],
+            'email' => [Rule::excludeIf(! $requiresLogin), 'required', 'email', 'max:255', new AvailableAccountEmail],
+            'password' => [Rule::excludeIf(! $requiresLogin), 'required', 'string', 'min:8'],
         ]);
 
-        DB::transaction(function () use ($data, $request, $schedule, $audit): void {
+        $isActive = $request->boolean('is_active', true);
+        $loginRole = Nakes::LOGIN_POSITIONS[$data['jabatan']] ?? null;
+        if ($requiresLogin && (! $loginRole || ! $isActive)) {
+            throw ValidationException::withMessages(['buat_akun' => 'Akun hanya dapat dibuat untuk profil aktif dengan jabatan yang berhak mengakses aplikasi.']);
+        }
+
+        $this->access->save($loginRole ?? '', $requiresLogin, null, function () use ($data, $request, $schedule, $audit, $requiresLogin, $loginRole, $isActive): void {
             $userId = null;
-            if ($request->boolean('buat_akun')) {
+            if ($requiresLogin) {
                 $user = User::create([
                     'name' => $data['nama'],
                     'email' => $data['email'],
                     'password' => Hash::make($data['password']),
-                    'role' => $this->getRoleFromJabatan($data['jabatan']),
-                    'is_active' => $request->boolean('is_active'),
+                    'role' => $loginRole,
+                    'is_active' => $isActive,
+                    'must_change_password' => true,
                 ]);
                 $userId = $user->id;
             }
@@ -126,27 +142,28 @@ class NakesController extends Controller
             $staffMember = Nakes::create([
                 'kode' => $data['kode'],
                 'nama' => $data['nama'],
-                'jenis_kelamin' => $data['jenis_kelamin'],
+                'jenis_kelamin' => $data['jenis_kelamin'] ?? null,
                 'kategori' => $data['kategori'],
                 'jabatan' => $data['jabatan'],
                 'poliklinik_id' => $data['poliklinik_id'] ?? null,
-                'no_sip' => $data['no_sip'],
-                'no_str' => $data['no_str'],
-                'telepon' => $data['telepon'],
+                'no_sip' => $data['no_sip'] ?? null,
+                'no_str' => $data['no_str'] ?? null,
+                'telepon' => $data['telepon'] ?? null,
                 'user_id' => $userId,
-                'is_active' => $request->boolean('is_active'),
+                'is_active' => $isActive,
             ]);
             if ($staffMember->jabatan === 'dokter' && $staffMember->is_active) {
                 $schedule->applyAsnTemplate($staffMember->id, (int) $data['poliklinik_id'], today()->toDateString());
             }
             $audit->record($request, 'staff.created', metadata: ['staff_id' => $staffMember->id, 'user_id' => $userId]);
-        });
+        }, 'buat_akun');
 
         return back()->with('success', 'Data nakes berhasil ditambahkan.');
     }
 
     public function update(Request $request, Nakes $nake, ClinicalAuditRecorder $audit): RedirectResponse
     {
+        $this->normalizeIdentity($request);
         $data = $request->validate([
             'kode' => ['required', 'string', 'max:30', "unique:nakes,kode,{$nake->id}"],
             'nama' => ['required', 'string', 'max:200'],
@@ -155,26 +172,31 @@ class NakesController extends Controller
             'jabatan' => ['required', Rule::in(['dokter', 'perawat', 'bidan', 'terapis_gigi', 'farmasi', 'apotek', 'pendaftaran', 'lab', 'petugas_lab'])],
             'poliklinik_id' => ['required_if:jabatan,dokter,perawat,bidan,terapis_gigi', 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'no_sip' => ['nullable', 'string', 'max:100'],
-            'no_str' => ['nullable', 'string', 'max:100'],
+            'no_str' => ['nullable', 'string', 'max:100', $this->uniqueStr($nake)],
             'telepon' => ['nullable', 'string', 'max:20'],
             'is_active' => ['boolean'],
         ]);
 
-        $data['is_active'] = $request->boolean('is_active');
-        $nake->loadMissing('user');
-
-        if ($nake->user && $this->getRoleFromJabatan($data['jabatan']) !== $nake->user->role) {
-            return back()->withErrors(['jabatan' => 'Jabatan tidak sesuai dengan peran akun tertaut. Ubah peran akun di Manajemen Pengguna terlebih dahulu.']);
-        }
-
+        $data['is_active'] = $request->boolean('is_active', $nake->is_active);
         DB::transaction(function () use ($nake, $data, $request, $audit): void {
-            $nake->update($data);
+            $nake = Nakes::query()->lockForUpdate()->findOrFail($nake->id);
+            $account = $nake->user()->lockForUpdate()->first();
 
-            if (! $nake->is_active) {
-                $nake->user?->update(['is_active' => false]);
+            if ($account && $data['jabatan'] !== $nake->jabatan
+                && (Nakes::LOGIN_POSITIONS[$data['jabatan']] ?? null) !== $account->role) {
+                throw ValidationException::withMessages(['jabatan' => 'Jabatan tidak sesuai dengan peran akun tertaut. Ubah penautan akun di Manajemen Pengguna.']);
+            }
+
+            if (! $data['is_active'] && $account?->is($request->user())) {
+                throw ValidationException::withMessages(['is_active' => 'Profil yang terhubung dengan akun Anda sendiri tidak dapat dinonaktifkan.']);
+            }
+
+            $nake->update($data);
+            if (! $nake->is_active && $account?->is_active) {
+                $account->revokeAccess();
             }
             $audit->record($request, 'staff.updated', metadata: ['staff_id' => $nake->id, 'user_id' => $nake->user_id, 'active' => $nake->is_active]);
-        });
+        }, attempts: 3);
 
         return back()->with('success', 'Data nakes berhasil diperbarui.');
     }
@@ -182,7 +204,14 @@ class NakesController extends Controller
     public function destroy(Request $request, Nakes $nake, ClinicalAuditRecorder $audit): RedirectResponse
     {
         DB::transaction(function () use ($nake, $request, $audit): void {
-            $nake->user?->update(['is_active' => false]);
+            $nake = Nakes::query()->lockForUpdate()->findOrFail($nake->id);
+            $account = $nake->user()->lockForUpdate()->first();
+            if ($account?->is($request->user())) {
+                throw ValidationException::withMessages(['staff' => 'Profil yang terhubung dengan akun Anda sendiri tidak dapat diarsipkan.']);
+            }
+            if ($account?->is_active) {
+                $account->revokeAccess();
+            }
             $nake->delete();
             $audit->record($request, 'staff.archived', metadata: ['staff_id' => $nake->id, 'user_id' => $nake->user_id]);
         });
@@ -190,15 +219,26 @@ class NakesController extends Controller
         return back()->with('success', 'Data nakes berhasil dihapus.');
     }
 
-    private function getRoleFromJabatan(string $jabatan): string
+    private function uniqueStr(?Nakes $except = null): Closure
     {
-        return match ($jabatan) {
-            'dokter' => 'dokter',
-            'perawat', 'bidan', 'terapis_gigi' => 'perawat',
-            'farmasi', 'apotek' => 'farmasi',
-            'pendaftaran' => 'pendaftaran',
-            'lab', 'petugas_lab' => 'perawat',
-            default => 'perawat',
+        return function (string $attribute, mixed $value, Closure $fail) use ($except): void {
+            if (is_string($value) && Nakes::withTrashed()->whereRaw('UPPER(TRIM(no_str)) = ?', [$value])
+                ->when($except, fn ($query, Nakes $staff) => $query->whereKeyNot($staff->id))->exists()) {
+                $fail('Nomor STR sudah tercatat pada profil lain.');
+            }
         };
+    }
+
+    private function normalizeIdentity(Request $request): void
+    {
+        $fields = [];
+        foreach (['kode', 'no_str'] as $field) {
+            if (is_string($value = $request->input($field))) {
+                $fields[$field] = $field === 'no_str' && in_array(trim($value), ['', '-'], true)
+                    ? null : str($value)->trim()->upper()->toString();
+            }
+        }
+
+        $request->merge($fields);
     }
 }

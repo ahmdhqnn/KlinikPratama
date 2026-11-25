@@ -21,6 +21,7 @@ class KunjunganExport extends SafeSpreadsheetValueBinder implements FromQuery, W
         private readonly ?string $status = null,
         private readonly ?string $search = null,
         private readonly ?string $date = null,
+        private readonly ?int $registrarId = null,
     ) {}
 
     public function query(): Builder
@@ -28,7 +29,8 @@ class KunjunganExport extends SafeSpreadsheetValueBinder implements FromQuery, W
         return (new VisitQueryService)->filtered(
             ['poliklinik_id' => $this->clinicId, 'status' => $this->status, 'search' => $this->search, 'tanggal' => $this->date],
             period: new DateRangeFilter($this->dari, $this->sampai),
-        )->with(['pasien', 'poliklinik', 'dokter'])->latest('tanggal')->latest('id');
+        )->when($this->registrarId, fn (Builder $query, int $id) => $query->where('registered_by', $id))
+            ->with(['pasien', 'poliklinik', 'dokter'])->latest('tanggal')->latest('id');
     }
 
     public function headings(): array

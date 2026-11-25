@@ -49,12 +49,13 @@ interface Props {
     exportUrl: string | null;
     filters: Filters;
     clinics: Clinic[];
+    personal?: boolean;
     visits: PaginationData & { data: Visit[] };
 }
 
 const statusOptions = Object.entries(visitStatusFilterLabels);
 
-export default function RegistrationVisitReport({ filters: initialFilters, clinics, visits, exportUrl }: Props) {
+export default function RegistrationVisitReport({ filters: initialFilters, clinics, visits, exportUrl, personal = false }: Props) {
     const [filters, setFilters] = useState(initialFilters);
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
@@ -74,7 +75,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Analisis pelayanan</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Laporan kunjungan</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Lihat rincian kunjungan berdasarkan tanggal, poliklinik, dan status pelayanan.</p>
+                    <p className="mt-1 text-sm text-neutral-500">{personal ? 'Kunjungan yang didaftarkan atau dikonfirmasi melalui akun Anda.' : 'Lihat rincian kunjungan berdasarkan tanggal, poliklinik, dan status pelayanan.'}</p>
                 </div>
 
                 <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}><form className="space-y-4" onSubmit={applyFilters}>

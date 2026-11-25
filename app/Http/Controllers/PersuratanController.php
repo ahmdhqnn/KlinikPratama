@@ -37,13 +37,20 @@ class PersuratanController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'kunjungan_id' => ['nullable', 'integer', 'exists:kunjungan,id'],
+            'poli' => ['nullable', 'in:umum,gigi'],
+            'status' => ['nullable', 'in:aktif,nonaktif'],
+            'jenis' => ['nullable', Rule::in([...MedicalLetterData::TYPES, 'rujukan_internal'])],
         ]);
         $search = $filters['search'] ?? '';
         $user = $request->user();
         $isAdmin = $user->role === 'admin';
+        $clinic = $isAdmin ? null : ($filters['poli'] ?? null);
+        $visitId = isset($filters['kunjungan_id']) ? (int) $filters['kunjungan_id'] : null;
         $doctorId = $isAdmin ? null : $this->doctorId($user);
         $eligibleVisits = Kunjungan::query()->when($isAdmin, fn (Builder $query) => $query->whereRaw('1 = 0'))
             ->when(! $isAdmin, fn (Builder $query) => $query->where('dokter_id', $doctorId))
+            ->forClinicType($clinic)
+            ->when($visitId, fn (Builder $query, int $id) => $query->whereKey($id))
             ->whereIn('status', Kunjungan::POST_EXAMINATION_STATUSES)
             ->whereHas('pemeriksaan', fn (Builder $query) => $query->whereNotNull('signed_at'))
             ->with(['pasien', 'poliklinik'])
@@ -56,11 +63,14 @@ class PersuratanController extends Controller
             ->when($filters['kunjungan_id'] ?? null, fn (Builder $query, int|string $visitId) => $query->where('kunjungan_id', $visitId))
             ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
                 ->where('nomor_surat', 'like', "%{$search}%")
+                ->orWhereHas('kunjungan', fn (Builder $visit) => $visit->where('no_kunjungan', 'like', "%{$search}%"))
                 ->orWhereHas('kunjungan.pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))))
             ->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'dokter'])
-            ->when(! $isAdmin, fn (Builder $query) => $query->whereHas('kunjungan', fn (Builder $visit) => $visit->where('dokter_id', $doctorId)))
+            ->when(! $isAdmin, fn (Builder $query) => $query->whereHas('kunjungan', fn (Builder $visit) => $visit->where('dokter_id', $doctorId)->forClinicType($clinic)))
             ->latest('id')->paginate(10, ['*'], 'letters_page')->withQueryString();
         $templates = CorrespondenceTemplate::query()
+            ->when($isAdmin ? ($filters['status'] ?? null) : null, fn (Builder $query, string $status) => $query->where('is_active', $status === 'aktif'))
+            ->when($isAdmin ? ($filters['jenis'] ?? null) : null, fn (Builder $query, string $type) => $query->where('jenis', $type))
             ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
                 ->where('nama', 'like', "%{$search}%")->orWhere('kode', 'like', "%{$search}%")))
             ->withCount(['suratMedis', 'rujukanInternal'])
@@ -69,7 +79,7 @@ class PersuratanController extends Controller
 
         return Inertia::render('persuratan/index', [
             'isAdmin' => $isAdmin,
-            'filters' => ['search' => $search, 'visitId' => $filters['kunjungan_id'] ?? null],
+            'filters' => ['search' => $search, 'visitId' => $visitId, 'clinic' => $clinic ?? '', 'type' => $isAdmin ? ($filters['jenis'] ?? '') : '', 'status' => $isAdmin ? ($filters['status'] ?? '') : ''],
             'eligibleVisits' => ! $isAdmin && $eligibleVisits ? [
                 'data' => $eligibleVisits->getCollection()->map(fn (Kunjungan $visit): array => [
                     'id' => $visit->id,
@@ -119,7 +129,7 @@ class PersuratanController extends Controller
             ],
             'referrals' => $isAdmin ? ['data' => [], 'currentPage' => 1, 'lastPage' => 1, 'from' => null, 'to' => null, 'total' => 0, 'previousUrl' => null, 'nextUrl' => null] : $referralDirectory->paginate(
                 $search, isset($filters['kunjungan_id']) ? (int) $filters['kunjungan_id'] : null,
-                $doctorId, $isAdmin ? 'pelayanan.kunjungan.show' : null, true, 'referrals_page',
+                $doctorId, null, true, 'referrals_page', originClinicType: $clinic,
             ),
         ]);
     }

@@ -1,10 +1,11 @@
+import { DisclosureCard } from '@/components/ui/disclosure-card';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { ActionButton } from '@/components/ui/action-button';
 import { DatePicker } from '@/components/ui/date-picker';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, router, useForm } from '@inertiajs/react';
-import { CalendarDays, ChevronDown, Clock3, Pencil, Plus } from 'lucide-react';
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { CalendarDays, Clock3, Pencil, Plus, UsersRound } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,15 +44,24 @@ interface Props {
     canManage: boolean;
     canManageHolidays: boolean;
     canSelectClinic: boolean;
-    filters: { search?: string; dokterId: number | ''; poliklinikId: number | ''; hari: string };
+    filters: { search?: string; dokterId: number | ''; poliklinikId: number | ''; hari: string; status?: string };
     doctors: Option[];
     clinics: Option[];
     days: string[];
     schedules: PaginationData & { data: Schedule[] };
     today: string;
     holidays: PaginationData & { data: { id: number; tanggal: string; nama: string; jenis: string; sumber: string | null }[] };
-    exceptions: PaginationData & { data: { id: number; dokter_id: number; poliklinik_id: number; tanggal: string; jam_mulai: string | null; jam_selesai: string | null; is_active: boolean; alasan: string }[] };
+    matchingDoctors?: number;
+    exceptions: (PaginationData & { data: { id: number; dokter_id: number; poliklinik_id: number; tanggal: string; jam_mulai: string | null; jam_selesai: string | null; is_active: boolean; alasan: string }[] }) | null;
 }
+
+const holidayTypes: Record<string, string> = {
+    nasional: 'Libur nasional',
+    cuti_bersama: 'Cuti bersama',
+    instansi: 'Libur instansi',
+};
+
+const holidayDate = new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeZone: 'UTC' });
 
 interface ScheduleForm {
     dokter_id: string;
@@ -63,8 +73,8 @@ interface ScheduleForm {
     berlaku_sampai: string;
 }
 
-export default function DoctorSchedule({ canManage, canManageHolidays = false, canSelectClinic, filters: initialFilters, doctors, clinics, days, schedules, today, holidays, exceptions: exceptionPagination }: Props) {
-    const exceptions = exceptionPagination.data;
+export default function DoctorSchedule({ canManage, canManageHolidays = false, canSelectClinic, filters: initialFilters, doctors, clinics, days, schedules, today, holidays, matchingDoctors = 0, exceptions: exceptionPagination }: Props) {
+    const exceptions = exceptionPagination?.data ?? [];
     const [filters, setFilters] = useState(initialFilters);
     const [asnExpanded, setAsnExpanded] = useState(false);
     const [addScheduleExpanded, setAddScheduleExpanded] = useState(true);
@@ -83,6 +93,7 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
             dokter_id: filters.dokterId,
             poliklinik_id: filters.poliklinikId,
             hari: filters.hari,
+            status: filters.status,
         }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
@@ -131,13 +142,13 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                     {!canSelectClinic && <p className="mt-1 text-sm text-neutral-500">Jadwal untuk {clinics[0]?.name ?? 'poli penugasan Anda'}.</p>}
                     <p className="mt-1 text-sm text-neutral-500">Jadwal baku ASN Senin–Jumat 08.00–16.00. Sabtu, Minggu, libur nasional, dan cuti bersama tutup kecuali ada pengecualian.</p>
                 </div>
-                <section aria-label="Ringkasan jadwal" className="grid gap-4 sm:grid-cols-3">
+                <section aria-label="Ringkasan jadwal" className="balanced-stats">
                     <StatCard label="Jadwal praktik" value={schedules.total} description="Jadwal sesuai filter" icon={<CalendarDays className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                     <StatCard label="Hari libur" value={holidays.total} description="Libur mulai hari ini" icon={<CalendarDays className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
-                    <StatCard label="Jadwal khusus" value={exceptionPagination.total} description="Pengecualian mulai hari ini" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Dokter terjadwal" value={matchingDoctors} description="Dokter unik pada hasil filter" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 </section>
                 {canManage && (
-                    <ScheduleDisclosureCard title="Terapkan jadwal ASN" description="Isi hari kerja yang belum memiliki jadwal untuk dokter dan poli terpilih. Jadwal khusus yang sudah ada tetap berlaku." icon={<CalendarDays className="size-5" />} expanded={asnExpanded} onToggle={() => setAsnExpanded((current) => !current)}>
+                    <DisclosureCard title="Terapkan jadwal ASN" description="Isi hari kerja yang belum memiliki jadwal untuk dokter dan poli terpilih. Jadwal khusus yang sudah ada tetap berlaku." icon={<CalendarDays className="size-5" />} expanded={asnExpanded} onToggle={() => setAsnExpanded((current) => !current)}>
                         <CardContent className="pt-5 sm:pt-6">
                             <form
                                 className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:grid-rows-[auto_auto_auto] lg:items-start"
@@ -167,13 +178,10 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                                 </Button>
                             </form>
                         </CardContent>
-                    </ScheduleDisclosureCard>
+                    </DisclosureCard>
                 )}
-                <div className="grid gap-4 xl:grid-cols-2">
-                    <Card className="min-w-0 overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span><div className="min-w-0"><CardTitle>Kalender libur praktik</CardTitle><CardDescription className="mt-1">Libur nasional dan cuti bersama 2026–2027 dimuat dari SKB pemerintah. Periksa serta tambahkan keputusan tahun berikutnya.</CardDescription></div></div></CardHeader><CardContent className="space-y-3 pt-5 sm:pt-6">{canManageHolidays && <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={(event) => { event.preventDefault(); holidayForm.post('/pendaftaran/jadwal-praktik/libur', { preserveScroll: true, onSuccess: () => holidayForm.reset() }); }}><Field label="Tanggal" htmlFor="holiday-date" error={holidayForm.errors.tanggal} required><DatePicker id="holiday-date" value={holidayForm.data.tanggal} onChange={(event) => holidayForm.setData('tanggal', event.target.value)} required /></Field><Field label="Jenis" htmlFor="holiday-type" error={holidayForm.errors.jenis} required><Select id="holiday-type" value={holidayForm.data.jenis} onChange={(event) => holidayForm.setData('jenis', event.target.value)}><option value="nasional">Libur nasional</option><option value="cuti_bersama">Cuti bersama</option><option value="instansi">Libur instansi</option></Select></Field><Field label="Nama libur" htmlFor="holiday-name" error={holidayForm.errors.nama} required><Input placeholder="Contoh: Cuti bersama" id="holiday-name" value={holidayForm.data.nama} onChange={(event) => holidayForm.setData('nama', event.target.value)} required /></Field><Field label="Dasar / surat" htmlFor="holiday-source" error={holidayForm.errors.sumber}><Input placeholder="Nomor surat atau dasar penetapan" id="holiday-source" value={holidayForm.data.sumber} onChange={(event) => holidayForm.setData('sumber', event.target.value)} /></Field><Button className="sm:col-span-2" disabled={holidayForm.processing} type="submit">Simpan hari libur</Button></form>}<div className="space-y-2">{holidays.data.map((holiday) => <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-100 bg-neutral-50/80 px-3 py-2 text-sm" key={holiday.id}><span><strong>{holiday.tanggal}</strong> · {holiday.nama}<span className="block text-xs text-neutral-500">{holiday.jenis.replaceAll('_', ' ')} · {holiday.sumber ?? 'Keputusan instansi'}</span></span>{canManageHolidays && <ActionButton type="button" onClick={() => confirmAction(`Hapus libur ${holiday.tanggal}?`, () => router.delete(`/pendaftaran/jadwal-praktik/libur/${holiday.id}`, { preserveScroll: true }), 'Hapus')} action="delete" label={`Hapus libur ${holiday.tanggal}`} />}</div>)}</div></CardContent><Pagination pagination={holidays} /></Card>
-                    <Card className="min-w-0 overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Clock3 className="size-5" /></span><div className="min-w-0"><CardTitle>Pengecualian per tanggal</CardTitle><CardDescription className="mt-1">Buka layanan pada hari libur atau tutup praktik dokter pada tanggal tertentu.</CardDescription></div></div></CardHeader><CardContent className="space-y-3 pt-5 sm:pt-6">{canManage && <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={(event) => { event.preventDefault(); exceptionForm.post('/pendaftaran/jadwal-praktik/pengecualian', { preserveScroll: true, onSuccess: () => exceptionForm.reset() }); }}><Field label="Dokter" htmlFor="exception-doctor" error={exceptionForm.errors.dokter_id} required><Select id="exception-doctor" value={exceptionForm.data.dokter_id} onChange={(event) => exceptionForm.setData('dokter_id', event.target.value)} required><option value="">Pilih dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}</Select></Field><Field label="Poliklinik" htmlFor="exception-clinic" error={exceptionForm.errors.poliklinik_id} required><Select disabled={!canSelectClinic} id="exception-clinic" value={exceptionForm.data.poliklinik_id} onChange={(event) => exceptionForm.setData('poliklinik_id', event.target.value)} required><option value="">Pilih poli</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field><Field label="Tanggal" htmlFor="exception-date" error={exceptionForm.errors.tanggal} required><DatePicker id="exception-date" value={exceptionForm.data.tanggal} onChange={(event) => exceptionForm.setData('tanggal', event.target.value)} required /></Field><Field label="Keputusan" htmlFor="exception-active" error={exceptionForm.errors.is_active}><Select id="exception-active" value={exceptionForm.data.is_active ? '1' : '0'} onChange={(event) => exceptionForm.setData('is_active', event.target.value === '1')}><option value="1">Buka praktik</option><option value="0">Tutup praktik</option></Select></Field>{exceptionForm.data.is_active && <><Field label="Mulai" htmlFor="exception-start" error={exceptionForm.errors.jam_mulai} required><Input id="exception-start" type="time" value={exceptionForm.data.jam_mulai} onChange={(event) => exceptionForm.setData('jam_mulai', event.target.value)} required /></Field><Field label="Selesai" htmlFor="exception-end" error={exceptionForm.errors.jam_selesai} required><Input id="exception-end" type="time" value={exceptionForm.data.jam_selesai} onChange={(event) => exceptionForm.setData('jam_selesai', event.target.value)} required /></Field></>}<Field label="Alasan" htmlFor="exception-reason" error={exceptionForm.errors.alasan} required><Input placeholder="Alasan pembatalan atau perubahan jam praktik" id="exception-reason" value={exceptionForm.data.alasan} onChange={(event) => exceptionForm.setData('alasan', event.target.value)} required /></Field><Button disabled={exceptionForm.processing} type="submit">Simpan pengecualian</Button></form>}<div className="max-h-64 space-y-2 overflow-y-auto">{exceptions.map((exception) => <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-100 bg-neutral-50/80 px-3 py-2 text-sm" key={exception.id}><span><strong>{exception.tanggal}</strong> · {doctors.find((doctor) => doctor.id === exception.dokter_id)?.name ?? 'Dokter'} · {clinics.find((clinic) => clinic.id === exception.poliklinik_id)?.name ?? 'Poli'}<span className="block text-xs text-neutral-500">{exception.is_active ? `Buka ${exception.jam_mulai?.slice(0, 5)}–${exception.jam_selesai?.slice(0, 5)}` : 'Tutup'} · {exception.alasan}</span></span>{canManage && <ActionButton type="button" onClick={() => confirmAction(`Hapus pengecualian ${exception.tanggal}?`, () => router.delete(`/pendaftaran/jadwal-praktik/pengecualian/${exception.id}`, { preserveScroll: true }), 'Hapus')} action="delete" label={`Hapus pengecualian ${exception.tanggal}`} />}</div>)}</div></CardContent><Pagination pagination={exceptionPagination} /></Card>
-                </div>
-                {canManage && <ScheduleDisclosureCard title="Tambah jadwal praktik" description="Atur masa berlaku jadwal; periode untuk dokter dan poli yang sama tidak boleh bertumpuk." icon={<Plus className="size-5" />} expanded={addScheduleExpanded} onToggle={() => setAddScheduleExpanded((current) => !current)}>
+
+                {canManage && <DisclosureCard title="Tambah jadwal praktik" description="Atur masa berlaku jadwal; periode untuk dokter dan poli yang sama tidak boleh bertumpuk." icon={<Plus className="size-5" />} expanded={addScheduleExpanded} onToggle={() => setAddScheduleExpanded((current) => !current)}>
                     <CardContent className="pt-5 sm:pt-6">
                         <form className="space-y-4" onSubmit={saveSchedule}>
                             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -203,9 +211,9 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                             <Button disabled={form.processing || doctors.length === 0 || clinics.length === 0} type="submit"><Plus className="size-4" />{form.processing ? 'Menyimpan…' : 'Tambah jadwal'}</Button>
                         </form>
                     </CardContent>
-                </ScheduleDisclosureCard>}
-                <FilterPanel><form className="grid gap-4 sm:grid-cols-2" onSubmit={applyFilters}>
-                            <Field htmlFor="schedule-search" label="Cari jadwal dokter atau poliklinik"><Input id="schedule-search" maxLength={100} value={filters.search ?? ''} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama dokter atau poliklinik" /></Field>
+                </DisclosureCard>}
+                <FilterPanel><form className={canSelectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-5' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-4'} onSubmit={applyFilters}>
+                            <Field htmlFor="schedule-search" label="Cari jadwal"><Input id="schedule-search" maxLength={100} value={filters.search ?? ''} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama dokter atau poliklinik" /></Field>
                             <Field htmlFor="schedule-doctor-filter" label="Dokter">
                                 <Select id="schedule-doctor-filter" onChange={(event) => setFilters({ ...filters, dokterId: event.target.value ? Number(event.target.value) : '' })} value={filters.dokterId}>
                                     <option value="">Semua dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
@@ -221,7 +229,12 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                                     <option value="">Semua hari</option>{days.map((day) => <option key={day} value={day}>{capitalize(day)}</option>)}
                                 </Select>
                             </Field>
-                            <div className="flex gap-3 "><FilterSubmit /></div>
+                            <Field htmlFor="schedule-status-filter" label="Status jadwal">
+                                <Select id="schedule-status-filter" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status ?? ''}>
+                                    <option value="">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option>
+                                </Select>
+                            </Field>
+                            <FilterSubmit />
                         </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
@@ -248,6 +261,58 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                     </CardContent>
                     <Pagination pagination={schedules} />
                 </Card>
+                <div className={canManage ? "grid gap-4 xl:grid-cols-2" : undefined}>
+                    <Card className="min-w-0 overflow-hidden">
+                        <CardHeader className="border-b border-neutral-100">
+                            <div className="flex items-start gap-3">
+                                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span>
+                                <div className="min-w-0">
+                                    <CardTitle>Kalender libur praktik</CardTitle>
+                                    <CardDescription className="mt-1">Libur nasional, cuti bersama, dan libur instansi mulai hari ini.</CardDescription>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4 pt-5 sm:pt-6">
+                            {canManageHolidays && <form className="grid gap-4 sm:grid-cols-2" onSubmit={(event) => {
+                                event.preventDefault();
+                                holidayForm.post('/pendaftaran/jadwal-praktik/libur', { preserveScroll: true, onSuccess: () => holidayForm.reset() });
+                            }}>
+                                <Field label="Tanggal" htmlFor="holiday-date" error={holidayForm.errors.tanggal} required>
+                                    <DatePicker id="holiday-date" value={holidayForm.data.tanggal} onChange={(event) => holidayForm.setData('tanggal', event.target.value)} required />
+                                </Field>
+                                <Field label="Jenis libur" htmlFor="holiday-type" error={holidayForm.errors.jenis} required>
+                                    <Select id="holiday-type" value={holidayForm.data.jenis} onChange={(event) => holidayForm.setData('jenis', event.target.value)}>
+                                        {Object.entries(holidayTypes).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                                    </Select>
+                                </Field>
+                                <Field label="Nama libur" htmlFor="holiday-name" error={holidayForm.errors.nama} required>
+                                    <Input placeholder="Contoh: Cuti bersama" id="holiday-name" value={holidayForm.data.nama} onChange={(event) => holidayForm.setData('nama', event.target.value)} required />
+                                </Field>
+                                <Field label="Dasar / surat" htmlFor="holiday-source" error={holidayForm.errors.sumber}>
+                                    <Input placeholder="Nomor surat atau dasar penetapan" id="holiday-source" value={holidayForm.data.sumber} onChange={(event) => holidayForm.setData('sumber', event.target.value)} />
+                                </Field>
+                                <Button className="w-full sm:col-span-full sm:w-auto sm:justify-self-end" disabled={holidayForm.processing} type="submit">Simpan hari libur</Button>
+                            </form>}
+                            {holidays.data.length > 0 ? <ul className="divide-y divide-neutral-100">
+                                {holidays.data.map((holiday) => <li className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0" key={holiday.id}>
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-semibold">{holiday.nama}</p>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            <time dateTime={holiday.tanggal}>{holidayDate.format(new Date(holiday.tanggal))}</time>
+                                            {holiday.sumber && <span className="wrap-anywhere"> · {holiday.sumber}</span>}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Badge>{holidayTypes[holiday.jenis] ?? holiday.jenis}</Badge>
+                                        {canManageHolidays && <ActionButton type="button" onClick={() => confirmAction('Hapus libur '+holiday.tanggal+'?', () => router.delete('/pendaftaran/jadwal-praktik/libur/'+holiday.id, { preserveScroll: true }), 'Hapus')} action="delete" label={'Hapus libur '+holiday.tanggal} />}
+                                    </div>
+                                </li>)}
+                            </ul> : <Empty size="compact" title="Belum ada hari libur mendatang." />}
+                        </CardContent>
+                        <Pagination pagination={holidays} />
+                    </Card>
+                    {canManage && exceptionPagination && <Card className="min-w-0 overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Clock3 className="size-5" /></span><div className="min-w-0"><CardTitle>Pengecualian per tanggal</CardTitle><CardDescription className="mt-1">Buka layanan pada hari libur atau tutup praktik dokter pada tanggal tertentu.</CardDescription></div></div></CardHeader><CardContent className="space-y-3 pt-5 sm:pt-6">{canManage && <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={(event) => { event.preventDefault(); exceptionForm.post('/pendaftaran/jadwal-praktik/pengecualian', { preserveScroll: true, onSuccess: () => exceptionForm.reset() }); }}><Field label="Dokter" htmlFor="exception-doctor" error={exceptionForm.errors.dokter_id} required><Select id="exception-doctor" value={exceptionForm.data.dokter_id} onChange={(event) => exceptionForm.setData('dokter_id', event.target.value)} required><option value="">Pilih dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}</Select></Field><Field label="Poliklinik" htmlFor="exception-clinic" error={exceptionForm.errors.poliklinik_id} required><Select disabled={!canSelectClinic} id="exception-clinic" value={exceptionForm.data.poliklinik_id} onChange={(event) => exceptionForm.setData('poliklinik_id', event.target.value)} required><option value="">Pilih poli</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field><Field label="Tanggal" htmlFor="exception-date" error={exceptionForm.errors.tanggal} required><DatePicker id="exception-date" value={exceptionForm.data.tanggal} onChange={(event) => exceptionForm.setData('tanggal', event.target.value)} required /></Field><Field label="Keputusan" htmlFor="exception-active" error={exceptionForm.errors.is_active}><Select id="exception-active" value={exceptionForm.data.is_active ? '1' : '0'} onChange={(event) => exceptionForm.setData('is_active', event.target.value === '1')}><option value="1">Buka praktik</option><option value="0">Tutup praktik</option></Select></Field>{exceptionForm.data.is_active && <><Field label="Mulai" htmlFor="exception-start" error={exceptionForm.errors.jam_mulai} required><Input id="exception-start" type="time" value={exceptionForm.data.jam_mulai} onChange={(event) => exceptionForm.setData('jam_mulai', event.target.value)} required /></Field><Field label="Selesai" htmlFor="exception-end" error={exceptionForm.errors.jam_selesai} required><Input id="exception-end" type="time" value={exceptionForm.data.jam_selesai} onChange={(event) => exceptionForm.setData('jam_selesai', event.target.value)} required /></Field></>}<Field label="Alasan" htmlFor="exception-reason" error={exceptionForm.errors.alasan} required><Input placeholder="Alasan pembatalan atau perubahan jam praktik" id="exception-reason" value={exceptionForm.data.alasan} onChange={(event) => exceptionForm.setData('alasan', event.target.value)} required /></Field><Button disabled={exceptionForm.processing} type="submit">Simpan pengecualian</Button></form>}<div className="max-h-64 space-y-2 overflow-y-auto">{exceptions.map((exception) => <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-100 bg-neutral-50/80 px-3 py-2 text-sm" key={exception.id}><span><strong>{exception.tanggal}</strong> · {doctors.find((doctor) => doctor.id === exception.dokter_id)?.name ?? 'Dokter'} · {clinics.find((clinic) => clinic.id === exception.poliklinik_id)?.name ?? 'Poli'}<span className="block text-xs text-neutral-500">{exception.is_active ? `Buka ${exception.jam_mulai?.slice(0, 5)}–${exception.jam_selesai?.slice(0, 5)}` : 'Tutup'} · {exception.alasan}</span></span>{canManage && <ActionButton type="button" onClick={() => confirmAction(`Hapus pengecualian ${exception.tanggal}?`, () => router.delete(`/pendaftaran/jadwal-praktik/pengecualian/${exception.id}`, { preserveScroll: true }), 'Hapus')} action="delete" label={`Hapus pengecualian ${exception.tanggal}`} />}</div>)}</div></CardContent><Pagination pagination={exceptionPagination} /></Card>}
+                </div>
                 <Dialog onOpenChange={(open) => { if (!open) closeScheduleEditor(); }} open={Boolean(editingSchedule)}>
                     <DialogContent className="max-w-3xl">
                         <DialogHeader><DialogTitle>Perbarui jadwal praktik</DialogTitle><DialogDescription>Perubahan periode akan diperiksa agar tidak bertumpuk dengan jadwal dokter yang sama.</DialogDescription></DialogHeader>
@@ -281,30 +346,4 @@ function capitalize(value: string): string {
 
 function ScheduleDetail({ label, value }: { label: string; value: string }) {
     return <div className="rounded-lg bg-neutral-50 px-3 py-2.5"><p className="text-xs font-medium text-neutral-500">{label}</p><p className="mt-1 text-sm font-semibold text-neutral-900">{value}</p></div>;
-}
-
-function ScheduleDisclosureCard({ title, description, icon, expanded, onToggle, children }: {
-    title: string;
-    description: string;
-    icon: ReactNode;
-    expanded: boolean;
-    onToggle: () => void;
-    children: ReactNode;
-}) {
-    const panelId = useId();
-
-    return <Card className="min-w-0 overflow-hidden">
-        <CardHeader className={expanded ? 'border-b border-neutral-100' : undefined}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex min-w-0 items-start gap-3">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700">{icon}</span>
-                    <div className="min-w-0"><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div>
-                </div>
-                <Button aria-controls={panelId} aria-expanded={expanded} onClick={onToggle} size="sm" type="button" variant="secondary">
-                    {expanded ? 'Tutup' : 'Buka'}<ChevronDown className={`size-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                </Button>
-            </div>
-        </CardHeader>
-        <div hidden={!expanded} id={panelId}>{children}</div>
-    </Card>;
 }

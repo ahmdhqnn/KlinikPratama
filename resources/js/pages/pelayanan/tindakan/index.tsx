@@ -76,7 +76,7 @@ export default function NursingProcedureQueue({ stats, filters: initialFilters, 
                 <StatCard label="Tindakan tertunda" value={stats.allPending} description="Termasuk kunjungan dari hari sebelumnya" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
             </section>
             <VisitList title="Menunggu tindakan hari ini" description="Tindakan dari dokter yang siap dikerjakan perawat, diurutkan dari waktu tunggu terlama." icon={<Clock3 className="size-5" />} visits={todayVisits} />
-            <FilterPanel><form className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end" onSubmit={applyFilters}>
+            <FilterPanel><form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={applyFilters}>
                 <Field htmlFor="nursing-action-search" label="Cari kunjungan atau pasien"><Input id="nursing-action-search" placeholder="Nama, No. RM, atau No. kunjungan" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} /></Field>
                 <Field htmlFor="nursing-action-date" label="Tanggal kunjungan"><DatePicker id="nursing-action-date" value={filters.tanggal} onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} /></Field>
                 <Field htmlFor="nursing-action-status" label="Status tindakan"><Select id="nursing-action-status" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">Semua status</option><option value="pending">Menunggu tindakan</option><option value="completed">Tindakan selesai</option></Select></Field>

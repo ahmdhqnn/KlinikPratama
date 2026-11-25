@@ -103,13 +103,14 @@ class RegistrationFlowEnhancementTest extends TestCase
     public function test_export_contains_all_matching_rows_and_respects_applied_filters(string $role): void
     {
         $this->travelTo('2026-10-26 09:00:00');
+        $user = User::factory()->create(['role' => $role]);
         $visit = $this->visit('EXPORT', '2026-10-26', 'selesai');
+        $visit->update(['registered_by' => $user->id]);
         for ($index = 1; $index <= 11; $index++) {
-            Kunjungan::create([...$visit->only(['pasien_id', 'poliklinik_id', 'tanggal', 'status']), 'no_kunjungan' => 'EXPORT-'.$index]);
+            Kunjungan::create([...$visit->only(['pasien_id', 'poliklinik_id', 'tanggal', 'status', 'registered_by']), 'no_kunjungan' => 'EXPORT-'.$index]);
         }
         $this->visit('EXCLUDED', '2026-10-25', 'menunggu');
         $filters = ['tanggal' => '2026-10-26', 'status' => 'selesai', 'search' => 'Pasien EXPORT', 'poliklinik_id' => $visit->poliklinik_id];
-        $user = User::factory()->create(['role' => $role]);
         $page = $this->actingAs($user)->get(route('pendaftaran.laporan-kunjungan', $filters));
         $page->assertInertia(fn (Assert $page) => $page->where('visits.total', 12)->has('visits.data', 10));
 

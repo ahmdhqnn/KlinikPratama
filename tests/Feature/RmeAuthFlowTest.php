@@ -84,16 +84,16 @@ class RmeAuthFlowTest extends TestCase
         );
     }
 
-    public function test_management_dashboard_links_follow_up_to_an_authorized_report(): void
+    public function test_retired_management_accounts_cannot_sign_in_or_use_reports_and_profile(): void
     {
         $user = User::factory()->create(['role' => 'manajemen', 'is_active' => true]);
 
-        $response = $this->actingAs($user)->get('/')->assertInertia(fn (Assert $page) => $page
-            ->component('dashboard/index')
-            ->where('followUp.href', route('laporan.kunjungan'))
-        );
+        $this->post('/login', ['email' => $user->email, 'password' => 'password'])->assertSessionHasErrors('credentials');
+        $this->assertGuest();
 
-        $this->get($response->viewData('page')['props']['followUp']['href'])->assertOk();
+        $this->actingAs($user)->get(route('dashboard'))->assertForbidden();
+        $this->get(route('laporan.kunjungan'))->assertForbidden();
+        $this->get(route('profile.show'))->assertForbidden();
     }
 
     public function test_login_is_rate_limited_after_repeated_failed_attempts(): void

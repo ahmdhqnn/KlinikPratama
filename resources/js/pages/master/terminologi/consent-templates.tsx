@@ -1,5 +1,10 @@
+import { MasterExportButton } from '@/components/admin/master-export-button';
+import { SpreadsheetImportDialog } from '@/components/admin/spreadsheet-import-dialog';
+import { ReportTableCard } from '@/components/dashboard/report-table-card';
+import { Empty } from '@/components/ui/empty';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { StatCard } from '@/components/dashboard/stat-card';
-import { Archive, ClipboardCheck, FileText } from 'lucide-react';
+import { Archive, ClipboardCheck, FileText, Plus, Upload } from 'lucide-react';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,7 +13,6 @@ import { useState, type FormEvent } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -43,9 +47,22 @@ type Template = TemplateData & { id: number; published_at: string | null; delete
 const modes: Record<string, string> = { oral: 'Lisan', written: 'Tertulis', conditional: 'Kondisional' };
 
 export default function ConsentTemplates({ templates, releases }: { templates: Template[]; releases: string[] }) {
+    const [importOpen, setImportOpen] = useState(false);
     const [editorOpen, setEditorOpen] = useState(false);
     const [selected, setSelected] = useState<Template | null>(null);
-    const [archiveFilter, setArchiveFilter] = useState(false);
+    const pageUrl = usePage().url;
+    const params = new URLSearchParams(pageUrl.split('?')[1]);
+    const tab = params.get('tab') === 'arsip' ? 'arsip' : 'template';
+    const search = (params.get('search') ?? '').trim().toLocaleLowerCase('id-ID');
+    const clinic = params.get('poli') ?? '';
+    const release = params.get('rilis') ?? '';
+    const shown = templates.filter((item) => Boolean(item.deleted_at) === (tab === 'arsip')
+        && (!clinic || item.clinic_type === clinic) && (!release || item.release === release)
+        && (!search || [item.code, item.version, item.sop_reference].some((value) => value?.toLocaleLowerCase('id-ID').includes(search))));
+    const exportQuery = new URLSearchParams({ tab });
+    if (search) exportQuery.set('search', search);
+    if (clinic) exportQuery.set('poli', clinic);
+    if (release) exportQuery.set('rilis', release);
     const [editing, setEditing] = useState<number | null>(null);
     const [publishing, setPublishing] = useState<number | null>(null);
     const [approved, setApproved] = useState(false);
@@ -66,36 +83,53 @@ export default function ConsentTemplates({ templates, releases }: { templates: T
     return <>
         <Head title="SOP persetujuan tindakan" />
         <div className="space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-xl font-semibold">SOP persetujuan tindakan</h2>
-                <Button onClick={() => { setEditing(null); form.reset(); form.clearErrors(); setEditorOpen(true); }}>Tambah template</Button>
-            </div>
-            <section aria-label="Ringkasan template SOP" className="grid gap-4 sm:grid-cols-3">
+            <header className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                    <p className="text-sm font-medium text-neutral-700">Master data klinis</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">SOP persetujuan tindakan</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">Kelola draf dan versi template berdasarkan kode tindakan, rilis, dan poliklinik.</p>
+                </div>
+                <Button onClick={() => { setEditing(null); form.reset(); form.clearErrors(); setEditorOpen(true); }}>
+                    <Plus aria-hidden="true" className="size-4" />Tambah template
+                </Button>
+            </header>
+            <section aria-label="Ringkasan template SOP" className="balanced-stats">
                 <StatCard label="Template aktif" value={templates.filter((item) => item.active && !item.deleted_at).length} description="Tersedia untuk pelayanan" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 <StatCard label="Draf" value={templates.filter((item) => !item.published_at && !item.deleted_at).length} description="Menunggu peninjauan dan penerbitan" icon={<FileText className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 <StatCard label="Arsip" value={templates.filter((item) => item.deleted_at).length} description="Template yang diarsipkan" icon={<Archive className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
             </section>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Versi template</CardTitle>
-                    <CardDescription>Terbitkan setelah materi dan klasifikasi disahkan Penanggung Jawab Klinik.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="flex gap-2">
-                        <Button size="sm" variant={archiveFilter ? 'secondary' : 'default'} onClick={() => setArchiveFilter(false)}>Template</Button>
-                        <Button size="sm" variant={archiveFilter ? 'default' : 'secondary'} onClick={() => setArchiveFilter(true)}>Arsip</Button>
-                    </div>
-                    <div className="overflow-x-auto rounded-lg border border-neutral-200">
+            <SpreadsheetImportDialog title="Impor template SOP" description="Gunakan template Excel. Isi kode ICD-9-CM, rilis, dan versi sebagai teks. Maksimal 500 baris. Jika ada kesalahan, seluruh impor dibatalkan. Template yang lolos tersimpan sebagai draf untuk ditinjau sebelum diterbitkan." importUrl={url + '/import'} templateUrl={url + '/template'} open={importOpen} onOpenChange={setImportOpen} submitLabel="Impor sebagai draf" />
+            <nav aria-label="Daftar template SOP" className="flex flex-wrap gap-2">
+                <Button size="sm" variant={tab === 'template' ? 'default' : 'secondary'} onClick={() => router.get(url, { tab: 'template' })}>Template</Button>
+                <Button size="sm" variant={tab === 'arsip' ? 'default' : 'secondary'} onClick={() => router.get(url, { tab: 'arsip' })}>Arsip</Button>
+            </nav>
+            <FilterPanel actions={<>
+                <MasterExportButton href={url + '/template'} label="Unduh template" />
+                <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}><Upload aria-hidden="true" className="size-4" />Impor Excel</Button>
+                <MasterExportButton href={url + '/export?' + exportQuery} label="Ekspor Excel" />
+            </>}>
+                <form key={pageUrl} className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={(event) => {
+                    event.preventDefault();
+                    const fields = new FormData(event.currentTarget);
+                    router.get(url, { tab, search: String(fields.get('search') ?? '').trim(), poli: (fields.get('poli') === 'semua' ? '' : String(fields.get('poli') ?? '')), rilis: (fields.get('rilis') === 'semua' ? '' : String(fields.get('rilis') ?? '')) }, { preserveScroll: true, replace: true });
+                }}>
+                    <Field htmlFor="sop-search" label="Cari template"><Input id="sop-search" name="search" defaultValue={params.get('search') ?? ''} maxLength={100} placeholder="Kode, versi, atau referensi SOP" /></Field>
+                    <Field htmlFor="sop-clinic" label="Poliklinik"><Select id="sop-clinic" name="poli" defaultValue={clinic || 'semua'}><option value="semua">Semua poli</option><option value="umum">Poli Umum</option><option value="gigi">Poli Gigi</option></Select></Field>
+                    <Field htmlFor="sop-release" label="Rilis terminologi"><Select id="sop-release" name="rilis" defaultValue={release || 'semua'}><option value="semua">Semua rilis</option>{[...new Set([...releases, ...templates.map((item) => item.release)])].map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
+                    <FilterSubmit />
+                </form>
+            </FilterPanel>
+            <ReportTableCard title={tab === 'arsip' ? 'Arsip template SOP' : 'Daftar template SOP'} description={new Intl.NumberFormat('id-ID').format(shown.length) + ' template sesuai filter.'} icon={<FileText className="size-5" />}>
                         <Table className="min-w-[48rem]">
-                            <TableHeader><TableRow><TableHead>Kode dan rilis</TableHead><TableHead>Poli</TableHead><TableHead>Versi / SOP</TableHead><TableHead>Bentuk</TableHead><TableHead>Status</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader>
+                            <TableHeader><TableRow><TableHead>Kode dan rilis</TableHead><TableHead>Poli</TableHead><TableHead>Versi / SOP</TableHead><TableHead>Bentuk</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                             <TableBody>
-                                {templates.filter((item) => Boolean(item.deleted_at) === archiveFilter).map((item) => <TableRow key={item.id}>
+                                {shown.map((item) => <TableRow key={item.id}>
                                     <TableCell><strong>{item.code}</strong><p className="text-xs text-neutral-600">{item.release}</p></TableCell>
                                     <TableCell className="capitalize">{item.clinic_type}</TableCell>
                                     <TableCell>{item.version}<p className="text-xs text-neutral-600">{item.sop_reference}</p></TableCell>
                                     <TableCell>{modes[item.mode]}</TableCell>
                                     <TableCell><Badge variant={item.deleted_at || (item.published_at && !item.active) ? 'cancelled' : item.active ? 'complete' : 'warning'}>{item.deleted_at ? 'Arsip' : item.active ? 'Aktif' : item.published_at ? 'Versi sebelumnya' : 'Draf'}</Badge></TableCell>
-                                    <TableCell><div className="flex flex-wrap gap-2">
+                                    <TableCell><div className="flex flex-wrap justify-center gap-2">
                                         <Button size="sm" variant="secondary" onClick={() => setSelected(item)}>Detail</Button>
                                         {item.deleted_at ? <Button size="sm" variant="secondary" onClick={() => router.post(`${url}/${item.id}/pulihkan`, {}, { preserveScroll: true })}>Pulihkan</Button> : <>
                                             <Button size="sm" variant="secondary" onClick={() => {
@@ -112,12 +146,10 @@ export default function ConsentTemplates({ templates, releases }: { templates: T
                                         </>}
                                     </div></TableCell>
                                 </TableRow>)}
-                                {!templates.some((item) => Boolean(item.deleted_at) === archiveFilter) && <TableRow><TableCell colSpan={6} className="py-6 text-center text-neutral-600">Belum ada template pada daftar ini.</TableCell></TableRow>}
+                                {shown.length === 0 && <TableRow><TableCell colSpan={6}><Empty size="compact" title="Tidak ada template yang sesuai." /></TableCell></TableRow>}
                             </TableBody>
                         </Table>
-                    </div>
-                </CardContent>
-            </Card>
+            </ReportTableCard>
             <Dialog open={publishing !== null} onOpenChange={(open) => { if (!open) setPublishing(null); }}>
                 <DialogContent>
                     <DialogHeader><DialogTitle>Terbitkan template</DialogTitle><DialogDescription>Konfirmasi bahwa Penanggung Jawab Klinik sudah mengesahkan isinya.</DialogDescription></DialogHeader>

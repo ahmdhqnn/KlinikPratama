@@ -192,16 +192,6 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             { label: 'Laporan resep luar', href: '/farmasi/laporan/resep-luar', icon: ClipboardList },
         ] },
     ],
-    manajemen: [
-        { label: 'Ringkasan', items: [{ label: 'Dasbor', href: '/', icon: LayoutDashboard, exact: true }] },
-        {
-            label: 'Laporan',
-            items: [
-                { label: 'Laporan kunjungan', href: '/laporan/kunjungan', icon: ClipboardList },
-                { label: 'Laporan stok', href: '/laporan/stok', icon: Boxes },
-            ],
-        },
-    ],
 };
 
 function getPageTitle(component: string): string {

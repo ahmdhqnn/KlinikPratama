@@ -30,7 +30,7 @@ class UserSettingsInertiaTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $this->actingAs($admin)->from(route('users.index'));
 
-        foreach ([['role' => 'manajemen', 'is_active' => true], ['role' => 'admin', 'is_active' => false]] as $changes) {
+        foreach ([['role' => 'pendaftaran', 'is_active' => true], ['role' => 'admin', 'is_active' => false]] as $changes) {
             $this->put(route('users.update', $admin), ['name' => $admin->name, 'email' => $admin->email, ...$changes])
                 ->assertRedirect(route('users.index'))
                 ->assertSessionHas('error', 'Peran dan status akun sendiri tidak dapat diubah.');
@@ -72,7 +72,7 @@ class UserSettingsInertiaTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('users/index')
                 ->where('users.total', 0)
-                ->has('roles', 6)
+                ->has('roles', 5)
             );
 
         $this->get(route('setting.index'))

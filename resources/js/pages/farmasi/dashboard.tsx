@@ -1,3 +1,4 @@
+import { PharmacyClinicTabs } from '@/components/dashboard/pharmacy-clinic-tabs';
 import { FollowUp, type FollowUpData } from '@/components/dashboard/follow-up';
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowRight, CheckCircle2, ClipboardList, FilePlus2, FileText, PackageSearch, Pill, Timer, UsersRound } from 'lucide-react';
@@ -9,13 +10,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface Props {
+    clinicType?: string | null;
     followUp: FollowUpData;
     externalTodayUrl?: string;
     stats: { waitingVisits: number; processingVisits: number; completedToday: number; lowStockMedicines: number; totalPharmacyVisits: number; externalToday: number };
     recentVisits: PaginationData & { data: DashboardVisit[] };
 }
 
-export default function PharmacyDashboard({ stats, recentVisits, followUp, externalTodayUrl = '/farmasi/resep-luar' }: Props) {
+export default function PharmacyDashboard({ stats, recentVisits, followUp, externalTodayUrl = '/farmasi/resep-luar', clinicType }: Props) {
+    const clinicQuery = clinicType ? '?poli=' + clinicType : '';
+
     useEffect(() => {
         const refresh = () => {
             if (document.visibilityState === 'visible') router.reload({ only: ['stats', 'recentVisits', 'followUp'], async: true });
@@ -35,10 +39,11 @@ export default function PharmacyDashboard({ stats, recentVisits, followUp, exter
                     <p className="mt-1 text-sm text-neutral-500">Pantau penyerahan obat, resep luar, dan persediaan yang perlu perhatian.</p>
                 </div>
 
+                <PharmacyClinicTabs clinicType={clinicType} />
                 <section aria-label="Statistik farmasi" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>a>section]:h-full [&>a>section>div]:h-full">
-                    <StatCard description="Seluruh kunjungan yang masuk layanan farmasi" href="/pelayanan/farmasi" icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan farmasi" value={stats.totalPharmacyVisits} />
-                    <StatCard description={`${stats.processingVisits} sedang diproses hari ini`} href="/pelayanan/farmasi" icon={<Timer className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Perlu dilayani hari ini" value={stats.waitingVisits + stats.processingVisits} />
-                    <StatCard description="Resep yang diselesaikan hari ini" href="/pelayanan/farmasi" icon={<CheckCircle2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Penyerahan obat selesai" value={stats.completedToday} />
+                    <StatCard description="Seluruh kunjungan yang masuk layanan farmasi" href={'/pelayanan/farmasi' + clinicQuery} icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan farmasi" value={stats.totalPharmacyVisits} />
+                    <StatCard description={`${stats.processingVisits} sedang diproses hari ini`} href={'/pelayanan/farmasi' + clinicQuery} icon={<Timer className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Perlu dilayani hari ini" value={stats.waitingVisits + stats.processingVisits} />
+                    <StatCard description="Resep yang diselesaikan hari ini" href={'/pelayanan/farmasi' + clinicQuery} icon={<CheckCircle2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Penyerahan obat selesai" value={stats.completedToday} />
                     <StatCard description="Stok layak pakai mencapai batas minimum" href="/stok/persediaan" icon={<PackageSearch className="size-5" />} iconClassName={stats.lowStockMedicines > 0 ? 'bg-amber-50 text-amber-800' : 'bg-neutral-100 text-neutral-700'} label="Obat perlu perhatian" value={stats.lowStockMedicines} />
                 </section>
                 <FollowUp data={followUp} showUpcoming={false}>
@@ -51,10 +56,10 @@ export default function PharmacyDashboard({ stats, recentVisits, followUp, exter
                         <CardDescription>Buka layanan farmasi yang sering digunakan.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <QuickLink href="/pelayanan/farmasi" icon={<Pill className="size-4" />} label="Penyerahan obat" />
+                        <QuickLink href={'/pelayanan/farmasi' + clinicQuery} icon={<Pill className="size-4" />} label="Penyerahan obat" />
                         <QuickLink href="/farmasi/pemberian-obat" icon={<FilePlus2 className="size-4" />} label="Obat langsung" />
-                        <QuickLink href="/farmasi/resep-luar" icon={<FileText className="size-4" />} label="Resep luar" />
-                        <QuickLink href="/farmasi/pasien" icon={<UsersRound className="size-4" />} label="Riwayat farmasi pasien" />
+                        <QuickLink href={'/farmasi/resep-luar' + clinicQuery} icon={<FileText className="size-4" />} label="Resep luar" />
+                        <QuickLink href={'/farmasi/pasien' + clinicQuery} icon={<UsersRound className="size-4" />} label="Riwayat farmasi pasien" />
                     </CardContent>
                 </Card>
 
@@ -69,7 +74,7 @@ export default function PharmacyDashboard({ stats, recentVisits, followUp, exter
                         <VisitTable visits={recentVisits.data} />
                         <Pagination pagination={recentVisits} />
                     </CardContent>
-                    <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/farmasi">Lihat penyerahan obat</Link></Button></div>
+                    <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href={'/pelayanan/farmasi' + clinicQuery}>Lihat penyerahan obat</Link></Button></div>
                 </Card>
             </div>
         </>

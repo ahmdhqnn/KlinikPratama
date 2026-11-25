@@ -49,7 +49,11 @@ class PersuratanFlowTest extends TestCase
         ])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('surat_medis', ['kunjungan_id' => $visit->id, 'konten' => 'Surat pemeriksaan final.']);
 
-        $this->actingAs($otherUser)->get(route('persuratan.index'))
+        $this->get(route('persuratan.index', ['search' => $visit->no_kunjungan, 'poli' => $visit->poliklinik->jenis]))
+            ->assertInertia(fn (Assert $page) => $page->where('eligibleVisits.total', 1)->where('letters.total', 1));
+        $this->get(route('persuratan.index', ['search' => 'Tidak ada hasil']))
+            ->assertInertia(fn (Assert $page) => $page->where('eligibleVisits.total', 0)->where('letters.total', 0));
+        $this->actingAs($otherUser)->get(route('persuratan.index', ['search' => $visit->no_kunjungan]))
             ->assertInertia(fn (Assert $page) => $page->where('eligibleVisits.total', 0));
         $this->get(route('persuratan.surat.create', $visit))->assertNotFound();
         $this->post(route('persuratan.surat.store', $visit), [
@@ -68,6 +72,8 @@ class PersuratanFlowTest extends TestCase
 
         $this->actingAs($admin)->get(route('persuratan.index'))->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('persuratan/index')->where('isAdmin', true)->has('templates.data', 2));
+        $this->get(route('persuratan.index', ['status' => 'aktif']))
+            ->assertInertia(fn (Assert $page) => $page->where('templates.total', 1)->where('templates.data.0.id', $active->id));
         $this->actingAs($doctorUser)->get(route('persuratan.index'))->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('persuratan/index')->where('isAdmin', false)->has('templates.data', 1));
         $this->post(route('persuratan.template.store'), $this->templatePayload())->assertForbidden();

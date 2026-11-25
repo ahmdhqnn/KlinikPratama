@@ -13,18 +13,11 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class FarmasiMandiriExport extends SafeSpreadsheetValueBinder implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
-    /** @param array{dari?: string|null, sampai?: string|null, search?: string|null} $filters */
-    public function __construct(private array $filters) {}
+    public function __construct(private Builder $records) {}
 
     public function query(): Builder
     {
-        return FarmasiMandiri::query()->with(['pasien', 'obat', 'petugas'])
-            ->when($this->filters['dari'] ?? null, fn (Builder $query, string $date) => $query->whereDate('diserahkan_pada', '>=', $date))
-            ->when($this->filters['sampai'] ?? null, fn (Builder $query, string $date) => $query->whereDate('diserahkan_pada', '<=', $date))
-            ->when($this->filters['search'] ?? null, fn (Builder $query, string $search) => $query->where(fn (Builder $matches) => $matches
-                ->where('nomor', 'like', "%{$search}%")
-                ->orWhereHas('pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))
-                ->orWhereHas('obat', fn (Builder $medicines) => $medicines->where('nama', 'like', "%{$search}%"))))
+        return $this->records->with(['pasien', 'obat', 'petugas'])
             ->orderByDesc('diserahkan_pada')->orderByDesc('id');
     }
 

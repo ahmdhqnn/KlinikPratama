@@ -15,13 +15,19 @@ class PoliklinikController extends Controller
 {
     public function index(Request $request): Response
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'jenis' => ['nullable', 'in:umum,gigi'],
+            'status' => ['nullable', 'in:aktif,nonaktif'],
+        ]);
         $poliklinik = Poliklinik::query()
             ->whereIn('jenis', ['umum', 'gigi'])
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(function ($query) use ($search): void {
                 $query->where('nama', 'like', "%{$search}%")
                     ->orWhere('kode', 'like', "%{$search}%");
             }))
+            ->when($filters['jenis'] ?? null, fn ($query, string $type) => $query->where('jenis', $type))
+            ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('is_active', $status === 'aktif'))
             ->orderBy('kode')
             ->paginate(10)
             ->withQueryString();
@@ -44,7 +50,7 @@ class PoliklinikController extends Controller
                 'previousUrl' => $poliklinik->previousPageUrl(),
                 'nextUrl' => $poliklinik->nextPageUrl(),
             ],
-            'filters' => ['search' => $filters['search'] ?? ''],
+            'filters' => ['search' => $filters['search'] ?? '', 'jenis' => $filters['jenis'] ?? '', 'status' => $filters['status'] ?? ''],
         ]);
     }
 

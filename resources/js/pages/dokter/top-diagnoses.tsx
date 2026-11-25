@@ -37,7 +37,7 @@ export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Diagnosis terbanyak</h2>
                     <p className="mt-1 text-sm text-neutral-500">Ringkasan diagnosis dari kunjungan yang ditangani selama periode terpilih.</p>
                 </div>
-                <FilterPanel><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
+                <FilterPanel><form className="grid min-w-0 gap-4" onSubmit={applyFilters}>
                             <Field htmlFor="doctor-diagnoses-period" label="Periode diagnosis">
                                 <DateRangePicker id="doctor-diagnoses-period" from={dates.dari} onChange={(range) => setDates({ dari: range.from, sampai: range.to })} to={dates.sampai} />
                             </Field>

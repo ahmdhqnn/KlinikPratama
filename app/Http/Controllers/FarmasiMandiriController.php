@@ -159,23 +159,27 @@ class FarmasiMandiriController extends Controller
 
     public function patients(Request $request): Response
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
-        $visits = Kunjungan::query()->whereHas('farmasi', fn (Builder $query) => $query->where('status', 'selesai'))
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'poli' => ['nullable', 'in:umum,gigi']]);
+        $poli = $filters['poli'] ?? null;
+        $completed = Farmasi::query()->where('status', 'selesai')
+            ->whereHas('kunjungan', fn (Builder $query) => $query->forClinicType($poli));
+        $visits = Kunjungan::query()->forClinicType($poli)->whereHas('farmasi', fn (Builder $query) => $query->where('status', 'selesai'))
             ->with(['pasien', 'poliklinik', 'farmasi'])
             ->when($filters['search'] ?? null, fn (Builder $query, string $search) => $query->whereHas('pasien', fn (Builder $patients) => $patients
                 ->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%")))
             ->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
-        $directRecords = FarmasiMandiri::query()->with(['pasien', 'obat'])
+        $directRecords = $poli ? collect() : FarmasiMandiri::query()->with(['pasien', 'obat'])
             ->when($filters['search'] ?? null, fn (Builder $query, string $search) => $query->whereHas('pasien', fn (Builder $patients) => $patients
                 ->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%")))
             ->latest('diserahkan_pada')->limit(10)->get();
 
         return Inertia::render('farmasi/pasien', [
             'search' => $filters['search'] ?? '',
+            'clinicType' => $poli,
             'stats' => [
-                'prescriptionsToday' => Farmasi::query()->where('status', 'selesai')->whereDate('dispensed_at', today())->count(),
-                'directToday' => FarmasiMandiri::query()->whereDate('diserahkan_pada', today())->count(),
-                'allPrescriptions' => Farmasi::query()->where('status', 'selesai')->count(),
+                'prescriptionsToday' => (clone $completed)->whereDate('dispensed_at', today())->count(),
+                'directToday' => $poli ? 0 : FarmasiMandiri::query()->whereDate('diserahkan_pada', today())->count(),
+                'allPrescriptions' => $completed->count(),
             ],
             'directRecords' => $directRecords->map(fn (FarmasiMandiri $record): array => [
                 'number' => $record->nomor, 'date' => $record->diserahkan_pada->format('d/m/Y H:i'),
@@ -244,12 +248,10 @@ class FarmasiMandiriController extends Controller
 
     public function report(Request $request): Response
     {
-        $filters = $request->validate(['dari' => ['nullable', 'date'], 'sampai' => ['nullable', 'date', 'after_or_equal:dari'], 'search' => ['nullable', 'string', 'max:100']]);
-        $from = $filters['dari'] ?? today()->startOfMonth()->toDateString();
-        $to = $filters['sampai'] ?? today()->toDateString();
-        $filtered = [...$filters, 'dari' => $filters['dari'] ?? $from, 'sampai' => $filters['sampai'] ?? $to];
-        $records = $this->reportQuery($filtered)->with(['pasien', 'obat', 'petugas'])->latest('diserahkan_pada')->paginate(10)->withQueryString();
-        $stats = $this->reportQuery($filtered);
+        $filters = $this->reportFilters($request);
+        $accountId = $request->user()->isAdmin() ? null : $request->user()->id;
+        $stats = $this->reportQuery($filters)->when($accountId, fn (Builder $query, int $id) => $query->where('petugas_id', $id));
+        $records = (clone $stats)->with(['pasien', 'obat', 'petugas'])->latest('diserahkan_pada')->latest('id')->paginate(10)->withQueryString();
 
         return Inertia::render('farmasi/laporan', [
             'filters' => ['dari' => $filters['dari'] ?? '', 'sampai' => $filters['sampai'] ?? '', 'search' => $filters['search'] ?? ''],
@@ -265,17 +267,34 @@ class FarmasiMandiriController extends Controller
                 'currentPage' => $records->currentPage(), 'lastPage' => $records->lastPage(), 'from' => $records->firstItem(), 'to' => $records->lastItem(),
                 'total' => $records->total(), 'previousUrl' => $records->previousPageUrl(), 'nextUrl' => $records->nextPageUrl(),
             ],
-            'exportUrl' => route('farmasi.laporan.pemberian-langsung.export', $request->query()),
+            'exportUrl' => route('farmasi.laporan.pemberian-langsung.export', $filters),
+            'personal' => $accountId !== null,
         ]);
     }
 
     public function export(Request $request)
     {
-        $filters = $request->validate(['dari' => ['nullable', 'date'], 'sampai' => ['nullable', 'date', 'after_or_equal:dari'], 'search' => ['nullable', 'string', 'max:100']]);
-        $filters['dari'] ??= today()->startOfMonth()->toDateString();
-        $filters['sampai'] ??= today()->toDateString();
+        $filters = $this->reportFilters($request);
+        $records = $this->reportQuery($filters)
+            ->when(! $request->user()->isAdmin(), fn (Builder $query) => $query->where('petugas_id', $request->user()->id));
 
-        return Excel::download(new FarmasiMandiriExport($filters), 'laporan-pemberian-obat-'.today()->format('Y-m-d').'.xlsx');
+        return Excel::download(new FarmasiMandiriExport($records), 'laporan-pemberian-obat-'.today()->format('Y-m-d').'.xlsx');
+    }
+
+    private function reportFilters(Request $request): array
+    {
+        $filters = $request->validate([
+            'dari' => ['nullable', 'date_format:Y-m-d'],
+            'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        if (! filled($filters['dari'] ?? null) && ! filled($filters['sampai'] ?? null)) {
+            $filters['dari'] = today()->startOfMonth()->toDateString();
+            $filters['sampai'] = today()->toDateString();
+        }
+
+        return $filters;
     }
 
     private function reportQuery(array $filters): Builder

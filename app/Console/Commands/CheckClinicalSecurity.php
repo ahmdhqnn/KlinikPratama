@@ -19,6 +19,8 @@ class CheckClinicalSecurity extends Command
         $checks = [
             'audit_context_schema' => Schema::hasColumns('clinical_audit_events', ['actor_role', 'user_agent', 'request_id', 'outcome']),
             'password_reset_schema' => Schema::hasColumns('users', ['must_change_password', 'session_version']),
+            'single_active_role_constraint' => Schema::hasIndex('users', 'users_active_single_role_unique', 'unique'),
+            'unique_staff_account_link' => Schema::hasIndex('nakes', 'nakes_user_id_unique', 'unique'),
             'idle_limit_15_minutes' => config('clinical_security.idle_minutes') === 15,
         ];
         if (DB::connection()->getDriverName() === 'sqlite') {

@@ -24,9 +24,10 @@ class KepesertaanController extends Controller
 {
     public function index(Request $request, HakLayananVerifier $verifier): Response
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'kategori' => ['nullable', 'in:asn,lainnya']]);
         $members = Kepesertaan::query()->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query
             ->where('nama', 'like', "%{$search}%")->orWhere('nik', 'like', "%{$search}%")->orWhere('nip', 'like', "%{$search}%")->orWhere('unit_kerja', 'like', "%{$search}%")))
+            ->when($filters['kategori'] ?? null, fn ($query, string $category) => $query->whereIn('kategori', Kepesertaan::persistedCategoryKeys($category)))
             ->latest('created_at')->latest('id')->paginate(10)->withQueryString()
             ->through(fn (Kepesertaan $member): array => [
                 'id' => $member->id, 'nama' => $member->nama, 'nik' => $member->nik, 'nip' => $member->nip,
@@ -42,6 +43,7 @@ class KepesertaanController extends Controller
         return Inertia::render('kepesertaan/index', [
             'members' => $this->pageData($members), 'search' => $filters['search'] ?? '', 'categories' => Kepesertaan::CATEGORIES,
             'otherTypes' => Kepesertaan::OTHER_TYPES,
+            'filterCategory' => $filters['kategori'] ?? '',
             'canManage' => $request->user()->role === 'admin',
             'urls' => ['index' => route('kepesertaan.index'), 'import' => route('kepesertaan.import'), 'template' => route('kepesertaan.template')],
         ]);

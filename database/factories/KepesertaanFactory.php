@@ -20,7 +20,8 @@ class KepesertaanFactory extends Factory
             'kelurahan' => fake()->city(), 'kecamatan' => fake()->city(),
             'hak_layanan' => true,
             'referensi_bukti' => 'Fixture daftar kepegawaian terverifikasi',
-            'verified_by' => User::factory(), 'verified_at' => now(),
+            'verified_by' => fn () => User::query()->where('role', 'admin')->where('is_active', true)->value('id')
+                ?? User::factory()->create(['role' => 'admin'])->id, 'verified_at' => now(),
         ];
     }
 }

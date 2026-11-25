@@ -20,7 +20,7 @@ class ScreeningExport extends SafeSpreadsheetValueBinder implements FromQuery, W
 
     public function query(): Builder
     {
-        return (new ScreeningReportQuery)->query($this->filters, $this->nurse?->id, $this->nurse?->poliklinik_id ?? ($this->filters['poliklinik_id'] ?? null));
+        return (new ScreeningReportQuery)->query($this->filters, $this->nurse?->id, $this->nurse?->poliklinik_id ?? ($this->filters['poliklinik_id'] ?? null), $this->nurse?->user_id);
     }
 
     public function headings(): array

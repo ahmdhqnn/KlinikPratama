@@ -18,7 +18,7 @@ export function ServiceReportLinks({ kind, size = 'default' }: { kind: ReportKin
         if (kind === 'direct' || kind === 'pharmacy-history') links.push({ href: '/farmasi/laporan/pemberian-langsung', label: 'Laporan obat langsung' });
         if (kind === 'external') links.push({ href: '/farmasi/laporan/resep-luar', label: 'Laporan resep luar' });
     }
-    if (kind === 'stock' && (admin || role === 'manajemen')) links = [{ href: '/laporan/stok', label: 'Laporan stok' }];
+    if (kind === 'stock' && admin) links = [{ href: '/laporan/stok', label: 'Laporan stok' }];
     if ((kind === 'visits' || kind === 'letters') && admin) links = [{ href: '/laporan/kunjungan', label: 'Laporan kunjungan' }];
     if (kind === 'visits' && role === 'pendaftaran') links = [{ href: '/pendaftaran/laporan-kunjungan', label: 'Laporan kunjungan' }];
 

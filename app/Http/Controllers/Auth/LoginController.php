@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\ClinicalAuditRecorder;
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,7 +37,14 @@ class LoginController extends Controller
             'password.string' => 'Masukkan kata sandi yang valid.',
         ]);
 
-        if (Auth::attempt([...$credentials, 'is_active' => true], false)) {
+        if (Auth::attemptWhen(
+            [
+                'password' => $credentials['password'],
+                'is_active' => true,
+                fn ($query) => $query->forLoginEmail($credentials['email'])->whereIn('role', User::ROLES),
+            ],
+            fn (User $user): bool => $user->linkedProfileAllowsAccess(),
+        )) {
             $request->session()->regenerate();
             $request->session()->put('clinical_last_activity', now()->timestamp);
             $request->session()->put('clinical_session_version', (int) $request->user()->session_version);

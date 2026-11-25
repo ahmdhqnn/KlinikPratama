@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { confirmAction } from '@/components/ui/confirm-dialog';
-import { Attachment } from '@/components/ui/attachment';
+import { SpreadsheetImportDialog } from '@/components/admin/spreadsheet-import-dialog';
 
 interface Medicine {
     id: number; code: string; kfaCode: string | null; name: string; largeUnit: string | null; smallUnit: string | null;
@@ -40,7 +40,6 @@ export default function MedicineIndex({ medicines, filters }: Props) {
     const [open, setOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
     const form = useForm(emptyForm);
-    const importForm = useForm<{ file: File | null }>({ file: null });
 
     function filter(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -76,15 +75,6 @@ export default function MedicineIndex({ medicines, filters }: Props) {
     function remove(item: Medicine) {
         confirmAction(`Hapus ${item.name} dari master obat dan BHP?`, () => { router.delete(`/master/obat/${item.id}`, { preserveScroll: true }); }, 'Hapus');
     }
-    function importFile(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        importForm.post('/master/obat-import', {
-            forceFormData: true,
-            preserveScroll: true,
-            onSuccess: () => { setImportOpen(false); importForm.reset(); },
-        });
-    }
-
     return <>
         <Head title="Obat & BHP" />
         <div className="space-y-6">
@@ -92,7 +82,7 @@ export default function MedicineIndex({ medicines, filters }: Props) {
                 <div><p className="text-sm font-medium text-neutral-700">Katalog farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Obat & bahan habis pakai</h2><p className="mt-1 text-sm text-neutral-500">Kelola identitas, satuan, dan batas stok. Saldo fisik dicatat per batch.</p></div>
                 <Button onClick={create}><Plus className="size-4" />Tambah item</Button>
             </div>
-            <FilterPanel actions={<div className="flex flex-wrap items-center gap-2"><ServiceReportLinks kind="stock" size="sm" /><Button asChild size="sm" variant="secondary"><a href="/master/obat-template"><Download className="size-4" />Template Excel</a></Button><Button onClick={() => { importForm.clearErrors(); importForm.setData('file', null); setImportOpen(true); }} size="sm" variant="secondary"><FileUp className="size-4" />Impor Excel</Button><Button asChild size="sm" variant="secondary"><a href="/master/obat-export"><Download className="size-4" />Ekspor semua item</a></Button></div>}><form className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" onSubmit={filter}><Field className="min-w-0 flex-1" htmlFor="filter-master-obat-index-1" label="Cari obat atau BHP"><Input id="filter-master-obat-index-1" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama, kode, atau KFA" value={search} /></Field><Field className="min-w-0 flex-1" htmlFor="filter-master-obat-index-2" label="Jenis item"><Select id="filter-master-obat-index-2" onChange={(event) => setType(event.target.value)} value={type}><option value="">Semua jenis</option><option value="obat">Obat</option><option value="bhp">BHP</option></Select></Field><Label className="flex min-h-10 items-center gap-2 text-sm text-neutral-700"><Checkbox checked={lowStock} onCheckedChange={(checked) => setLowStock((checked === true))} />Stok kritis</Label><FilterSubmit /></form></FilterPanel>
+            <FilterPanel actions={<div className="flex flex-wrap items-center gap-2"><ServiceReportLinks kind="stock" size="sm" /><Button asChild size="sm" variant="secondary"><a href="/master/obat-template"><Download className="size-4" />Template Excel</a></Button><Button onClick={() => setImportOpen(true)} size="sm" variant="secondary"><FileUp className="size-4" />Impor Excel</Button><Button asChild size="sm" variant="secondary"><a href="/master/obat-export"><Download className="size-4" />Ekspor semua item</a></Button></div>}><form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={filter}><Field htmlFor="filter-master-obat-index-1" label="Cari obat atau BHP"><Input id="filter-master-obat-index-1" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama, kode, atau KFA" value={search} /></Field><Field htmlFor="filter-master-obat-index-2" label="Jenis item"><Select id="filter-master-obat-index-2" onChange={(event) => setType(event.target.value)} value={type}><option value="">Semua jenis</option><option value="obat">Obat</option><option value="bhp">BHP</option></Select></Field><Label className="flex min-h-10 items-center gap-2 text-sm text-neutral-700"><Checkbox checked={lowStock} onCheckedChange={(checked) => setLowStock((checked === true))} />Stok kritis</Label><FilterSubmit /></form></FilterPanel>
                 <Card className="overflow-hidden">
                 <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Package className="size-5" /></span><div><CardTitle>Daftar obat & BHP</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(medicines.total)} item sesuai filter.</CardDescription></div></div></CardHeader>
                 <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[900px]"><TableHeader><TableRow><TableHead>Kode / KFA</TableHead><TableHead>Nama item</TableHead><TableHead>Satuan</TableHead><TableHead className="text-center">Stok / minimum</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
@@ -108,6 +98,6 @@ export default function MedicineIndex({ medicines, filters }: Props) {
             <div className="grid gap-4 sm:grid-cols-2"><Field error={form.errors.indikasi} htmlFor="medicine-indication" label="Indikasi"><Textarea id="medicine-indication" placeholder="Indikasi sesuai formularium klinik" onChange={(event) => form.setData('indikasi', event.target.value)} rows={3} value={form.data.indikasi} /></Field><Field error={form.errors.kandungan} htmlFor="medicine-ingredients" label="Kandungan"><Textarea id="medicine-ingredients" placeholder="Zat aktif dan kekuatan sediaan" onChange={(event) => form.setData('kandungan', event.target.value)} rows={3} value={form.data.kandungan} /></Field></div>
             <div className="space-y-3"><Label className="flex items-center gap-2 text-sm text-neutral-700"><Checkbox checked={form.data.is_active} onCheckedChange={(checked) => form.setData('is_active', (checked === true))} />Item aktif</Label>{form.data.jenis === 'obat' && <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3"><Label className="flex items-start gap-2 text-sm text-neutral-800"><Checkbox checked={form.data.boleh_diberikan_langsung} onCheckedChange={(checked) => form.setData('boleh_diberikan_langsung', checked === true)} /><span><strong>Dapat diberikan langsung tanpa pemeriksaan</strong><span className="mt-1 block text-xs font-normal text-neutral-600">Aktifkan hanya untuk obat yang telah disetujui klinik untuk pelayanan langsung. Obat lain tidak akan muncul di formulir farmasi tersebut.</span></span></Label></div>}</div><div className="flex justify-end gap-2 border-t border-neutral-100 pt-4"><Button onClick={() => setOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={form.processing} type="submit">{form.processing ? 'Menyimpan…' : 'Simpan item'}</Button></div>
         </form></DialogContent></Dialog>
-        <Dialog onOpenChange={setImportOpen} open={importOpen}><DialogContent><DialogHeader><DialogTitle>Impor obat & BHP</DialogTitle><DialogDescription>Impor katalog sesuai template. Kode item harus unik; penerimaan stok dicatat terpisah beserta batch dan kedaluwarsa.</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={importFile}><Attachment accept=".xlsx,.xls,.csv" error={importForm.errors.file} fileName={importForm.data.file?.name} id="medicine-import" label="Berkas Excel / CSV" onFileChange={(file) => importForm.setData('file', file)} required /><div className="flex items-center justify-between"><a className="text-sm font-medium text-neutral-700 hover:text-neutral-800" href="/master/obat-template">Unduh template</a><div className="flex gap-2"><Button onClick={() => setImportOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={importForm.processing} type="submit">{importForm.processing ? 'Mengimpor…' : 'Impor data'}</Button></div></div></form></DialogContent></Dialog>
+        <SpreadsheetImportDialog title="Impor obat & BHP" description="Gunakan template katalog dan isi kode item yang unik. Catat penerimaan stok melalui menu persediaan." importUrl="/master/obat-import" templateUrl="/master/obat-template" open={importOpen} onOpenChange={setImportOpen} accept=".xlsx,.xls,.csv" fileLabel="Berkas Excel atau CSV" />
     </>;
 }

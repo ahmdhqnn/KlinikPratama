@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -10,6 +12,10 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable
 {
     use HasFactory, Notifiable;
+
+    public const ROLES = ['admin', 'dokter', 'perawat', 'farmasi', 'pendaftaran'];
+
+    public const SINGLE_ACTIVE_ROLES = ['admin', 'pendaftaran'];
 
     protected $fillable = [
         'name',
@@ -43,9 +49,48 @@ class User extends Authenticatable
         ];
     }
 
+    protected function email(): Attribute
+    {
+        return Attribute::set(fn (string $value): string => strtolower(trim($value)));
+    }
+
+    public function scopeForLoginEmail(Builder $query, string $email): Builder
+    {
+        return $query->whereRaw('LOWER(email) = ?', [strtolower(trim($email))]);
+    }
+
     public function nakes(): HasOne
     {
         return $this->hasOne(Nakes::class);
+    }
+
+    public static function occupiedSingleRoles(?int $except = null): array
+    {
+        return static::query()->whereIn('role', self::SINGLE_ACTIVE_ROLES)->where('is_active', true)
+            ->when($except !== null, fn ($query) => $query->whereKeyNot($except))
+            ->pluck('role')->all();
+    }
+
+    public function linkedProfileAllowsAccess(): bool
+    {
+        $positions = Nakes::positionsForRole($this->role);
+        if ($positions === []) {
+            return true;
+        }
+
+        return ! $this->nakes()->withTrashed()->where(fn ($query) => $query
+            ->where('is_active', false)
+            ->orWhereNotNull('deleted_at')
+            ->orWhereNotIn('jabatan', $positions))->exists();
+    }
+
+    public function revokeAccess(): void
+    {
+        $this->forceFill([
+            'is_active' => false,
+            'session_version' => (int) $this->session_version + 1,
+            'remember_token' => null,
+        ])->save();
     }
 
     public function isAdmin(): bool
@@ -70,7 +115,6 @@ class User extends Authenticatable
             'dokter' => 'Dokter',
             'perawat' => 'Perawat',
             'farmasi' => 'Farmasi',
-            'manajemen' => 'Manajemen',
             'pendaftaran' => 'Pendaftaran',
             default => ucfirst($this->role),
         };

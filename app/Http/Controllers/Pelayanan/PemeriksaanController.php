@@ -129,6 +129,7 @@ class PemeriksaanController extends Controller
             ],
             'date' => $date,
             'search' => $filters['search'] ?? '',
+            'status' => $filters['status'] ?? '',
         ]);
     }
 
