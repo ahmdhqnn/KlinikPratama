@@ -13,9 +13,9 @@ use Illuminate\Validation\ValidationException;
 
 class CorrespondenceService
 {
-    public function signatureDataUrl(?User $user): ?string
+    public function signatureDataUrl(?User $user, ?string $snapshotPath = null): ?string
     {
-        $path = $user?->signature_path;
+        $path = $snapshotPath ?? $user?->signature_path;
         $storage = Storage::disk('local');
         if (! $path || ! $storage->exists($path)) {
             return null;

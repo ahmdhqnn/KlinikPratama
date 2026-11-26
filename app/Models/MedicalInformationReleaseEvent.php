@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MedicalInformationReleaseEvent extends Model
 {
@@ -13,6 +14,16 @@ class MedicalInformationReleaseEvent extends Model
     protected function casts(): array
     {
         return ['data' => 'encrypted:array', 'recorded_at' => 'datetime'];
+    }
+
+    public function kunjungan(): BelongsTo
+    {
+        return $this->belongsTo(Kunjungan::class);
+    }
+
+    public function actor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'actor_id');
     }
 
     protected static function booted(): void

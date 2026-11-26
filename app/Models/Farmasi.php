@@ -10,9 +10,9 @@ class Farmasi extends Model
 {
     protected $table = 'farmasi';
 
-    protected $fillable = ['kunjungan_id', 'resep_id', 'petugas_id', 'status', 'catatan', 'dispensed_by', 'dispensed_at'];
+    protected $fillable = ['kunjungan_id', 'resep_id', 'petugas_id', 'status', 'prepared_at', 'catatan', 'dispensed_by', 'dispensed_at'];
 
-    protected $casts = ['dispensed_at' => 'datetime'];
+    protected $casts = ['prepared_at' => 'datetime', 'dispensed_at' => 'datetime'];
 
     public function kunjungan(): BelongsTo
     {

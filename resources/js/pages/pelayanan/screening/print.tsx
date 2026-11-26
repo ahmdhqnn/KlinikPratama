@@ -3,6 +3,7 @@ import { ClinicalDocumentHeader } from '@/components/clinical-document-header';
 import { printWithFonts } from '@/lib/print-typography';
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
+import { handleBackNavigation } from '@/lib/navigation';
 import { Button } from '@/components/ui/button';
 
 type Rows = Record<string, string | null>;
@@ -57,7 +58,7 @@ export default function ScreeningPrint({ document }: Props) {
         <div className="mx-auto w-full max-w-[210mm] space-y-4 print:max-w-none">
             <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
                 <Button asChild variant="secondary">
-                    <Link href={document.backUrl}>
+                    <Link href={document.backUrl} onClick={(event) => handleBackNavigation(event, document.backUrl)}>
                         <ArrowLeft className="size-4" />
                         Kembali ke pengkajian awal
                     </Link>

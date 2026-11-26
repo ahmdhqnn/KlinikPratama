@@ -204,9 +204,9 @@ export function RegisteredPatientForm({ clinics, today, doctorsUrl, initialPatie
                                     {!internalReferral && <Button aria-label="Ganti pasien" onClick={clearPatient} size="icon" type="button" variant="ghost"><X className="size-4" /></Button>}
                                 </div>
                                 <RegisteredPatientIdentity patient={selectedPatient} />
-                                {selectedPatient.generalConsentSignedAt ? <p className="inline-flex w-fit rounded-full border border-green-300 px-3 py-1 text-xs font-medium text-green-800 dark:border-green-800 dark:text-green-300">
+                                {selectedPatient.generalConsentSignedAt ? <p className="mt-4 inline-flex w-fit rounded-full border border-green-300 px-3 py-1 text-xs font-medium text-green-800 dark:border-green-800 dark:text-green-300">
                                     {`Persetujuan Umum aktif · Ditandatangani ${selectedPatient.generalConsentSignedAt}`}
-                                </p> : selectedPatient.generalConsentSignedAt === null && <p className="text-sm text-neutral-600">
+                                </p> : selectedPatient.generalConsentSignedAt === null && <p className="mt-4 text-sm text-neutral-600">
                                     Persetujuan Umum aktif belum tercatat. Tinjau statusnya sebelum pengkajian dikirim.
                                 </p>}
                             </div>

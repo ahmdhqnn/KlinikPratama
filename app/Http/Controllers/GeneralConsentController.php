@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\ClinicalAuditRecorder;
 use App\ClinicDocumentProfile;
+use App\DoctorAccessService;
 use App\DocumentVerificationQr;
 use App\GeneralConsentService;
 use App\Models\GeneralConsent;
 use App\Models\Kunjungan;
+use App\PerawatClinicResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -46,9 +48,12 @@ class GeneralConsentController extends Controller
             'releaseUrl' => in_array($request->user()->role, ['dokter', 'pendaftaran'], true) ? route('information-release.show', $kunjungan) : null,
             'storeUrl' => route('general-consent.store', $kunjungan),
             'requestId' => (string) Str::uuid(),
-            'backUrl' => route($request->user()->role === 'pendaftaran' ? 'pendaftaran.kunjungan.show' : ($request->user()->role === 'dokter' ? 'pelayanan.pemeriksaan.show' : 'pelayanan.kunjungan.show'), $kunjungan),
+            'backUrl' => $request->query('asal') === 'profil'
+                ? route('pelayanan.pasien.show', [$kunjungan->pasien_id, 'bagian' => 'persetujuan'])
+                : route($request->user()->role === 'pendaftaran' ? 'pendaftaran.kunjungan.show' : ($request->user()->role === 'dokter' ? 'pelayanan.pemeriksaan.show' : 'pelayanan.kunjungan.show'), $kunjungan),
             'history' => GeneralConsent::where('pasien_id', $kunjungan->pasien_id)->latest('id')->get()->map(fn (GeneralConsent $item): array => [
-                'id' => $item->id, 'decision' => $item->decision, 'version' => $item->text_version,
+                'id' => $item->id, 'decision' => $item->decision, 'satusehatSharing' => $item->satusehat_sharing_decision ?? 'undocumented',
+                'version' => $item->text_version,
                 'signer' => $item->signer_name, 'relationship' => $item->signer_relationship,
                 'reason' => $item->reason, 'at' => $item->recorded_at->format('d/m/Y H:i'),
                 'evidenceUrl' => $item->evidence_path ? route('general-consent.evidence', [$kunjungan, $item]) : null,
@@ -65,6 +70,7 @@ class GeneralConsentController extends Controller
             'in_person' => ['sometimes', 'boolean'],
             'request_id' => ['required', 'uuid'], 'current_id' => ['nullable', 'integer'],
             'decision' => ['required', Rule::in(['accepted', 'refused', 'withdrawn'])],
+            'satusehat_sharing_decision' => ['sometimes', 'nullable', Rule::in(['opt_in', 'opt_out', 'undocumented'])],
             'text_version' => ['required', Rule::in([GeneralConsentService::VERSION])],
             'signer_name' => [
                 Rule::excludeIf($inPerson && $request->input('signer_relationship') === 'patient'),
@@ -107,6 +113,7 @@ class GeneralConsentController extends Controller
                 $item = new GeneralConsent([
                     'pasien_id' => $visit->pasien_id, 'kunjungan_id' => $visit->id, 'supersedes_id' => $latest?->id,
                     'request_id' => $data['request_id'], 'request_hash' => $requestHash, 'decision' => $data['decision'],
+                    'satusehat_sharing_decision' => $data['decision'] === 'accepted' ? ($data['satusehat_sharing_decision'] ?? 'undocumented') : 'opt_out',
                     'text_version' => GeneralConsentService::VERSION, 'text_snapshot' => GeneralConsentService::TEXT,
                     'signer_name' => $data['signer_name'] ?? $visit->pasien->nama, 'signer_relationship' => $data['signer_relationship'],
                     'representative_verification' => $data['representative_verification'] ?? null, 'reason' => $data['reason'] ?? null,
@@ -140,7 +147,7 @@ class GeneralConsentController extends Controller
     {
         $consent = GeneralConsent::where('signature_token', $token)->firstOrFail();
         $visit = Kunjungan::findOrFail($consent->kunjungan_id);
-        $this->authorizeVisit($request, $visit);
+        $this->authorizePatientConsentView($request, $visit);
         $audit->record($request, 'general_consent.view', $visit->pasien_id, $visit->id, ['consent_id' => $consent->id, 'purpose' => 'verification']);
 
         $valid = $service->verifies($consent);
@@ -152,6 +159,30 @@ class GeneralConsentController extends Controller
             'recorder' => DB::table('users')->where('id', $consent->recorded_by)->value('name'),
             'qrDataUrl' => $valid ? $qr->dataUrl(route('general-consent.verify', $token)) : null,
         ], $valid ? 200 : 409, ['Cache-Control' => 'private, no-store']);
+    }
+
+    private function authorizePatientConsentView(Request $request, Kunjungan $originVisit): void
+    {
+        $user = $request->user();
+        abort_unless($user?->is_active && in_array($user->role, ['admin', 'pendaftaran', 'dokter', 'perawat'], true), 403);
+        if (in_array($user->role, ['admin', 'pendaftaran'], true)) {
+            return;
+        }
+        if (Gate::allows('viewClinical', $originVisit)) {
+            return;
+        }
+
+        $hasAnyPatientVisit = match ($user->role) {
+            'dokter' => app(DoctorAccessService::class)->visibleVisits($user, today()->toDateString())
+                ->where('pasien_id', $originVisit->pasien_id)->exists(),
+            'perawat' => Kunjungan::query()
+                ->where('pasien_id', $originVisit->pasien_id)
+                ->where('poliklinik_id', app(PerawatClinicResolver::class)->clinicId($user))
+                ->exists(),
+            default => false,
+        };
+
+        abort_unless($hasAnyPatientVisit, 404);
     }
 
     public function evidence(Request $request, Kunjungan $kunjungan, GeneralConsent $consent, ClinicalAuditRecorder $audit): StreamedResponse

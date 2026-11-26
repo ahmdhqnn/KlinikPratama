@@ -16,8 +16,8 @@ export function FollowUp({ data, showUpcoming = true, children }: { data: Follow
                 { key: 'upcoming', label: 'Reservasi 7 hari ke depan', value: data.upcoming, detail: 'Reservasi mulai besok hingga tujuh hari ke depan.', icon: CalendarClock },
                 { key: 'overdue', label: 'Kunjungan tertunda', value: data.overdue, detail: 'Kunjungan lewat tanggal yang perlu ditinjau.', icon: History },
             ].filter((item) => showUpcoming || item.key !== 'upcoming').map(({ key, label, value, detail, icon: Icon }) => (
-                <Link key={key} href={data.href} aria-label={`${label}: ${value}. Tinjau kunjungan`} className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500">
-                    <StatCard label={label} value={value} description={detail} icon={<Icon className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
+                <Link key={key} href={data.href} aria-label={`${label}: ${value}. Tinjau kunjungan`} className="group block rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500">
+                    <StatCard className="transition-colors group-hover:border-neutral-300" label={label} value={value} description={detail} icon={<Icon className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
                 </Link>
             ))}
             {children}

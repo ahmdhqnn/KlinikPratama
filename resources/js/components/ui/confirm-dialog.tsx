@@ -81,7 +81,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
                         <AlertDialogCancel asChild onClick={close}>
                             <Button variant="secondary">Batal</Button>
                         </AlertDialogCancel>
-                        <Button disabled={!!request?.reasonAction && reason.trim().length < 5} onClick={confirm} variant={/^(hapus|batalkan|kosongkan|tolak|nonaktifkan)\b/i.test(request?.actionLabel ?? '') ? 'destructiveOutline' : 'secondary'}>
+                        <Button disabled={!!request?.reasonAction && reason.trim().length < 5} onClick={confirm} variant={/^(hapus|batalkan|kosongkan|tolak|nonaktifkan)\b/i.test(request?.actionLabel ?? '') ? 'destructiveOutline' : 'default'}>
                             {request?.actionLabel ?? 'Lanjutkan'}
                         </Button>
                     </AlertDialogFooter>

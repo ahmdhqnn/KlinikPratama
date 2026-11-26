@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Kunjungan;
+use App\Models\Obat;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -24,6 +26,16 @@ class AdminReportController extends Controller
             ]],
         ];
 
-        return Inertia::render('admin/laporan', ['groups' => $groups]);
+        $totalReports = collect($groups)->sum(fn (array $group): int => count($group['reports']));
+
+        return Inertia::render('admin/laporan', [
+            'groups' => $groups,
+            'stats' => [
+                'totalReports' => $totalReports,
+                'categories' => count($groups),
+                'visitsThisMonth' => Kunjungan::whereBetween('tanggal', [today()->startOfMonth(), today()])->count(),
+                'activeMedicines' => Obat::where('is_active', true)->count(),
+            ],
+        ]);
     }
 }

@@ -54,7 +54,7 @@ class RoleBoundaryTest extends TestCase
         $this->actingAs($pharmacist)->get(route('farmasi.pasien'))->assertOk();
         $this->actingAs($pharmacist)->get(route('farmasi.resep-luar.index'))->assertOk();
         $this->actingAs($pharmacist)->get(route('farmasi.laporan.resep-luar'))->assertOk();
-        $this->actingAs($pharmacist)->get(route('pelayanan.pasien.index'))->assertOk();
+        $this->actingAs($pharmacist)->get(route('pelayanan.pasien.index'))->assertRedirect(route('farmasi.pasien'));
         $this->actingAs($pharmacist)->get(route('farmasi.pemberian-obat.index'))->assertOk();
         $this->actingAs($pharmacist)->get(route('farmasi.pemberian-obat.create'))->assertOk();
         $this->actingAs($pharmacist)->get(route('farmasi.laporan'))->assertOk();

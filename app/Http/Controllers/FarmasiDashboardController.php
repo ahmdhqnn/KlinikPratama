@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\FarmasiClinicResolver;
 use App\Models\Farmasi;
 use App\Models\Kunjungan;
 use App\Models\Obat;
@@ -13,9 +14,12 @@ use Inertia\Response;
 
 class FarmasiDashboardController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, FarmasiClinicResolver $pharmacyClinics): Response
     {
-        $poli = $request->validate(['poli' => ['nullable', 'in:umum,gigi']])['poli'] ?? null;
+        $assignedClinicId = $pharmacyClinics->scopedClinicIdOrFail($request->user());
+        $assignedPoliType = $assignedClinicId !== null ? $pharmacyClinics->clinicType($request->user()) : null;
+        $depoId = $assignedClinicId !== null ? $pharmacyClinics->depoId($request->user()) : null;
+        $poli = $assignedPoliType ?? ($request->validate(['poli' => ['nullable', 'in:umum,gigi']])['poli'] ?? null);
         $visits = Kunjungan::query()->forClinicType($poli);
         $today = today()->toDateString();
         $activePharmacyVisits = (clone $visits)->where('status', 'farmasi')
@@ -33,10 +37,7 @@ class FarmasiDashboardController extends Controller
         $lowStockMedicines = Obat::query()
             ->where('is_active', true)
             ->where('jenis', 'obat')
-            ->whereRaw(
-                'COALESCE((SELECT SUM(obat_batch.stok) FROM obat_batch WHERE obat_batch.obat_id = obat.id AND obat_batch.status = ? AND obat_batch.stok > 0 AND obat_batch.expired_at > ?), 0) <= obat.stok_minimum',
-                ['tersedia', $today],
-            )
+            ->lowUsableStock($depoId)
             ->count();
         $recentVisits = (clone $pharmacyVisits)
             ->with(['pasien', 'poliklinik', 'farmasi'])

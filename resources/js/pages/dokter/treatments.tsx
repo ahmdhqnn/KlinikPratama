@@ -23,10 +23,13 @@ interface ActionRow {
     clinic: string;
     name: string;
     code: string | null;
+    toothFdi?: string | null;
+    surfaces?: string[] | null;
     quantity: number;
     executionRole: string | null;
     status: string | null;
     statusLabel: string;
+    result?: string | null;
     performedBy: string | null;
     performedAt: string | null;
     detailUrl: string;
@@ -114,9 +117,21 @@ export default function DoctorTreatments({ filters, stats, actions }: Props) {
                                             <TableCell className="whitespace-nowrap text-center font-sans tabular-nums text-xs">{action.number}</TableCell>
                                             <TableCell className="text-center"><p className="font-medium">{action.patient}</p><p className="text-xs text-neutral-500">{action.medicalRecordNumber}</p></TableCell>
                                             <TableCell className="text-center">{action.clinic}</TableCell>
-                                            <TableCell className="max-w-56 text-center"><span className="line-clamp-2">{action.name}</span>{action.code && <span className="mt-1 block text-xs text-neutral-500">{action.code}</span>}</TableCell>
+                                            <TableCell className="max-w-56 text-center">
+                                                <span className="line-clamp-2 font-medium text-neutral-900">{action.name}</span>
+                                                {(action.code || action.toothFdi) && (
+                                                    <span className="mt-1 block text-xs tabular-nums text-neutral-500">
+                                                        {[action.code, action.toothFdi ? `Gigi ${action.toothFdi}${action.surfaces?.length ? ` (${action.surfaces.join('')})` : ''}` : null].filter(Boolean).join(' · ')}
+                                                    </span>
+                                                )}
+                                                {action.result && <span className="mt-1 line-clamp-1 block text-xs text-neutral-600">Hasil: {action.result}</span>}
+                                            </TableCell>
                                             <TableCell className="text-center tabular-nums">{action.quantity}</TableCell>
-                                            <TableCell className="text-center">{action.executionRole === 'perawat' ? 'Perawat' : 'Dokter'}{action.performedBy && <span className="mt-1 block text-xs text-neutral-500">{action.performedBy}</span>}</TableCell>
+                                            <TableCell className="text-center">
+                                                {action.executionRole === 'perawat' ? 'Perawat' : 'Dokter'}
+                                                {action.performedBy && <span className="mt-1 block text-xs text-neutral-500">{action.performedBy}</span>}
+                                                {action.performedAt && <span className="block text-[11px] tabular-nums text-neutral-400">{action.performedAt}</span>}
+                                            </TableCell>
                                             <TableCell className="text-center"><Badge className="whitespace-nowrap">{action.statusLabel}</Badge></TableCell>
                                             <TableCell className="text-center"><VisitActionButtons letterUrl={action.letterUrl} patient={action.patient} primary={{ href: action.detailUrl, label: `Buka pemeriksaan ${action.number}`, type: 'examination' }} recordUrl={action.recordUrl} /></TableCell>
                                         </TableRow>

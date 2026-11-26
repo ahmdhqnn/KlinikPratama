@@ -49,7 +49,10 @@ class MedicalDocumentVerificationTest extends TestCase
         $this->post($url, $delivery)->assertSessionHasNoErrors();
         $this->assertDatabaseCount('medical_information_release_events', 3);
         $this->assertDatabaseHas('medical_information_release_events', ['version' => 3, 'state' => 'delivered', 'actor_id' => $registration->id]);
-        $this->get(route('information-release.show', $visit))->assertInertia(fn (Assert $page) => $page->where('documents', [])->missing('clinical')->where('canAuthorize', false));
+        $this->get(route('information-release.show', $visit))->assertInertia(fn (Assert $page) => $page
+            ->where('documents', [])->missing('clinical')->where('canAuthorize', false)
+            ->where('events.data.0.state', 'delivered')->where('events.data.0.isCurrent', true)
+            ->where('events.data.1.isCurrent', false)->where('events.data.2.isCurrent', false));
         foreach (['admin', 'perawat', 'farmasi', 'kasir'] as $role) {
             $this->actingAs(User::factory()->create(['role' => $role, 'is_active' => true]))->get(route('information-release.show', $visit))->assertForbidden();
         }

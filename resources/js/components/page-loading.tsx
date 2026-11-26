@@ -46,17 +46,23 @@ export function PageLoading({ children }: { children: ReactNode }) {
         };
     }, []);
 
+    const contentState = pendingVisit
+        ? pendingVisit.showSkeleton
+            ? 'loading'
+            : 'updating'
+        : undefined;
+
     return (
         <div className="relative min-w-0">
-            <div aria-busy={pendingVisit !== null} data-page-content={pendingVisit?.showSkeleton ? 'loading' : undefined} inert={pendingVisit?.showSkeleton ?? false}>
+            <div aria-busy={pendingVisit !== null} data-page-content={contentState} inert={pendingVisit?.showSkeleton ?? false}>
                 {children}
             </div>
             <span className="sr-only print:hidden" role="status">
                 {pendingVisit && (pendingVisit.showSkeleton ? 'Memuat halaman…' : 'Memperbarui hasil…')}
             </span>
             {pendingVisit?.showSkeleton && (
-                <div aria-hidden="true" className="absolute inset-0 bg-canvas print:hidden [&:not(.clinic-app_*)]:p-4 sm:[&:not(.clinic-app_*)]:p-8">
-                    <div className="sticky top-4 [&:not(.clinic-app_*)]:mx-auto [&:not(.clinic-app_*)]:max-w-4xl sm:top-8 [.clinic-app_&]:top-32 sm:[.clinic-app_&]:top-24 lg:[.clinic-app_&]:top-28">
+                <div aria-hidden="true" className="absolute inset-x-0 top-0 min-h-full bg-canvas print:hidden [&:not(.clinic-app_*)]:p-4 sm:[&:not(.clinic-app_*)]:p-8">
+                    <div className="sticky top-4 sm:top-8 [.clinic-app_&]:top-32 sm:[.clinic-app_&]:top-24 lg:[.clinic-app_&]:top-28">
                         <PageSkeleton pathname={pendingVisit.pathname} />
                     </div>
                 </div>

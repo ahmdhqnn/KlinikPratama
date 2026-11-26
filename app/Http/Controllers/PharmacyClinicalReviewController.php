@@ -4,11 +4,14 @@ namespace App\Http\Controllers;
 
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
+use App\ClinicalSafetyService;
 use App\EffectiveClinicalNote;
+use App\FarmasiClinicResolver;
 use App\Models\Kunjungan;
 use App\Models\PharmacyClinicalReview;
 use App\PharmacyClinicalReviewService;
 use App\PharmacyStaffAccess;
+use App\Rules\ClinicalSigningCredential;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -20,6 +23,7 @@ class PharmacyClinicalReviewController extends Controller
     public function show(Request $request, Kunjungan $kunjungan, PharmacyClinicalReviewService $service)
     {
         abort_unless($request->user()->role === 'farmasi', 403);
+        app(FarmasiClinicResolver::class)->authorizeVisit($request->user(), $kunjungan);
         abort_unless($kunjungan->status === 'farmasi' || $kunjungan->farmasi?->status === 'selesai', 404);
         $credential = app(PharmacyStaffAccess::class)->current($request->user());
         $effective = app(EffectiveClinicalNote::class)->resolve($kunjungan->pemeriksaan);
@@ -27,8 +31,20 @@ class PharmacyClinicalReviewController extends Controller
         $latestReview = $service->latest($kunjungan);
         app(ClinicalAuditRecorder::class)->record($request, 'pharmacy.review_view', $kunjungan->pasien_id, $kunjungan->id);
 
+        $kunjungan->loadMissing(['pasien', 'screening', 'resep.resepObat.obat']);
+        $maternal = app(ClinicalSafetyService::class)->maternalSummary($kunjungan->screening, $kunjungan->pasien);
+
         return Inertia::render('pelayanan/farmasi/review', [
             'visit' => ['id' => $kunjungan->id, 'number' => $kunjungan->no_kunjungan, 'patient' => $kunjungan->pasien->nama],
+            'maternal' => $maternal,
+            'safetyFlags' => $kunjungan->resep?->resepObat->filter(fn ($item) => $item->obat?->is_high_alert || $item->obat?->is_lasa || filled($item->allergy_override_reason))
+                ->map(fn ($item) => [
+                    'name' => $item->nama_obat,
+                    'isHighAlert' => (bool) $item->obat?->is_high_alert,
+                    'isLasa' => (bool) $item->obat?->is_lasa,
+                    'allergyOverrideReason' => $item->allergy_override_reason,
+                    'allergyMatchedTerm' => $item->allergy_matched_term,
+                ])->values() ?? [],
             'qualification' => $credential?->qualification ?? 'unverified', 'sourceHash' => $sourceHash,
             'correctionNotice' => ($effective['payload']['correction_context']['downstream_review_required'] ?? false)
                 && (! $latestReview || ! hash_equals($latestReview->source_hash, $sourceHash))
@@ -47,6 +63,7 @@ class PharmacyClinicalReviewController extends Controller
     public function store(Request $request, Kunjungan $kunjungan, PharmacyClinicalReviewService $service)
     {
         abort_unless($request->user()->role === 'farmasi', 403);
+        app(FarmasiClinicResolver::class)->authorizeVisit($request->user(), $kunjungan);
         $data = $request->validate([
             'source_hash' => ['required', 'string', 'size:64'], 'current_id' => ['nullable', 'integer'],
             'decision' => ['required', Rule::in(['approved', 'hold', 'follow_up'])],
@@ -54,7 +71,7 @@ class PharmacyClinicalReviewController extends Controller
             'notes' => ['required', 'string', 'min:10', 'max:3000'],
             'clarification' => ['required', Rule::in(['not_needed', 'pending', 'resolved'])],
             'clarification_reference' => ['required_unless:clarification,not_needed', 'nullable', 'string', 'min:10', 'max:2000'],
-            'signature_password' => ['required', 'current_password'],
+            'signature_password' => ['required', new ClinicalSigningCredential],
         ]);
         DB::transaction(function () use ($request, $kunjungan, $service, $data): void {
             $visit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();

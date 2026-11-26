@@ -24,10 +24,15 @@ class KepesertaanController extends Controller
 {
     public function index(Request $request, HakLayananVerifier $verifier): Response
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'kategori' => ['nullable', 'in:asn,lainnya']]);
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'kategori' => ['nullable', 'in:asn,pppk,lainnya'],
+            'status_kepegawaian' => ['nullable', 'in:aktif,nonaktif'],
+        ]);
         $members = Kepesertaan::query()->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query
             ->where('nama', 'like', "%{$search}%")->orWhere('nik', 'like', "%{$search}%")->orWhere('nip', 'like', "%{$search}%")->orWhere('unit_kerja', 'like', "%{$search}%")))
             ->when($filters['kategori'] ?? null, fn ($query, string $category) => $query->whereIn('kategori', Kepesertaan::persistedCategoryKeys($category)))
+            ->when($filters['status_kepegawaian'] ?? null, fn ($query, string $status) => $query->where('status_kepegawaian', $status))
             ->latest('created_at')->latest('id')->paginate(10)->withQueryString()
             ->through(fn (Kepesertaan $member): array => [
                 'id' => $member->id, 'nama' => $member->nama, 'nik' => $member->nik, 'nip' => $member->nip,
@@ -41,9 +46,16 @@ class KepesertaanController extends Controller
             ]);
 
         return Inertia::render('kepesertaan/index', [
+            'stats' => [
+                'total' => Kepesertaan::count(),
+                'eligible' => Kepesertaan::where('hak_layanan', true)->where('status_kepegawaian', 'aktif')->count(),
+                'activeStaff' => Kepesertaan::where('status_kepegawaian', 'aktif')->count(),
+                'inactiveStaff' => Kepesertaan::where('status_kepegawaian', '!=', 'aktif')->count(),
+            ],
             'members' => $this->pageData($members), 'search' => $filters['search'] ?? '', 'categories' => Kepesertaan::CATEGORIES,
             'otherTypes' => Kepesertaan::OTHER_TYPES,
             'filterCategory' => $filters['kategori'] ?? '',
+            'filterStatus' => $filters['status_kepegawaian'] ?? '',
             'canManage' => $request->user()->role === 'admin',
             'urls' => ['index' => route('kepesertaan.index'), 'import' => route('kepesertaan.import'), 'template' => route('kepesertaan.template')],
         ]);

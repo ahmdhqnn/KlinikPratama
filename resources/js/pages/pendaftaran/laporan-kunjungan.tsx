@@ -1,9 +1,11 @@
 import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
-import { CalendarDays, Download } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Clock3, Download } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
 import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,20 +45,22 @@ interface Filters {
     status: string;
     isReservation?: boolean;
     poliklinikId: number | '';
+    dokterId?: number | '';
 }
 
 interface Props {
     exportUrl: string | null;
     filters: Filters;
     clinics: Clinic[];
+    doctors?: Clinic[];
     personal?: boolean;
     visits: PaginationData & { data: Visit[] };
 }
 
 const statusOptions = Object.entries(visitStatusFilterLabels);
 
-export default function RegistrationVisitReport({ filters: initialFilters, clinics, visits, exportUrl, personal = false }: Props) {
-    const [filters, setFilters] = useState(initialFilters);
+export default function RegistrationVisitReport({ filters: initialFilters, clinics, doctors = [], visits, exportUrl, personal = false }: Props) {
+    const [filters, setFilters] = useState({ ...initialFilters, dokterId: initialFilters.dokterId ?? '' });
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -65,6 +69,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
             tanggal: filters.tanggal,
             status: filters.status,
             poliklinik_id: filters.poliklinikId,
+            dokter_id: filters.dokterId,
         }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
@@ -78,10 +83,15 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                     <p className="mt-1 text-sm text-neutral-500">{personal ? 'Kunjungan yang didaftarkan atau dikonfirmasi melalui akun Anda.' : 'Lihat rincian kunjungan berdasarkan tanggal, poliklinik, dan status pelayanan.'}</p>
                 </div>
 
-                <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}><form className="space-y-4" onSubmit={applyFilters}>
-                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                                <Field htmlFor="registration-visits-search" label="Cari pasien">
-                                    <Input id="registration-visits-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama atau No. RM" value={filters.search} />
+                <SummaryStatGrid ariaLabel="Ringkasan laporan kunjungan" columns={3}>
+                    <StatCard description="Seluruh kunjungan sesuai filter aktif" icon={<CalendarDays className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan" value={visits.total} />
+                    <StatCard description="Kunjungan berstatus selesai di halaman ini" icon={<CheckCircle2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Selesai (halaman ini)" value={visits.data.filter((v) => v.status === 'selesai').length} />
+                    <StatCard description="Kunjungan masih aktif/antre di halaman ini" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Dalam pelayanan (halaman ini)" value={visits.data.filter((v) => !['selesai', 'batal'].includes(v.status)).length} />
+                </SummaryStatGrid>
+
+                <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}><form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-5" onSubmit={applyFilters}>
+                                <Field htmlFor="registration-visits-search" label="Cari pasien atau kunjungan">
+                                    <Input id="registration-visits-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama, No. RM, atau No. kunjungan" value={filters.search} />
                                 </Field>
                                 <Field htmlFor="registration-visits-date" label="Tanggal kunjungan">
                                     <DatePicker id="registration-visits-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} value={filters.tanggal} />
@@ -92,16 +102,21 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                         {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                                     </Select>
                                 </Field>
+                                {doctors.length > 0 && (
+                                    <Field htmlFor="registration-visits-doctor" label="Dokter">
+                                        <Select id="registration-visits-doctor" onChange={(event) => setFilters({ ...filters, dokterId: event.target.value ? Number(event.target.value) : '' })} value={filters.dokterId}>
+                                            <option value="">Semua dokter</option>
+                                            {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
+                                        </Select>
+                                    </Field>
+                                )}
                                 <Field htmlFor="registration-visits-status" label="Status pelayanan">
                                     <Select id="registration-visits-status" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}>
                                         <option value="">Semua status</option>
                                         {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                     </Select>
                                 </Field>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
                                 <FilterSubmit />
-                            </div>
                         </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">

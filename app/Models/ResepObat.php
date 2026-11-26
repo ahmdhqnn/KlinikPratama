@@ -16,13 +16,20 @@ class ResepObat extends Model
 
     protected $fillable = [
         'resep_id', 'obat_id', 'nama_obat', 'jumlah',
-        'satuan', 'aturan_pakai', 'catatan', 'jenis', 'is_resep_luar',
-        'stok_dikurangi',
+        'satuan', 'aturan_pakai', 'frekuensi', 'periode', 'periode_unit',
+        'dosis_sekali_pakai', 'dosis_unit', 'rute_pemberian', 'waktu_pakai',
+        'durasi_hari', 'satusehat_medication_request_id',
+        'catatan', 'allergy_override_reason', 'allergy_matched_term',
+        'jenis', 'is_resep_luar', 'stok_dikurangi',
     ];
 
     protected $casts = [
         'is_resep_luar' => 'boolean',
         'stok_dikurangi' => 'boolean',
+        'frekuensi' => 'integer',
+        'periode' => 'integer',
+        'dosis_sekali_pakai' => 'decimal:2',
+        'durasi_hari' => 'integer',
     ];
 
     public function resep(): BelongsTo

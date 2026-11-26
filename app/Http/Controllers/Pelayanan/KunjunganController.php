@@ -70,6 +70,12 @@ class KunjunganController extends Controller
         $poliklinikList = $assignedClinicId
             ? Poliklinik::registrable()->whereKey($assignedClinicId)->orderBy('nama')->get()
             : Poliklinik::registrable()->orderBy('nama')->get();
+        $doctorList = Nakes::query()
+            ->where('is_active', true)
+            ->where('jabatan', 'dokter')
+            ->when($assignedClinicId, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId))
+            ->orderBy('nama')
+            ->get(['id', 'nama']);
 
         return Inertia::render('pelayanan/kunjungan/index', [
             'canSelectClinic' => $assignedClinicId === null,
@@ -87,8 +93,10 @@ class KunjunganController extends Controller
                 'date' => $filters['tanggal'] ?? '',
                 'status' => $request->string('status')->toString(),
                 'clinicId' => $assignedClinicId ? (string) $assignedClinicId : $request->string('poliklinik_id')->toString(),
+                'doctorId' => (string) ($filters['dokter_id'] ?? ''),
             ],
             'clinics' => $poliklinikList->map(fn (Poliklinik $clinic) => ['id' => $clinic->id, 'name' => $clinic->nama, 'type' => $clinic->jenis]),
+            'doctors' => $doctorList->map(fn (Nakes $doctor) => ['id' => $doctor->id, 'name' => $doctor->nama])->values(),
         ]);
     }
 
@@ -149,8 +157,10 @@ class KunjunganController extends Controller
                 'date' => $filters['tanggal'] ?? '',
                 'status' => $filters['status'] ?? '',
                 'clinicId' => (string) ($filters['poliklinik_id'] ?? ''),
+                'doctorId' => (string) ($filters['dokter_id'] ?? ''),
             ],
             'clinics' => Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama'])->map(fn (Poliklinik $clinic): array => ['id' => $clinic->id, 'name' => $clinic->nama]),
+            'doctors' => Nakes::query()->where('is_active', true)->where('jabatan', 'dokter')->orderBy('nama')->get(['id', 'nama'])->map(fn (Nakes $doctor): array => ['id' => $doctor->id, 'name' => $doctor->nama])->values(),
             'queueUrl' => route('pelayanan.antrian'),
             'today' => today()->locale('id')->isoFormat('dddd, D MMMM Y'),
         ]);
@@ -264,15 +274,20 @@ class KunjunganController extends Controller
             ? trim($data['catatan'])
             : null;
         $data['dokter_id'] = $this->scheduling->resolveDoctor($data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
-
-        $data['no_kunjungan'] = Kunjungan::generateNomor();
         $data['status'] = 'menunggu';
 
         $kunjungan = DB::transaction(function () use ($data, $request): Kunjungan {
             $patient = Pasien::whereKey($data['pasien_id'])->lockForUpdate()->firstOrFail();
             $this->scheduling->ensureNoDuplicate($patient->id, (int) $data['poliklinik_id'], $data['tanggal']);
 
-            return Kunjungan::create(['general_consent_required' => true, ...$data, ...app(HakLayananVerifier::class)->patient($patient, $request)]);
+            return Kunjungan::create([
+                'general_consent_required' => true,
+                'registered_by' => $request->user()->id,
+                'no_kunjungan' => Kunjungan::generateNomor(),
+                'no_antrian' => Kunjungan::nextQueueNumber((int) $data['poliklinik_id'], $data['tanggal']),
+                ...$data,
+                ...app(HakLayananVerifier::class)->patient($patient, $request),
+            ]);
         });
 
         return redirect()->route('pelayanan.kunjungan.show', $kunjungan)
@@ -321,11 +336,7 @@ class KunjunganController extends Controller
                 'edit' => $canEdit
                     ? route($isRegistrationPage || $kunjungan->isPendingReservation() ? 'pendaftaran.edit-kunjungan' : 'pelayanan.kunjungan.edit', $kunjungan)
                     : null,
-                'patient' => $kunjungan->pasien
-                    ? ($role === 'pendaftaran'
-                        ? route('pendaftaran.database-pasien', ['search' => $kunjungan->pasien->no_rm])
-                        : route('pelayanan.pasien.show', $kunjungan->pasien))
-                    : null,
+                'patient' => $kunjungan->pasien ? route('pelayanan.pasien.show', $kunjungan->pasien) : null,
                 'screening' => $canScreen ? route('pelayanan.screening.show', $kunjungan) : null,
                 'screeningPrint' => $role === 'perawat' && $kunjungan->screening
                     ? route('pelayanan.screening.print', $kunjungan) : null,
@@ -484,7 +495,18 @@ class KunjunganController extends Controller
             $data['dokter_id'] = $this->scheduling->resolveDoctorForUpdate($lockedVisit, $data['dokter_id'] ?? null, (int) $data['poliklinik_id'], $data['tanggal']);
             $this->scheduling->ensureNoDuplicate($lockedVisit->pasien_id, (int) $data['poliklinik_id'], $data['tanggal'], $lockedVisit->id);
             $pendingReservation = $lockedVisit->isPendingReservation();
-            $lockedVisit->update([...$data, 'kontrol_pending' => false, ...app(HakLayananVerifier::class)->patient($lockedVisit->pasien, $request)]);
+            $slotChanged = (int) $lockedVisit->poliklinik_id !== (int) $data['poliklinik_id']
+                || $lockedVisit->tanggal?->toDateString() !== $data['tanggal'];
+            $queueNumber = ($pendingReservation || $slotChanged || $lockedVisit->no_antrian === null)
+                ? Kunjungan::nextQueueNumber((int) $data['poliklinik_id'], $data['tanggal'])
+                : $lockedVisit->no_antrian;
+            $lockedVisit->update([
+                ...$data,
+                'kontrol_pending' => false,
+                'no_antrian' => $queueNumber,
+                ...($pendingReservation ? ['registered_by' => $request->user()->id] : []),
+                ...app(HakLayananVerifier::class)->patient($lockedVisit->pasien, $request),
+            ]);
             if ($pendingReservation) {
                 app(ClinicalAuditRecorder::class)->record($request, 'reservation.confirm', $lockedVisit->pasien_id, $lockedVisit->id);
             }

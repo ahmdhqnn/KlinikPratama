@@ -9,8 +9,10 @@ use App\MedicalDocumentVerificationService;
 use App\Models\Kunjungan;
 use App\Models\MedicalDocumentVerification;
 use App\Models\MedicalInformationReleaseEvent;
+use App\Rules\ClinicalSigningCredential;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -33,10 +35,16 @@ class MedicalInformationReleaseController extends Controller
 
         return Inertia::render('persuratan/pelepasan', [
             'visit' => ['id' => $kunjungan->id, 'number' => $kunjungan->no_kunjungan, 'patient' => $kunjungan->pasien->nama],
+            'profileUrl' => route('pelayanan.pasien.show', [$kunjungan->pasien_id, 'bagian' => 'pelepasan']),
+            'newRequestId' => (string) Str::uuid(),
             'canAuthorize' => $doctor,
             'documents' => $doctor ? $kunjungan->suratMedis()->orderByDesc('id')->get(['id', 'jenis', 'nomor_surat']) : [],
-            'events' => MedicalInformationReleaseEvent::where('kunjungan_id', $kunjungan->id)->orderByDesc('id')->paginate(20)
+            'events' => MedicalInformationReleaseEvent::query()->select('medical_information_release_events.*')
+                ->selectSub(MedicalInformationReleaseEvent::query()->from('medical_information_release_events as versions')
+                    ->selectRaw('MAX(versions.version)')->whereColumn('versions.request_id', 'medical_information_release_events.request_id'), 'latest_version')
+                ->where('kunjungan_id', $kunjungan->id)->orderByDesc('id')->paginate(20)
                 ->through(fn ($event) => ['id' => $event->id, 'requestId' => $event->request_id, 'version' => $event->version,
+                    'isCurrent' => (int) $event->version === (int) $event->latest_version,
                     'state' => $event->state, 'data' => $event->data, 'at' => $event->recorded_at->format('d/m/Y H:i')]),
         ]);
     }
@@ -58,13 +66,13 @@ class MedicalInformationReleaseController extends Controller
             'authority' => ['required_if:action,requested', 'nullable', 'string', 'min:10', 'max:2000'],
             'recipient' => ['required_if:action,requested', 'nullable', 'string', 'max:200'],
             'purpose' => ['required_if:action,requested', 'nullable', 'string', 'min:10', 'max:1000'],
-            'scope' => ['required_if:action,requested', 'nullable', Rule::in(['ringkasan', 'rujukan', 'sakit', 'sehat'])],
+            'scope' => ['required_if:action,requested', 'nullable', Rule::in(['ringkasan', 'rujukan', 'sakit', 'sehat', 'laboratorium', 'rontgen_gigi', 'salinan_rme', 'lainnya'])],
             'reason' => ['required_unless:action,requested', 'nullable', 'string', 'min:10', 'max:2000'],
-            'document_id' => ['required_if:action,authorized', 'nullable', 'integer'],
+            'document_id' => ['nullable', 'integer'],
             'delivery_method' => ['required_if:action,delivered', 'nullable', Rule::in(['hand', 'secure_channel'])],
             'receipt' => ['required_if:action,delivered', 'nullable', 'string', 'min:10', 'max:1000'],
             'recipient_verified' => [Rule::excludeIf($request->input('action') !== 'delivered'), 'required', 'accepted'],
-            'signature_password' => ['required_unless:action,requested', 'nullable', 'current_password'],
+            'signature_password' => ['required_unless:action,requested', 'nullable', new ClinicalSigningCredential],
         ]);
         DB::transaction(function () use ($request, $kunjungan, $data): void {
             $visit = Kunjungan::whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
@@ -86,20 +94,35 @@ class MedicalInformationReleaseController extends Controller
             }
             $payload = $previous?->data ?? collect($data)->only(['requester', 'relationship', 'identity_verification', 'authority', 'recipient', 'purpose', 'scope'])->all();
             if ($action === 'authorized') {
-                $letter = $visit->suratMedis()->whereKey($data['document_id'])->where('jenis', $payload['scope'])->firstOrFail();
                 $examination = $visit->pemeriksaan;
                 abort_unless($examination?->signed_at && app(ClinicalNoteRecorder::class)->verify($examination), 422, 'Catatan final terverifikasi diperlukan sebelum otorisasi.');
-                $proof = MedicalDocumentVerification::where('surat_medis_id', $letter->id)->lockForUpdate()->firstOrFail();
-                if (app(MedicalDocumentVerificationService::class)->status($proof) !== 'valid') {
-                    throw ValidationException::withMessages(['document_id' => 'Dokumen tidak berlaku atau integritasnya perlu diperiksa.']);
+                if (($payload['scope'] ?? null) === 'salinan_rme') {
+                    $payload['document'] = ['id' => null, 'kind' => 'salinan_rme', 'hash' => $examination->latest_note_hash];
+                    $payload['authorized_by'] = $request->user()->id;
+                } else {
+                    if (empty($data['document_id'])) {
+                        throw ValidationException::withMessages(['document_id' => 'Pilih surat medis terverifikasi yang akan dilepaskan.']);
+                    }
+                    $letter = $visit->suratMedis()->whereKey($data['document_id'])->where('jenis', $payload['scope'])->firstOrFail();
+                    $proof = MedicalDocumentVerification::where('surat_medis_id', $letter->id)->lockForUpdate()->firstOrFail();
+                    if (app(MedicalDocumentVerificationService::class)->status($proof) !== 'valid') {
+                        throw ValidationException::withMessages(['document_id' => 'Dokumen tidak berlaku atau integritasnya perlu diperiksa.']);
+                    }
+                    $payload['document'] = ['id' => $letter->id, 'hash' => $proof->content_hash];
+                    $payload['authorized_by'] = $request->user()->id;
                 }
-                $payload['document'] = ['id' => $letter->id, 'hash' => $proof->content_hash];
-                $payload['authorized_by'] = $request->user()->id;
             }
             if ($action === 'delivered') {
-                $proof = MedicalDocumentVerification::where('surat_medis_id', $payload['document']['id'])->lockForUpdate()->firstOrFail();
-                if ($proof->content_hash !== $payload['document']['hash'] || app(MedicalDocumentVerificationService::class)->status($proof) !== 'valid') {
-                    throw ValidationException::withMessages(['action' => 'Dokumen telah berubah atau dibatalkan. Ajukan permintaan baru.']);
+                if (($payload['scope'] ?? null) === 'salinan_rme') {
+                    $examination = $visit->pemeriksaan;
+                    if (! $examination?->signed_at || ! app(ClinicalNoteRecorder::class)->verify($examination) || $examination->latest_note_hash !== ($payload['document']['hash'] ?? null)) {
+                        throw ValidationException::withMessages(['action' => 'Catatan rekam medis telah berubah sejak otorisasi. Ajukan permintaan baru.']);
+                    }
+                } else {
+                    $proof = MedicalDocumentVerification::where('surat_medis_id', $payload['document']['id'])->lockForUpdate()->firstOrFail();
+                    if ($proof->content_hash !== $payload['document']['hash'] || app(MedicalDocumentVerificationService::class)->status($proof) !== 'valid') {
+                        throw ValidationException::withMessages(['action' => 'Dokumen telah berubah atau dibatalkan. Ajukan permintaan baru.']);
+                    }
                 }
                 $payload['delivery'] = ['method' => $data['delivery_method'], 'receipt' => $data['receipt'], 'recipient_verified' => true];
             }

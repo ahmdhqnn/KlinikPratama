@@ -14,12 +14,13 @@ class Tindakan extends Model
     protected $table = 'tindakan';
 
     protected $fillable = [
-        'kode', 'kode_icd9', 'nama', 'kategori', 'poliklinik_id',
+        'kode', 'kode_icd9', 'nama', 'snomed_code', 'snomed_display', 'kategori', 'can_delegate_to_nurse', 'poliklinik_id',
         'is_active',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'can_delegate_to_nurse' => 'boolean',
     ];
 
     public function poliklinik(): BelongsTo

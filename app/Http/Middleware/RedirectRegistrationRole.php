@@ -76,6 +76,7 @@ class RedirectRegistrationRole
             'pelayanan.pasien.index',
             'pelayanan.pasien.show',
             'pelayanan.pasien.rekam-medis',
+            'pelayanan.pasien.documents.*',
             'pendaftaran.database-pasien',
             'pendaftaran.kunjungan-per-poli',
             'pendaftaran.laporan-top-diagnosa',
@@ -100,6 +101,7 @@ class RedirectRegistrationRole
             'pelayanan.pasien.index',
             'pelayanan.pasien.show',
             'pelayanan.pasien.rekam-medis',
+            'pelayanan.pasien.documents.*',
             'logout',
         );
     }

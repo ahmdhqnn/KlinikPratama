@@ -4,6 +4,7 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import { ActionButton } from '@/components/ui/action-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
@@ -13,19 +14,23 @@ import { Head, Link, router } from '@inertiajs/react';
 import { CalendarDays, FilePlus2, Pill, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
-interface Record { number: string; date: string; patient: string; medicalRecordNumber: string; medicine: string; quantity: number; unit: string; pharmacist: string; printUrl: string }
-type RecordPage = PaginationData & { data: Record[] };
+interface DirectRecord { number: string; date: string; patient: string; medicalRecordNumber: string; medicine: string; quantity: number; unit: string; pharmacist: string; printUrl: string }
+type RecordPage = PaginationData & { data: DirectRecord[] };
 
-export default function DirectMedicineIndex({ stats, search: initialSearch, todayRecords, records }: {
+export default function DirectMedicineIndex({ stats, search: initialSearch, filters, todayRecords, records }: {
     stats: { today: number; patients: number; all: number };
     search: string;
+    filters?: { search?: string; dari?: string; sampai?: string };
     todayRecords: RecordPage;
     records: RecordPage;
 }) {
-    const [search, setSearch] = useState(initialSearch);
+    const [search, setSearch] = useState(filters?.search ?? initialSearch ?? '');
+    const [dari, setDari] = useState(filters?.dari ?? '');
+    const [sampai, setSampai] = useState(filters?.sampai ?? '');
+
     function apply(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get('/farmasi/pemberian-obat', { search }, { preserveState: true, preserveScroll: true, replace: true });
+        router.get('/farmasi/pemberian-obat', { search, dari, sampai }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     return <><Head title="Obat langsung" /><div className="space-y-6">
@@ -36,7 +41,13 @@ export default function DirectMedicineIndex({ stats, search: initialSearch, toda
             <StatCard label="Seluruh pemberian" value={stats.all} description="Riwayat pemberian obat langsung" icon={<CalendarDays className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
         </section>
         <RecordList title="Pemberian obat hari ini" description="Obat langsung yang telah diserahkan hari ini." records={todayRecords} />
-        <FilterPanel><form className="grid min-w-0 gap-4" onSubmit={apply}><Field htmlFor="direct-index-search" label="Cari pasien, transaksi, atau obat"><Input id="direct-index-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama, No. RM, nomor transaksi, atau obat" value={search} /></Field><FilterSubmit /></form></FilterPanel>
+        <FilterPanel>
+            <form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={apply}>
+                <Field htmlFor="direct-index-search" label="Cari pasien, transaksi, atau obat"><Input id="direct-index-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama, No. RM, nomor transaksi, atau obat" value={search} /></Field>
+                <Field htmlFor="direct-index-period" label="Periode penyerahan"><DateRangePicker from={dari} id="direct-index-period" onChange={(range) => { setDari(range.from); setSampai(range.to); }} to={sampai} /></Field>
+                <FilterSubmit />
+            </form>
+        </FilterPanel>
         <RecordList title="Semua pemberian obat" description={`${records.total.toLocaleString('id-ID')} catatan sesuai filter.`} records={records} />
     </div></>;
 }

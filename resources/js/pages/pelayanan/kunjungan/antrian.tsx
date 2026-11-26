@@ -1,8 +1,10 @@
 import { ServiceReportLinks } from '@/components/reports/service-report-links';
 import { Head, Link, router } from '@inertiajs/react';
-import { Activity, CalendarDays, Clock3, RefreshCw } from 'lucide-react';
+import { Activity, CalendarDays, ClipboardCheck, Clock3, ListChecks, RefreshCw } from 'lucide-react';
 import { useState, type ComponentProps, type FormEvent, type ReactNode } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
 import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/status-badge';
 import { ActionButton } from '@/components/ui/action-button';
 import { Button } from '@/components/ui/button';
@@ -47,8 +49,10 @@ interface Props {
     today: string;
     queueUrl: string;
     serviceQueues: Record<string, { total: number; data: Visit[] }>;
-    filters: { search: string; date: string; status: string; clinicId: string };
+    stageCounts?: Record<string, number>;
+    filters: { search: string; date: string; status: string; clinicId: string; doctorId?: string };
     clinics: { id: number; name: string }[];
+    doctors?: { id: number; name: string }[];
 }
 
 const stages = [
@@ -89,21 +93,30 @@ function QueueTable({ title, description, icon, visits }: { title: string; descr
     );
 }
 
-export default function VisitQueue({ visits, todayVisits, today, queueUrl, serviceQueues, filters: initialFilters, clinics }: Props) {
-    const [filters, setFilters] = useState(initialFilters);
+export default function VisitQueue({ visits, todayVisits, today, queueUrl, serviceQueues, stageCounts, filters: initialFilters, clinics, doctors = [] }: Props) {
+    const [filters, setFilters] = useState({ ...initialFilters, doctorId: initialFilters.doctorId ?? '' });
+    const activeQueueCount = stages.reduce((sum, stage) => sum + (serviceQueues[stage.key]?.total ?? 0), 0);
+    const completedTodayCount = stageCounts?.selesai ?? 0;
+
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get(queueUrl, { search: filters.search, tanggal: filters.date, status: filters.status, poliklinik_id: filters.clinicId }, { preserveState: true, preserveScroll: true, replace: true });
+        router.get(queueUrl, { search: filters.search, tanggal: filters.date, status: filters.status, poliklinik_id: filters.clinicId, dokter_id: filters.doctorId }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     return (
         <>
             <Head title="Monitoring kunjungan & antrean" />
             <div className="space-y-6">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                <div className="flex flex-wrap items-end justify-between gap-4">
                     <div><p className="text-sm font-medium text-neutral-700">Operasional pelayanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Monitoring kunjungan & antrean</h2><p className="mt-1 text-sm text-neutral-500">Pusat pelayanan setelah pendaftaran: pengkajian, pemeriksaan, tindakan, persuratan, dan penyerahan obat.</p></div>
-
+                    <Button size="sm" onClick={() => router.reload()} variant="secondary"><RefreshCw className="size-4" />Perbarui antrean</Button>
                 </div>
+                <SummaryStatGrid ariaLabel="Ringkasan monitoring kunjungan dan antrean" columns={4}>
+                    <StatCard label="Kunjungan hari ini" value={todayVisits.total} description="Seluruh pasien terdaftar hari ini" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Antrean aktif" value={activeQueueCount} description="Sedang dalam alur layanan" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Selesai hari ini" value={completedTodayCount} description="Pelayanan tuntas hari ini" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Total sesuai filter" value={visits.total} description="Kunjungan pada tabel riwayat" icon={<ListChecks className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                </SummaryStatGrid>
                 <section aria-label="Antrean aktif hari ini menurut tahap pelayanan" className="grid min-w-0 items-stretch gap-4 md:grid-cols-2 2xl:grid-cols-4">
                     {stages.map((stage) => {
                         const queue = serviceQueues[stage.key];
@@ -121,12 +134,13 @@ export default function VisitQueue({ visits, todayVisits, today, queueUrl, servi
                     })}
                 </section>
                 <QueueTable icon={<Clock3 className="size-5" />} title="Kunjungan hari ini" description={`${today} · Seluruh kunjungan hari ini`} visits={todayVisits} />
-                <FilterPanel actions={<div className="flex flex-wrap items-center gap-2"><ServiceReportLinks kind="visits" size="sm" /><Button asChild size="sm"><Link href="/pendaftaran/pendaftaran-baru">Daftarkan pasien</Link></Button><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/kunjungan/create">Buka kunjungan</Link></Button><Button size="sm" onClick={() => router.reload()} variant="secondary"><RefreshCw className="size-4" />Perbarui antrean</Button></div>}><form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4" onSubmit={applyFilters}>
-                    <p className="text-sm text-neutral-600 sm:col-span-2">Filter ini mengatur daftar kunjungan di bawah; pemantauan kunjungan hari ini tetap menampilkan seluruh pasien hari ini.</p>
-                    <Field htmlFor="queue-search" label="Cari pasien"><Input id="queue-search" placeholder="Nama atau No. RM" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} /></Field>
-                    <Field htmlFor="queue-clinic" label="Poliklinik"><Select id="queue-clinic" value={filters.clinicId} onChange={(event) => setFilters({ ...filters, clinicId: event.target.value })}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>
-                    <Field htmlFor="queue-status" label="Status"><Select id="queue-status" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">Semua status</option>{Object.entries(visitStatusFilterLabels).map(([status, label]) => <option key={status} value={status}>{label}</option>)}</Select></Field>
+                <FilterPanel actions={<div className="flex flex-wrap items-center gap-2"><ServiceReportLinks kind="visits" size="sm" /><Button asChild size="sm" variant="secondary"><Link href="/pendaftaran/pendaftaran-baru">Daftarkan pasien</Link></Button><Button asChild size="sm" variant="secondary"><Link href="/pelayanan/kunjungan/create">Buka kunjungan</Link></Button></div>}><form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-5" onSubmit={applyFilters}>
+                    <p className="text-sm text-neutral-600 sm:col-span-full">Filter ini mengatur daftar kunjungan di bawah; pemantauan kunjungan hari ini tetap menampilkan seluruh pasien hari ini.</p>
+                    <Field htmlFor="queue-search" label="Cari pasien atau kunjungan"><Input id="queue-search" placeholder="Nama, No. RM, atau No. kunjungan" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} /></Field>
                     <Field htmlFor="queue-date" label="Tanggal kunjungan"><DatePicker id="queue-date" value={filters.date} onChange={(event) => setFilters({ ...filters, date: event.target.value })} /></Field>
+                    <Field htmlFor="queue-clinic" label="Poliklinik"><Select id="queue-clinic" value={filters.clinicId} onChange={(event) => setFilters({ ...filters, clinicId: event.target.value })}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>
+                    {doctors.length > 0 && <Field htmlFor="queue-doctor" label="Dokter"><Select id="queue-doctor" value={filters.doctorId} onChange={(event) => setFilters({ ...filters, doctorId: event.target.value })}><option value="">Semua dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}</Select></Field>}
+                    <Field htmlFor="queue-status" label="Status"><Select id="queue-status" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">Semua status</option>{Object.entries(visitStatusFilterLabels).map(([status, label]) => <option key={status} value={status}>{label}</option>)}</Select></Field>
                     <FilterSubmit />
                 </form></FilterPanel>
                 <QueueTable icon={<CalendarDays className="size-5" />} title="Daftar kunjungan pasien" description="Riwayat, kunjungan aktif, dan reservasi sesuai filter" visits={visits} />

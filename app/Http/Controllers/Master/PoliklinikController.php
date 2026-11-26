@@ -32,7 +32,15 @@ class PoliklinikController extends Controller
             ->paginate(10)
             ->withQueryString();
 
+        $clinicIds = Poliklinik::query()->whereIn('jenis', ['umum', 'gigi'])->pluck('id');
+
         return Inertia::render('master/poliklinik/index', [
+            'stats' => [
+                'total' => $clinicIds->count(),
+                'active' => Poliklinik::query()->whereIn('jenis', ['umum', 'gigi'])->where('is_active', true)->count(),
+                'totalRooms' => RuangPoli::query()->whereIn('poliklinik_id', $clinicIds)->count(),
+                'activeRooms' => RuangPoli::query()->whereIn('poliklinik_id', $clinicIds)->where('is_active', true)->count(),
+            ],
             'clinics' => [
                 'data' => $poliklinik->getCollection()->map(fn (Poliklinik $clinic): array => [
                     'id' => $clinic->id,
@@ -66,7 +74,10 @@ class PoliklinikController extends Controller
                 'name' => $poliklinik->nama,
                 'rooms' => $poliklinik->ruangPoli->map(fn (RuangPoli $room): array => [
                     'id' => $room->id,
+                    'code' => $room->kode,
                     'name' => $room->nama,
+                    'satusehatLocationId' => $room->satusehat_location_id,
+                    'physicalTypeCode' => $room->physical_type_code ?? 'ro',
                     'active' => $room->is_active,
                 ])->values(),
             ],
@@ -77,11 +88,17 @@ class PoliklinikController extends Controller
     {
         abort_unless(in_array($poliklinik->jenis, ['umum', 'gigi'], true), 404);
         $data = $request->validate([
+            'kode' => ['nullable', 'string', 'max:32'],
             'nama' => ['required', 'string', 'max:100', Rule::unique('ruang_poli')->where('poliklinik_id', $poliklinik->id)],
+            'satusehat_location_id' => ['nullable', 'string', 'max:64'],
+            'physical_type_code' => ['nullable', 'string', 'max:16'],
         ]);
 
         $poliklinik->ruangPoli()->create([
+            'kode' => $data['kode'] ?? null,
             'nama' => $data['nama'],
+            'satusehat_location_id' => $data['satusehat_location_id'] ?? null,
+            'physical_type_code' => $data['physical_type_code'] ?? 'ro',
             'is_active' => true,
         ]);
 
@@ -92,7 +109,10 @@ class PoliklinikController extends Controller
     {
         abort_unless(in_array($ruang->poliklinik?->jenis, ['umum', 'gigi'], true), 404);
         $data = $request->validate([
+            'kode' => ['nullable', 'string', 'max:32'],
             'nama' => ['required', 'string', 'max:100', Rule::unique('ruang_poli')->where('poliklinik_id', $ruang->poliklinik_id)->ignore($ruang)],
+            'satusehat_location_id' => ['nullable', 'string', 'max:64'],
+            'physical_type_code' => ['nullable', 'string', 'max:16'],
             'is_active' => ['required', 'boolean'],
         ]);
         $ruang->update($data);

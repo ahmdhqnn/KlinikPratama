@@ -7,13 +7,13 @@ use App\DateRangeFilter;
 use App\Exports\KunjunganExport;
 use App\Exports\OperationalReportExport;
 use App\Models\Kunjungan;
+use App\Models\Nakes;
 use App\Models\Obat;
 use App\Models\Poliklinik;
 use App\VisitQueryService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -25,7 +25,7 @@ class LaporanController extends Controller
     {
         $period = DateRangeFilter::fromRequest($request);
         $visits = new VisitQueryService;
-        $filters = array_intersect_key($visits->filters($request), array_flip(['poliklinik_id', 'status', 'search']));
+        $filters = array_intersect_key($visits->filters($request), array_flip(['poliklinik_id', 'dokter_id', 'status', 'search']));
         $dari = $period->from ?? '';
         $sampai = $period->to ?? '';
         $summary = $visits->filtered($filters, period: $period);
@@ -42,11 +42,16 @@ class LaporanController extends Controller
                 'from' => $dari,
                 'to' => $sampai,
                 'clinicId' => isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : '',
+                'doctorId' => isset($filters['dokter_id']) ? (int) $filters['dokter_id'] : '',
                 'status' => $filters['status'] ?? '',
             ],
             'clinics' => Poliklinik::where('is_active', true)->orderBy('nama')->get()->map(fn (Poliklinik $clinic): array => [
                 'id' => $clinic->id,
                 'name' => $clinic->nama,
+            ])->values(),
+            'doctors' => Nakes::query()->where('is_active', true)->where('jabatan', 'dokter')->orderBy('nama')->get(['id', 'nama'])->map(fn (Nakes $doctor): array => [
+                'id' => $doctor->id,
+                'name' => $doctor->nama,
             ])->values(),
             'exportUrl' => route('laporan.kunjungan.export', [...$filters, 'dari' => $dari, 'sampai' => $sampai]),
             'stats' => ['total' => $totalKunjungan, 'completed' => $totalCompleted, 'verified' => $totalVerified],
@@ -72,11 +77,18 @@ class LaporanController extends Controller
         $obat = (clone $items)->paginate(10)->withQueryString();
         $totalItem = (clone $items)->count();
         $stokRendahCount = $this->stockQuery([...$filters, 'stok_rendah' => true])->count();
+        $stokHabisCount = (clone $items)->whereRaw("COALESCE((SELECT SUM(stok) FROM obat_batch WHERE obat_batch.obat_id = obat.id AND status = 'aktif' AND stok > 0 AND (expired_at IS NULL OR expired_at >= ?)), 0) <= 0", [today()->toDateString()])->count();
+        $mendekatiEdCount = (clone $items)->whereHas('batches', fn (Builder $batch) => $batch->usable()->whereBetween('expired_at', [today()->addDay()->toDateString(), today()->addDays(90)->toDateString()]))->count();
 
         return Inertia::render('laporan/stok', [
             'filters' => ['search' => $filters['search'] ?? '', 'type' => $filters['jenis'] ?? '', 'lowStockOnly' => $request->boolean('stok_rendah'), 'alertsOnly' => $request->boolean('perhatian')],
             'exportUrl' => route('laporan.stok.export', $filters),
-            'stats' => ['totalItems' => $totalItem, 'lowStockItems' => $stokRendahCount],
+            'stats' => [
+                'totalItems' => $totalItem,
+                'lowStockItems' => $stokRendahCount,
+                'outOfStockItems' => $stokHabisCount,
+                'nearExpiryItems' => $mendekatiEdCount,
+            ],
             'medicines' => $this->pagination($obat, fn (Obat $medicine): array => [
                 'id' => $medicine->id,
                 'code' => $medicine->kode,
@@ -96,11 +108,11 @@ class LaporanController extends Controller
         $period = DateRangeFilter::fromRequest($request);
         $from = $period->from;
         $to = $period->to;
-        $filters = array_intersect_key((new VisitQueryService)->filters($request), array_flip(['poliklinik_id', 'status', 'search']));
+        $filters = array_intersect_key((new VisitQueryService)->filters($request), array_flip(['poliklinik_id', 'dokter_id', 'status', 'search']));
         $audit->record($request, 'visit_report.export', metadata: ['from' => $from, 'to' => $to, ...$filters]);
 
         return Excel::download(
-            new KunjunganExport($from, $to, $filters['poliklinik_id'] ?? null, $filters['status'] ?? null, $filters['search'] ?? null),
+            new KunjunganExport($from, $to, $filters['poliklinik_id'] ?? null, $filters['status'] ?? null, $filters['search'] ?? null, doctorId: isset($filters['dokter_id']) ? (int) $filters['dokter_id'] : null),
             'laporan-kunjungan-'.date('Y-m-d').'.xlsx'
         );
     }
@@ -129,6 +141,7 @@ class LaporanController extends Controller
             'jenis' => ['nullable', 'in:obat,bhp'],
             'perhatian' => ['nullable', 'boolean'],
             'stok_rendah' => ['nullable', 'boolean'],
+            'stok' => ['nullable', 'in:minimum,kedaluwarsa'],
         ]);
     }
 
@@ -136,6 +149,9 @@ class LaporanController extends Controller
     {
         return Obat::withSum(['batches as usable_stock' => fn (Builder $query) => $query->usable()], 'stok')
             ->withMin(['batches as next_expiry' => fn (Builder $query) => $query->usable()], 'expired_at')
+            ->when(($filters['stok'] ?? null) === 'minimum', fn (Builder $query) => $query->where('is_active', true)->lowUsableStock())
+            ->when(($filters['stok'] ?? null) === 'kedaluwarsa', fn (Builder $query) => $query->where('is_active', true)
+                ->whereHas('batches', fn (Builder $batch) => $batch->usable()->whereBetween('expired_at', [today()->addDay()->toDateString(), today()->addDays(90)->toDateString()])))
             ->when($filters['search'] ?? null, fn (Builder $query, string $search) => $query->where(fn (Builder $items) => $items->where('nama', 'like', "%{$search}%")->orWhere('kode', 'like', "%{$search}%")))
             ->when($filters['jenis'] ?? null, fn (Builder $query, string $type) => $query->where('jenis', $type))
             ->when($filters['stok_rendah'] ?? false, fn (Builder $query) => $query->lowUsableStock())

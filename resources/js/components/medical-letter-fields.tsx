@@ -10,7 +10,7 @@ export const letterTypes = [
     ['rontgen_gigi', 'X-ray dental'], ['ringkasan', 'Ringkasan pemeriksaan'], ['lainnya', 'Surat keterangan lainnya'],
 ];
 export const emptyLetterDetails = {
-    rest_start: '', rest_end: '', purpose: '', conclusion: '', recipient: '', recipient_address: '',
+    rest_start: '', rest_end: '', purpose: '', conclusion: '', color_vision: '', visual_acuity: '', recipient: '', recipient_address: '',
     requested_tests: '', xray_types: [] as string[], teeth: [] as number[], result_delivery: 'pasien',
 };
 export type LetterDetails = typeof emptyLetterDetails;
@@ -32,7 +32,20 @@ export function MedicalLetterFields({ type, value, onChange, errors = {} }: {
             <Field htmlFor="medical-rest_end" label="Istirahat sampai tanggal" required error={errors['details.rest_end']}><DatePicker id="medical-rest_end" required value={value.rest_end} onChange={(e) => update('rest_end', e.target.value)} /></Field>
         </div>}
         {type === 'sehat' && <>
-            <Field htmlFor="medical-purpose" label="Keperluan surat" required error={errors['details.purpose']}><Input id="medical-purpose" required maxLength={500} value={value.purpose} onChange={(e) => update('purpose', e.target.value)} /></Field>
+            <Field htmlFor="medical-purpose" label="Keperluan surat" required error={errors['details.purpose']}><Input id="medical-purpose" required maxLength={500} placeholder="Contoh: Pemberkasan PPPK / perjalanan dinas / persyaratan diklat" value={value.purpose} onChange={(e) => update('purpose', e.target.value)} /></Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+                <Field htmlFor="medical-color_vision" label="Tes buta warna (opsional)" error={errors['details.color_vision']}>
+                    <Select id="medical-color_vision" value={value.color_vision ?? ''} onChange={(e) => update('color_vision', e.target.value)}>
+                        <option value="">Tidak dicantumkan / belum diperiksa</option>
+                        <option value="Tidak buta warna (Normal)">Tidak buta warna (Normal)</option>
+                        <option value="Buta warna parsial (Defisiensi merah-hijau)">Buta warna parsial</option>
+                        <option value="Buta warna total">Buta warna total</option>
+                    </Select>
+                </Field>
+                <Field htmlFor="medical-visual_acuity" label="Tajam penglihatan / visus (opsional)" error={errors['details.visual_acuity']}>
+                    <Input id="medical-visual_acuity" maxLength={120} placeholder="Contoh: OD 6/6 · OS 6/6 (dengan/tanpa kacamata)" value={value.visual_acuity ?? ''} onChange={(e) => update('visual_acuity', e.target.value)} />
+                </Field>
+            </div>
             <Field htmlFor="medical-conclusion" label="Kesimpulan pemeriksaan kesehatan oleh dokter" required error={errors['details.conclusion']}><Textarea id="medical-conclusion" required maxLength={2000} value={value.conclusion} onChange={(e) => update('conclusion', e.target.value)} placeholder="Isi sesuai hasil pemeriksaan, termasuk kelainan atau batasan bila ada." /></Field>
         </>}
         {type === 'rujukan' && <div className="grid gap-4 sm:grid-cols-2">

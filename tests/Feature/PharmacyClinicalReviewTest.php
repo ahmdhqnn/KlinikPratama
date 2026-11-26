@@ -36,7 +36,7 @@ class PharmacyClinicalReviewTest extends TestCase
         $this->post(route('pelayanan.farmasi.review.store', $visit), $this->review($visit))->assertRedirect()->assertSessionHasNoErrors();
         $ttk = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
         Nakes::create(['kode' => 'TTK-SYNTHETIC', 'nama' => 'TTK sintetis', 'kategori' => 'medis', 'jabatan' => 'farmasi', 'user_id' => $ttk->id,
-            'no_sip' => 'SIP-TTK-SYNTHETIC', 'no_str' => 'STR-TTK-SYNTHETIC', 'is_active' => true]);
+            'poliklinik_id' => $visit->poliklinik_id, 'no_sip' => 'SIP-TTK-SYNTHETIC', 'no_str' => 'STR-TTK-SYNTHETIC', 'is_active' => true]);
         $this->credential($ttk, 'ttk');
         $this->actingAs($ttk);
         $this->post($url, [...$this->handover(), 'recipient_verified' => false])->assertSessionHasErrors('recipient_verified');
@@ -102,10 +102,10 @@ class PharmacyClinicalReviewTest extends TestCase
     private function context(): array
     {
         $staff = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
-        Nakes::create(['kode' => 'FARM-REVIEW', 'nama' => 'Petugas farmasi sintetis', 'kategori' => 'medis', 'jabatan' => 'farmasi', 'user_id' => $staff->id,
-            'no_sip' => 'SIP-SYNTHETIC', 'no_str' => 'STR-SYNTHETIC', 'is_active' => true]);
-        $doctor = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
         $clinic = Poliklinik::create(['kode' => 'REVIEW', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        Nakes::create(['kode' => 'FARM-REVIEW', 'nama' => 'Petugas farmasi sintetis', 'kategori' => 'medis', 'jabatan' => 'farmasi', 'user_id' => $staff->id,
+            'poliklinik_id' => $clinic->id, 'no_sip' => 'SIP-SYNTHETIC', 'no_str' => 'STR-SYNTHETIC', 'is_active' => true]);
+        $doctor = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
         $patient = Pasien::create(['no_rm' => 'RM-REVIEW', 'nama' => 'Pasien sintetis']);
         $visit = Kunjungan::create(['no_kunjungan' => 'KNJ-REVIEW', 'pasien_id' => $patient->id, 'poliklinik_id' => $clinic->id, 'tanggal' => today(), 'status' => 'farmasi']);
         $prescription = Resep::create(['no_resep' => 'RSP-REVIEW', 'kunjungan_id' => $visit->id, 'status' => 'menunggu']);

@@ -54,6 +54,9 @@ class DokterTindakanController extends Controller
                     'name' => $item->nama_tindakan ?: $item->nama_tindakan_manual ?: $item->tindakan?->nama ?: 'Tindakan tidak tersedia',
                     'code' => $item->kode_icd9cm,
                     'quantity' => $item->jumlah,
+                    'toothFdi' => $item->tooth_fdi,
+                    'surfaces' => $item->surfaces,
+                    'result' => $item->execution_result,
                     'executionRole' => $item->execution_role,
                     'status' => $item->execution_status,
                     'statusLabel' => $item->execution_status === 'completed'

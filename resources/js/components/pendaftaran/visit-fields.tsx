@@ -144,12 +144,12 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
                         </Select>
                     </LoadingField>
                     {plannedDoctor && !loadingDoctors && !doctorLoadError && !clinicDoctors.some((doctor) => doctor.id === plannedDoctor.id) && (
-                        <p className="text-xs text-neutral-600">{plannedDoctor.name} tidak terjadwal pada poli dan tanggal ini. Pilih tanggal praktiknya atau pilih dokter lain secara manual.</p>
+                        <p className="text-xs leading-5 text-neutral-600">{plannedDoctor.name} tidak terjadwal pada poli dan tanggal ini. Pilih tanggal praktiknya atau pilih dokter lain secara manual.</p>
                     )}
                 </Field>
                 <Field error={errors.tanggal} htmlFor="reservation-date" label={isDental ? 'Tanggal kunjungan Poli Gigi' : 'Tanggal kunjungan'} required>
                     <DatePicker id="reservation-date" min={today} required value={values.tanggal} onChange={(event) => onChange({ tanggal: event.target.value, dokter_id: plannedDoctor ? values.dokter_id || String(plannedDoctor.id) : '' })} />
-                    <p className="text-xs text-neutral-500">{plannedDoctor ? 'Gunakan tanggal pilihan dokter. Jika perlu dijadwalkan ulang, pilih tanggal sesuai jadwal praktik.' : isDental ? 'Poli Gigi dapat didaftarkan hari ini atau tanggal berikutnya sesuai jadwal dokter.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
+                    <p className="text-xs leading-5 text-neutral-500">{plannedDoctor ? 'Gunakan tanggal pilihan dokter. Jika perlu dijadwalkan ulang, pilih tanggal sesuai jadwal praktik.' : isDental ? 'Poli Gigi dapat didaftarkan hari ini atau tanggal berikutnya sesuai jadwal dokter.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
                 </Field>
                 <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Fasilitas klinik internal</p><p className="mt-1 text-xs text-neutral-500">Pasien baru dapat langsung didaftarkan untuk kunjungan. Verifikasi kepesertaan dilakukan oleh admin.</p></div>
             </div>

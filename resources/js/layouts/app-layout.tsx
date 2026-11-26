@@ -41,7 +41,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { SessionSecurity } from '@/components/session-security';
 import { PageLoading } from '@/components/page-loading';
 import type { PageProps } from '@inertiajs/core';
-import { activeNavigationHref } from '@/lib/navigation';
+import { activeNavigationHref, roleDashboardHref } from '@/lib/navigation';
 import { SidebarNavigationItem, navigationLinks, type NavigationItem, type NavigationLink } from '@/components/sidebar-navigation-item';
 
 interface AppUser {
@@ -51,6 +51,7 @@ interface AppUser {
     role: string;
     roleLabel: string;
     clinicType?: string | null;
+    clinicName?: string | null;
     photoUrl: string | null;
 }
 
@@ -60,8 +61,9 @@ interface SharedPageProps extends PageProps {
     doctorQueues?: { examinations: number } | null;
     registrationReferralCount?: number | null;
     pharmacyQueues?: { handovers: number } | null;
+    breadcrumbs?: BreadcrumbItem[];
     auth: { user: AppUser | null };
-    flash: { success?: string | null; error?: string | null };
+    flash: { success?: string | null; error?: string | null; warning?: string | null; info?: string | null };
 }
 
 interface NavigationGroup {
@@ -125,7 +127,6 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
             label: 'Laporan',
             items: [
                 { label: 'Laporan kunjungan', href: '/pendaftaran/laporan-kunjungan', icon: BarChart3 },
-                { label: 'Diagnosis terbanyak', href: '/pendaftaran/laporan-top-diagnosa', icon: ChartNoAxesCombined },
             ],
         },
     ],
@@ -184,7 +185,6 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
         ] },
         { label: 'Pengelolaan obat', items: [
             { label: 'Mutasi & stok farmasi', href: '/stok/persediaan', icon: Boxes },
-            { label: 'Data pasien', href: '/pelayanan/pasien', icon: UsersRound },
         ] },
         { label: 'Laporan', items: [
             { label: 'Laporan penyerahan obat', href: '/farmasi/laporan/penyerahan-obat', icon: ClipboardCheck },
@@ -200,6 +200,7 @@ function getPageTitle(component: string): string {
         'admin/log-aktivitas': 'Log aktivitas',
         'admin/laporan': 'Pusat laporan',
         'auth/login': 'Masuk',
+        'auth/assistance': 'Bantuan akses',
         'dashboard/index': 'Dasbor',
         'kepesertaan/index': 'Kepesertaan',
         'kepesertaan/show': 'Detail kepesertaan',
@@ -235,18 +236,23 @@ function getPageTitle(component: string): string {
         'pelayanan/kunjungan/index': 'Daftar kunjungan',
         'pelayanan/kunjungan/form': 'Data kunjungan',
         'pelayanan/kunjungan/show': 'Detail kunjungan',
+        'pelayanan/kunjungan/general-consent': 'Persetujuan umum',
         'pelayanan/kunjungan/antrian': 'Monitoring kunjungan & antrean',
         'pelayanan/pemeriksaan/index': 'Pemeriksaan dokter',
         'pelayanan/pemeriksaan/show': 'Pemeriksaan klinis',
+        'pelayanan/pemeriksaan/diagnosis-correction': 'Koreksi kode diagnosis',
+        'pelayanan/pemeriksaan/procedure-consent': 'Persetujuan tindakan medis',
         'pelayanan/pemeriksaan/procedure-signature': 'Sesi tanda tangan tindakan',
         'persuratan/index': 'Persuratan',
         'persuratan/terbitkan': 'Terbitkan dokumen',
         'persuratan/cetak': 'Cetak dokumen',
+        'persuratan/pelepasan': 'Register pelepasan informasi medis',
         'pelayanan/tindakan/index': 'Tindakan perawat',
         'pelayanan/tindakan/show': 'Pelaksanaan tindakan',
         'pelayanan/tindakan/report': 'Laporan tindakan perawat',
         'pelayanan/farmasi/index': 'Penyerahan obat',
         'pelayanan/farmasi/show': 'Penyerahan obat',
+        'pelayanan/farmasi/review': 'Telaah resep klinis',
         'farmasi/dashboard': 'Dasbor farmasi',
         'farmasi/resep-luar': 'Resep luar',
         'farmasi/pasien': 'Riwayat farmasi pasien',
@@ -257,6 +263,7 @@ function getPageTitle(component: string): string {
         'farmasi/laporan': 'Laporan obat langsung',
         'farmasi/laporan-penyerahan': 'Laporan penyerahan obat',
         'farmasi/laporan-resep-luar': 'Laporan resep luar',
+        'laporan/agregat': 'Ringkasan pelayanan',
         'laporan/kunjungan': 'Laporan kunjungan',
         'laporan/stok': 'Laporan stok',
         'users/index': 'Pengguna & hak akses',
@@ -268,6 +275,7 @@ function getPageTitle(component: string): string {
         'master/poliklinik/index': 'Poliklinik',
         'master/poliklinik/show': 'Ruang poliklinik',
         'master/nakes/index': 'Nakes & karyawan',
+        'master/nakes/kualifikasi-farmasi': 'Kualifikasi tenaga farmasi',
         'master/obat/index': 'Obat & BHP',
         'master/obat/stok': 'Kartu stok obat',
     };
@@ -300,20 +308,27 @@ const breadcrumbLabels: Record<string, string> = {
 };
 
 function getBreadcrumbItems(pathname: string, title: string, validHrefs: Set<string>): BreadcrumbItem[] {
-    const segments = pathname.split('/').filter(Boolean);
+    const rawSegments = pathname.split('/').filter(Boolean);
 
-    if (segments.length === 0) {
+    if (rawSegments.length === 0) {
         return [{ label: title }];
     }
 
-    return segments.map((segment, index) => {
-        const current = index === segments.length - 1;
-
-        return {
+    const items: BreadcrumbItem[] = [];
+    rawSegments.forEach((segment, index) => {
+        const current = index === rawSegments.length - 1;
+        const isNumericId = /^\d+$/.test(segment);
+        if (isNumericId && !current) {
+            return;
+        }
+        const href = current ? undefined : `/${rawSegments.slice(0, index + 1).join('/')}`;
+        items.push({
             label: current ? title : breadcrumbLabels[segment] ?? segment.replaceAll('-', ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
-            href: current ? undefined : `/${segments.slice(0, index + 1).join('/')}`,
-        };
-    }).map((item) => item.href && !validHrefs.has(item.href) ? { label: item.label } : item);
+            href: href && validHrefs.has(href) ? href : undefined,
+        });
+    });
+
+    return items.length > 0 ? items : [{ label: title }];
 }
 
 function SidebarContents({
@@ -336,7 +351,7 @@ function SidebarContents({
     return (
         <>
             <SidebarHeader className={`${isCollapsed ? 'justify-center px-2' : ''} ${headerClassName ?? ''}`}>
-                <Link aria-label={`${clinicBrand.name} — beranda`} className={`flex min-w-0 items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`} href="/" onClick={onNavigate}>
+                <Link aria-label={`${clinicBrand.name} — beranda`} className={`flex min-w-0 items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`} href={roleDashboardHref(user?.role)} onClick={onNavigate}>
                     <ClinicBrand iconOnly={isCollapsed} />
                 </Link>
             </SidebarHeader>
@@ -370,7 +385,7 @@ function AccountMenu({ user, isSidebar = false, isCollapsed = false }: { user: A
                         <AccountAvatar user={user} />
                         {!isCollapsed && <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-semibold text-neutral-900">{name}</span>
-                            <span className="block truncate text-xs text-neutral-500">{user?.roleLabel ?? ''}</span>
+                            <span className="block truncate text-xs text-neutral-500">{user?.clinicName ? `${user.roleLabel} · ${user.clinicName}` : (user?.roleLabel ?? '')}</span>
                         </span>}
                     </button>
                 ) : (
@@ -408,10 +423,6 @@ function AccountAvatar({ user }: { user: AppUser | null }) {
 
 export default function AppLayout({ children }: { children: ReactNode }) {
     const page = usePage<SharedPageProps>();
-    useEffect(() => router.on('error', event => {
-        const messages = Object.values(event.detail.errors).flat().filter(value => typeof value === 'string');
-        if (messages.length) toast.error(messages[0]);
-    }), []);
 
     const { auth, flash, adminQueues, nurseQueues, doctorQueues, pharmacyQueues, registrationReferralCount } = page.props;
     const adminBadges: Record<string, number | undefined> = {
@@ -468,9 +479,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const validHrefs = new Set(groups.flatMap((group) => navigationLinks(group.items).map((item) => item.href)));
     const activeHref = activeNavigationHref(pathname, groups.flatMap((group) => navigationLinks(group.items)));
     const inAdminReports = user?.role === 'admin' && groups.some((group) => group.items.some((item) => 'children' in item && item.label === 'Laporan & analitik' && item.children.some((child) => child.href === activeHref)));
-    const breadcrumbs = inAdminReports && pathname !== '/admin/laporan'
-        ? [{ label: 'Pusat laporan', href: '/admin/laporan' }, { label: pageTitle }]
-        : getBreadcrumbItems(pathname, pageTitle, validHrefs);
+    const breadcrumbs = Array.isArray(page.props.breadcrumbs) && page.props.breadcrumbs.length > 0
+        ? page.props.breadcrumbs
+        : inAdminReports && pathname !== '/admin/laporan'
+            ? [{ label: 'Pusat laporan', href: '/admin/laporan' }, { label: pageTitle }]
+            : getBreadcrumbItems(pathname, pageTitle, validHrefs);
     const searchResults = groups.flatMap((group) => group.items.flatMap((item) => {
         const category = 'children' in item ? `${group.label} · ${item.label}` : group.label;
         return navigationLinks([item]).map((link) => ({ ...link, group: category }));
@@ -519,7 +532,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         if (flash.error) {
             toast.error(flash.error);
         }
-    }, [flash.error, flash.success]);
+
+        if (flash.warning) {
+            toast.warning(flash.warning);
+        }
+
+        if (flash.info) {
+            toast.info(flash.info);
+        }
+    }, [flash.error, flash.info, flash.success, flash.warning]);
 
     return (
         <div className="clinic-app min-h-screen bg-canvas text-neutral-900">

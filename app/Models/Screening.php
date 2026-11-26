@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\ClinicalSafetyService;
 use App\DentalAssessment;
 use App\GeneralAssessment;
 use Illuminate\Database\Eloquent\Model;
@@ -33,7 +34,7 @@ class Screening extends Model
     protected $table = 'screening';
 
     protected $fillable = [
-        'submitted_by_user_id', 'submitted_petugas_id', 'last_submitted_at',
+        'submitted_by_user_id', 'submitted_petugas_id', 'last_submitted_at', 'signature_path_snapshot',
         'vitals_unmeasurable', 'general_assessment', 'vitals_measured_at', 'triaged_at',
         'status_riwayat_obat', 'mukosa_mulut', 'kelainan_mukosa', 'kebiasaan_gigi_opsi',
         ...self::SAFETY_FIELDS,
@@ -45,21 +46,22 @@ class Screening extends Model
         'td_sistole', 'td_diastole', 'nadi', 'suhu',
         'berat_badan', 'tinggi_badan', 'spo2', 'respirasi',
         'riwayat_penyakit', 'riwayat_alergi', 'risiko_jatuh',
-        'risiko_nyeri', 'skrining_gizi', 'pemeriksaan_fisik',
+        'risiko_nyeri', 'skrining_gizi', 'status_kehamilan', 'usia_kehamilan_minggu', 'hpht', 'status_menyusui', 'pemeriksaan_fisik',
         'lingkar_perut', 'fungsi_penciuman', 'tingkat_kesadaran',
         'alergi_jenis', 'alergi_reaksi', 'penyakit_nama', 'penyakit_keterangan',
         'nyeri_dada', 'kondisi_psikiatri', 'nadi_teraba', 'kejang',
-        'pola_pernapasan', 'kesadaran', 'risiko_jatuh_visual',
+        'pola_pernapasan', 'kesadaran', 'gcs_eye', 'gcs_verbal', 'gcs_motor', 'risiko_jatuh_visual',
         'kesimpulan_triase', 'prioritas_layanan',
         'riwayat_penyakit_keluarga', 'skala_nyeri', 'lokasi_nyeri_gigi',
         'pemicu_nyeri_gigi', 'durasi_keluhan_gigi', 'risiko_medis_gigi',
         'riwayat_infeksi_gigi', 'catatan_medis_gigi',
         'keluhan_tambahan', 'lama_keluhan', 'riwayat_obat', 'status_alergi',
         'status_riwayat_penyakit', 'sumber_informasi', 'alasan_pengukuran_tidak_lengkap',
-        'triase_perawat', 'catatan_triase', 'started_at', 'submitted_at',
+        'triase_perawat', 'catatan_triase', 'started_at', 'submitted_at', 'satusehat_observation_ids',
     ];
 
     protected $casts = [
+        'satusehat_observation_ids' => 'array',
         'vitals_unmeasurable' => 'boolean', 'general_assessment' => 'array', 'vitals_measured_at' => 'datetime', 'triaged_at' => 'datetime',
         'mukosa_mulut' => 'array', 'kebiasaan_gigi_opsi' => 'array',
         'dental_vitals_unmeasurable' => 'boolean',
@@ -70,6 +72,11 @@ class Screening extends Model
         'last_submitted_at' => 'datetime',
         'lingkar_perut' => 'decimal:1',
         'skala_nyeri' => 'integer',
+        'usia_kehamilan_minggu' => 'integer',
+        'hpht' => 'date',
+        'gcs_eye' => 'integer',
+        'gcs_verbal' => 'integer',
+        'gcs_motor' => 'integer',
         'pemicu_nyeri_gigi' => 'array',
         'risiko_medis_gigi' => 'array',
         'riwayat_infeksi_gigi' => 'array',
@@ -165,6 +172,11 @@ class Screening extends Model
         }
 
         return null;
+    }
+
+    public function getImtCategoryAttribute(): ?string
+    {
+        return app(ClinicalSafetyService::class)->imtCategory($this->imt, $this->kunjungan?->pasien?->umur);
     }
 
     /** @return array<string, ?string> */
@@ -309,6 +321,12 @@ class Screening extends Model
             'Kebutuhan respons awal' => $response,
             'Catatan penapisan' => $this->catatan_triase,
             'Pengkajian gizi' => $choice($this->skrining_gizi),
+            'Status kehamilan' => $this->status_kehamilan && $this->status_kehamilan !== 'tidak_relevan'
+                ? app(ClinicalSafetyService::class)->maternalSummary($this)['pregnancyLabel']
+                : null,
+            'Status menyusui' => $this->status_menyusui && $this->status_menyusui !== 'tidak_relevan'
+                ? app(ClinicalSafetyService::class)->maternalSummary($this)['lactationLabel']
+                : null,
             'Observasi awal' => $this->pemeriksaan_fisik,
             ...$this->dentalObservationSummary(),
             'Riwayat perawatan gigi' => $this->riwayat_perawatan_gigi,

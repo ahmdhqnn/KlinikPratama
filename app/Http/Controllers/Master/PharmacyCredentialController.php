@@ -6,6 +6,7 @@ use App\ClinicalAuditRecorder;
 use App\Http\Controllers\Controller;
 use App\Models\Nakes;
 use App\Models\PharmacyStaffCredential;
+use App\Rules\ClinicalSigningCredential;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -35,7 +36,7 @@ class PharmacyCredentialController extends Controller
             'current_id' => ['nullable', 'integer'], 'qualification' => ['required', Rule::in(['apoteker', 'ttk', 'revoked'])],
             'reference' => ['required', 'string', 'min:10', 'max:2000'],
             'valid_until' => ['required_unless:qualification,revoked', 'nullable', 'date_format:Y-m-d', 'after_or_equal:today'],
-            'documents_verified' => ['required', 'accepted'], 'signature_password' => ['required', 'current_password'],
+            'documents_verified' => ['required', 'accepted'], 'signature_password' => ['required', new ClinicalSigningCredential],
         ]);
         DB::transaction(function () use ($request, $nakes, $data): void {
             $staff = Nakes::whereKey($nakes->id)->lockForUpdate()->firstOrFail();

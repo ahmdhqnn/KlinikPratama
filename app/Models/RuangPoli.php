@@ -9,7 +9,7 @@ class RuangPoli extends Model
 {
     protected $table = 'ruang_poli';
 
-    protected $fillable = ['poliklinik_id', 'nama', 'is_active'];
+    protected $fillable = ['poliklinik_id', 'kode', 'nama', 'satusehat_location_id', 'physical_type_code', 'is_active'];
 
     protected $casts = ['is_active' => 'boolean'];
 

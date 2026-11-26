@@ -1,5 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, Save } from 'lucide-react';
+import { handleBackNavigation } from '@/lib/navigation';
 import type { FormEvent } from 'react';
 import { VisitFields, type VisitFormValues } from '@/components/pendaftaran/visit-fields';
 import { Button } from '@/components/ui/button';
@@ -38,7 +39,7 @@ export default function EditRegistrationVisit({ visit, clinics, today, doctorsUr
                         <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{visit.pendingReservation ? 'Konfirmasi reservasi kontrol' : 'Ubah data kunjungan'}</h2>
                         <p className="mt-1 text-sm text-neutral-500">Pembaruan poli dan dokter akan diperiksa terhadap jadwal praktik.</p>
                     </div>
-                    <Button asChild variant="secondary"><Link href={backUrl}><ArrowLeft className="size-4" />Kembali</Link></Button>
+                    <Button asChild variant="secondary"><Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}><ArrowLeft className="size-4" />Kembali</Link></Button>
                 </div>
                 <Card>
                     <CardHeader><CardTitle>Informasi pasien</CardTitle><CardDescription>Identitas pasien untuk kunjungan ini.</CardDescription></CardHeader>
@@ -59,7 +60,7 @@ export default function EditRegistrationVisit({ visit, clinics, today, doctorsUr
                         <form className="space-y-5" onSubmit={submit}>
                             <VisitFields plannedDoctor={visit.pendingReservation ? visit.doctor : null} clinics={clinics} doctorsUrl={doctorsUrl} errors={form.errors} today={today} values={form.data} onChange={(fields) => form.setData((data) => ({ ...data, ...fields }))} />
                             <div className="flex flex-col-reverse gap-2 border-t border-neutral-100 pt-4 sm:flex-row sm:justify-end">
-                                <Button asChild variant="secondary"><Link href={backUrl}>Batalkan</Link></Button>
+                                <Button asChild variant="secondary"><Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}>Batalkan</Link></Button>
                                 <Button disabled={form.processing} type="submit"><Save className="size-4" />{form.processing ? 'Menyimpan…' : visit.pendingReservation ? 'Konfirmasi reservasi' : 'Simpan perubahan'}</Button>
                             </div>
                         </form>

@@ -13,8 +13,10 @@ use App\Exports\DoctorActivityExport;
 use App\Exports\PemeriksaanExport;
 use App\JadwalPraktikResolver;
 use App\Models\Kunjungan;
+use App\Models\Nakes;
 use App\Models\Obat;
 use App\Models\Pasien;
+use App\Models\Poliklinik;
 use App\VisitOverviewService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -109,13 +111,23 @@ class DokterDashboardController extends Controller
         $isAdmin = $request->user()->isAdmin();
         $isReport = $request->routeIs('dokter.laporan-pemeriksaan', 'admin.laporan.pemeriksaan');
         $reportRoute = $isAdmin ? 'admin.laporan.pemeriksaan' : 'dokter.laporan-pemeriksaan';
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => $isReport ? ['nullable', 'in:draf,final'] : ['nullable', 'in:'.implode(',', Kunjungan::STATUSES)],
+            'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
+        ]);
         $search = $filters['search'] ?? '';
-        $base = $isReport ? (new DoctorExaminationReport)->query($isAdmin ? null : $this->dokterId(), $period, $search) : $period->apply($this->doctorVisits())->when($period->to === null && $period->from === null,
-            fn (Builder $query) => $query->where('tanggal', '<', today()->addDays(8)->toDateString()))
-            ->when(filled($search), fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
-                ->where('no_kunjungan', 'like', "%{$search}%")
-                ->orWhereHas('pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))));
+        $status = $filters['status'] ?? '';
+        $clinicId = $isAdmin && isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : null;
+        $base = $isReport
+            ? (new DoctorExaminationReport)->query($isAdmin ? null : $this->dokterId(), $period, $search, $status ?: null, $clinicId)
+            : $period->apply($this->doctorVisits())
+                ->when($period->to === null && $period->from === null,
+                    fn (Builder $query) => $query->where('tanggal', '<', today()->addDays(8)->toDateString()))
+                ->when($status !== '', fn (Builder $query) => $query->where('status', $status))
+                ->when(filled($search), fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
+                    ->where('no_kunjungan', 'like', "%{$search}%")
+                    ->orWhereHas('pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))));
         $todayVisits = $isReport ? null : $this->doctorVisits()->whereDate('tanggal', today());
         if ($isAdmin) {
             $audit->record($request, 'admin.report.examination.view', metadata: ['from' => $period->from, 'to' => $period->to]);
@@ -129,7 +141,8 @@ class DokterDashboardController extends Controller
             'isReport' => $isReport,
             'isAdmin' => $isAdmin,
             'pageUrl' => route($isReport ? $reportRoute : 'dokter.kunjungan'),
-            'exportUrl' => $isReport ? route($reportRoute.'.export', ['dari' => $period->from, 'sampai' => $period->to, 'search' => $search]) : null,
+            'exportUrl' => $isReport ? route($reportRoute.'.export', ['dari' => $period->from, 'sampai' => $period->to, 'search' => $search, 'status' => $status, 'poliklinik_id' => $clinicId]) : null,
+            'clinics' => $isAdmin ? Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama'])->map(fn (Poliklinik $c): array => ['id' => $c->id, 'name' => $c->nama])->values() : [],
             'stats' => $isReport ? [
                 'total' => (clone $base)->count(),
                 'draft' => (clone $base)->whereHas('pemeriksaan', fn ($query) => $query->whereNull('signed_at'))->count(),
@@ -145,6 +158,8 @@ class DokterDashboardController extends Controller
                 'search' => $search,
                 'dari' => $period->from ?? '',
                 'sampai' => $period->to ?? '',
+                'status' => $status,
+                'poliklinik_id' => $clinicId ? (string) $clinicId : '',
             ],
             'visits' => [
                 'data' => $kunjungan->getCollection()->map(fn (Kunjungan $visit): array => [
@@ -181,12 +196,21 @@ class DokterDashboardController extends Controller
 
     public function exportExaminations(Request $request, ClinicalAuditRecorder $audit): BinaryFileResponse
     {
-        $doctorId = $request->user()->isAdmin() ? null : $this->dokterId();
+        $isAdmin = $request->user()->isAdmin();
+        $doctorId = $isAdmin ? null : $this->dokterId();
         $period = DateRangeFilter::fromRequest($request);
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:draf,final'],
+            'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
+        ]);
+        $clinicId = $isAdmin && isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : null;
         $audit->record($request, 'examination.report_export', metadata: ['doctor_id' => $doctorId, 'from' => $period->from, 'to' => $period->to]);
 
-        return Excel::download(new PemeriksaanExport($doctorId, $period, $filters['search'] ?? ''), 'laporan-pemeriksaan-'.today()->format('Y-m-d').'.xlsx');
+        return Excel::download(
+            new PemeriksaanExport($doctorId, $period, $filters['search'] ?? '', $filters['status'] ?? null, $clinicId),
+            'laporan-pemeriksaan-'.today()->format('Y-m-d').'.xlsx'
+        );
     }
 
     public function reports(Request $request, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit): Response
@@ -196,18 +220,22 @@ class DokterDashboardController extends Controller
             'dari' => ['nullable', 'date_format:Y-m-d'],
             'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
             'search' => ['nullable', 'string', 'max:100'],
+            'status' => $type === 'tindakan' ? ['nullable', 'in:pending,completed'] : ['nullable', 'in:menunggu,diproses,selesai,batal'],
+            'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
         ]);
         $isAdmin = $request->user()->isAdmin();
         $doctorId = $isAdmin ? null : $this->dokterId();
         $period = DateRangeFilter::fromRequest($request);
         $search = trim($filters['search'] ?? '');
+        $status = $filters['status'] ?? '';
+        $clinicId = $isAdmin && isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : null;
         if ($isAdmin) {
             $audit->record($request, 'admin.report.doctor.view', metadata: ['type' => $type, 'from' => $period->from, 'to' => $period->to]);
         }
         $reportQueries = new DoctorActivityReportQuery;
         $base = $type === 'tindakan'
-            ? $reportQueries->treatments($doctorId, $period, $search)
-            : $reportQueries->medicines($doctorId, $period, $search);
+            ? $reportQueries->treatments($doctorId, $period, $search, $status ?: null, $clinicId)
+            : $reportQueries->medicines($doctorId, $period, $search, $status ?: null, $clinicId);
         $rows = $base->paginate(10)->withQueryString();
         $data = $rows->getCollection()->map(function ($item) use ($type, $notes, $isAdmin): array {
             $visit = $type === 'tindakan' ? $item->kunjungan : $item->resep?->kunjungan;
@@ -241,7 +269,15 @@ class DokterDashboardController extends Controller
         });
 
         return Inertia::render('dokter/reports', [
-            'type' => $type, 'filters' => ['dari' => $period->from ?? '', 'sampai' => $period->to ?? '', 'search' => $search],
+            'type' => $type,
+            'filters' => [
+                'dari' => $period->from ?? '',
+                'sampai' => $period->to ?? '',
+                'search' => $search,
+                'status' => $status,
+                'poliklinik_id' => $clinicId ? (string) $clinicId : '',
+            ],
+            'clinics' => $isAdmin ? Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama'])->map(fn (Poliklinik $c): array => ['id' => $c->id, 'name' => $c->nama])->values() : [],
             'stats' => $type === 'tindakan' ? [
                 'total' => $rows->total(),
                 'secondary' => (clone $base)->where('execution_status', 'pending')->count(),
@@ -253,7 +289,7 @@ class DokterDashboardController extends Controller
                 'tertiary' => (clone $base)->where('is_resep_luar', true)->count(),
                 'related' => (clone $base)->distinct()->count('resep_id'),
             ],
-            'exportUrl' => route($isAdmin ? 'admin.laporan.dokter.export' : 'dokter.laporan.export', ['jenis' => $type, 'dari' => $period->from, 'sampai' => $period->to, 'search' => $search]),
+            'exportUrl' => route($isAdmin ? 'admin.laporan.dokter.export' : 'dokter.laporan.export', ['jenis' => $type, 'dari' => $period->from, 'sampai' => $period->to, 'search' => $search, 'status' => $status, 'poliklinik_id' => $clinicId]),
             'baseUrl' => route($isAdmin ? 'admin.laporan.dokter' : 'dokter.laporan', ['jenis' => $type]),
             'isAdmin' => $isAdmin,
             'rows' => [...$this->pagination($rows), 'data' => $data->values()],
@@ -267,10 +303,15 @@ class DokterDashboardController extends Controller
             'dari' => ['nullable', 'date_format:Y-m-d'],
             'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
             'search' => ['nullable', 'string', 'max:100'],
+            'status' => $type === 'tindakan' ? ['nullable', 'in:pending,completed'] : ['nullable', 'in:menunggu,diproses,selesai,batal'],
+            'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
         ]);
-        $doctorId = $request->user()->isAdmin() ? null : $this->dokterId();
+        $isAdmin = $request->user()->isAdmin();
+        $doctorId = $isAdmin ? null : $this->dokterId();
         $period = DateRangeFilter::fromRequest($request);
         $search = trim($filters['search'] ?? '');
+        $status = $filters['status'] ?? null;
+        $clinicId = $isAdmin && isset($filters['poliklinik_id']) ? (int) $filters['poliklinik_id'] : null;
         $audit->record($request, 'doctor.'.$type.'.report_export', metadata: [
             'doctor_id' => $doctorId,
             'from' => $period->from,
@@ -278,15 +319,20 @@ class DokterDashboardController extends Controller
         ]);
 
         return Excel::download(
-            new DoctorActivityExport($type, $doctorId, $period, $search),
+            new DoctorActivityExport($type, $doctorId, $period, $search, $status, $clinicId),
             'laporan-'.$type.'-'.today()->format('Y-m-d').'.xlsx',
         );
     }
 
     public function patients(Request $request, ClinicalNoteRecorder $notes): Response
     {
-        $pasien = Pasien::query()
-            ->whereHas('kunjungan', fn (Builder $query) => $query->where('dokter_id', $this->dokterId()))
+        $gender = in_array($request->string('jenis_kelamin')->toString(), ['L', 'P'], true)
+            ? $request->string('jenis_kelamin')->toString()
+            : '';
+        $basePatients = Pasien::query()
+            ->whereHas('kunjungan', fn (Builder $query) => $query->where('dokter_id', $this->dokterId()));
+
+        $pasien = (clone $basePatients)
             ->withCount(['kunjungan as jumlah_kunjungan' => fn (Builder $query) => $query->where('dokter_id', $this->dokterId())])
             ->with(['kunjungan' => fn ($query) => $query->where('dokter_id', $this->dokterId())
                 ->whereIn('status', Kunjungan::POST_EXAMINATION_STATUSES)
@@ -298,12 +344,20 @@ class DokterDashboardController extends Controller
                     ->orWhere('no_rm', 'like', "%{$search}%")
                     ->orWhere('nik', 'like', "%{$search}%");
             }))
+            ->when($gender !== '', fn (Builder $query) => $query->where('jenis_kelamin', $gender))
             ->orderBy('nama')
             ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('dokter/patients', [
             'search' => $request->string('search')->toString(),
+            'gender' => $gender,
+            'stats' => [
+                'totalPatients' => (clone $basePatients)->count(),
+                'totalVisits' => Kunjungan::where('dokter_id', $this->dokterId())->count(),
+                'male' => (clone $basePatients)->where('jenis_kelamin', 'L')->count(),
+                'female' => (clone $basePatients)->where('jenis_kelamin', 'P')->count(),
+            ],
             'patients' => [
                 'data' => $pasien->getCollection()->map(fn (Pasien $patient): array => [
                     'id' => $patient->id,
@@ -311,6 +365,7 @@ class DokterDashboardController extends Controller
                     'name' => $patient->nama,
                     'gender' => $patient->jenis_kelamin,
                     'visitCount' => $patient->jumlah_kunjungan,
+                    'profileUrl' => route('pelayanan.pasien.show', $patient),
                     'recordUrl' => route('pelayanan.pasien.rekam-medis', $patient),
                     'letterUrl' => $patient->kunjungan->first() ? $this->letterUrl($patient->kunjungan->first(), $notes) : null,
                 ])->values(),
@@ -325,12 +380,46 @@ class DokterDashboardController extends Controller
         ]);
     }
 
-    public function stock(): Response
+    public function stock(Request $request): Response
     {
-        $obat = Obat::withSum(['batches as usable_stock' => fn ($query) => $query->usable()], 'stok')->where('is_active', true)->where('jenis', 'obat')
-            ->orderBy('nama')->paginate(10);
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'kondisi' => ['nullable', 'in:rendah,habis'],
+        ]);
+        $doctor = Nakes::with('poliklinik:id,depo_obat_id')->find($this->dokterId());
+        $depoId = $doctor?->poliklinik?->depo_obat_id;
+        $baseMedicines = Obat::query()->where('is_active', true)->where('jenis', 'obat');
+        $outOfStockSql = 'COALESCE((SELECT SUM(stok) FROM obat_batch WHERE obat_batch.obat_id = obat.id AND status = \'aktif\' AND stok > 0 AND (expired_at IS NULL OR expired_at >= ?)'
+            .($depoId !== null ? ' AND depo_id = '.(int) $depoId : '')
+            .'), 0) <= 0';
+        $totalMedicines = (clone $baseMedicines)->count();
+        $lowStockCount = (clone $baseMedicines)->lowUsableStock($depoId)->count();
+        $outOfStockCount = (clone $baseMedicines)->whereRaw($outOfStockSql, [today()->toDateString()])->count();
+
+        $obat = Obat::withSum(['batches as usable_stock' => fn ($query) => $query->usable()->forDepo($depoId)], 'stok')
+            ->where('is_active', true)
+            ->where('jenis', 'obat')
+            ->when($filters['search'] ?? null, fn ($q, string $search) => $q->where(fn ($sub) => $sub
+                ->where('nama', 'like', "%{$search}%")
+                ->orWhere('kode', 'like', "%{$search}%")
+                ->orWhere('kandungan_aktif', 'like', "%{$search}%")))
+            ->when(($filters['kondisi'] ?? null) === 'rendah', fn ($q) => $q->lowUsableStock($depoId))
+            ->when(($filters['kondisi'] ?? null) === 'habis', fn ($q) => $q->whereRaw($outOfStockSql, [today()->toDateString()]))
+            ->orderBy('nama')
+            ->paginate(10)
+            ->withQueryString();
 
         return Inertia::render('dokter/stock', [
+            'stats' => [
+                'total' => $totalMedicines,
+                'available' => max(0, $totalMedicines - $outOfStockCount),
+                'lowStock' => $lowStockCount,
+                'outOfStock' => $outOfStockCount,
+            ],
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'kondisi' => $filters['kondisi'] ?? '',
+            ],
             'medicines' => [
                 'data' => $obat->getCollection()->map(fn (Obat $medicine): array => [
                     'id' => $medicine->id,
@@ -355,6 +444,7 @@ class DokterDashboardController extends Controller
     public function topDiagnoses(Request $request): Response
     {
         $period = DateRangeFilter::fromRequest($request);
+        $search = trim($request->validate(['search' => ['nullable', 'string', 'max:100']])['search'] ?? '');
         $dari = $period->from ?? '';
         $sampai = $period->to ?? '';
         $visits = DB::table('kunjungan')->where('dokter_id', $this->dokterId())
@@ -368,13 +458,16 @@ class DokterDashboardController extends Controller
             ->where('kunjungan.dokter_id', $this->dokterId())
             ->when($dari, fn ($query) => $query->whereDate('kunjungan.tanggal', '>=', $dari))
             ->when($sampai, fn ($query) => $query->whereDate('kunjungan.tanggal', '<=', $sampai))
+            ->when($search !== '', fn ($query) => $query->where(fn ($nested) => $nested
+                ->where('diagnosa.kode_icd10', 'like', "%{$search}%")
+                ->orWhere('diagnosa.nama_diagnosa', 'like', "%{$search}%")))
             ->groupBy('kode_icd10', 'nama_diagnosa')
             ->orderByDesc('jumlah')
             ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('dokter/top-diagnoses', [
-            'filters' => ['dari' => $dari, 'sampai' => $sampai],
+            'filters' => ['dari' => $dari, 'sampai' => $sampai, 'search' => $search],
             'diagnoses' => [
                 'data' => $diagnosa->getCollection()->map(fn ($diagnosis): array => [
                     'code' => $diagnosis->kode_icd10,

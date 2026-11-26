@@ -77,6 +77,11 @@ class LaporanInertiaTest extends TestCase
             $this->assertSame($expected, $sheet->getCell($cell)->getValue());
             $this->assertSame(2, $sheet->getHighestDataRow());
         }
+        $minimumStockExport = $this->get('/laporan/stok/export?search=Target&stok=minimum');
+        $minimumStockExport->assertDownload();
+        $minimumStockSheet = IOFactory::load($minimumStockExport->baseResponse->getFile()->getPathname())->getActiveSheet();
+        $this->assertSame('ITEM-0', $minimumStockSheet->getCell('A2')->getValue());
+        $this->assertSame(2, $minimumStockSheet->getHighestDataRow());
         $this->get('/laporan/kunjungan?search=tidak-ada')->assertInertia(fn (Assert $page) => $page->where('rows.0.total', 2)->missing('visits'));
         $this->get('/laporan/stok?search=tidak-ada')->assertInertia(fn (Assert $page) => $page->where('stats.totalItems', 0)->has('medicines.data', 0));
         foreach (['stok'] as $report) {

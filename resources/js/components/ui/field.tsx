@@ -38,7 +38,7 @@ export function Field({
                 <Label htmlFor={htmlFor}>
                     {label}{required && <span className="ml-1 text-red-600" aria-hidden="true">*</span>}
                 </Label>
-                <div className="min-w-0">{children}</div>
+                <div className="flex min-w-0 flex-col gap-2">{children}</div>
                 {error && <p className="text-xs font-medium text-red-600" id={`${htmlFor}-error`} role="alert">{error}</p>}
             </div>
         </FieldContext.Provider>

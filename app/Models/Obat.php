@@ -4,9 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Obat extends Model
 {
@@ -15,27 +15,32 @@ class Obat extends Model
     protected $table = 'obat';
 
     protected $fillable = [
-        'kode', 'kode_kfa', 'nama', 'satuan_besar', 'satuan_kecil',
+        'kode', 'kode_kfa', 'kode_kfa_poa', 'kode_kfa_pov', 'nama_kfa',
+        'kode_bentuk_sediaan', 'nama_bentuk_sediaan', 'satusehat_medication_id',
+        'nama', 'satuan_besar', 'satuan_kecil',
         'konversi_satuan', 'indikasi',
         'kandungan', 'stok', 'stok_minimum', 'jenis', 'is_active', 'boleh_diberikan_langsung',
+        'is_high_alert', 'is_lasa', 'rute_default',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'boleh_diberikan_langsung' => 'boolean',
+        'is_high_alert' => 'boolean',
+        'is_lasa' => 'boolean',
     ];
 
-    public function scopeLowUsableStock(Builder $query): Builder
+    public function scopeLowUsableStock(Builder $query, ?int $depoId = null): Builder
     {
-        return $query->where(ObatBatch::query()->usable()->whereColumn('obat_batch.obat_id', 'obat.id')
+        return $query->where(ObatBatch::query()->usable()->forDepo($depoId)->whereColumn('obat_batch.obat_id', 'obat.id')
             ->selectRaw('COALESCE(SUM(stok), 0)'), '<=', DB::raw('obat.stok_minimum'));
     }
 
-    public function scopeWithStockAlert(Builder $query): Builder
+    public function scopeWithStockAlert(Builder $query, ?int $depoId = null): Builder
     {
         return $query->where('is_active', true)->where(fn (Builder $items) => $items
-            ->lowUsableStock()
-            ->orWhereHas('batches', fn (Builder $batch) => $batch->usable()->whereBetween('expired_at', [today()->addDay()->toDateString(), today()->addDays(90)->toDateString()])));
+            ->lowUsableStock($depoId)
+            ->orWhereHas('batches', fn (Builder $batch) => $batch->usable()->forDepo($depoId)->whereBetween('expired_at', [today()->addDay()->toDateString(), today()->addDays(90)->toDateString()])));
     }
 
     public function stokObat(): HasMany

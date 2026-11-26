@@ -10,7 +10,7 @@ export function TableHeader({ className, ...props }: HTMLAttributes<HTMLTableSec
 }
 
 export function TableBody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-    return <tbody className={cn('divide-y divide-neutral-200 print:divide-neutral-300', className)} {...props} />;
+    return <tbody className={cn('divide-y divide-neutral-200 print:divide-neutral-300 [&>tr]:transition-colors [&>tr]:hover:bg-neutral-50/80 dark:[&>tr]:hover:bg-neutral-50/60', className)} {...props} />;
 }
 
 export function TableFooter({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
@@ -18,7 +18,7 @@ export function TableFooter({ className, ...props }: HTMLAttributes<HTMLTableSec
 }
 
 export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
-    return <tr className={cn('transition-colors hover:bg-neutral-100/60', className)} {...props} />;
+    return <tr className={cn('transition-colors', className)} {...props} />;
 }
 
 export function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {

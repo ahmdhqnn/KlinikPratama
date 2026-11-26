@@ -14,27 +14,56 @@ export function FilterSubmit({ className, disabled }: Pick<ComponentProps<typeof
     );
 }
 
-export function FilterPanel({ children, actions, contextKeys = [] }: { children: ReactNode; actions?: ReactNode; contextKeys?: readonly string[] }) {
+export function FilterPanel({
+    children,
+    leading,
+    actions,
+    actionsAlign = 'end',
+    contextKeys = [],
+    filterKeys,
+    ariaLabel = 'Filter data',
+}: {
+    children: ReactNode;
+    leading?: ReactNode;
+    actions?: ReactNode;
+    actionsAlign?: 'start' | 'end';
+    contextKeys?: readonly string[];
+    filterKeys?: readonly string[];
+    ariaLabel?: string;
+}) {
     const { url, props } = usePage();
     const [path, query = ''] = url.split('#', 1)[0].split('?');
     const params = new URLSearchParams(query);
     const isContext = (key: string) => key === 'scope' || key === 'tab' || contextKeys.includes(key);
-    const active = [...params].some(([key, value]) => value !== '' && (value !== '0' || key === 'search' || key === 'q') && !isContext(key) && !key.endsWith('page'));
-    const context = new URLSearchParams([...params].filter(([key]) => isContext(key)));
-    const resetHref = context.size ? path + '?' + context.toString() : path;
+    const isTrackedKey = (key: string) => (filterKeys ? filterKeys.includes(key) : !isContext(key) && !key.endsWith('page'));
+    const active = [...params].some(([key, value]) => value !== '' && (value !== '0' || key === 'search' || key === 'q') && isTrackedKey(key));
+    const preserved = new URLSearchParams(
+        [...params].filter(([key]) => (filterKeys ? !filterKeys.includes(key) && !key.endsWith('page') : isContext(key))),
+    );
+    const resetHref = preserved.size ? path + '?' + preserved.toString() : path;
     const [open, setOpen] = useState(active);
     const panelId = useId();
     const errors = Object.values(props.errors ?? {});
 
-    useEffect(() => { setOpen(active || errors.length > 0); }, [url, active, errors.length]);
+    useEffect(() => { setOpen(active || (!filterKeys && errors.length > 0)); }, [url, active, errors.length, filterKeys]);
 
     if (params.get('scope') === 'today') {
-        return actions ? <div className="flex flex-wrap justify-end gap-2">{actions}</div> : null;
+        if (!leading && !actions) {
+            return null;
+        }
+
+        return (
+            <div className={`flex flex-wrap items-center gap-3 ${leading ? 'justify-between' : actionsAlign === 'start' ? 'justify-start' : 'justify-end'}`}>
+                {leading && <div className="flex flex-wrap items-center gap-2">{leading}</div>}
+                {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+            </div>
+        );
     }
 
-    return <section aria-label="Filter data" className="space-y-3">
-        <div className="flex flex-wrap items-center justify-end gap-3">
-            <div className="flex flex-wrap items-center justify-end gap-2">
+    return <section aria-label={ariaLabel} className="space-y-3">
+        <div className={`flex flex-wrap items-center gap-3 ${leading ? 'justify-between' : actionsAlign === 'start' ? 'justify-start' : 'justify-end'}`}>
+            {leading && <div className="flex flex-wrap items-center gap-2">{leading}</div>}
+            <div className={`flex flex-wrap items-center gap-2 ${leading ? 'ml-auto justify-end' : actionsAlign === 'start' ? 'justify-start' : 'justify-end'}`}>
                 {actions}
                 {active && <Button asChild size="sm" variant="ghost"><Link href={resetHref} preserveScroll replace><X className="size-4" />Reset filter</Link></Button>}
                 <Button aria-controls={panelId} aria-expanded={open} onClick={() => setOpen(!open)} size="sm" type="button" variant="secondary">
@@ -44,7 +73,7 @@ export function FilterPanel({ children, actions, contextKeys = [] }: { children:
         </div>
         <CardContent className="rounded-xl bg-surface p-4 sm:p-6 sm:[&_form]:items-end sm:[&_form>div:has(>button[type=submit])]:col-span-full sm:[&_form>div:has(>button[type=submit])]:ml-auto sm:[&_form>div:has(>button[type=submit])]:flex sm:[&_form>div:has(>button[type=submit])]:w-full sm:[&_form>div:has(>button[type=submit])]:justify-end" hidden={!open} id={panelId}>
             {children}
-            {errors.length > 0 && <div className="mt-3 space-y-1 text-sm text-red-600" role="alert">{errors.map((error, index) => <p key={index}>{String(error)}</p>)}</div>}
+            {!filterKeys && errors.length > 0 && <div className="mt-3 space-y-1 text-sm text-red-600" role="alert">{errors.map((error, index) => <p key={index}>{String(error)}</p>)}</div>}
         </CardContent>
     </section>;
 }

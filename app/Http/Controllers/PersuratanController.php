@@ -7,6 +7,7 @@ use App\ClinicalNoteRecorder;
 use App\ClinicDocumentProfile;
 use App\CorrespondenceService;
 use App\DoctorAccessService;
+use App\FarmasiClinicResolver;
 use App\InternalReferralDirectory;
 use App\MedicalDocumentVerificationService;
 use App\MedicalLetterData;
@@ -17,6 +18,7 @@ use App\Models\Nakes;
 use App\Models\RujukanInternal;
 use App\Models\SuratMedis;
 use App\Models\User;
+use App\Rules\ClinicalSigningCredential;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -174,7 +176,7 @@ class PersuratanController extends Controller
             'surat_template_id' => ['nullable', 'exists:correspondence_templates,id'],
             'replacement_id' => ['nullable', 'integer'],
             'replacement_reason' => ['required_with:replacement_id', 'nullable', 'string', 'min:10', 'max:2000'],
-            'signature_password' => ['required_with:replacement_id', 'nullable', 'current_password'],
+            'signature_password' => ['required_with:replacement_id', 'nullable', new ClinicalSigningCredential],
         ]);
 
         $details = app(MedicalLetterData::class)->validate($request);
@@ -262,6 +264,9 @@ class PersuratanController extends Controller
     {
         if ($request->routeIs('farmasi.resep-luar.cetak')) {
             abort_unless(in_array($request->user()?->role, ['admin', 'farmasi'], true) && $kunjungan->pemeriksaan?->signed_at !== null, 404);
+            if ($request->user()->role === 'farmasi') {
+                app(FarmasiClinicResolver::class)->authorizeVisit($request->user(), $kunjungan);
+            }
         } else {
             $this->authorizeVisitDocument($request->user(), $kunjungan);
         }
@@ -383,6 +388,11 @@ class PersuratanController extends Controller
         }
         if ($request->query('asal') === 'rme') {
             return ['backUrl' => route('pelayanan.pasien.rekam-medis', $visit->pasien_id), 'backLabel' => 'Kembali ke rekam medis pasien'];
+        }
+        if (in_array($request->query('asal'), ['profil', 'profil-rujukan'], true)) {
+            $section = $request->query('asal') === 'profil-rujukan' ? 'rujukan' : 'surat';
+
+            return ['backUrl' => route('pelayanan.pasien.show', [$visit->pasien_id, 'bagian' => $section]), 'backLabel' => 'Kembali ke profil pasien'];
         }
         if ($request->query('asal') === 'pemeriksaan') {
             return [

@@ -16,9 +16,9 @@ export function Toaster({ toastOptions, ...props }: ToasterProps) {
 
     return (
         <Sonner
+            {...props}
             closeButton
             richColors={false}
-            {...props}
             theme={theme}
             style={{ ...props.style, fontFamily: 'var(--font-sans)' }}
             toastOptions={{

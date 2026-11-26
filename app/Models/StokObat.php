@@ -13,6 +13,11 @@ class StokObat extends Model
         'obat_id',
         'depo_id',
         'stok',
+        'stok_minimum_poli',
+    ];
+
+    protected $casts = [
+        'stok_minimum_poli' => 'integer',
     ];
 
     public function obat(): BelongsTo

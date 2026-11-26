@@ -4,13 +4,17 @@ namespace App\Http\Controllers\Pelayanan;
 
 use App\AdminPharmacyAssistance;
 use App\ClinicalAuditRecorder;
+use App\ClinicalSafetyService;
+use App\ClinicDocumentProfile;
 use App\Exports\FarmasiDispensingExport;
 use App\Exports\FarmasiResepLuarExport;
+use App\FarmasiClinicResolver;
 use App\Http\Controllers\Controller;
 use App\Models\Farmasi;
 use App\Models\FarmasiItem;
 use App\Models\FarmasiResepLuar;
 use App\Models\Kunjungan;
+use App\Models\Nakes;
 use App\Models\Obat;
 use App\Models\ResepObat;
 use App\Models\StokMutasi;
@@ -35,7 +39,7 @@ class FarmasiController extends Controller
 
     public function index(Request $request, VisitQueryService $visits): Response
     {
-        $poli = $request->validate(['poli' => ['nullable', 'in:umum,gigi']])['poli'] ?? null;
+        $poli = $this->resolvedClinicType($request);
         $filters = $visits->filters($request);
         $pharmacyVisits = fn (Builder $query): Builder => $query
             ->where(fn (Builder $visits) => $visits->where('status', 'farmasi')->orWhereHas('farmasi', fn (Builder $records) => $records->where('status', 'selesai')));
@@ -109,7 +113,7 @@ class FarmasiController extends Controller
 
     public function externalPrescriptions(Request $request, VisitQueryService $visits): Response
     {
-        $poli = $request->validate(['poli' => ['nullable', 'in:umum,gigi']])['poli'] ?? null;
+        $poli = $this->resolvedClinicType($request);
         $filters = $visits->filters($request);
         $query = fn (Builder $builder): Builder => $builder
             ->whereHas('pemeriksaan', fn (Builder $exam) => $exam->whereNotNull('signed_at'))
@@ -184,7 +188,7 @@ class FarmasiController extends Controller
                 'from' => $rows->firstItem(), 'to' => $rows->lastItem(), 'total' => $rows->total(),
                 'previousUrl' => $rows->previousPageUrl(), 'nextUrl' => $rows->nextPageUrl(),
             ],
-            'exportUrl' => route('farmasi.laporan.resep-luar.export', array_diff_key($filtered, ['account_id' => true])),
+            'exportUrl' => route('farmasi.laporan.resep-luar.export', array_diff_key($filtered, ['account_id' => true, 'scoped_poli' => true])),
         ]);
     }
 
@@ -199,7 +203,12 @@ class FarmasiController extends Controller
     {
         return ResepObat::query()
             ->where(fn (Builder $items) => $items->where('is_resep_luar', true)->orWhereHas('farmasiResepLuar'))
-            ->when($filters['account_id'], fn (Builder $items, int $id) => $items->whereHas('farmasiResepLuar', fn (Builder $records) => $records->where('petugas_id', $id)))
+            ->when(
+                $filters['account_id'] && empty($filters['scoped_poli']),
+                fn (Builder $items) => $items->where(fn (Builder $match) => $match
+                    ->where('is_resep_luar', true)
+                    ->orWhereHas('farmasiResepLuar', fn (Builder $records) => $records->where('petugas_id', $filters['account_id'])))
+            )
             ->whereHas('resep.kunjungan', fn (Builder $visits) => $visits->forClinicType($filters['poli'] ?? null)
                 ->whereHas('pemeriksaan', fn (Builder $exam) => $exam->whereNotNull('signed_at'))
                 ->when($filters['dari'] ?? null, fn (Builder $records, string $date) => $records->whereDate('tanggal', '>=', $date))
@@ -243,7 +252,7 @@ class FarmasiController extends Controller
                 'currentPage' => $records->currentPage(), 'lastPage' => $records->lastPage(), 'from' => $records->firstItem(), 'to' => $records->lastItem(),
                 'total' => $records->total(), 'previousUrl' => $records->previousPageUrl(), 'nextUrl' => $records->nextPageUrl(),
             ],
-            'exportUrl' => route('farmasi.laporan.export', array_diff_key($filtered, ['account_id' => true])),
+            'exportUrl' => route('farmasi.laporan.export', array_diff_key($filtered, ['account_id' => true, 'scoped_poli' => true])),
         ]);
     }
 
@@ -287,11 +296,33 @@ class FarmasiController extends Controller
             $filters['sampai'] = today()->toDateString();
         }
 
-        return [...$filters, 'account_id' => $request->user()->isAdmin() ? null : $request->user()->id];
+        $resolver = app(FarmasiClinicResolver::class);
+        $assignedClinicId = $resolver->scopedClinicIdOrFail($request->user());
+        $assignedPoliType = $assignedClinicId !== null ? $resolver->clinicType($request->user()) : null;
+        if ($assignedPoliType !== null) {
+            $filters['poli'] = $assignedPoliType;
+        }
+
+        return [
+            ...$filters,
+            'scoped_poli' => $assignedPoliType,
+            'account_id' => $request->user()->isAdmin() ? null : $request->user()->id,
+        ];
+    }
+
+    private function resolvedClinicType(Request $request): ?string
+    {
+        $resolver = app(FarmasiClinicResolver::class);
+        if ($resolver->scopedClinicIdOrFail($request->user()) !== null) {
+            return $resolver->clinicType($request->user());
+        }
+
+        return $request->validate(['poli' => ['nullable', 'in:umum,gigi']])['poli'] ?? null;
     }
 
     public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $audit, PatientAllergyHistory $allergies): Response
     {
+        app(FarmasiClinicResolver::class)->authorizeVisit($request->user(), $kunjungan);
         abort_unless($kunjungan->status === 'farmasi' || $kunjungan->farmasi()->where('status', 'selesai')->exists(), 404);
         $this->scheduling->ensureServiceDate($kunjungan);
         $kunjungan->load([
@@ -300,12 +331,27 @@ class FarmasiController extends Controller
             'resep.resepObat.farmasiResepLuar',
             'farmasi.items.obat', 'farmasi.items.resepObat',
         ]);
+        $visitDepoId = $kunjungan->poliklinik?->depo_obat_id;
 
         $audit->record($request, 'pharmacy.view', $kunjungan->pasien_id, $kunjungan->id);
         $movements = StokMutasi::with(['batch', 'actor', 'obat'])->where('referensi_type', 'Farmasi')->where('referensi_id', $kunjungan->farmasi?->id ?? 0)->get();
+        $pharmacistStaff = Nakes::query()
+            ->where('user_id', $request->user()->id)
+            ->first()
+            ?? Nakes::query()
+                ->where('is_active', true)
+                ->whereIn('jabatan', ['apoteker', 'farmasi', 'apotek'])
+                ->whereNotNull('no_sip')
+                ->orderByRaw("case when jabatan = 'apoteker' then 0 else 1 end")
+                ->first();
 
         return Inertia::render('pelayanan/farmasi/show', [
             'adminAssistance' => $request->user()->isAdmin(),
+            'clinicProfile' => app(ClinicDocumentProfile::class)->data(),
+            'pharmacist' => [
+                'name' => $pharmacistStaff?->nama ?? $request->user()->name,
+                'sipa' => $pharmacistStaff?->no_sip,
+            ],
             'visit' => [
                 'id' => $kunjungan->id,
                 'number' => $kunjungan->no_kunjungan,
@@ -316,9 +362,13 @@ class FarmasiController extends Controller
                     'id' => $kunjungan->pasien->id,
                     'name' => $kunjungan->pasien->nama,
                     'medicalRecordNumber' => $kunjungan->pasien->no_rm,
+                    'birthDate' => $kunjungan->pasien->tanggal_lahir?->format('d/m/Y'),
+                    'gender' => $kunjungan->pasien->jenis_kelamin,
+                    'age' => $kunjungan->pasien->tanggal_lahir ? (int) $kunjungan->pasien->tanggal_lahir->age : null,
                     'allergies' => $allergies->forVisit($kunjungan)['riwayat_alergi'],
                     'screeningAllergies' => $kunjungan->screening?->riwayat_alergi,
                     'examinationAllergies' => $allergies->examination($kunjungan->pemeriksaan),
+                    'maternal' => app(ClinicalSafetyService::class)->maternalSummary($kunjungan->screening, $kunjungan->pasien),
                     'weight' => $kunjungan->screening?->berat_badan !== null ? (float) $kunjungan->screening->berat_badan : null,
                     'weightRecordedAt' => $kunjungan->screening?->submitted_at?->format('d/m/Y H:i'),
                     'weightSource' => $kunjungan->screening?->berat_badan !== null ? 'Pengkajian perawat pada kunjungan ini' : null,
@@ -341,14 +391,30 @@ class FarmasiController extends Controller
                     'expiry' => $movement->batch?->expired_at?->format('d/m/Y'), 'quantity' => (float) $movement->jumlah,
                     'actor' => $movement->actor?->name, 'at' => $movement->created_at?->format('d/m/Y H:i'),
                 ]),
-                'prescriptionItems' => $kunjungan->resep?->resepObat->map(function (ResepObat $item) use ($kunjungan): array {
+                'prescriptionItems' => $kunjungan->resep?->resepObat->map(function (ResepObat $item) use ($kunjungan, $movements, $visitDepoId): array {
                     $pharmacyItem = $kunjungan->farmasi?->items->firstWhere('resep_obat_id', $item->id);
+                    $usableBatches = $item->obat?->batches->filter(fn ($batch): bool => $batch->status === 'tersedia' && $batch->stok > 0 && $batch->expired_at?->gt(today()) && ($visitDepoId === null || (int) $batch->depo_id === (int) $visitDepoId));
+                    $earliestExpiry = $usableBatches?->sortBy('expired_at')->first()?->expired_at;
+                    $allocatedExpiry = $movements->firstWhere('obat_id', $item->obat_id)?->batch?->expired_at;
+                    $nearExpiry = $earliestExpiry && $earliestExpiry->lte(today()->addDays(30)) ? $earliestExpiry->format('d/m/Y') : null;
+                    $route = mb_strtolower(trim((string) ($item->rute_pemberian ?: $item->obat?->rute_default ?: 'oral')));
+                    $nameLower = mb_strtolower((string) $item->nama_obat);
+                    $isExternalRoute = in_array($route, ['topikal', 'tetes', 'inhalasi', 'rektal', 'vaginal', 'kumur', 'obat_luar'], true)
+                        || preg_match('/\b(salep|krim|cream|gel|tetes|gargle|kumur|spray|inhaler|suppositoria|ovula|lotion|betadine)\b/u', $nameLower) === 1;
 
                     return [
                         'id' => $item->id,
                         'medicineId' => $item->obat_id,
                         'name' => $item->nama_obat,
                         'type' => $item->jenis,
+                        'route' => $route,
+                        'labelColor' => $isExternalRoute ? 'biru' : 'putih',
+                        'expiryDate' => ($allocatedExpiry ?? $earliestExpiry)?->format('d/m/Y'),
+                        'isHighAlert' => (bool) $item->obat?->is_high_alert,
+                        'isLasa' => (bool) $item->obat?->is_lasa,
+                        'nearExpiryDate' => $nearExpiry,
+                        'allergyOverrideReason' => $item->allergy_override_reason,
+                        'allergyMatchedTerm' => $item->allergy_matched_term,
                         'requestedQuantity' => (float) $item->jumlah,
                         'dispensedQuantity' => $pharmacyItem?->jumlah_diberikan !== null
                             ? (float) $pharmacyItem->jumlah_diberikan
@@ -360,7 +426,7 @@ class FarmasiController extends Controller
                         'externalActionUrl' => route('pelayanan.farmasi.resep-luar', [$kunjungan, $item]),
                         'externalPrintUrl' => route('farmasi.resep-luar.cetak', $kunjungan).'?asal=penyerahan',
                         'reserved' => $item->stok_dikurangi,
-                        'stock' => (float) ($item->obat?->batches->filter(fn ($batch): bool => $batch->status === 'tersedia' && $batch->expired_at?->gt(today()))->sum('stok') ?? 0),
+                        'stock' => (float) ($usableBatches?->sum('stok') ?? 0),
                         'stockUnit' => $item->obat?->satuan_kecil,
                     ];
                 })->values() ?? collect(),
@@ -396,6 +462,7 @@ class FarmasiController extends Controller
             app(ClinicalAuditRecorder::class)->record($request, 'pharmacy.draft_saved', $kunjungan->pasien_id, $kunjungan->id, $assistance);
             $farmasi->update([
                 'status' => 'diproses',
+                'prepared_at' => $farmasi->prepared_at ?? now(),
                 'catatan' => $data['catatan'],
             ]);
         });
@@ -417,7 +484,7 @@ class FarmasiController extends Controller
             abort_if(Farmasi::query()->where('kunjungan_id', $visit->id)->where('status', 'selesai')->exists(), 422);
             abort_if(FarmasiItem::query()->where('resep_obat_id', $item->id)->where('jumlah_diberikan', '>', 0)->exists(), 422);
             Obat::query()->whereKey($item->obat_id)->lockForUpdate()->firstOrFail();
-            $available = (float) $item->obat->batches()->usable()->sum('stok');
+            $available = (float) $item->obat->batches()->usable()->forDepo($visit->poliklinik?->depo_obat_id)->sum('stok');
             if ($available > 0) {
                 throw ValidationException::withMessages(['resep_luar' => 'Resep luar tersedia ketika stok layak pakai obat ini kosong.']);
             }
@@ -638,7 +705,7 @@ class FarmasiController extends Controller
 
             if ($item['jumlah_diberikan'] > 0) {
                 $obat = ! empty($item['obat_id']) ? Obat::find($item['obat_id']) : null;
-                $usable = $obat ? (float) $obat->batches()->usable()->sum('stok') : 0;
+                $usable = $obat ? (float) $obat->batches()->usable()->forDepo($kunjungan->poliklinik?->depo_obat_id)->sum('stok') : 0;
 
                 if (! $obat || ! $obat->is_active || $usable < $item['jumlah_diberikan']) {
                     $obatName = $obat?->nama ?? 'Obat tidak ditemukan';

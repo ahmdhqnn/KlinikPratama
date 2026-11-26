@@ -174,8 +174,11 @@ class GeneralConsentFlowTest extends TestCase
         $this->post(route('pelayanan.screening.store', $visit), $this->assessment())->assertSessionHasErrors('general_consent');
         $this->assertNull($visit->fresh()->screening->submitted_at);
         $this->actingAs($staff)->post(route('general-consent.store', $visit), [...$this->decision(), 'decision' => 'refused', 'reason' => 'Pasien memilih menolak setelah penjelasan.'])->assertSessionHasNoErrors();
+        $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $this->assessment())->assertSessionHasErrors('general_consent');
+        $this->assertNull($visit->fresh()->screening->submitted_at);
+        $this->actingAs($staff)->post(route('general-consent.store', $visit), [...$this->decision(), 'current_id' => GeneralConsent::sole()->id, 'decision' => 'accepted'])->assertSessionHasNoErrors();
         $this->actingAs($nurse)->post(route('pelayanan.screening.store', $visit), $this->assessment())->assertSessionHasNoErrors();
-        $this->assertSame(GeneralConsent::sole()->id, $visit->fresh()->general_consent_id);
+        $this->assertSame(GeneralConsent::latest('id')->first()->id, $visit->fresh()->general_consent_id);
         $this->assertNotNull($visit->fresh()->screening->submitted_at);
     }
 

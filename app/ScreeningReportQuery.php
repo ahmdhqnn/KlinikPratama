@@ -9,11 +9,17 @@ class ScreeningReportQuery
 {
     public function query(array $filters, ?int $staffId, ?int $clinicId, ?int $userId = null): Builder
     {
-        return Screening::query()->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'kunjungan.pemeriksaan', 'petugas'])
+        return Screening::query()->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'kunjungan.pemeriksaan', 'petugas', 'submittedBy'])
             ->whereHas('kunjungan', fn ($visits) => $visits
                 ->whereHas('poliklinik', fn ($clinics) => $clinics->whereIn('jenis', ['umum', 'gigi']))
                 ->when($clinicId, fn ($query) => $query->where('poliklinik_id', $clinicId))
-                ->when($filters['tanggal'] ?? null, fn ($query, $date) => $query->whereDate('tanggal', $date)))
+                ->when($filters['tanggal'] ?? null, fn ($query, $date) => $query->getConnection()->getDriverName() === 'sqlite'
+                    ? $query->whereDate('tanggal', $date)
+                    : $query->where('tanggal', $date))
+                ->when($filters['dari'] ?? null, fn ($query, $date) => $query->whereDate('tanggal', '>=', $date))
+                ->when($filters['sampai'] ?? null, fn ($query, $date) => $query->whereDate('tanggal', '<=', $date)))
+            ->when(($filters['status'] ?? null) === 'submitted', fn (Builder $query) => $query->whereNotNull('submitted_at'))
+            ->when(($filters['status'] ?? null) === 'draft', fn (Builder $query) => $query->whereNull('submitted_at'))
             ->when($userId, fn (Builder $query) => $query->where(fn (Builder $owner) => $owner
                 ->where('submitted_by_user_id', $userId)
                 ->orWhere(fn (Builder $legacy) => $legacy->whereNull('submitted_by_user_id')->where('petugas_id', $staffId))))

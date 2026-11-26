@@ -105,7 +105,7 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                         <QuickLink href="/pelayanan/screening" icon={<HeartPulse className="size-4" />} label="Pengkajian awal" />
                         <QuickLink href="/pelayanan/tindakan-perawat" icon={<ClipboardCheck className="size-4" />} label="Tindakan perawat" />
                         <QuickLink href="/pendaftaran/kunjungan-per-poli" icon={<Activity className="size-4" />} label="Kunjungan poli" />
-                        <QuickLink href="/pendaftaran/database-pasien" icon={<UsersRound className="size-4" />} label="Data pasien" />
+                        <QuickLink href="/pelayanan/pasien" icon={<UsersRound className="size-4" />} label="Data pasien" />
                     </CardContent>
                 </Card>
                 <Card className="overflow-hidden">

@@ -18,14 +18,14 @@ class Kunjungan extends Model
     protected $table = 'kunjungan';
 
     protected $fillable = [
-        'no_kunjungan', 'pasien_id', 'poliklinik_id', 'dokter_id',
-        'tanggal', 'status', 'jenis_pasien', 'catatan', 'hak_layanan_snapshot', 'verified_by', 'verified_at',
+        'no_kunjungan', 'no_antrian', 'satusehat_encounter_id', 'pasien_id', 'poliklinik_id', 'ruang_poli_id', 'dokter_id',
+        'tanggal', 'arrived_at', 'finished_at', 'status', 'jenis_pasien', 'catatan', 'hak_layanan_snapshot', 'verified_by', 'verified_at',
         'unit_kerja', 'kategori_peserta', 'tindakan_started_at',
         'kontrol_asal_id', 'kontrol_pending', 'kontrol_catatan', 'rujukan_internal_id',
         'registered_by', 'cancelled_at', 'cancelled_by', 'cancellation_reason', 'general_consent_required',
     ];
 
-    protected $casts = ['tanggal' => 'date', 'kontrol_pending' => 'boolean', 'hak_layanan_snapshot' => 'array', 'verified_at' => 'datetime', 'lampiran' => 'array', 'tindakan_started_at' => 'datetime'];
+    protected $casts = ['tanggal' => 'date', 'arrived_at' => 'datetime', 'finished_at' => 'datetime', 'no_antrian' => 'integer', 'kontrol_pending' => 'boolean', 'hak_layanan_snapshot' => 'array', 'verified_at' => 'datetime', 'lampiran' => 'array', 'tindakan_started_at' => 'datetime'];
 
     protected $hidden = ['lampiran', 'kontrol_catatan'];
 
@@ -48,7 +48,33 @@ class Kunjungan extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (Kunjungan $visit): void {
+            if (! $visit->kontrol_pending && $visit->status !== 'batal' && $visit->arrived_at === null && (! $visit->tanggal || ! $visit->tanggal->isAfter(today()))) {
+                $visit->arrived_at = now();
+            }
+            if ($visit->status === 'selesai' && $visit->finished_at === null) {
+                $visit->finished_at = now();
+            }
+        });
+        static::updating(function (Kunjungan $visit): void {
+            if ($visit->isDirty('kontrol_pending') && ! $visit->kontrol_pending && $visit->arrived_at === null) {
+                $visit->arrived_at = now();
+            }
+            if ($visit->isDirty('status') && $visit->status === 'selesai' && $visit->finished_at === null) {
+                $visit->finished_at = now();
+            }
+        });
         static::deleting(fn () => throw new \LogicException('Kunjungan tidak boleh dihapus. Gunakan pembatalan beralasan.'));
+    }
+
+    public function ruangPoli(): BelongsTo
+    {
+        return $this->belongsTo(RuangPoli::class, 'ruang_poli_id');
+    }
+
+    public function generalConsent(): BelongsTo
+    {
+        return $this->belongsTo(GeneralConsent::class, 'general_consent_id');
     }
 
     public function pasien(): BelongsTo
@@ -163,5 +189,10 @@ class Kunjungan extends Model
         $date = now()->format('Ymd');
 
         return app(ClinicDocumentNumber::class)->next('kunjungan-'.$date, 'KNJ-'.$date.'-', 4, 'kunjungan', 'no_kunjungan');
+    }
+
+    public static function nextQueueNumber(int $clinicId, string $date): int
+    {
+        return app(ClinicDocumentNumber::class)->nextQueueNumber($clinicId, substr($date, 0, 10));
     }
 }

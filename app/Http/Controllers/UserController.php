@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\ClinicalAuditRecorder;
+use App\FarmasiClinicResolver;
 use App\Models\Nakes;
 use App\Models\Poliklinik;
 use App\Models\User;
@@ -67,6 +68,8 @@ class UserController extends Controller
                         'clinic' => $user->nakes->poliklinik?->nama,
                     ] : null,
                     'isCurrentUser' => $user->is(auth()->user()),
+                    'hasSigningPin' => $user->hasSigningPin(),
+                    'mustSetupSigningPin' => (bool) $user->must_setup_signing_pin,
                 ])->values(),
                 'currentPage' => $users->currentPage(),
                 'lastPage' => $users->lastPage(),
@@ -113,7 +116,11 @@ class UserController extends Controller
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', Rule::in(User::ROLES)],
             'is_active' => ['boolean'],
-            'poliklinik_id' => [Rule::requiredIf($request->input('role') === 'perawat'), 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
+            'poliklinik_id' => [
+                Rule::requiredIf($request->input('role') === 'perawat' || ($request->input('role') === 'farmasi' && ($request->exists('poliklinik_id') || ! $request->filled('nakes_id')))),
+                'nullable',
+                Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at'),
+            ],
             'nakes_id' => [
                 Rule::requiredIf(in_array($request->input('role'), ['dokter', 'perawat', 'farmasi'], true)),
                 'nullable',
@@ -149,7 +156,14 @@ class UserController extends Controller
             'email' => ['required', 'email', 'max:255', new AvailableAccountEmail($user)],
             'role' => ['required', Rule::in(User::ROLES)],
             'is_active' => ['boolean'],
-            'poliklinik_id' => [Rule::requiredIf($request->input('role') === 'perawat'), 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
+            'poliklinik_id' => [
+                Rule::requiredIf(
+                    $request->input('role') === 'perawat'
+                    || ($request->input('role') === 'farmasi' && ($request->exists('poliklinik_id') || ($request->input('role') !== $user->role && $request->boolean('is_active', $user->is_active))))
+                ),
+                'nullable',
+                Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at'),
+            ],
             'nakes_id' => [
                 Rule::requiredIf(
                     in_array($request->input('role'), ['dokter', 'perawat', 'farmasi'], true)
@@ -239,17 +253,44 @@ class UserController extends Controller
 
     public function resetPassword(Request $request, User $user, ClinicalAuditRecorder $audit): RedirectResponse
     {
-        $request->validate(['password' => ['required', 'string', 'min:8']]);
+        $request->validate(['password' => ['required', 'string', 'min:8', 'max:72']]);
 
         DB::transaction(function () use ($request, $user, $audit): void {
             $user = User::query()->lockForUpdate()->findOrFail($user->id);
             abort_unless($user->hasRole(...User::ROLES), 403);
             $user->update(['password' => Hash::make($request->password), 'must_change_password' => true, 'session_version' => (int) $user->session_version + 1]);
             $user->forceFill(['remember_token' => null])->save();
+            $this->purgeUserSessions($user->id);
             $audit->record($request, 'user.password_reset', metadata: ['user_id' => $user->id]);
         });
 
         return back()->with('success', 'Kata sandi pengguna berhasil diatur ulang.');
+    }
+
+    public function resetSigningPin(Request $request, User $user, ClinicalAuditRecorder $audit): RedirectResponse
+    {
+        DB::transaction(function () use ($request, $user, $audit): void {
+            $user = User::query()->lockForUpdate()->findOrFail($user->id);
+            abort_unless($user->supportsSigningPin(), 403);
+            $user->forceFill([
+                'signing_pin_hash' => null,
+                'signing_pin_set_at' => null,
+                'must_setup_signing_pin' => true,
+                'session_version' => (int) $user->session_version + 1,
+                'remember_token' => null,
+            ])->save();
+            $this->purgeUserSessions($user->id);
+            $audit->record($request, 'user.signing_pin_reset', metadata: ['user_id' => $user->id, 'role' => $user->role]);
+        });
+
+        return back()->with('success', 'Status PIN tanda tangan klinis direset. Petugas wajib menyetel PIN pribadi baru di menu Profil saya.');
+    }
+
+    private function purgeUserSessions(int $userId): void
+    {
+        if (config('session.driver') === 'database') {
+            DB::table(config('session.table', 'sessions'))->where('user_id', $userId)->delete();
+        }
     }
 
     private function validateActivation(User $user, PerawatClinicResolver $clinics): void
@@ -259,6 +300,7 @@ class UserController extends Controller
             ! $user->linkedProfileAllowsAccess() => 'Aktifkan profil petugas terlebih dahulu sebelum mengaktifkan akun.',
             $user->hasRole('dokter', 'perawat', 'farmasi') && ! $user->nakes => 'Tautkan profil petugas yang sesuai sebelum mengaktifkan akun.',
             $user->isPerawat() && ! $clinics->assignedNakes($user) => 'Lengkapi penugasan poli aktif sebelum mengaktifkan akun perawat.',
+            $user->role === 'farmasi' && ! app(FarmasiClinicResolver::class)->assignedNakes($user) => 'Lengkapi penugasan poli aktif sebelum mengaktifkan akun farmasi.',
             default => null,
         };
 
@@ -270,10 +312,11 @@ class UserController extends Controller
     private function syncNakesProfile(User $user, ?int $nakesId = null, ?int $clinicId = null, bool $roleChanged = false): void
     {
         $compatiblePositions = Nakes::positionsForRole($user->role);
+        $syncsClinic = in_array($user->role, ['perawat', 'farmasi'], true);
         if ($nakesId === null) {
             if ($roleChanged) {
                 Nakes::withTrashed()->where('user_id', $user->id)->whereNotIn('jabatan', $compatiblePositions)->update(['user_id' => null]);
-            } elseif ($user->role === 'perawat' && $clinicId !== null) {
+            } elseif ($syncsClinic && $clinicId !== null) {
                 $user->nakes()->whereIn('jabatan', $compatiblePositions)->update(['poliklinik_id' => $clinicId]);
             }
 
@@ -289,7 +332,7 @@ class UserController extends Controller
         Nakes::withTrashed()->where('user_id', $user->id)->whereKeyNot($selected->id)->update(['user_id' => null]);
         $selected->update([
             'user_id' => $user->id,
-            ...($user->role === 'perawat' && $clinicId !== null ? ['poliklinik_id' => $clinicId] : []),
+            ...($syncsClinic && $clinicId !== null ? ['poliklinik_id' => $clinicId] : []),
         ]);
     }
 }

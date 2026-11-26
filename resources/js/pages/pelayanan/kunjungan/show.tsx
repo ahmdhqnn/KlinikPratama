@@ -2,7 +2,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { consentLabels, type ConsentSummary } from './general-consent';
 import { AllergyHistory } from '@/components/kunjungan/allergy-history';
 import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, Check, ClipboardList, HeartPulse, ListChecks, Pencil, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ClipboardList, HeartPulse, ListChecks, Pencil, ShieldCheck, UserRound } from 'lucide-react';
+import { handleBackNavigation } from '@/lib/navigation';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,12 +55,23 @@ export default function VisitDetail({ visit, permissions, backUrl, links, genera
         <>
             <Head title={`Kunjungan ${visit.number}`} />
             <div className="space-y-6">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-neutral-700">Detail layanan</p><h2 className="mt-1 font-sans tabular-nums text-2xl font-semibold tracking-tight text-neutral-950">{visit.number}</h2><p className="mt-1 text-sm text-neutral-500">{visit.date ?? 'Tanggal tidak tersedia'}</p></div><div className="flex flex-wrap gap-2"><Button asChild variant="secondary"><Link href={backUrl}><ArrowLeft className="size-4" />Kembali</Link></Button>{permissions.editVisit && links.edit && <Button asChild variant="secondary"><Link href={links.edit}><Pencil className="size-4" />Edit</Link></Button>}{generalConsent && <Button asChild variant="secondary"><Link href={generalConsent.url}>Tinjau persetujuan umum</Link></Button>}{links.screeningPrint && <Button asChild variant="secondary"><a href={links.screeningPrint}>Cetak pengkajian</a></Button>}{nextStep && <Button asChild><Link href={nextStep.href}><nextStep.icon className="size-4" />{nextStep.label}</Link></Button>}</div></div>
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-neutral-700">Detail layanan</p><h2 className="mt-1 font-sans tabular-nums text-2xl font-semibold tracking-tight text-neutral-950">{visit.number}</h2><p className="mt-1 text-sm text-neutral-500">{visit.date ?? 'Tanggal tidak tersedia'}</p></div><div className="flex flex-wrap gap-2"><Button asChild variant="secondary"><Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}><ArrowLeft className="size-4" />Kembali</Link></Button>{permissions.editVisit && links.edit && <Button asChild variant="secondary"><Link href={links.edit}><Pencil className="size-4" />Edit</Link></Button>}{generalConsent && <Button asChild variant="secondary"><Link href={generalConsent.url}>Tinjau persetujuan umum</Link></Button>}{links.screeningPrint && <Button asChild variant="secondary"><a href={links.screeningPrint}>Cetak pengkajian</a></Button>}{nextStep && <Button asChild><Link href={nextStep.href}><nextStep.icon className="size-4" />{nextStep.label}</Link></Button>}</div></div>
                 {generalConsent && <Alert
+                    action={generalConsent.required && generalConsent.status !== 'accepted' ? (
+                        <Button asChild size="sm" variant="secondary">
+                            <Link href={generalConsent.url}>Tinjau persetujuan umum</Link>
+                        </Button>
+                    ) : undefined}
                     dismissLabel="Tutup pesan persetujuan umum"
+                    dismissible={!(generalConsent.required && generalConsent.status !== 'accepted')}
                     key={JSON.stringify([visit.id, generalConsent.status, generalConsent.recordedAt])}
-                    variant={generalConsent.required && generalConsent.status !== 'accepted' ? 'warning' : 'default'}
+                    variant="default"
                 >
+                    {generalConsent.required && generalConsent.status !== 'accepted' ? (
+                        <AlertTriangle aria-hidden="true" className="size-4" />
+                    ) : (
+                        <ShieldCheck aria-hidden="true" className="size-4" />
+                    )}
                     <AlertTitle>Persetujuan umum: {consentLabels[generalConsent.status]}</AlertTitle>
                     <AlertDescription>{generalConsent.recordedAt ?? 'Belum ada bukti keputusan pasien.'} Persetujuan tindakan dicatat tersendiri.</AlertDescription>
                 </Alert>}

@@ -25,6 +25,7 @@ use App\Http\Controllers\MedicalInformationReleaseController;
 use App\Http\Controllers\Pelayanan\FarmasiController;
 use App\Http\Controllers\Pelayanan\KunjunganController;
 use App\Http\Controllers\Pelayanan\PasienController;
+use App\Http\Controllers\Pelayanan\PatientDocumentController;
 use App\Http\Controllers\Pelayanan\PemeriksaanController;
 use App\Http\Controllers\Pelayanan\ScreeningController;
 use App\Http\Controllers\Pelayanan\TindakanPerawatController;
@@ -70,6 +71,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     Route::get('/', [ProfileController::class, 'show'])->name('show');
     Route::put('/', [ProfileController::class, 'update'])->name('update');
     Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password');
+    Route::put('/signing-pin', [ProfileController::class, 'updateSigningPin'])->name('signing-pin');
     Route::get('/photo', [ProfileController::class, 'photo'])->name('photo');
     Route::post('/photo', [ProfileController::class, 'uploadPhoto'])->name('photo.upload');
     Route::delete('/photo', [ProfileController::class, 'deletePhoto'])->name('photo.delete');
@@ -204,6 +206,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     });
     Route::prefix('stok')->name('stok.')->middleware(EnsureRole::class.':admin,farmasi')->group(function (): void {
         Route::get('persediaan', [PersediaanController::class, 'index'])->name('persediaan.index');
+        Route::get('persediaan/export', [PersediaanController::class, 'export'])->name('persediaan.export');
         Route::get('persediaan/{obat}', [PersediaanController::class, 'show'])->name('persediaan.show');
         Route::post('persediaan/{obat}/terima', [PersediaanController::class, 'receive'])->name('persediaan.receive');
         Route::post('batch/{batch}/opname', [PersediaanController::class, 'adjust'])->name('batch.adjust');
@@ -273,6 +276,18 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::middleware(EnsureRole::class.':admin,perawat,dokter')->group(function (): void {
             Route::get('pasien/{pasien}/rekam-medis', [PasienController::class, 'rekamMedis'])->name('pasien.rekam-medis');
         });
+        Route::middleware(EnsureRole::class.':admin,pendaftaran,perawat,dokter')
+            ->withoutMiddleware(RedirectRegistrationRole::class)
+            ->prefix('pasien/{pasien}/dokumen')
+            ->name('pasien.documents.')
+            ->group(function (): void {
+                Route::post('/', [PatientDocumentController::class, 'store'])->name('store');
+                Route::get('{document}/pratinjau', [PatientDocumentController::class, 'preview'])->name('preview');
+                Route::get('{document}/unduh', [PatientDocumentController::class, 'download'])->name('download');
+                Route::post('{document}/arsip', [PatientDocumentController::class, 'archive'])
+                    ->middleware(EnsureRole::class.':admin,perawat,dokter')
+                    ->name('archive');
+            });
         Route::middleware(EnsureAdminRole::class)->group(function (): void {
             Route::get('pasien-export', [PasienController::class, 'export'])->name('pasien.export');
             Route::post('pasien/gabung', [PasienController::class, 'gabung'])->name('pasien.gabung');
@@ -376,6 +391,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::resource('users', UserController::class)->except(['create', 'show', 'edit']);
         Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
         Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+        Route::post('users/{user}/reset-signing-pin', [UserController::class, 'resetSigningPin'])->name('users.reset-signing-pin');
     });
 
     // Pendaftaran (Registration Role)

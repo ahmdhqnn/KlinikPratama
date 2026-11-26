@@ -12,17 +12,26 @@ use App\DateRangeFilter;
 use App\DentalAssessment;
 use App\DoctorAccessService;
 use App\Exports\PasienExport;
+use App\FarmasiClinicResolver;
 use App\GeneralAssessment;
+use App\GeneralConsentService;
 use App\HakLayananVerifier;
 use App\Http\Controllers\Controller;
 use App\KepesertaanRegistry;
 use App\Models\FarmasiMandiri;
+use App\Models\GeneralConsent;
 use App\Models\Kepesertaan;
+use App\Models\MedicalInformationReleaseEvent;
 use App\Models\OdontogramFinding;
 use App\Models\Pasien;
+use App\Models\PatientDocument;
 use App\Models\Poliklinik;
+use App\Models\RujukanInternal;
+use App\Models\User;
+use App\PatientProfileSections;
 use App\PatientRegistrationService;
 use App\PerawatClinicResolver;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -37,21 +46,27 @@ class PasienController extends Controller
 {
     public function __construct(private DoctorAccessService $doctorAccess) {}
 
-    public function index(Request $request, ClinicalAuditRecorder $auditRecorder, PerawatClinicResolver $perawatClinicResolver): Response
+    public function index(Request $request, ClinicalAuditRecorder $auditRecorder, PerawatClinicResolver $perawatClinicResolver): Response|RedirectResponse
     {
+        if ($request->user()->role === 'farmasi') {
+            return redirect()->route('farmasi.pasien', $request->only('search'));
+        }
         $doctorId = $request->user()->role === 'dokter' ? $this->doctorId() : null;
         $clinicId = $request->user()->role === 'perawat'
             ? $perawatClinicResolver->clinicId($request->user())
             : null;
-        $pasien = Pasien::with('kepesertaan')
+        $baseQuery = Pasien::query()
             ->when($doctorId, fn ($query, int $id) => $query->whereHas('kunjungan', fn ($visits) => $visits->where('dokter_id', $id)))
-            ->when($clinicId, fn ($query, int $id) => $query->whereHas('kunjungan', fn ($visits) => $visits->where('poliklinik_id', $id)))
+            ->when($clinicId, fn ($query, int $id) => $query->whereHas('kunjungan', fn ($visits) => $visits->where('poliklinik_id', $id)));
+
+        $pasien = (clone $baseQuery)->with('kepesertaan')
             ->when($request->search, fn ($q, $s) => $q->where(fn ($query) => $query
                 ->where('nama', 'like', "%$s%")
                 ->orWhere('no_rm', 'like', "%$s%")
                 ->orWhere('nik', 'like', "%$s%")->orWhere('nip', 'like', "%$s%")
                 ->orWhere('telepon', 'like', "%$s%")))
             ->when($request->kategori, fn ($q, $category) => $q->whereHas('kepesertaan', fn ($members) => $members->whereIn('kategori', Kepesertaan::persistedCategoryKeys($category))))
+            ->when(in_array($request->string('jenis_kelamin')->toString(), ['L', 'P'], true), fn ($q) => $q->where('jenis_kelamin', $request->string('jenis_kelamin')->toString()))
             ->latest('created_at')->latest('id')
             ->paginate(10)
             ->withQueryString();
@@ -59,6 +74,12 @@ class PasienController extends Controller
         $auditRecorder->record($request, 'patient_directory.view');
 
         return Inertia::render('pelayanan/pasien/index', [
+            'stats' => [
+                'total' => (clone $baseQuery)->count(),
+                'verified' => (clone $baseQuery)->whereNotNull('kepesertaan_id')->count(),
+                'unverified' => (clone $baseQuery)->whereNull('kepesertaan_id')->count(),
+                'registeredToday' => (clone $baseQuery)->whereDate('created_at', today())->count(),
+            ],
             'permissions' => [
                 'viewRme' => in_array($request->user()->role, ['dokter', 'perawat'], true),
                 'managePatients' => $request->user()->role === 'admin',
@@ -95,6 +116,7 @@ class PasienController extends Controller
             'filters' => [
                 'search' => $request->string('search')->toString(),
                 'kategori' => $request->string('kategori')->toString(),
+                'jenisKelamin' => $request->string('jenis_kelamin')->toString(),
             ],
             'categories' => Kepesertaan::CATEGORIES,
             'otherTypes' => Kepesertaan::OTHER_TYPES,
@@ -102,9 +124,10 @@ class PasienController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
         return Inertia::render('pelayanan/pasien/form', [
+            'backUrl' => route($request->user()?->role === 'pendaftaran' ? 'pendaftaran.database-pasien' : 'pelayanan.pasien.index'),
             'today' => today()->toDateString(),
         ]);
     }
@@ -159,7 +182,7 @@ class PasienController extends Controller
             'nama' => ['required', 'string', 'max:255'],
             'nik' => ['nullable', 'required_without:nip', 'digits:16'],
             'nip' => ['nullable', 'required_without:nik', 'string', 'regex:/^[0-9]{8,30}$/'],
-            'kategori' => ['required', 'in:asn,lainnya'],
+            'kategori' => ['required', 'in:asn,pppk,lainnya'],
             'jenis_lainnya' => ['nullable', 'string', 'max:30'],
             'status_kepegawaian' => ['required', 'in:aktif,nonaktif'],
             'tempat_lahir' => ['required', 'string', 'max:100'],
@@ -188,14 +211,18 @@ class PasienController extends Controller
             if ($patient->nik && $patient->nik !== ($data['nik'] ?? null)) {
                 throw ValidationException::withMessages(['nik' => 'NIK verifikasi harus sesuai dengan identitas pasien.']);
             }
-            if (! empty($data['nik']) && Pasien::withTrashed()->where('nik', $data['nik'])->where('id', '!=', $patient->id)->exists()) {
+            if (filled($data['nik'] ?? null) && Pasien::withTrashed()
+                ->where('nik', $data['nik'])->whereKeyNot($patient->id)
+                ->when($patient->nik === $data['nik'], fn ($patients) => $patients->whereNull('deleted_at'))->exists()) {
                 throw ValidationException::withMessages(['nik' => 'NIK sudah terhubung dengan data pasien lain. Periksa database pasien sebelum verifikasi.']);
             }
 
             if ($patient->nip && $patient->nip !== ($data['nip'] ?? null)) {
                 throw ValidationException::withMessages(['nip' => 'NIP verifikasi harus sesuai dengan identitas pasien.']);
             }
-            if (! empty($data['nip']) && Pasien::withTrashed()->where('nip', $data['nip'])->where('id', '!=', $patient->id)->exists()) {
+            if (filled($data['nip'] ?? null) && Pasien::withTrashed()
+                ->where('nip', $data['nip'])->whereKeyNot($patient->id)
+                ->when($patient->nip === $data['nip'], fn ($patients) => $patients->whereNull('deleted_at'))->exists()) {
                 throw ValidationException::withMessages(['nip' => 'NIP sudah terhubung dengan pasien lain.']);
             }
 
@@ -246,69 +273,263 @@ class PasienController extends Controller
         return back()->with('success', 'Kepesertaan pasien berhasil diverifikasi.');
     }
 
-    public function show(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, PerawatClinicResolver $perawatClinicResolver): Response
+    public function show(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, PerawatClinicResolver $perawatClinicResolver, PatientProfileSections $profileSections): Response
     {
-        $this->authorizeDoctorPatient($pasien);
-        $clinicId = $request->user()->role === 'perawat'
-            ? $perawatClinicResolver->clinicId($request->user())
-            : null;
-        abort_if($clinicId && ! $pasien->kunjungan()->where('poliklinik_id', $clinicId)->exists(), 404);
-        $auditRecorder->record($request, 'patient_profile.view', $pasien->id);
-        $pasien->load(['kepesertaan', 'kunjungan' => fn ($q) => $q
-            ->when(auth()->user()->role === 'dokter', fn ($visits) => $visits->where('dokter_id', $this->doctorId()))
-            ->when($clinicId, fn ($visits) => $visits->where('poliklinik_id', $clinicId))
-            ->with(['poliklinik', 'dokter', 'pemeriksaan', 'farmasi'])->latest()->limit(10)]);
+        $user = $request->user();
+        $role = $user->role;
+        $canManage = in_array($role, ['admin', 'pendaftaran'], true);
+        $canViewRme = in_array($role, ['dokter', 'perawat'], true);
+        $visits = $this->authorizedVisits($request, $pasien, $perawatClinicResolver);
+        $data = $profileSections->load($request, $visits);
+        $showBiodata = $role !== 'farmasi' && $data['section'] === 'informasi';
+        $auditRecorder->record($request, 'patient_profile.view', $pasien->id, metadata: ['section' => $data['section']]);
+        $pasien->load('kepesertaan');
+
+        $backUrl = route(match ($role) {
+            'pendaftaran' => 'pendaftaran.database-pasien',
+            'dokter' => 'dokter.pasien',
+            'farmasi' => 'farmasi.pasien',
+            default => 'pelayanan.pasien.index',
+        });
+
+        $documents = [];
+        $documentsPagination = null;
+        $documentsTotal = 0;
+        $documentFilters = [
+            'search' => $request->string('doc_search')->toString(),
+            'category' => $request->string('doc_category')->toString(),
+            'archived' => $request->boolean('doc_archived'),
+        ];
+        $documentPermissions = null;
+
+        if ($role !== 'farmasi' && in_array($data['section'], ['informasi', 'dokumen'], true)) {
+            $docQuery = PatientDocument::query()
+                ->where('pasien_id', $pasien->id)
+                ->with(['uploadedBy:id,name', 'kunjungan:id,no_kunjungan']);
+
+            if ($data['section'] === 'dokumen') {
+                if ($documentFilters['archived']) {
+                    $docQuery->whereNotNull('archived_at');
+                } else {
+                    $docQuery->whereNull('archived_at');
+                }
+                if ($documentFilters['search'] !== '') {
+                    $docSearch = $documentFilters['search'];
+                    $docQuery->where(function ($query) use ($docSearch): void {
+                        $query->where('title', 'like', "%{$docSearch}%")
+                            ->orWhere('original_name', 'like', "%{$docSearch}%")
+                            ->orWhere('issuer_facility', 'like', "%{$docSearch}%")
+                            ->orWhere('notes', 'like', "%{$docSearch}%");
+                    });
+                }
+                if ($documentFilters['category'] !== '' && array_key_exists($documentFilters['category'], PatientDocument::CATEGORIES)) {
+                    $docQuery->where('category', $documentFilters['category']);
+                }
+                $docPaginator = $docQuery->latest('document_date')->latest('id')
+                    ->paginate(10)
+                    ->appends($request->only(['bagian', 'doc_search', 'doc_category', 'doc_archived']));
+                $documentsTotal = $docPaginator->total();
+                $documents = $docPaginator->getCollection()->map(fn (PatientDocument $doc): array => $this->serializeDocument($user, $pasien, $doc))->values()->all();
+                $documentsPagination = [
+                    'currentPage' => $docPaginator->currentPage(),
+                    'lastPage' => $docPaginator->lastPage(),
+                    'from' => $docPaginator->firstItem(),
+                    'to' => $docPaginator->lastItem(),
+                    'total' => $docPaginator->total(),
+                    'previousUrl' => $docPaginator->previousPageUrl(),
+                    'nextUrl' => $docPaginator->nextPageUrl(),
+                ];
+            } else {
+                $docQuery->whereNull('archived_at');
+                $documentsTotal = (clone $docQuery)->count();
+                $documents = $docQuery->latest('document_date')->latest('id')->limit(5)->get()
+                    ->map(fn (PatientDocument $doc): array => $this->serializeDocument($user, $pasien, $doc))->values()->all();
+            }
+
+            $documentPermissions = $this->documentPermissionsPayload($request, $user, $pasien, $perawatClinicResolver);
+        }
+
+        $clinicalNotes = [];
+        if ($canViewRme && $data['section'] === 'informasi') {
+            $clinicalNotes = $this->authorizedVisits($request, $pasien, $perawatClinicResolver)
+                ->whereHas('pemeriksaan')
+                ->with([
+                    'poliklinik:id,nama',
+                    'dokter:id,nama',
+                    'pemeriksaan.diagnosa',
+                    'screening:id,kunjungan_id,keluhan',
+                ])
+                ->latest('tanggal')->latest('id')->limit(4)->get()
+                ->map(function ($visit) use ($pasien): array {
+                    $primaryDiag = $visit->pemeriksaan?->diagnosa?->firstWhere('jenis', 'utama')
+                        ?? $visit->pemeriksaan?->diagnosa?->first();
+
+                    return [
+                        'visitId' => $visit->id,
+                        'visitNumber' => $visit->no_kunjungan,
+                        'date' => $visit->tanggal?->locale('id')->isoFormat('D MMM Y'),
+                        'clinic' => $visit->poliklinik?->nama ?? 'Belum dicatat',
+                        'doctor' => $visit->dokter?->nama ?? 'Belum ditentukan',
+                        'title' => $primaryDiag
+                            ? trim(($primaryDiag->kode_icd10 ? $primaryDiag->kode_icd10.' — ' : '').$primaryDiag->nama_diagnosa)
+                            : ($visit->screening?->keluhan ?: ($visit->pemeriksaan?->anamnesis ?: 'Catatan pemeriksaan')),
+                        'signed' => $visit->pemeriksaan?->signed_at !== null,
+                        'detailUrl' => route('pelayanan.pasien.rekam-medis', [$pasien, 'kunjungan_id' => $visit->id]),
+                    ];
+                })->values()->all();
+        }
+
+        $adminSummary = null;
+        if ($canManage && $data['section'] === 'informasi') {
+            $latestVisit = $pasien->kunjungan()->latest('tanggal')->latest('id')->first();
+            $consentSummary = $latestVisit ? app(GeneralConsentService::class)->summary($latestVisit) : null;
+            $openReferrals = RujukanInternal::query()
+                ->whereHas('kunjungan', fn ($q) => $q->where('pasien_id', $pasien->id))
+                ->where('status', 'menunggu')
+                ->count();
+            $releaseCount = MedicalInformationReleaseEvent::query()
+                ->whereHas('kunjungan', fn ($q) => $q->where('pasien_id', $pasien->id))
+                ->count();
+            $adminSummary = [
+                'consentStatus' => $consentSummary['status'] ?? 'undocumented',
+                'consentRecordedAt' => $consentSummary['recordedAt'] ?? null,
+                'consentUrl' => $latestVisit ? route('general-consent.show', [$latestVisit, 'asal' => 'profil']) : null,
+                'openReferrals' => $openReferrals,
+                'referralsUrl' => route('pelayanan.pasien.show', [$pasien, 'bagian' => 'rujukan']),
+                'releaseCount' => $releaseCount,
+                'releasesUrl' => $role === 'pendaftaran' ? route('pelayanan.pasien.show', [$pasien, 'bagian' => 'pelepasan']) : null,
+            ];
+        }
 
         return Inertia::render('pelayanan/pasien/show', [
-            'backUrl' => route($request->user()->role === 'pendaftaran' ? 'pendaftaran.database-pasien' : 'pelayanan.pasien.index'),
-            'openVisitUrl' => $request->user()->role === 'pendaftaran'
-                ? route('pendaftaran.pendaftaran-baru', ['tab' => 'registered', 'pasien_id' => $pasien->id])
-                : route('pelayanan.kunjungan.create', ['pasien_id' => $pasien->id]),
+            'breadcrumbs' => [
+                ['label' => 'Daftar pasien', 'href' => $backUrl],
+                ['label' => $pasien->nama],
+            ],
+            'backUrl' => $backUrl,
+            'editUrl' => $canManage ? route('pelayanan.pasien.edit', $pasien) : null,
+            'openVisitUrl' => $canManage ? route('pendaftaran.pendaftaran-baru', ['tab' => 'registered', 'pasien_id' => $pasien->id]) : null,
+            'recordUrl' => $canViewRme ? route('pelayanan.pasien.rekam-medis', $pasien) : null,
+            'section' => $data['section'],
+            'menu' => $data['menu'],
+            'pagination' => $data['pagination'],
+            'directRecords' => $data['directRecords'],
+            'generalConsent' => $data['generalConsent'] ?? null,
+            'visitTab' => $data['visitTab'],
+            'upcomingCount' => $data['upcomingCount'],
+            'visitFilters' => $data['visitFilters'],
+            'visitFilterOptions' => $data['visitFilterOptions'],
+            'documents' => $documents,
+            'documentsTotal' => $documentsTotal,
+            'documentsPagination' => $documentsPagination,
+            'documentFilters' => $documentFilters,
+            'documentPermissions' => $documentPermissions,
+            'clinicalNotes' => $clinicalNotes,
+            'adminSummary' => $adminSummary,
             'permissions' => [
-                'viewRme' => in_array(auth()->user()->role, ['dokter', 'perawat'], true),
-                'editPatient' => in_array(auth()->user()->role, ['admin', 'pendaftaran'], true),
-                'openVisit' => in_array(auth()->user()->role, ['admin', 'pendaftaran'], true),
+                'viewRme' => $canViewRme,
+                'editPatient' => $canManage,
+                'openVisit' => $canManage,
+                'isPharmacy' => $role === 'farmasi',
             ],
             'patient' => [
                 'id' => $pasien->id,
                 'medicalRecordNumber' => $pasien->no_rm,
                 'name' => $pasien->nama,
-                'nik' => $pasien->nik,
                 'birthDate' => ($pasien->kepesertaan?->tanggal_lahir ?? $pasien->tanggal_lahir)?->locale('id')->isoFormat('D MMMM Y'),
                 'gender' => $pasien->kepesertaan?->jenis_kelamin ?? $pasien->jenis_kelamin,
                 'age' => ($pasien->kepesertaan?->tanggal_lahir ?? $pasien->tanggal_lahir)?->age,
-                'bloodType' => $pasien->kepesertaan?->golongan_darah ?? $pasien->golongan_darah,
-                'birthPlace' => $pasien->kepesertaan?->tempat_lahir ?? $pasien->tempat_lahir,
-                'religion' => $pasien->kepesertaan?->agama ?? $pasien->agama,
-                'rt' => $pasien->kepesertaan?->rt ?? $pasien->rt,
-                'rw' => $pasien->kepesertaan?->rw ?? $pasien->rw,
-                'village' => $pasien->kepesertaan?->kelurahan ?? $pasien->kelurahan,
-                'district' => $pasien->kepesertaan?->kecamatan ?? $pasien->kecamatan,
-                'unit' => $pasien->kepesertaan?->unit_kerja ?? $pasien->unit_kerja,
-                'memberNip' => $pasien->nip ?? $pasien->kepesertaan?->nip,
-                'phone' => $pasien->telepon,
-                'address' => $pasien->kepesertaan?->alamat ?? $pasien->alamat,
-                'membership' => $pasien->kepesertaan?->membershipLabel() ?? 'Belum terverifikasi',
-                'allergies' => in_array(auth()->user()->role, ['dokter', 'perawat', 'farmasi'], true)
+                ...($showBiodata ? [
+                    'nik' => $pasien->nik,
+                    'bloodType' => $pasien->kepesertaan?->golongan_darah ?? $pasien->golongan_darah,
+                    'birthPlace' => $pasien->kepesertaan?->tempat_lahir ?? $pasien->tempat_lahir,
+                    'religion' => $pasien->kepesertaan?->agama ?? $pasien->agama,
+                    'rt' => $pasien->kepesertaan?->rt ?? $pasien->rt,
+                    'rw' => $pasien->kepesertaan?->rw ?? $pasien->rw,
+                    'village' => $pasien->kepesertaan?->kelurahan ?? $pasien->kelurahan,
+                    'district' => $pasien->kepesertaan?->kecamatan ?? $pasien->kecamatan,
+                    'postalCode' => $pasien->kode_pos,
+                    'unit' => $pasien->kepesertaan?->unit_kerja ?? $pasien->unit_kerja,
+                    'memberNip' => $pasien->nip ?? $pasien->kepesertaan?->nip,
+                    'phone' => $pasien->telepon,
+                    'guardianName' => $pasien->nama_wali,
+                    'guardianPhone' => $pasien->telepon_wali,
+                    'address' => $pasien->kepesertaan?->alamat ?? $pasien->alamat,
+                    'membership' => $pasien->kepesertaan?->membershipLabel() ?? 'Belum terverifikasi',
+                    'membershipActive' => (bool) $pasien->kepesertaan?->hak_layanan,
+                ] : []),
+                'allergies' => $canViewRme || $role === 'farmasi'
                     ? ($pasien->riwayat_alergi ?: 'Belum dicatat')
                     : null,
-                'visits' => $pasien->kunjungan->map(fn ($visit) => [
-                    'id' => $visit->id,
-                    'url' => auth()->user()->role === 'farmasi'
-                        ? ($visit->status === 'farmasi' || $visit->farmasi?->status === 'selesai' ? route('pelayanan.farmasi.show', $visit) : null)
-                        : (auth()->user()->role === 'dokter'
-                            ? route('pelayanan.pemeriksaan.show', $visit)
-                            : route('pelayanan.kunjungan.show', $visit)),
-                    'number' => $visit->no_kunjungan,
-                    'date' => $visit->tanggal?->isoFormat('D MMM Y'),
-                    'clinic' => $visit->poliklinik?->nama ?? 'Belum diisi',
-                    'doctor' => $visit->dokter?->nama ?? 'Belum diisi',
-                    'status' => $visit->status,
-                    'examinationStarted' => $visit->pemeriksaan?->started_at !== null,
-                    'isReservation' => $visit->tanggal->isFuture() && $visit->status === 'menunggu',
-                ]),
+                'visits' => $data['visits'],
             ],
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function documentPermissionsPayload(Request $request, User $user, Pasien $pasien, PerawatClinicResolver $perawatClinicResolver): array
+    {
+        $allowedCategories = collect(PatientDocument::CATEGORIES)
+            ->filter(fn (array $meta, string $key): bool => $user->can('upload', [PatientDocument::class, $pasien, $key]))
+            ->map(fn (array $meta, string $key): array => [
+                'value' => $key,
+                'label' => $meta['label'],
+                'sensitivity' => $meta['sensitivity'],
+            ])->values()->all();
+
+        $visitOptions = $this->authorizedVisits($request, $pasien, $perawatClinicResolver)
+            ->with('poliklinik:id,nama')
+            ->latest('tanggal')->latest('id')->limit(15)->get()
+            ->map(fn ($visit): array => [
+                'id' => $visit->id,
+                'label' => trim(($visit->no_kunjungan ?? '').' · '.($visit->tanggal?->format('d/m/Y') ?? '').' · '.($visit->poliklinik?->nama ?? '')),
+            ])->values()->all();
+
+        return [
+            'canUpload' => $allowedCategories !== [],
+            'allowedCategories' => $allowedCategories,
+            'allCategories' => collect(PatientDocument::CATEGORIES)->map(fn (array $meta, string $key): array => [
+                'value' => $key,
+                'label' => $meta['label'],
+            ])->values()->all(),
+            'uploadUrl' => route('pelayanan.pasien.documents.store', $pasien),
+            'visitOptions' => $visitOptions,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function serializeDocument(User $user, Pasien $pasien, PatientDocument $doc): array
+    {
+        $canPreview = $user->can('preview', $doc);
+        $canDownload = $user->can('download', $doc);
+        $canArchive = $doc->archived_at === null && $user->can('archive', $doc);
+
+        return [
+            'id' => $doc->id,
+            'uuid' => $doc->uuid,
+            'title' => $doc->title,
+            'category' => $doc->category,
+            'categoryLabel' => $doc->categoryLabel(),
+            'sensitivity' => $doc->sensitivity,
+            'documentDate' => $doc->document_date?->locale('id')->isoFormat('D MMM Y'),
+            'issuerFacility' => $doc->issuer_facility,
+            'toothFdi' => $doc->tooth_fdi,
+            'visitNumber' => $doc->kunjungan?->no_kunjungan,
+            'originalName' => $doc->original_name,
+            'mimeType' => $doc->mime_type,
+            'fileSize' => $doc->file_size,
+            'notes' => $doc->notes,
+            'uploadedBy' => $doc->uploadedBy?->name,
+            'uploadedAt' => $doc->created_at?->locale('id')->isoFormat('D MMM Y, HH:mm'),
+            'archivedAt' => $doc->archived_at?->locale('id')->isoFormat('D MMM Y, HH:mm'),
+            'archiveReason' => $doc->archive_reason,
+            'previewUrl' => $canPreview ? route('pelayanan.pasien.documents.preview', [$pasien, $doc]) : null,
+            'downloadUrl' => $canDownload ? route('pelayanan.pasien.documents.download', [$pasien, $doc]) : null,
+            'archiveUrl' => $canArchive ? route('pelayanan.pasien.documents.archive', [$pasien, $doc]) : null,
+            'canPreview' => $canPreview,
+            'canDownload' => $canDownload,
+            'canArchive' => $canArchive,
+        ];
     }
 
     public function edit(Pasien $pasien): Response
@@ -316,6 +537,7 @@ class PasienController extends Controller
         $pasien->load('kepesertaan');
 
         return Inertia::render('pelayanan/pasien/form', [
+            'backUrl' => route('pelayanan.pasien.show', $pasien),
             'patient' => [
                 'id' => $pasien->id,
                 'name' => $pasien->nama,
@@ -348,18 +570,22 @@ class PasienController extends Controller
         }
 
         if (! $pasien->kepesertaan_id && ! $request->filled('kepesertaan_id')) {
-            $data = $registrationService->validateManual($request);
-            DB::transaction(function () use ($pasien, $data): void {
+            $data = $registrationService->validateManual($request, includeClinicalHistory: false);
+            DB::transaction(function () use ($request, $pasien, $data): void {
                 $patient = Pasien::whereKey($pasien->id)->lockForUpdate()->firstOrFail();
                 if ($patient->kepesertaan_id) {
                     throw ValidationException::withMessages(['nama' => 'Pasien sudah diverifikasi. Muat ulang untuk memperbarui data kepesertaan.']);
                 }
                 foreach (['nik', 'nip'] as $field) {
-                    if (! empty($data[$field]) && Pasien::withTrashed()->where($field, $data[$field])->where('id', '!=', $patient->id)->exists()) {
+                    if (filled($data[$field] ?? null) && (string) $data[$field] !== (string) $patient->getAttribute($field)
+                        && Pasien::withTrashed()->where($field, $data[$field])->whereKeyNot($patient->id)->exists()) {
                         throw ValidationException::withMessages([$field => strtoupper($field).' sudah terhubung dengan pasien lain.']);
                     }
                 }
-                $patient->update($data);
+                $patient->fill($data);
+                $changedFields = array_keys($patient->getDirty());
+                $patient->save();
+                app(ClinicalAuditRecorder::class)->record($request, 'patient.identity_updated', $patient->id, metadata: ['fields' => $changedFields]);
             });
 
             return redirect()->route('pelayanan.pasien.show', $pasien)->with('success', 'Data pasien berhasil diperbarui.');
@@ -368,44 +594,43 @@ class PasienController extends Controller
         $data = $request->validate([
             'kepesertaan_id' => ['required', 'integer', 'exists:kepesertaan,id'],
             'telepon' => ['nullable', 'string', 'max:20'],
-            'riwayat_alergi' => ['exclude'],
         ]);
 
-        if (array_key_exists('riwayat_alergi', $data)) {
-            $data['riwayat_alergi'] = filled($data['riwayat_alergi'])
-                ? trim($data['riwayat_alergi'])
-                : null;
-        }
-
-        DB::transaction(function () use ($data, $pasien): void {
-            $member = Kepesertaan::whereKey($data['kepesertaan_id'])->lockForUpdate()->firstOrFail();
+        DB::transaction(function () use ($request, $data, $pasien): void {
             $patient = Pasien::whereKey($pasien->id)->lockForUpdate()->firstOrFail();
+            $member = Kepesertaan::whereKey($data['kepesertaan_id'])->lockForUpdate()->firstOrFail();
             if (($patient->nik && $member->nik !== $patient->nik)
                 || ($patient->nip && $member->nip !== $patient->nip)
                 || (! $member->nik && mb_strtolower($member->nama) !== mb_strtolower($patient->nama))
-                || Pasien::withTrashed()->where('kepesertaan_id', $member->id)->where('id', '!=', $patient->id)->exists()) {
+                || ((int) $patient->kepesertaan_id !== $member->id
+                    && Pasien::withTrashed()->where('kepesertaan_id', $member->id)->whereKeyNot($patient->id)->exists())) {
                 throw ValidationException::withMessages(['kepesertaan_id' => 'Identitas atau tautan peserta tidak sesuai pasien ini.']);
             }
             if (! $member->tanggal_lahir || ! $member->jenis_kelamin) {
                 throw ValidationException::withMessages(['kepesertaan_id' => 'Lengkapi tanggal lahir dan jenis kelamin pada direktori kepesertaan sebelum memperbarui data pasien.']);
             }
-            $patient->update([...$data, ...$this->identityFromMembership($member)]);
+            $patient->fill([...$data, ...$this->identityFromMembership($member)]);
+            $changedFields = array_keys($patient->getDirty());
+            $patient->save();
+            app(ClinicalAuditRecorder::class)->record($request, 'patient.identity_updated', $patient->id,
+                metadata: ['fields' => $changedFields, 'membership_id' => $patient->kepesertaan_id]);
         });
 
         return redirect()->route('pelayanan.pasien.show', $pasien)->with('success', 'Data pasien berhasil diperbarui.');
     }
 
-    public function destroy(Pasien $pasien): RedirectResponse
+    public function destroy(Request $request, Pasien $pasien, ClinicalAuditRecorder $audit): RedirectResponse
     {
-        DB::transaction(function () use ($pasien): void {
+        DB::transaction(function () use ($request, $pasien, $audit): void {
             $patient = Pasien::whereKey($pasien->id)->lockForUpdate()->firstOrFail();
             abort_if(
-                $patient->kunjungan()->exists() || FarmasiMandiri::where('pasien_id', $patient->id)->exists(),
+                $this->hasPatientHistory($patient),
                 409,
                 'Pasien dengan riwayat pelayanan tidak dapat dihapus.',
             );
 
             $patient->delete();
+            $audit->record($request, 'patient.archived', $patient->id);
         });
 
         return redirect()->route('pelayanan.pasien.index')->with('success', 'Data pasien berhasil dihapus.');
@@ -413,13 +638,8 @@ class PasienController extends Controller
 
     public function rekamMedis(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, ClinicalNoteRecorder $noteRecorder, PerawatClinicResolver $perawatClinicResolver, CorrespondenceService $correspondence): \Symfony\Component\HttpFoundation\Response
     {
-        $this->authorizeDoctorPatient($pasien);
+        $authorizedVisits = $this->authorizedVisits($request, $pasien, $perawatClinicResolver);
         $pasien->load('kepesertaan');
-        $clinicId = $request->user()->role === 'perawat'
-            ? $perawatClinicResolver->clinicId($request->user())
-            : null;
-        abort_if($clinicId && ! $pasien->kunjungan()->where('poliklinik_id', $clinicId)->exists(), 404);
-        $auditRecorder->record($request, 'medical_record.view', $pasien->id);
         $filters = $request->validate([
             'kunjungan_id' => ['nullable', 'integer', 'min:1'],
             'search' => ['nullable', 'string', 'max:100'],
@@ -430,9 +650,6 @@ class PasienController extends Controller
         ]);
 
         DateRangeFilter::fromRequest($request);
-        $authorizedVisits = $pasien->kunjungan()
-            ->when(auth()->user()->role === 'dokter', fn ($visits) => $visits->where('dokter_id', $this->doctorId()))
-            ->when($clinicId, fn ($visits) => $visits->where('poliklinik_id', $clinicId));
         $visitQuery = (clone $authorizedVisits)
             ->when($filters['kunjungan_id'] ?? null, fn ($visits, $id) => $visits->where('kunjungan.id', $id))
             ->when($filters['poliklinik_id'] ?? null, fn ($visits, $clinicId) => $visits->where('poliklinik_id', $clinicId))
@@ -471,8 +688,10 @@ class PasienController extends Controller
             'resep.resepObat',
             'tindakanKunjungan.tindakan:id,nama',
             'tindakanKunjungan.performedBy:id,name',
-            'suratMedis', 'rujukanInternal',
+            'screening.submittedBy', 'suratMedis', 'rujukanInternal',
         ])->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
+        $openedVisitId = isset($filters['kunjungan_id']) ? $visits->getCollection()->first()?->id : null;
+        $auditRecorder->record($request, 'medical_record.view', $pasien->id, $openedVisitId);
         $backUrl = route('pelayanan.pasien.show', $pasien);
         $referer = $request->headers->get('referer');
         $refererParts = $referer ? parse_url($referer) : false;
@@ -484,13 +703,36 @@ class PasienController extends Controller
             && in_array($refererScheme, ['http', 'https'], true)
             && ($refererParts['host'] ?? null) === $request->getHost()
             && $refererPort === $request->getPort()
+            && is_string($refererPath)
+            && preg_match('#^/(pelayanan|dokter|perawat|admin|pendaftaran)(/[A-Za-z0-9_-]+)*$#', $refererPath)
             && $refererPath !== parse_url($request->url(), PHP_URL_PATH)) {
-            $backUrl = $request->getSchemeAndHttpHost().$refererPath.(isset($refererParts['query']) ? '?'.$refererParts['query'] : '');
+            parse_str($refererParts['query'] ?? '', $rawQuery);
+            $safeQuery = array_filter(
+                array_intersect_key($rawQuery, array_flip(['tanggal', 'status', 'poliklinik_id', 'search', 'page', 'bagian', 'scope', 'tab'])),
+                static fn ($value): bool => is_scalar($value) && strlen((string) $value) <= 100
+            );
+            $backUrl = $request->getSchemeAndHttpHost().$refererPath.($safeQuery !== [] ? '?'.http_build_query($safeQuery) : '');
         }
+
+        $user = $request->user();
+        $externalDocuments = PatientDocument::query()
+            ->where('pasien_id', $pasien->id)
+            ->whereNull('archived_at')
+            ->with(['uploadedBy:id,name', 'kunjungan:id,no_kunjungan'])
+            ->latest('document_date')
+            ->latest('id')
+            ->limit(50)
+            ->get()
+            ->map(fn (PatientDocument $doc): array => $this->serializeDocument($user, $pasien, $doc))
+            ->values()
+            ->all();
+        $documentPermissions = $this->documentPermissionsPayload($request, $user, $pasien, $perawatClinicResolver);
 
         return Inertia::render('pelayanan/pasien/rekam-medis', [
             'clinicProfile' => app(ClinicDocumentProfile::class)->data(),
             'odontogramFindingLabels' => OdontogramFinding::findingLabels(),
+            'externalDocuments' => $externalDocuments,
+            'documentPermissions' => $documentPermissions,
             'patient' => [
                 'id' => $pasien->id,
                 'name' => $pasien->nama,
@@ -507,7 +749,9 @@ class PasienController extends Controller
                 'allergies' => $pasien->riwayat_alergi ?: 'Belum dicatat',
             ],
             'backUrl' => $backUrl,
-            'canSelectClinic' => $clinicId === null,
+            'profileUrl' => route('pelayanan.pasien.show', [$pasien, 'bagian' => 'catatan-medis']),
+            'focusedVisitId' => isset($filters['kunjungan_id']) ? (int) $filters['kunjungan_id'] : null,
+            'canSelectClinic' => $request->user()->role !== 'perawat',
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'poliklinik_id' => $filters['poliklinik_id'] ?? '',
@@ -620,7 +864,9 @@ class PasienController extends Controller
                         'dentalEscalation' => $effectiveNote['dental_review']['escalation'] ?? null,
                         'signedAt' => $visit->pemeriksaan->signed_at?->locale('id')->isoFormat('D MMMM Y HH:mm'),
                         'signedBy' => $visit->pemeriksaan->signedBy?->name,
-                        'signatureDataUrl' => $integrityValid === true ? $correspondence->signatureDataUrl($visit->pemeriksaan->signedBy) : null,
+                        'signatureDataUrl' => $integrityValid === true
+                            ? $correspondence->signatureDataUrl($visit->pemeriksaan->signedBy, $visit->pemeriksaan->signature_path_snapshot)
+                            : null,
                         'integrityValid' => $integrityValid,
                         'versions' => $versions->map(fn ($version): array => [
                             'version' => $version->version,
@@ -715,18 +961,30 @@ class PasienController extends Controller
         ], fn ($value): bool => ClinicalAnswer::normalize($value) !== null);
     }
 
-    private function authorizeDoctorPatient(Pasien $pasien): void
+    private function authorizedVisits(Request $request, Pasien $pasien, PerawatClinicResolver $perawatClinicResolver): HasMany
     {
-        if (auth()->user()->role !== 'dokter') {
-            return;
+        $visits = $pasien->kunjungan();
+        if ($request->user()->role === 'dokter') {
+            $doctorId = $this->doctorId();
+            $visits->where(function ($query) use ($doctorId): void {
+                $query->where('dokter_id', $doctorId)
+                    ->orWhereHas('rujukanInternal', fn ($referral) => $referral->whereHas('kunjunganTujuan', fn ($dest) => $dest->where('dokter_id', $doctorId)))
+                    ->orWhereIn('rujukan_internal_id', RujukanInternal::query()
+                        ->whereHas('kunjungan', fn ($src) => $src->where('dokter_id', $doctorId))
+                        ->select('id'));
+            });
+            abort_unless((clone $visits)->exists(), 403);
+        } elseif ($request->user()->role === 'perawat') {
+            $visits->where('poliklinik_id', $perawatClinicResolver->clinicId($request->user()));
+            abort_unless((clone $visits)->exists(), 404);
+        } elseif ($request->user()->role === 'farmasi') {
+            $pharmacyClinicId = app(FarmasiClinicResolver::class)->scopedClinicIdOrFail($request->user());
+            if ($pharmacyClinicId !== null) {
+                $visits->where('poliklinik_id', $pharmacyClinicId);
+            }
         }
 
-        $doctorId = $this->doctorId();
-        abort_unless(
-            $doctorId && $pasien->kunjungan()->where('dokter_id', $doctorId)->exists(),
-            403,
-            'Pasien bukan tanggung jawab dokter ini.'
-        );
+        return $visits;
     }
 
     private function doctorId(): int
@@ -737,25 +995,40 @@ class PasienController extends Controller
     public function gabung(Request $request): RedirectResponse
     {
         $request->validate([
-            'pasien_utama_id' => ['required', 'exists:pasien,id'],
-            'pasien_hapus_id' => ['required', 'exists:pasien,id', 'different:pasien_utama_id'],
+            'pasien_utama_id' => ['required', 'integer', 'exists:pasien,id'],
+            'pasien_hapus_id' => ['required', 'integer', 'exists:pasien,id', 'different:pasien_utama_id'],
         ]);
 
         return DB::transaction(function () use ($request): RedirectResponse {
-            $pasienUtama = Pasien::whereKey($request->pasien_utama_id)->lockForUpdate()->firstOrFail();
-            $pasienHapus = Pasien::whereKey($request->pasien_hapus_id)->lockForUpdate()->firstOrFail();
-            if (! $pasienUtama->nik || $pasienUtama->nik !== $pasienHapus->nik || ($pasienHapus->kepesertaan_id && $pasienUtama->kepesertaan_id !== $pasienHapus->kepesertaan_id)) {
+            $patients = Pasien::whereKey([$request->integer('pasien_utama_id'), $request->integer('pasien_hapus_id')])
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            abort_unless($patients->count() === 2, 404);
+            $pasienUtama = $patients[$request->integer('pasien_utama_id')];
+            $pasienHapus = $patients[$request->integer('pasien_hapus_id')];
+            if (! $pasienUtama->nik || $pasienUtama->nik !== $pasienHapus->nik
+                || ($pasienHapus->nip && $pasienUtama->nip !== $pasienHapus->nip)
+                || ($pasienHapus->kepesertaan_id && $pasienUtama->kepesertaan_id !== $pasienHapus->kepesertaan_id)) {
                 throw ValidationException::withMessages(['pasien_hapus_id' => 'Penggabungan hanya untuk identitas NIK yang sama dan kepesertaan yang sesuai.']);
+            }
+            if ($this->hasPatientHistory($pasienHapus)) {
+                throw ValidationException::withMessages(['pasien_hapus_id' => 'Pasien duplikat memiliki riwayat pelayanan. Rekonsiliasi melalui prosedur rekam medis klinik diperlukan.']);
             }
             app(ClinicalAuditRecorder::class)->record($request, 'patient.merge', $pasienUtama->id, metadata: ['duplicate_patient_id' => $pasienHapus->id]);
 
-            // Move all kunjungan from pasienHapus to pasienUtama
-            $pasienHapus->kunjungan()->update(['pasien_id' => $pasienUtama->id]);
             $pasienHapus->delete();
 
             return redirect()->route('pelayanan.pasien.show', $pasienUtama)
-                ->with('success', 'Rekam medis berhasil digabungkan.');
+                ->with('success', 'Identitas duplikat berhasil diarsipkan.');
         });
+    }
+
+    private function hasPatientHistory(Pasien $patient): bool
+    {
+        return filled($patient->riwayat_alergi)
+            || $patient->kunjungan()->exists()
+            || FarmasiMandiri::where('pasien_id', $patient->id)->exists()
+            || GeneralConsent::where('pasien_id', $patient->id)->exists()
+            || PatientDocument::where('pasien_id', $patient->id)->exists();
     }
 
     /** @return array<string, int|string|null> */

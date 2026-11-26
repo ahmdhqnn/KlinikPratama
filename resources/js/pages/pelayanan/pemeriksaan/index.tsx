@@ -35,6 +35,9 @@ interface Visit {
 
 interface Props {
     canIssueLetters: boolean;
+    canSelectClinic?: boolean;
+    clinics?: { id: number; name: string }[];
+    clinicId?: string;
     visits: PaginationData & { data: Visit[] };
     todayVisits: PaginationData & { data: Visit[] };
     date: string;
@@ -43,15 +46,16 @@ interface Props {
     stats: { total: number; waiting: number; inProgress: number; completed: number };
 }
 
-export default function ExaminationsIndex({ visits, todayVisits, date: initialDate, search: initialSearch, status: initialStatus = '', stats, canIssueLetters }: Props) {
+export default function ExaminationsIndex({ visits, todayVisits, date: initialDate, search: initialSearch, status: initialStatus = '', clinicId: initialClinicId = '', canSelectClinic = false, clinics = [], stats, canIssueLetters }: Props) {
     usePoll(10_000, { only: ['stats', 'todayVisits', 'visits', 'doctorQueues', 'adminQueues'] });
     const [date, setDate] = useState(initialDate);
     const [status, setStatus] = useState(initialStatus);
     const [search, setSearch] = useState(initialSearch);
+    const [clinicId, setClinicId] = useState(initialClinicId);
 
     function filterVisits(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get('/pelayanan/pemeriksaan', { search, tanggal: date, status }, { preserveState: true, preserveScroll: true, replace: true });
+        router.get('/pelayanan/pemeriksaan', { search, tanggal: date, status, ...(canSelectClinic ? { poliklinik_id: clinicId } : {}) }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     return (
@@ -79,13 +83,21 @@ export default function ExaminationsIndex({ visits, todayVisits, date: initialDa
                     visits={todayVisits}
                 />
                 <FilterPanel>
-                    <form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={filterVisits}>
-                        <Field htmlFor="examination-visit-search" label="Cari pasien">
-                            <Input id="examination-visit-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama atau No. RM" value={search} />
+                    <form className={`grid min-w-0 gap-4 sm:grid-cols-2 ${canSelectClinic ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`} onSubmit={filterVisits}>
+                        <Field htmlFor="examination-visit-search" label="Cari pasien atau kunjungan">
+                            <Input id="examination-visit-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama, No. RM, atau No. kunjungan" value={search} />
                         </Field>
                         <Field htmlFor="examination-visit-date" label="Tanggal kunjungan">
                             <DatePicker id="examination-visit-date" onChange={(event) => setDate(event.target.value)} value={date} />
                         </Field>
+                        {canSelectClinic && (
+                            <Field htmlFor="examination-visit-clinic" label="Poliklinik">
+                                <Select id="examination-visit-clinic" onChange={(event) => setClinicId(event.target.value)} value={clinicId}>
+                                    <option value="">Semua poliklinik</option>
+                                    {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
+                                </Select>
+                            </Field>
+                        )}
                         <Field htmlFor="examination-visit-status" label="Tahap pelayanan">
                             <Select id="examination-visit-status" onChange={(event) => setStatus(event.target.value)} value={status}>
                                 <option value="">Semua tahap</option><option value="pemeriksaan">Pemeriksaan dokter</option><option value="tindakan">Tindakan</option><option value="farmasi">Farmasi</option><option value="selesai">Selesai</option>

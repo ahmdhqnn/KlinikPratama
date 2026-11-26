@@ -51,6 +51,10 @@ class ProcedureConsentService
 
     public function latest(TindakanKunjungan $procedure): ?InformedConsent
     {
+        if ($procedure->relationLoaded('informedConsents')) {
+            return $procedure->informedConsents->sortByDesc('id')->first();
+        }
+
         return InformedConsent::where('tindakan_kunjungan_id', $procedure->id)->latest('id')->first();
     }
 

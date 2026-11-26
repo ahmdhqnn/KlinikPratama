@@ -1,9 +1,11 @@
 import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { UsersRound } from 'lucide-react';
+import { Clock3, ShieldCheck, UserPlus, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
@@ -27,17 +29,29 @@ interface Patient {
 }
 
 interface Props {
-    filters: { search: string; jenisKelamin: string };
+    stats?: { total: number; verified: number; unverified: number; registeredToday: number };
+    categories?: Record<string, string>;
+    filters: { search: string; jenisKelamin: string; kategori?: string };
     patients: PaginationData & { data: Patient[] };
 }
 
-export default function PatientDatabase({ filters: initialFilters, patients }: Props) {
-    const [filters, setFilters] = useState(initialFilters);
+export default function PatientDatabase({ stats, categories = {}, filters: initialFilters, patients }: Props) {
+    const [filters, setFilters] = useState({
+        search: initialFilters.search,
+        jenisKelamin: initialFilters.jenisKelamin,
+        kategori: initialFilters.kategori ?? '',
+    });
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get('/pendaftaran/database-pasien', { search: filters.search, jenis_kelamin: filters.jenisKelamin }, { preserveState: true, preserveScroll: true, replace: true });
+        router.get('/pendaftaran/database-pasien', {
+            search: filters.search,
+            jenis_kelamin: filters.jenisKelamin,
+            kategori: filters.kategori,
+        }, { preserveState: true, preserveScroll: true, replace: true });
     }
+
+    const categoryEntries = Object.entries(categories);
 
     return (
         <>
@@ -48,7 +62,13 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pasien</h2>
                     <p className="mt-1 text-sm text-neutral-500">Temukan data pasien dengan nomor rekam medis, nama, NIK, atau nomor telepon.</p>
                 </div>
-                <FilterPanel><form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={applyFilters}>
+                <SummaryStatGrid ariaLabel="Ringkasan data pasien terdaftar" columns={4}>
+                    <StatCard label="Total pasien" value={stats?.total ?? patients.total} description="Seluruh rekam medis aktif" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Terverifikasi" value={stats?.verified ?? patients.data.filter((p) => p.membership !== 'Belum terverifikasi').length} description="Terhubung kepesertaan internal" icon={<ShieldCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Belum verifikasi" value={stats?.unverified ?? patients.data.filter((p) => p.membership === 'Belum terverifikasi').length} description="Menunggu verifikasi admin" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Baru hari ini" value={stats?.registeredToday ?? 0} description="Pasien didaftarkan hari ini" icon={<UserPlus className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                </SummaryStatGrid>
+                <FilterPanel><form className={categoryEntries.length > 0 ? 'grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'grid min-w-0 gap-4 sm:grid-cols-2'} onSubmit={applyFilters}>
                             <Field htmlFor="patient-database-search" label="Cari pasien">
                                 <Input id="patient-database-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama, No. RM, NIK, NIP, atau telepon" value={filters.search} />
                             </Field>
@@ -57,6 +77,14 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                                     <option value="">Semua</option><option value="L">Laki-laki</option><option value="P">Perempuan</option>
                                 </Select>
                             </Field>
+                            {categoryEntries.length > 0 && (
+                                <Field htmlFor="patient-database-category" label="Kategori kepesertaan">
+                                    <Select id="patient-database-category" onChange={(event) => setFilters({ ...filters, kategori: event.target.value })} value={filters.kategori}>
+                                        <option value="">Semua kategori</option>
+                                        {categoryEntries.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                                    </Select>
+                                </Field>
+                            )}
                             <FilterSubmit />
                         </form></FilterPanel>
                 <Card className="overflow-hidden">

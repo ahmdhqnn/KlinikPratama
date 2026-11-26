@@ -106,7 +106,7 @@ class AdminOperationalQueueTest extends TestCase
                 ->where('todayVisits.data', fn ($rows) => collect($rows)->pluck('id')->all() === [$otherTodayVisit->id, $visit->id])
                 ->where('visits.data.0.id', $oldVisit->id));
         $this->get(route('persuratan.index', ['kunjungan_id' => $visit->id]))->assertInertia(fn (Assert $page) => $page
-            ->where('letters.total', 0)->missing('letters.data.0')->where('filters.visitId', (string) $visit->id));
+            ->where('letters.total', 0)->missing('letters.data.0')->where('filters.visitId', $visit->id));
         $this->get(route('pelayanan.antrian', ['status' => 'invalid']))->assertSessionHasErrors('status');
     }
 

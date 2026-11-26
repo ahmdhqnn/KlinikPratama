@@ -15,6 +15,7 @@ class RouteAccessInventoryTest extends TestCase
             'pelayanan.tindakan',
             'pelayanan.farmasi',
             'pelayanan.pasien.rekam-medis',
+            'pelayanan.pasien.documents',
             'procedure-consent',
             'procedure-signature',
             'information-release',

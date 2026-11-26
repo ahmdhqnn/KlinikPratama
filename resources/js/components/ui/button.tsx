@@ -9,9 +9,9 @@ export const buttonVariants = cva(
         variants: {
             variant: {
                 default: 'bg-neutral-900 text-neutral-50 hover:bg-neutral-800',
-                secondary: 'clinic-canvas-control border border-neutral-200 bg-surface text-neutral-700 hover:bg-neutral-50',
+                secondary: 'clinic-canvas-control border border-neutral-200 bg-surface text-neutral-700 hover:border-neutral-300 hover:bg-neutral-100',
                 ghost: 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900',
-                destructive: 'border border-red-200 bg-surface text-red-700 hover:bg-red-50 focus-visible:ring-red-500 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/40',
+                destructive: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 dark:bg-red-700 dark:hover:bg-red-600',
                 destructiveOutline: 'border border-red-200 bg-surface text-red-700 hover:bg-red-50 focus-visible:ring-red-500 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/40',
                 link: 'text-neutral-700 underline-offset-4 hover:underline',
             },
@@ -20,6 +20,7 @@ export const buttonVariants = cva(
                 sm: 'h-9 rounded-md px-3',
                 lg: 'h-11 rounded-lg px-6',
                 icon: 'size-10',
+                'icon-sm': 'size-8',
             },
         },
         defaultVariants: {

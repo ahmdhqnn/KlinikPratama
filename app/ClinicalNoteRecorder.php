@@ -5,6 +5,7 @@ namespace App;
 use App\Models\ClinicalNoteVersion;
 use App\Models\Kunjungan;
 use App\Models\Pemeriksaan;
+use Illuminate\Support\Facades\DB;
 
 class ClinicalNoteRecorder
 {
@@ -31,6 +32,10 @@ class ClinicalNoteRecorder
             'riwayat_penyakit_keluarga' => ClinicalAnswer::normalize($examination->riwayat_penyakit_keluarga),
             'riwayat_alergi' => ClinicalAnswer::normalize($examination->riwayat_alergi),
             'pemeriksaan_fisik' => ClinicalAnswer::normalize($examination->pemeriksaan_fisik),
+            'td_sistole_ulang' => $examination->td_sistole_ulang,
+            'td_diastole_ulang' => $examination->td_diastole_ulang,
+            'nadi_ulang' => $examination->nadi_ulang,
+            'suhu_ulang' => $examination->suhu_ulang,
             'ringkasan_odontogram' => ClinicalAnswer::normalize($examination->ringkasan_odontogram),
             'pemeriksaan_fisik_terstruktur' => $examination->pemeriksaan_fisik_terstruktur ?? [],
             'body_map' => $examination->body_map,
@@ -189,30 +194,33 @@ class ClinicalNoteRecorder
      */
     private function record(Pemeriksaan $examination, string $kind, array $payload, int $actorId, ?string $reason = null): ClinicalNoteVersion
     {
-        $previous = ClinicalNoteVersion::where('pemeriksaan_id', $examination->id)
-            ->orderByDesc('version')->first();
-        $version = ($previous?->version ?? 0) + 1;
-        $recordedAt = now();
-        $previousHash = $previous?->content_hash;
-        $contentHash = $this->digest(
-            $examination->id, $version, $kind, $actorId, $reason,
-            $payload, $previousHash, $recordedAt->toISOString()
-        );
+        return DB::transaction(function () use ($examination, $kind, $payload, $actorId, $reason): ClinicalNoteVersion {
+            Pemeriksaan::whereKey($examination->id)->lockForUpdate()->firstOrFail();
+            $previous = ClinicalNoteVersion::where('pemeriksaan_id', $examination->id)
+                ->orderByDesc('version')->first();
+            $version = ($previous?->version ?? 0) + 1;
+            $recordedAt = now();
+            $previousHash = $previous?->content_hash;
+            $contentHash = $this->digest(
+                $examination->id, $version, $kind, $actorId, $reason,
+                $payload, $previousHash, $recordedAt->toISOString()
+            );
 
-        $record = $examination->clinicalNoteVersions()->create([
-            'version' => $version,
-            'kind' => $kind,
-            'actor_id' => $actorId,
-            'reason' => $reason,
-            'payload' => $payload,
-            'previous_hash' => $previousHash,
-            'content_hash' => $contentHash,
-            'recorded_at' => $recordedAt,
-        ]);
+            $record = $examination->clinicalNoteVersions()->create([
+                'version' => $version,
+                'kind' => $kind,
+                'actor_id' => $actorId,
+                'reason' => $reason,
+                'payload' => $payload,
+                'previous_hash' => $previousHash,
+                'content_hash' => $contentHash,
+                'recorded_at' => $recordedAt,
+            ]);
 
-        $examination->update(['latest_note_hash' => $contentHash]);
+            $examination->update(['latest_note_hash' => $contentHash]);
 
-        return $record;
+            return $record;
+        });
     }
 
     /**

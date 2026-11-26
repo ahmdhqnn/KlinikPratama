@@ -9,8 +9,18 @@ import { Pagination, type PaginationData } from '@/components/dashboard/paginati
 import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/status-badge';
 import { AllergyHistory } from '@/components/kunjungan/allergy-history';
 import { VisitAttachments, type ClinicalAttachment } from '@/components/kunjungan/visit-attachments';
+import {
+    DocumentArchiveModal,
+    DocumentFileIcon,
+    DocumentPreviewModal,
+    DocumentUploadModal,
+    formatDocumentSize,
+    type DocumentPermissions,
+    type PatientDocumentItem,
+} from '@/components/pasien/document-uploader-modal';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
@@ -23,9 +33,10 @@ import { findingLocation, recordedAnnotationNote, type BodyMapData } from '@/lib
 import { normalizeClinicalAnswer } from '@/lib/clinical-answer';
 import { dentalDiagnosisDescription, dentalSurfaceLabel } from '@/lib/dental-diagnosis';
 import { formatNumber } from '@/lib/format';
+import { returnToPreviousScreen } from '@/lib/navigation';
 import { displayOptionalValue } from '@/lib/optional-answers';
-import { Head, router } from '@inertiajs/react';
-import { ArrowDown, ArrowLeft, ArrowUp, Printer, Search } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { Archive, ArrowDown, ArrowLeft, ArrowUp, Download, Eye, FilePlus2, FolderOpen, Printer, Search } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 interface Diagnosis { toothFdi?: string | null; surfaces?: string[]; code: string | null; codeSystem?: string | null; name: string; note?: string | null; type: string }
@@ -36,18 +47,21 @@ interface Prescription { id: number; name: string; quantity: string | number; un
 interface Treatment { id: number; name: string; code: string | null; codeSystem: string | null; codeRelease: string | null; quantity: number; toothFdi: string | null; note: string | null }
 interface Visit { documents?: Array<{ name: string; type: string; printUrl: string }>;  procedureExecutions: Array<{ id: number; name: string; role: string; status: string; result: string | null; performedBy: string | null; performedAt: string | null }>; id: number; number: string; clinic: string; clinicType: string | null; doctor: string; date: string | null; status: string; examinationStarted?: boolean; isReservation?: boolean; screening: Screening | null; examination: Examination | null; prescriptions: Prescription[]; treatments: Treatment[]; odontogram: DentalFinding[]; attachmentArchive?: ClinicalAttachment[]; attachments?: ClinicalAttachment[] }
 interface Patient { id: number; name: string; medicalRecordNumber: string; nik: string | null; gender: string | null; age: number | null; bloodType: string | null; birthPlace: string | null; birthDate: string | null; address: string | null; religion: string | null; unit: string | null; allergies: string | null }
-interface Props { odontogramFindingLabels?: Record<string, string>; clinicProfile?: ClinicProfile; patient: Patient; visits: Visit[]; backUrl: string; canSelectClinic: boolean; filters: { search: string; poliklinik_id: string | number; status: string; dari: string; sampai: string }; clinics: Array<{ id: number; name: string }>; pagination: PaginationData }
+interface Props { odontogramFindingLabels?: Record<string, string>; clinicProfile?: ClinicProfile; patient: Patient; visits: Visit[]; backUrl: string; profileUrl?: string; focusedVisitId?: number | null; canSelectClinic: boolean; filters: { search: string; poliklinik_id: string | number; status: string; dari: string; sampai: string }; clinics: Array<{ id: number; name: string }>; pagination: PaginationData; externalDocuments?: PatientDocumentItem[]; documentPermissions?: DocumentPermissions | null }
 
-export default function PatientMedicalRecord({ odontogramFindingLabels, clinicProfile, patient, visits, backUrl, canSelectClinic, filters, clinics, pagination }: Props) {
+export default function PatientMedicalRecord({ odontogramFindingLabels, clinicProfile, patient, visits, backUrl, profileUrl, focusedVisitId, canSelectClinic, filters, clinics, pagination, externalDocuments = [], documentPermissions = null }: Props) {
     const [search, setSearch] = useState(filters.search);
     const [clinicId, setClinicId] = useState(String(filters.poliklinik_id));
     const [status, setStatus] = useState(filters.status);
     const [from, setFrom] = useState(filters.dari);
     const [to, setTo] = useState(filters.sampai);
-    const [expandedVisitId, setExpandedVisitId] = useState<number | null>(null);
+    const [expandedVisitId, setExpandedVisitId] = useState<number | null>(focusedVisitId ?? null);
+    const [uploadOpen, setUploadOpen] = useState(false);
+    const [previewDoc, setPreviewDoc] = useState<PatientDocumentItem | null>(null);
+    const [archiveDoc, setArchiveDoc] = useState<PatientDocumentItem | null>(null);
 
     const [printVisitId, setPrintVisitId] = useState<number | null>(null);
-    const canPrintVisit = (visit: Visit) => Boolean(visit.examination?.signedAt);
+    const canPrintVisit = (visit: Visit) => visit.examination?.integrityValid === true;
     const canPrintPage = visits.length > 0 && visits.every(canPrintVisit);
     async function printVisits(visitId: number | null = null): Promise<void> {
         if (visitId === null ? !canPrintPage : !visits.some(visit => visit.id === visitId && canPrintVisit(visit))) return;
@@ -71,17 +85,13 @@ export default function PatientMedicalRecord({ odontogramFindingLabels, clinicPr
     }
 
     function returnToPreviousPage(): void {
-        const previousPage = document.referrer;
-        if (previousPage && new URL(previousPage).origin === window.location.origin && new URL(previousPage).pathname !== window.location.pathname) {
-            window.history.back();
-            return;
-        }
-
-        router.visit(backUrl);
+        returnToPreviousScreen(backUrl);
     }
 
-    return <><Head title={`Rekam medis ${patient.name}`} /><MedicalRecordPrint findingLabels={odontogramFindingLabels} clinic={clinicProfile} patient={patient} visits={printVisitId === null ? visits : visits.filter(visit => visit.id === printVisitId)} />
-    <div className="min-w-0 w-full space-y-6 print:hidden"><div className="flex flex-col justify-between gap-3 print:hidden sm:flex-row sm:items-center"><Button onClick={returnToPreviousPage} size="sm" variant="ghost"><ArrowLeft className="size-4" />Kembali</Button><Button disabled={!canPrintPage} title={!canPrintPage ? "Cetak tersedia setelah seluruh pemeriksaan pada halaman ini difinalisasi dokter." : undefined} onClick={() => void printVisits()}><Printer className="size-4" />Cetak kunjungan pada halaman ini</Button></div>
+    const printVisitsList = visits.filter((visit) => canPrintVisit(visit) && (printVisitId === null || visit.id === printVisitId));
+
+    return <><Head title={`Rekam medis ${patient.name}`} />{printVisitsList.length > 0 && <MedicalRecordPrint findingLabels={odontogramFindingLabels} clinic={clinicProfile} patient={patient} visits={printVisitsList} />}
+    <div className="min-w-0 w-full space-y-6 print:hidden"><div className="flex flex-wrap items-center justify-between gap-3 print:hidden"><Button onClick={returnToPreviousPage} size="sm" variant="secondary"><ArrowLeft className="size-4" />Kembali</Button><div className="flex flex-wrap items-center gap-2">{profileUrl && <Button asChild size="sm" variant="secondary"><Link href={profileUrl}>Profil pasien</Link></Button>}{documentPermissions?.canUpload && <Button onClick={() => setUploadOpen(true)} size="sm" variant="secondary"><FilePlus2 className="size-4" />Tambah RME eksternal (PDF)</Button>}<Button disabled={!canPrintPage} size="sm" title={!canPrintPage ? "Cetak tersedia jika seluruh catatan pada halaman ini final dan terverifikasi." : undefined} onClick={() => void printVisits()}><Printer className="size-4" />Cetak kunjungan pada halaman ini</Button></div></div>
         <Card>
             <CardHeader className="items-start text-left">
                 <p className="text-xs font-semibold uppercase tracking-wider text-neutral-700">Berkas rekam medis pasien</p>
@@ -102,6 +112,120 @@ export default function PatientMedicalRecord({ odontogramFindingLabels, clinicPr
                 <AllergyHistory value={patient.allergies} />
             </CardContent>
         </Card>
+        {(externalDocuments.length > 0 || documentPermissions?.canUpload) && (
+            <div className="min-w-0 space-y-3 print:hidden">
+                {documentPermissions?.canUpload && (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Button onClick={() => setUploadOpen(true)} size="sm">
+                            <FilePlus2 className="size-4" />
+                            Unggah RME / riwayat eksternal
+                        </Button>
+                    </div>
+                )}
+                <Card className="min-w-0 overflow-hidden">
+                    <CardHeader className="border-b border-neutral-100">
+                        <div className="flex items-start gap-3">
+                            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700">
+                                <FolderOpen aria-hidden="true" className="size-5" />
+                            </span>
+                            <div className="min-w-0">
+                                <CardTitle>Riwayat medis & RME eksternal ({new Intl.NumberFormat('id-ID').format(externalDocuments.length)})</CardTitle>
+                                <CardDescription className="mt-1">
+                                    Arsip rekam medis sebelumnya (PDF), resume medis fasyankes lain, serta hasil penunjang yang bukan merupakan kunjungan di aplikasi.
+                                </CardDescription>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <Table className="min-w-[760px]">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Dokumen</TableHead>
+                                        <TableHead>Kategori</TableHead>
+                                        <TableHead>Tanggal & penerbit</TableHead>
+                                        <TableHead>Sumber kunjungan</TableHead>
+                                        <TableHead className="text-center">Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {externalDocuments.length > 0 ? externalDocuments.map((doc) => (
+                                        <TableRow key={doc.id}>
+                                            <TableCell>
+                                                <div className="flex items-start gap-2.5">
+                                                    <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-600">
+                                                        <DocumentFileIcon mimeType={doc.mimeType} />
+                                                    </span>
+                                                    <div className="min-w-0">
+                                                        <p className="font-medium text-neutral-950">{doc.title}</p>
+                                                        <p className="text-xs text-neutral-500">
+                                                            {doc.originalName} · {formatDocumentSize(doc.fileSize)}
+                                                            {doc.toothFdi ? ` · Gigi FDI ${doc.toothFdi}` : ''}
+                                                        </p>
+                                                        {doc.notes && <p className="mt-1 line-clamp-2 text-xs text-neutral-600">{doc.notes}</p>}
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline">{doc.categoryLabel}</Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <p className="text-xs font-medium tabular-nums text-neutral-900">{doc.documentDate ?? 'Belum dicatat'}</p>
+                                                {doc.issuerFacility && <p className="text-xs text-neutral-500">{doc.issuerFacility}</p>}
+                                            </TableCell>
+                                            <TableCell>
+                                                {doc.visitNumber ? (
+                                                    <span className="text-xs font-medium tabular-nums text-neutral-700">{doc.visitNumber}</span>
+                                                ) : (
+                                                    <Badge variant="secondary">Di luar kunjungan aplikasi</Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center justify-center gap-1">
+                                                    {doc.canPreview && doc.previewUrl && (
+                                                        <Button onClick={() => setPreviewDoc(doc)} size="sm" variant="secondary">
+                                                            <Eye className="size-3.5" />Pratinjau
+                                                        </Button>
+                                                    )}
+                                                    {doc.canDownload && doc.downloadUrl && (
+                                                        <Button asChild size="icon-sm" title="Unduh berkas" variant="ghost">
+                                                            <a aria-label={`Unduh ${doc.title}`} href={doc.downloadUrl}>
+                                                                <Download className="size-4" />
+                                                            </a>
+                                                        </Button>
+                                                    )}
+                                                    {doc.canArchive && doc.archiveUrl && (
+                                                        <Button
+                                                            aria-label={`Arsipkan ${doc.title}`}
+                                                            onClick={() => setArchiveDoc(doc)}
+                                                            size="icon-sm"
+                                                            title="Arsipkan dokumen"
+                                                            variant="ghost"
+                                                        >
+                                                            <Archive className="size-4" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )) : (
+                                        <TableRow className="hover:bg-transparent">
+                                            <TableCell colSpan={5}>
+                                                <Empty
+                                                    description="Unggah berkas PDF RME sebelumnya atau resume medis fasyankes lain agar riwayat medis pasien tetap terintegrasi."
+                                                    size="compact"
+                                                    title="Belum ada arsip RME atau dokumen eksternal."
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        )}
         <div className="print:hidden"><FilterPanel><form className={canSelectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-4' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3'} onSubmit={applyFilters}>
                 <Field htmlFor="medical-record-search" label="Kata kunci"><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-500" /><Input className="pl-9" id="medical-record-search" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nomor kunjungan, keluhan, atau diagnosis" value={search} /></div></Field>
                 {canSelectClinic && <Field htmlFor="medical-record-clinic" label="Poliklinik"><Select id="medical-record-clinic" onChange={(event) => setClinicId(event.target.value)} value={clinicId}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>}
@@ -110,7 +234,7 @@ export default function PatientMedicalRecord({ odontogramFindingLabels, clinicPr
                 <FilterSubmit className="col-span-full" />
             </form></FilterPanel></div>
         <div className="flex flex-wrap items-end justify-between gap-2 print:hidden"><div><h2 className="text-lg font-semibold text-neutral-900">Riwayat kunjungan</h2><p className="text-sm text-neutral-500">{pagination.total ? `${pagination.total.toLocaleString('id-ID')} kunjungan ditemukan` : 'Tidak ada kunjungan pada filter ini'}. Buka detail hanya pada kunjungan yang diperlukan.</p></div></div>
-        {visits.length ? <div className="space-y-4">{visits.map((visit) => <Card className="min-w-0 w-full overflow-hidden" key={visit.id}><button aria-controls={`medical-record-visit-${visit.id}`} aria-expanded={expandedVisitId === visit.id} className="flex w-full flex-col gap-3 border-b border-neutral-100 bg-neutral-50 px-5 py-4 text-left transition hover:bg-neutral-100 sm:flex-row sm:items-center sm:justify-between" onClick={() => setExpandedVisitId((current) => current === visit.id ? null : visit.id)} type="button"><div className="min-w-0 space-y-2"><div className="flex flex-wrap items-center gap-2"><span className="font-sans tabular-nums text-sm font-bold text-neutral-900">{visit.number}</span><span className="rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-neutral-700">{visit.clinic}</span><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></div><p className="text-sm text-neutral-600">{visit.date ?? 'Belum diisi'} <span aria-hidden="true">·</span> Dokter: <strong>{visit.doctor}</strong></p><p className="line-clamp-2 text-sm text-neutral-700">{visit.screening?.complaint || visit.examination?.anamnesis || visit.examination?.currentHistory || visit.examination?.diagnoses[0]?.name || 'Keluhan dan ringkasan klinis belum dicatat.'}</p><p className="text-xs text-neutral-500">{visit.examination?.diagnoses.length ?? 0} diagnosis · {visit.prescriptions.length} obat · {visit.treatments.length} tindakan{visit.clinicType === 'gigi' ? ` · ${visit.odontogram.length} temuan odontogram` : ''}</p></div><span className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-neutral-700 print:hidden">{expandedVisitId === visit.id ? 'Tutup detail' : 'Lihat detail'}{expandedVisitId === visit.id ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}</span></button><div className="flex justify-end border-b border-neutral-100 px-4 py-2 print:hidden"><Button size="sm" variant="secondary" aria-label={`Cetak rekam medis kunjungan ${visit.number}`} disabled={!canPrintVisit(visit)} title={!canPrintVisit(visit) ? "Cetak tersedia setelah pemeriksaan difinalisasi dokter." : undefined} onClick={() => void printVisits(visit.id)}><Printer className="size-4" />Cetak kunjungan ini</Button></div><CardContent id={`medical-record-visit-${visit.id}`} className={`min-w-0 space-y-6 p-4 sm:p-6 ${expandedVisitId === visit.id ? 'block' : 'hidden'}`}>
+        {visits.length ? <div className="space-y-4">{visits.map((visit) => <Card className="min-w-0 w-full overflow-hidden" key={visit.id}><button aria-controls={`medical-record-visit-${visit.id}`} aria-expanded={expandedVisitId === visit.id} className="flex w-full flex-col gap-3 border-b border-neutral-100 bg-neutral-50 px-5 py-4 text-left transition hover:bg-neutral-100 sm:flex-row sm:items-center sm:justify-between" onClick={() => setExpandedVisitId((current) => current === visit.id ? null : visit.id)} type="button"><div className="min-w-0 space-y-2"><div className="flex flex-wrap items-center gap-2"><span className="font-sans tabular-nums text-sm font-bold text-neutral-900">{visit.number}</span><span className="rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-neutral-700">{visit.clinic}</span><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} status={visit.status} /></div><p className="text-sm text-neutral-600">{visit.date ?? 'Belum diisi'} <span aria-hidden="true">·</span> Dokter: <strong>{visit.doctor}</strong></p><p className="line-clamp-2 text-sm text-neutral-700">{visit.screening?.complaint || visit.examination?.anamnesis || visit.examination?.currentHistory || visit.examination?.diagnoses[0]?.name || 'Keluhan dan ringkasan klinis belum dicatat.'}</p><p className="text-xs text-neutral-500">{visit.examination?.diagnoses.length ?? 0} diagnosis · {visit.prescriptions.length} obat · {visit.treatments.length} tindakan{visit.clinicType === 'gigi' ? ` · ${visit.odontogram.length} temuan odontogram` : ''}</p></div><span className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-neutral-700 print:hidden">{expandedVisitId === visit.id ? 'Tutup detail' : 'Lihat detail'}{expandedVisitId === visit.id ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}</span></button><div className="flex justify-end border-b border-neutral-100 px-4 py-2 print:hidden"><Button size="sm" variant="secondary" aria-label={`Cetak rekam medis kunjungan ${visit.number}`} disabled={!canPrintVisit(visit)} title={!canPrintVisit(visit) ? "Cetak tersedia jika catatan pemeriksaan final dan terverifikasi." : undefined} onClick={() => void printVisits(visit.id)}><Printer className="size-4" />Cetak kunjungan ini</Button></div><CardContent id={`medical-record-visit-${visit.id}`} className={`min-w-0 space-y-6 p-4 sm:p-6 ${expandedVisitId === visit.id ? 'block' : 'hidden'}`}>
             {visit.examination?.integrityValid === false && <p className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-900">Integritas riwayat catatan ini tidak valid. Gunakan sumber klinis terverifikasi sebelum mengambil keputusan.</p>}
             {!!visit.documents?.length && <section className="space-y-3 print:hidden"><SectionTitle>Dokumen layanan</SectionTitle><div className="flex flex-wrap gap-2">{visit.documents.map((document) => <Button asChild key={document.printUrl} size="sm" variant="secondary"><a href={document.printUrl}><Printer className="size-4" />{document.type} · {document.name}</a></Button>)}</div></section>}
             {!!(visit.attachments?.length || visit.attachmentArchive?.length) && <section className="space-y-3"><SectionTitle>Lampiran pasien</SectionTitle><VisitAttachments archive={visit.attachmentArchive} attachments={visit.attachments} /></section>}
@@ -158,9 +282,20 @@ export default function PatientMedicalRecord({ odontogramFindingLabels, clinicPr
                 <MedicalNote label="Temuan dan tindak lanjut" value={visit.examination.dentalEscalation.dental_escalation_note} />
             </section>}
             {visit.examination?.signedAt && <section className="rounded-xl border border-neutral-200 p-4"><SectionTitle>Finalisasi & riwayat koreksi</SectionTitle><p className="text-sm text-neutral-700">Difinalisasi oleh {visit.examination.signedBy ?? 'dokter'} pada {visit.examination.signedAt}.</p>{visit.examination.integrityValid === true && visit.examination.signatureDataUrl && <div className="mt-4 flex break-inside-avoid flex-col items-end"><div className="text-center"><img alt={`Tanda tangan ${visit.examination.signedBy ?? visit.doctor}`} className="mx-auto h-20 max-w-48 bg-white object-contain" src={visit.examination.signatureDataUrl} /><p className="mt-1 text-sm font-medium">{visit.examination.signedBy ?? visit.doctor}</p></div></div>}<details className="mt-3 print:hidden"><summary className="cursor-pointer text-sm font-semibold text-neutral-700">Lihat riwayat versi pemeriksaan</summary><div className="mt-3 space-y-3">{visit.examination.versions.map((version) => <div className="rounded-lg bg-neutral-50 p-3 text-sm" key={version.version}><p className="font-semibold text-neutral-900">Versi {version.version} · {version.kind === 'addendum' ? 'Addendum' : 'Final'} <span className="font-normal text-neutral-600">· {version.actor ?? 'Dokter'} · {version.recordedAt ?? 'Belum diisi'}</span></p>{version.reason && <p className="mt-1 text-neutral-700">Alasan: {version.reason}</p>}<p className="mt-2 whitespace-pre-wrap text-neutral-700"><strong>Anamnesis:</strong> {version.anamnesis || 'Belum diisi'}</p><p className="mt-1 whitespace-pre-wrap text-neutral-700"><strong>Riwayat penyakit sekarang:</strong> {version.currentHistory || 'Belum diisi'}</p><p className="mt-1 whitespace-pre-wrap text-neutral-700"><strong>Riwayat penyakit dahulu:</strong> {version.pastHistory || 'Belum diisi'}</p><p className="mt-1 whitespace-pre-wrap text-neutral-700"><strong>Pemeriksaan fisik:</strong> {version.physicalExamination || 'Belum diisi'}</p>{visit.clinicType === 'umum' && recordedDoctorRows(version.generalClinicalSummary).map(([label, value]) => <MedicalNote key={label} label={label} value={value} />)}{recordedDoctorRows(version.physicalSystems).map(([system, value]) => <p className="mt-1 whitespace-pre-wrap text-neutral-700" key={system}><strong>{system}:</strong> {value}</p>)}{visit.clinicType === 'umum' && <div className="mt-4"><BodyExaminationRecord data={version.bodyMap} gender={patient.gender} /></div>}{visit.clinicType === 'gigi' && version.extraoralExamination && <p className="mt-1 whitespace-pre-wrap text-neutral-700"><strong>Ekstraoral:</strong> {version.extraoralExamination}</p>}{visit.clinicType === 'gigi' && typeof version.oralHygieneIndex === 'number' && <p className="mt-1 text-neutral-700"><strong>OHIS:</strong> {version.oralHygieneIndex}</p>}<p className="mt-1 whitespace-pre-wrap text-neutral-700"><strong>Diagnosis banding:</strong> {version.differentialDiagnosis || 'Belum diisi'}</p><p className="mt-1 whitespace-pre-wrap text-neutral-700"><strong>Terapi nonfarmakologis:</strong> {version.nonPharmacological || 'Tidak terdokumentasi pada catatan ini'}</p><p className="mt-1 whitespace-pre-wrap text-neutral-700"><strong>Edukasi / anjuran:</strong> {version.education || 'Tidak terdokumentasi pada catatan ini'}</p></div>)}</div></details></section>}
-        </CardContent></Card>)}</div> : <Card><CardContent className="p-5"><Empty className="border-0 bg-transparent" description={pagination.total === 0 ? 'Riwayat pemeriksaan, resep, dan tindakan pasien akan muncul setelah kunjungan tercatat.' : 'Ubah filter pencarian untuk melihat kunjungan lainnya.'} title={pagination.total === 0 ? 'Belum ada riwayat rekam medis' : 'Tidak ada kunjungan yang cocok'} /></CardContent></Card>}
+        </CardContent></Card>)}</div> : <Card><CardContent className="p-5 sm:p-6"><Empty className="border-0 bg-transparent" description={pagination.total === 0 ? 'Riwayat pemeriksaan, resep, dan tindakan pasien akan muncul setelah kunjungan tercatat.' : 'Ubah filter pencarian untuk melihat kunjungan lainnya.'} title={pagination.total === 0 ? 'Belum ada riwayat rekam medis' : 'Tidak ada kunjungan yang cocok'} /></CardContent></Card>}
         <div className="print:hidden"><Pagination pagination={pagination} /></div>
-    </div></>;
+    </div>
+    {documentPermissions?.canUpload && (
+        <DocumentUploadModal
+            defaultCategory="rme_lama"
+            onOpenChange={setUploadOpen}
+            open={uploadOpen}
+            permissions={documentPermissions}
+        />
+    )}
+    <DocumentPreviewModal document={previewDoc} onOpenChange={(open) => !open && setPreviewDoc(null)} />
+    <DocumentArchiveModal document={archiveDoc} onOpenChange={(open) => !open && setArchiveDoc(null)} />
+    </>;
 }
 
 type PrintRow = [string, string | null | undefined];

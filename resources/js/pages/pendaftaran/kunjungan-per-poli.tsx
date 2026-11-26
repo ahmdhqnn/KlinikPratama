@@ -8,13 +8,14 @@ import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/sta
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DatePicker } from '@/components/ui/date-picker';
 import { confirmReason } from '@/components/ui/confirm-dialog';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 
-interface Clinic {
+interface Option {
     id: number;
     name: string;
 }
@@ -40,8 +41,10 @@ interface Visit {
 }
 
 interface Props {
-    filters: { poliklinikId: number | ''; tanggal: string; status: string };
-    clinics: Clinic[];
+    filters: { poliklinikId: number | ''; tanggal: string; status: string; search?: string; dokterId?: number | '' };
+    reservationFilters?: { search: string; poliklinikId: number | ''; tanggal: string };
+    clinics: Option[];
+    doctors?: Option[];
     stats: { total: number; waiting: number; screening: number; examination: number; completedToday: number };
     access: { manageVisits: boolean; monitorClinicalFlow: boolean; selectClinic: boolean };
     visits: PaginationData & { data: Visit[] };
@@ -51,12 +54,52 @@ interface Props {
 
 const statusOptions = Object.entries(visitStatusFilterLabels);
 
-export default function ClinicVisits({ filters: initialFilters, clinics, stats, access, visits, recentVisits, reservations }: Props) {
-    const [filters, setFilters] = useState(initialFilters);
+export default function ClinicVisits({
+    filters: initialFilters,
+    reservationFilters: initialResFilters = { search: '', poliklinikId: '', tanggal: '' },
+    clinics,
+    doctors = [],
+    stats,
+    access,
+    visits,
+    recentVisits,
+    reservations,
+}: Props) {
+    const [filters, setFilters] = useState({
+        poliklinikId: initialFilters.poliklinikId,
+        tanggal: initialFilters.tanggal,
+        status: initialFilters.status,
+        search: initialFilters.search ?? '',
+        dokterId: initialFilters.dokterId ?? '',
+    });
+    const [resFilters, setResFilters] = useState(initialResFilters);
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get('/pendaftaran/kunjungan-per-poli', { poliklinik_id: filters.poliklinikId, tanggal: filters.tanggal, status: filters.status }, { preserveState: true, preserveScroll: true, replace: true });
+        router.get('/pendaftaran/kunjungan-per-poli', {
+            poliklinik_id: filters.poliklinikId,
+            tanggal: filters.tanggal,
+            status: filters.status,
+            search: filters.search,
+            dokter_id: filters.dokterId,
+            res_search: resFilters.search,
+            res_poli: resFilters.poliklinikId,
+            res_tanggal: resFilters.tanggal,
+        }, { preserveState: true, preserveScroll: true, replace: true });
+    }
+
+    function applyReservationFilters(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        router.get('/pendaftaran/kunjungan-per-poli', {
+            poliklinik_id: filters.poliklinikId,
+            tanggal: filters.tanggal,
+            status: filters.status,
+            search: filters.search,
+            dokter_id: filters.dokterId,
+            res_search: resFilters.search,
+            res_poli: resFilters.poliklinikId,
+            res_tanggal: resFilters.tanggal,
+        }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     return (
@@ -66,14 +109,14 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Pemantauan antrean klinik</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Kunjungan poli</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Daftar mencakup seluruh dokter. Pilih tanggal untuk melihat periode tertentu.</p>
+                    <p className="mt-1 text-sm text-neutral-500">Daftar mencakup seluruh dokter. Pilih tanggal atau pencarian untuk melihat periode tertentu.</p>
                 </div>
 
-                <section aria-label="Ringkasan antrean poliklinik" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <StatCard description="Seluruh kunjungan sesuai akses poliklinik Anda" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan" value={stats.total} />
-                    <StatCard description="Kunjungan sampai hari ini yang belum dikaji" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Menunggu pengkajian awal" value={stats.waiting} />
-                    <StatCard description="Menunggu atau sedang diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Pemeriksaan dokter" value={stats.examination} />
-                    <StatCard description="Pelayanan selesai pada tanggal hari ini" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Kunjungan selesai hari ini" value={stats.completedToday} />
+                <section aria-label="Ringkasan antrean poliklinik" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <StatCard description="Seluruh kunjungan tercatat" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan" value={stats.total} />
+                    <StatCard description="Belum dikaji sampai hari ini" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Menunggu pengkajian" value={stats.waiting} />
+                    <StatCard description="Menunggu atau diperiksa dokter" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Pemeriksaan dokter" value={stats.examination} />
+                    <StatCard description="Pelayanan selesai hari ini" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Selesai hari ini" value={stats.completedToday} />
                 </section>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
@@ -103,51 +146,90 @@ export default function ClinicVisits({ filters: initialFilters, clinics, stats, 
                         <Pagination pagination={recentVisits} />
                     </CardContent>
                 </Card>
-                {reservations && <Card className="overflow-hidden">
-                    <CardHeader className="border-b border-neutral-100">
-                        <CardTitle>Reservasi 7 hari ke depan</CardTitle>
-                        <CardDescription>Periksa jadwal praktik sebelum mengonfirmasi reservasi kontrol.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <Table className="min-w-[720px]">
-                            <TableHeader><TableRow><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik dan dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {reservations.data.map(visit => <TableRow key={visit.id}>
-                                    <TableCell className="whitespace-nowrap">{visit.date}</TableCell>
-                                    <TableCell><p className="font-medium">{visit.patient}</p><p className="text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
-                                    <TableCell><p>{visit.clinic}</p><p className="text-xs text-neutral-500">{visit.doctor}</p></TableCell>
-                                    <TableCell><StatusBadge status={visit.status} reservation pendingReservation={visit.pendingReservation} /></TableCell>
-                                    <TableCell><VisitActions visit={visit} manageVisits={access.manageVisits} /></TableCell>
-                                </TableRow>)}
-                                {!reservations.data.length && <TableRow><TableCell colSpan={5}><Empty size="compact" title="Tidak ada reservasi dalam tujuh hari ke depan." /></TableCell></TableRow>}
-                            </TableBody>
-                        </Table>
-                        <Pagination pagination={reservations} />
-                    </CardContent>
-                </Card>}
-                <FilterPanel><form className={access.selectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'grid gap-4 sm:grid-cols-2'} onSubmit={applyFilters}>
-                            {access.selectClinic && <Field htmlFor="visits-by-clinic" label="Poliklinik">
-                                <Select id="visits-by-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
-                                    <option value="">Semua poliklinik</option>
-                                    {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
-                                </Select>
-                            </Field>}
-                            <Field htmlFor="visits-by-clinic-date" label="Tanggal kunjungan">
-                                <DatePicker id="visits-by-clinic-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} value={filters.tanggal} />
-                            </Field>
-                            <Field htmlFor="visits-by-clinic-status" label="Status">
-                                <Select id="visits-by-clinic-status" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}>
-                                    <option value="">Semua status</option>
-                                    {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                                </Select>
-                            </Field>
-                            <FilterSubmit disabled={clinics.length === 0} />
-                        </form></FilterPanel>
+                {reservations && (
+                    <div className="space-y-3">
+                        <FilterPanel ariaLabel="Filter reservasi 7 hari ke depan" filterKeys={['res_search', 'res_poli', 'res_tanggal']}>
+                            <form className={access.selectClinic ? 'grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'grid min-w-0 gap-4 sm:grid-cols-2'} onSubmit={applyReservationFilters}>
+                                <Field htmlFor="res-filter-search" label="Cari pasien / No. RM">
+                                    <Input id="res-filter-search" onChange={(event) => setResFilters({ ...resFilters, search: event.target.value })} placeholder="Nama pasien atau No. RM" value={resFilters.search} />
+                                </Field>
+                                {access.selectClinic && (
+                                    <Field htmlFor="res-filter-poli" label="Poliklinik">
+                                        <Select id="res-filter-poli" onChange={(event) => setResFilters({ ...resFilters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={resFilters.poliklinikId}>
+                                            <option value="">Semua poliklinik</option>
+                                            {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
+                                        </Select>
+                                    </Field>
+                                )}
+                                <Field htmlFor="res-filter-date" label="Tanggal reservasi">
+                                    <DatePicker id="res-filter-date" onChange={(event) => setResFilters({ ...resFilters, tanggal: event.target.value })} value={resFilters.tanggal} />
+                                </Field>
+                                <FilterSubmit />
+                            </form>
+                        </FilterPanel>
+                        <Card className="overflow-hidden">
+                            <CardHeader className="border-b border-neutral-100">
+                                <div className="flex items-start gap-3">
+                                    <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span>
+                                    <div>
+                                        <CardTitle>Reservasi 7 hari ke depan</CardTitle>
+                                        <CardDescription className="mt-1">Periksa jadwal praktik sebelum mengonfirmasi reservasi kontrol.</CardDescription>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <div className="overflow-x-auto">
+                                    <Table className="min-w-[720px]">
+                                        <TableHeader><TableRow><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik dan dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
+                                        <TableBody>
+                                            {reservations.data.map(visit => <TableRow key={visit.id}>
+                                                <TableCell className="whitespace-nowrap">{visit.date}</TableCell>
+                                                <TableCell><p className="font-medium">{visit.patient}</p><p className="text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell>
+                                                <TableCell><p>{visit.clinic}</p><p className="text-xs text-neutral-500">{visit.doctor}</p></TableCell>
+                                                <TableCell><StatusBadge status={visit.status} reservation pendingReservation={visit.pendingReservation} /></TableCell>
+                                                <TableCell><VisitActions visit={visit} manageVisits={access.manageVisits} /></TableCell>
+                                            </TableRow>)}
+                                            {!reservations.data.length && <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada reservasi yang sesuai dalam tujuh hari ke depan." /></TableCell></TableRow>}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                                <Pagination pagination={reservations} />
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+                <FilterPanel filterKeys={['poliklinik_id', 'tanggal', 'status', 'search', 'dokter_id']}><form className={access.selectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-5' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-4'} onSubmit={applyFilters}>
+                    <Field htmlFor="visits-by-clinic-search" label="Cari pasien / kunjungan">
+                        <Input id="visits-by-clinic-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama, No. RM, atau No. kunjungan" value={filters.search} />
+                    </Field>
+                    {access.selectClinic && <Field htmlFor="visits-by-clinic" label="Poliklinik">
+                        <Select id="visits-by-clinic" onChange={(event) => setFilters({ ...filters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={filters.poliklinikId}>
+                            <option value="">Semua poliklinik</option>
+                            {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
+                        </Select>
+                    </Field>}
+                    {doctors.length > 0 && <Field htmlFor="visits-by-clinic-doctor" label="Dokter">
+                        <Select id="visits-by-clinic-doctor" onChange={(event) => setFilters({ ...filters, dokterId: event.target.value ? Number(event.target.value) : '' })} value={filters.dokterId}>
+                            <option value="">Semua dokter</option>
+                            {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
+                        </Select>
+                    </Field>}
+                    <Field htmlFor="visits-by-clinic-date" label="Tanggal kunjungan">
+                        <DatePicker id="visits-by-clinic-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} value={filters.tanggal} />
+                    </Field>
+                    <Field htmlFor="visits-by-clinic-status" label="Status">
+                        <Select id="visits-by-clinic-status" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}>
+                            <option value="">Semua status</option>
+                            {statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        </Select>
+                    </Field>
+                    <FilterSubmit disabled={clinics.length === 0} />
+                </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span>
-                            <div><CardTitle>Daftar kunjungan pasien</CardTitle><CardDescription className="mt-1">Seluruh kunjungan sesuai filter poliklinik, tanggal, dan status.</CardDescription></div>
+                            <div><CardTitle>Daftar kunjungan pasien</CardTitle><CardDescription className="mt-1">Seluruh kunjungan sesuai filter poliklinik, dokter, tanggal, dan status.</CardDescription></div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">

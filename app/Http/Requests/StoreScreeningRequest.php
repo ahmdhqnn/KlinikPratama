@@ -93,6 +93,10 @@ class StoreScreeningRequest extends FormRequest
             'risiko_jatuh' => ['nullable', 'in:rendah,sedang,tinggi'],
             'risiko_nyeri' => ['nullable', 'string', 'max:255'],
             'skrining_gizi' => ['nullable', 'in:normal,kurang,lebih'],
+            'status_kehamilan' => ['nullable', 'in:tidak_hamil,hamil,kemungkinan_hamil,belum_diketahui,tidak_relevan'],
+            'usia_kehamilan_minggu' => ['nullable', 'integer', 'between:1,45'],
+            'hpht' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'status_menyusui' => ['nullable', 'in:tidak,ya,belum_diketahui,tidak_relevan'],
             'pemeriksaan_fisik' => ['nullable', 'string', 'max:5000'],
             'dental_vitals_unmeasurable' => [Rule::excludeIf(! $isDental), 'sometimes', 'boolean'],
             'alasan_pengukuran_tidak_lengkap' => ['nullable', 'string', 'min:5', 'max:2000'],
@@ -123,8 +127,14 @@ class StoreScreeningRequest extends FormRequest
             'riwayat_infeksi_gigi.*' => ['string', 'distinct', 'in:hepatitis,hiv,infeksi_lain,tidak_ada'],
         ];
 
-        foreach (['td_sistole' => 300, 'td_diastole' => 200, 'nadi' => 300, 'respirasi' => 100, 'spo2' => 100] as $field => $maximum) {
-            $rules[$field] = ['nullable', 'integer', 'min:0', 'max:'.$maximum];
+        foreach ([
+            'td_sistole' => [30, 300],
+            'td_diastole' => [20, 200],
+            'nadi' => [20, 300],
+            'respirasi' => [4, 100],
+            'spo2' => [30, 100],
+        ] as $field => [$minimum, $maximum]) {
+            $rules[$field] = ['nullable', 'integer', "between:{$minimum},{$maximum}"];
         }
         foreach (['berat_badan' => 500, 'tinggi_badan' => 300, 'lingkar_perut' => 300] as $field => $maximum) {
             $rules[$field] = ['nullable', 'numeric', 'gt:0', 'max:'.$maximum];

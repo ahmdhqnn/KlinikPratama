@@ -138,7 +138,7 @@ export function VisitFields({ today, data, errors, clinics, doctorsUrl, patients
                             </Select>
                         </LoadingField>
                         {!searchingPatients && !patientSearchFailed && (
-                            <p className="text-xs text-neutral-500">
+                            <p className="text-xs leading-5 text-neutral-500">
                                 {patientSearch.trim().length < 2 ? 'Menampilkan 10 pasien terbaru. Ketik minimal 2 karakter untuk mencari.' : `${patientOptions.length} hasil teratas`}
                             </p>
                         )}

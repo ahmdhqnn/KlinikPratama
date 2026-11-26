@@ -1,4 +1,5 @@
 import { printWithFonts } from '@/lib/print-typography';
+import { handleBackNavigation } from '@/lib/navigation';
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,9 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 interface Record { number: string; date: string; patient: string; medicalRecordNumber: string; medicine: string; quantity: number; unit: string; instruction: string; basis: string; notes: string | null; pharmacist: string }
 
-export default function DirectDispensingPrint({ record, appName }: { record: Record; appName: string }) {
+export default function DirectDispensingPrint({ record, appName, backUrl }: { record: Record; appName: string; backUrl: string }) {
     return <><Head title={`Bukti pemberian obat ${record.number}`} /><div className="mx-auto w-full max-w-[210mm] space-y-4 print:max-w-none">
-        <div className="flex flex-wrap justify-between gap-3 print:hidden"><Button asChild variant="secondary"><Link href="/farmasi/pemberian-obat"><ArrowLeft className="size-4" />Kembali ke obat langsung</Link></Button><Button type="button" onClick={() => void printWithFonts()}><Printer className="size-4" />Cetak bukti</Button></div>
+        <div className="flex flex-wrap justify-between gap-3 print:hidden"><Button asChild variant="secondary"><Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}><ArrowLeft className="size-4" />Kembali</Link></Button><Button type="button" onClick={() => void printWithFonts()}><Printer className="size-4" />Cetak bukti</Button></div>
         <Card className="print-preview-paper"><CardHeader className="border-b border-neutral-100 text-center"><CardTitle>{appName}</CardTitle><CardDescription>Bukti pemberian obat langsung · {record.number}</CardDescription></CardHeader><CardContent className="space-y-6 p-6 sm:p-8">
             <div className="grid gap-4 sm:grid-cols-2"><Info label="Tanggal penyerahan" value={record.date} /><Info label="Pasien" value={`${record.patient} · ${record.medicalRecordNumber}`} /><Info label="Obat" value={record.medicine} /><Info label="Jumlah" value={`${record.quantity} ${record.unit}`} /><Info label="Aturan pakai" value={record.instruction} /><Info label="Petugas farmasi" value={record.pharmacist} /></div>
             <div className="rounded-xl border border-neutral-200 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-neutral-600">Alasan pemberian langsung</p><p className="mt-2 whitespace-pre-wrap text-sm">{record.basis}</p></div>

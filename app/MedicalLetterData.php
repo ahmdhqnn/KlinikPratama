@@ -26,11 +26,13 @@ class MedicalLetterData
             'konten' => [Rule::requiredIf($type === 'lainnya' && ! filled($templateContent)), 'nullable', 'string', 'max:10000'],
         ]);
         $data = $request->validate([
-            'details' => ['nullable', 'array:rest_start,rest_end,purpose,conclusion,recipient,recipient_address,requested_tests,xray_types,teeth,result_delivery'],
+            'details' => ['nullable', 'array:rest_start,rest_end,purpose,conclusion,color_vision,visual_acuity,recipient,recipient_address,requested_tests,xray_types,teeth,result_delivery'],
             'details.rest_start' => [Rule::excludeIf($type !== 'sakit'), Rule::requiredIf($type === 'sakit'), 'nullable', 'date_format:Y-m-d'],
             'details.rest_end' => [Rule::excludeIf($type !== 'sakit'), Rule::requiredIf($type === 'sakit'), 'nullable', 'date_format:Y-m-d', 'after_or_equal:details.rest_start'],
             'details.purpose' => [Rule::excludeIf($type !== 'sehat'), Rule::requiredIf($type === 'sehat'), 'nullable', 'string', 'max:500'],
             'details.conclusion' => [Rule::excludeIf($type !== 'sehat'), Rule::requiredIf($type === 'sehat'), 'nullable', 'string', 'max:2000'],
+            'details.color_vision' => [Rule::excludeIf($type !== 'sehat'), 'nullable', 'string', 'max:120'],
+            'details.visual_acuity' => [Rule::excludeIf($type !== 'sehat'), 'nullable', 'string', 'max:120'],
             'details.recipient' => [Rule::excludeIf($type !== 'rujukan'), Rule::requiredIf($type === 'rujukan'), 'nullable', 'string', 'max:300'],
             'details.recipient_address' => [Rule::excludeIf($type !== 'rujukan'), 'nullable', 'string', 'max:1000'],
             'details.requested_tests' => [Rule::excludeIf($type !== 'laboratorium'), Rule::requiredIf($type === 'laboratorium'), 'nullable', 'string', 'max:4000'],
@@ -46,14 +48,21 @@ class MedicalLetterData
         ]);
         $fields = match ($type) {
             'sakit' => ['rest_start', 'rest_end'],
-            'sehat' => ['purpose', 'conclusion'],
+            'sehat' => ['purpose', 'conclusion', 'color_vision', 'visual_acuity'],
             'rujukan' => ['recipient', 'recipient_address'],
             'laboratorium' => ['requested_tests', 'result_delivery'],
             'rontgen_gigi' => ['xray_types', 'teeth', 'result_delivery'],
             default => [],
         };
 
-        return array_intersect_key($data['details'] ?? [], array_flip($fields));
+        $filtered = array_intersect_key($data['details'] ?? [], array_flip($fields));
+        foreach (['color_vision', 'visual_acuity'] as $optionalKey) {
+            if (array_key_exists($optionalKey, $filtered) && ! filled($filtered[$optionalKey])) {
+                unset($filtered[$optionalKey]);
+            }
+        }
+
+        return $filtered;
     }
 
     /** @return list<int> */
@@ -81,6 +90,7 @@ class MedicalLetterData
             $exam = clone $exam;
             $exam->forceFill(array_intersect_key($effective['payload'], array_flip([
                 'anamnesis', 'pemeriksaan_fisik', 'riwayat_alergi', 'non_farmakologis', 'edukasi', 'catatan',
+                'kondisi_akhir', 'disposisi', 'kontrol_berikutnya',
             ])));
         }
         $screening = $visit->screening;
@@ -91,6 +101,7 @@ class MedicalLetterData
         $therapies = $effective !== null
             ? collect($effective['payload']['prescriptions'] ?? [])->map(fn (array $item): string => trim(($item['name'] ?? '').' - '.($item['quantity'] ?? '').' '.($item['unit'] ?? '').'; '.($item['instructions'] ?? '')))->all()
             : ($visit->resep?->resepObat->map(fn (ResepObat $item): string => trim(($item->nama_obat ?? $item->obat?->nama).' - '.$item->jumlah.' '.$item->satuan.'; '.$item->aturan_pakai))->all() ?? []);
+        $procedures = [];
         if ($effective !== null) {
             $executions = $visit->tindakanKunjungan->keyBy('id');
             foreach ($effective['payload']['treatments'] ?? [] as $procedure) {
@@ -101,11 +112,17 @@ class MedicalLetterData
                 if (($procedure['execution_role'] ?? null) === 'perawat' && $execution?->execution_role === 'perawat') {
                     $completed = $execution->execution_status === 'completed';
                 }
+                $label = ($procedure['name'] ?? 'Tindakan').(! empty($procedure['code']) ? ' ('.$procedure['code'].')' : '').(! $completed ? ' (direncanakan)' : '');
+                $procedures[] = $label;
                 $therapies[] = ($procedure['name'] ?? 'Tindakan').(! $completed ? ' (direncanakan)' : '');
             }
         } else {
             foreach ($visit->tindakanKunjungan as $procedure) {
-                $therapies[] = ($procedure->nama_tindakan ?? $procedure->nama_tindakan_manual ?? $procedure->tindakan?->nama ?? 'Tindakan').($procedure->execution_status !== 'completed' ? ' (direncanakan)' : '');
+                $name = $procedure->nama_tindakan ?? $procedure->nama_tindakan_manual ?? $procedure->tindakan?->nama ?? 'Tindakan';
+                $codeSuffix = $procedure->kode_icd9cm ? ' ('.$procedure->kode_icd9cm.')' : '';
+                $statusSuffix = $procedure->execution_status !== 'completed' ? ' (direncanakan)' : '';
+                $procedures[] = $name.$codeSuffix.$statusSuffix;
+                $therapies[] = $name.$statusSuffix;
             }
         }
         if (filled($exam?->non_farmakologis)) {
@@ -120,8 +137,10 @@ class MedicalLetterData
                 'gender' => $patient->jenis_kelamin,
                 'age' => $patient->tanggal_lahir ? (int) $patient->tanggal_lahir->diffInYears($date, false) : null,
                 'birthDate' => $patient->tanggal_lahir?->format('d/m/Y'),
+                'bloodType' => $patient->golongan_darah,
                 'address' => $patient->alamat, 'phone' => $patient->telepon,
                 'nip' => $patient->nip, 'department' => $visit->unit_kerja ?? $patient->unit_kerja,
+                'weight' => $screening?->berat_badan !== null ? (float) $screening->berat_badan : null,
                 'allergy' => $effective !== null ? ($effective['payload']['riwayat_alergi'] ?? null) : ($exam?->riwayat_alergi ?? $screening?->riwayat_alergi ?? $patient->riwayat_alergi),
             ],
             'doctor' => [
@@ -131,11 +150,21 @@ class MedicalLetterData
             'clinical' => [
                 'anamnesis' => $exam?->anamnesis,
                 'diagnoses' => $diagnoses,
+                'procedures' => $procedures,
                 'physicalExamination' => $exam?->pemeriksaan_fisik,
                 'height' => $screening?->tinggi_badan, 'weight' => $screening?->berat_badan,
+                'bmi' => $screening?->imt,
                 'bloodPressure' => $screening?->td_sistole !== null && $screening?->td_diastole !== null ? $screening->td_sistole.'/'.$screening->td_diastole : null,
+                'pulse' => $screening?->nadi,
+                'temperature' => $screening?->suhu,
+                'respiration' => $screening?->respirasi,
+                'oxygenSaturation' => $screening?->spo2,
                 'therapy' => implode("\n", $therapies), 'education' => $exam?->edukasi,
-                'notes' => $exam?->catatan, 'date' => $visit->tanggal?->format('d/m/Y'),
+                'notes' => $exam?->catatan,
+                'finalCondition' => $exam?->kondisi_akhir,
+                'disposition' => $exam?->disposisi,
+                'followUpDate' => $exam?->kontrol_berikutnya?->format('d/m/Y'),
+                'date' => $visit->tanggal?->format('d/m/Y'),
             ],
         ];
     }

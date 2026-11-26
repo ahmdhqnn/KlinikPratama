@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field } from '@/components/ui/field';
+import { FormActionFooter } from '@/components/ui/form-action-footer';
 import { confirmReason } from '@/components/ui/confirm-dialog';
 
 const descriptions = {
@@ -65,7 +66,9 @@ export default function ProcedureSignature({ id, procedure, decision, signer, st
                             <span>Saya hadir, memeriksa identitas pasien atau wakil, dan menyaksikan pengambilan keputusan serta tanda tangan.</span>
                         </label>
                     </Field>
-                    <Button type="submit" disabled={!form.data.witnessed || form.processing}>Konfirmasi dan arsipkan PDF</Button>
+                    <FormActionFooter className="pt-3">
+                        <Button type="submit" disabled={!form.data.witnessed || form.processing}>Konfirmasi dan arsipkan PDF</Button>
+                    </FormActionFooter>
                 </form>}
                 <div className="flex flex-wrap gap-2">
                     <Button asChild variant="secondary"><Link href={backUrl}>Kembali ke persetujuan tindakan</Link></Button>

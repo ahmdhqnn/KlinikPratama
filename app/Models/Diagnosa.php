@@ -12,11 +12,11 @@ class Diagnosa extends Model
 
     protected $table = 'diagnosa';
 
-    protected $fillable = ['pemeriksaan_id', 'kode_icd10', 'code_system', 'code_release', 'nama_diagnosa', 'keterangan', 'jenis', 'tooth_fdi', 'surfaces', 'source_finding_code', 'coding_status', 'coding_unresolved_reason', 'coding_verified_by', 'coding_verified_at'];
+    protected $fillable = ['pemeriksaan_id', 'kode_icd10', 'code_system', 'code_release', 'nama_diagnosa', 'keterangan', 'jenis', 'clinical_status', 'verification_status', 'onset_at', 'satusehat_condition_id', 'tooth_fdi', 'surfaces', 'source_finding_code', 'coding_status', 'coding_unresolved_reason', 'coding_verified_by', 'coding_verified_at'];
 
     protected function casts(): array
     {
-        return ['surfaces' => 'array', 'coding_verified_at' => 'datetime'];
+        return ['surfaces' => 'array', 'coding_verified_at' => 'datetime', 'onset_at' => 'datetime'];
     }
 
     public function pemeriksaan(): BelongsTo

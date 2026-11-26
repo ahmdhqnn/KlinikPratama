@@ -18,7 +18,15 @@ class SettingController extends Controller
         return Inertia::render('setting/index', [
             'setting' => [
                 'namaKlinik' => $setting->nama_klinik ?? '',
+                'kodeFasyankes' => $setting->kode_fasyankes ?? '',
+                'izinOperasional' => $setting->izin_operasional ?? '',
+                'satusehatOrgId' => $setting->satusehat_org_id ?? '',
                 'alamat' => $setting->alamat ?? '',
+                'kodeProvinsi' => $setting->kode_provinsi ?? '',
+                'kodeKabupaten' => $setting->kode_kabupaten ?? '',
+                'kodeKecamatan' => $setting->kode_kecamatan ?? '',
+                'kodeKelurahan' => $setting->kode_kelurahan ?? '',
+                'kodePos' => $setting->kode_pos ?? '',
                 'telepon' => $setting->telepon ?? '',
                 'email' => $setting->email ?? '',
                 'kepalaKlinik' => $setting->kepala_klinik ?? '',
@@ -35,7 +43,15 @@ class SettingController extends Controller
     {
         $data = $request->validate([
             'nama_klinik' => ['required', 'string', 'max:200'],
+            'kode_fasyankes' => ['nullable', 'string', 'max:32'],
+            'izin_operasional' => ['nullable', 'string', 'max:100'],
+            'satusehat_org_id' => ['nullable', 'string', 'max:64'],
             'alamat' => ['nullable', 'string'],
+            'kode_provinsi' => ['nullable', 'digits:2'],
+            'kode_kabupaten' => ['nullable', 'digits:4'],
+            'kode_kecamatan' => ['nullable', 'digits:6'],
+            'kode_kelurahan' => ['nullable', 'digits:10'],
+            'kode_pos' => ['nullable', 'digits:5'],
             'telepon' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email'],
             'kepala_klinik' => ['nullable', 'string', 'max:200'],
@@ -58,7 +74,7 @@ class SettingController extends Controller
     public function uploadLogo(Request $request): RedirectResponse
     {
         $request->validate([
-            'logo' => ['required', 'image', 'mimes:png', 'max:2048'], // PNG only as requested in KlikMedis tutorial
+            'logo' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
         ]);
 
         $setting = KlinikSetting::first();
@@ -71,9 +87,9 @@ class SettingController extends Controller
         if ($setting) {
             $setting->update(['logo' => $path]);
         } else {
-            KlinikSetting::create(['nama_klinik' => 'Klinik Pratama', 'logo' => $path]);
+            KlinikSetting::create(['nama_klinik' => 'Klinik Pratama Kementerian Pariwisata', 'logo' => $path]);
         }
 
-        return back()->with('success', 'Logo klinik berhasil diperbarui (format PNG).');
+        return back()->with('success', 'Logo klinik berhasil diperbarui.');
     }
 }

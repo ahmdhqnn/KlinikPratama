@@ -351,9 +351,8 @@ for (const service of ['umum', 'gigi']) {
         assert.match(html, /<textarea[^>]*id="catatan"/);
         assert.ok(html.indexOf('id="kontrol_berikutnya"') < html.indexOf('id="catatan"'));
         assert.equal((html.match(/id="catatan"/g) ?? []).length, 1);
-        if (service === 'umum') assert.ok(html.indexOf('id="catatan"') < html.indexOf('id="final-condition"'));
-        else {
-            assert.doesNotMatch(html, /id="final-condition"/);
+        assert.ok(html.indexOf('id="catatan"') < html.indexOf('id="final-condition"'));
+        if (service === 'gigi') {
             assert.match(html, /id="dental-treatment-examination-summary"/);
         }
     });
@@ -836,7 +835,7 @@ test('dashboard summaries and day bars navigate to their related menus', async (
         ['/pelayanan/screening', 'Pengkajian awal'],
         ['/pelayanan/tindakan-perawat', 'Tindakan perawat'],
         ['/pendaftaran/kunjungan-per-poli', 'Kunjungan poli'],
-        ['/pendaftaran/database-pasien', 'Data pasien'],
+        ['/pelayanan/pasien', 'Data pasien'],
     ]) {
         assert.match(nurseDashboard, new RegExp(`href="${href}"[\\s\\S]*?${label}`));
     }
@@ -1370,7 +1369,7 @@ for (const canManage of [true, false]) {
         assertIconActions(html.match(/<table\b[\s\S]*?<\/table>/)?.[0], canManage ? 3 : 1);
         const disclosures = [...html.matchAll(/<button[^>]*aria-expanded="(true|false)"[^>]*>(Tutup|Buka)<svg/g)]
             .map((match) => [match[1], match[2]]);
-        assert.deepEqual(disclosures, canManage ? [['false', 'Buka'], ['true', 'Tutup']] : []);
+        assert.deepEqual(disclosures, canManage ? [['false', 'Buka'], ['false', 'Buka'], ['false', 'Buka']] : []);
         assert.match(html, /Kalender libur praktik/);
         if (canManage) {
             assert.match(html, /Pengecualian per tanggal/);
@@ -1464,7 +1463,7 @@ test('patient row exposes verification, detail and RME as separate icon actions'
 
 for (const [page, props, expectedCount] of [
     ['master/obat/index', { filters: { search: '', type: '', lowStock: false }, medicines: pageOf([{ id: 1, code: 'O-1', name: 'Obat', stock: 1, minimumStock: 0, unitConversion: 1, type: 'obat', active: true }]) }, 3],
-    ['dokter/patients', { search: '', patients: pageOf([{ id: 7, medicalRecordNumber: 'RM-007', name: 'Pasien Uji', visitCount: 1, recordUrl: '/pelayanan/pasien/7/rekam-medis', letterUrl: null }]) }, 2],
+    ['dokter/patients', { search: '', patients: pageOf([{ id: 7, medicalRecordNumber: 'RM-007', name: 'Pasien Uji', visitCount: 1, profileUrl: '/pelayanan/pasien/7', recordUrl: '/pelayanan/pasien/7/rekam-medis', letterUrl: null }]) }, 3],
     ['stok/persediaan/show', { medicine: { id: 1, code: 'O-1', name: 'Obat', stock: 10, unit: 'tablet' }, batches: [{ id: 1, number: 'B-1', stock: 10, status: 'karantina', source: 'distribusi', expired: false, nearExpiry: false }], movements: pageOf([{ id: 1, date: '24/10/2026', type: 'keluar', quantity: 1, before: 11, after: 10, canReturn: true }]) }, 3],
 ]) {
     test(`${page} uses uniform icon actions in populated tables`, async () => {
@@ -1613,12 +1612,15 @@ test('date controls preserve partial periods and exclude disabled fields from na
     assert.match(until, /Sampai 24 Okt 2026/);
 });
 
-test('medical record fills available width, displays dental anthropometry and prints collapsed visit content', async () => {
+test('medical record shows all visits and prints only verified collapsed visit content', async () => {
     const screening = { systolic: 120, diastolic: 80, pulse: 80, temperature: 36.5, oxygenSaturation: 98, weight: 60, height: 160, bmi: 23.44, respiration: 18, complaint: 'Nyeri gigi', medicalHistory: null, familyHistory: null, allergyHistory: 'Tidak ada alergi', fallRisk: null, painScale: 0, dentalPainLocation: 'Geraham', dentalPainTriggers: [], dentalPainDuration: null, dentalMedicalRisks: ['belum_diketahui'], dentalInfectionHistory: [], dentalNotes: null };
     const visit = { id: 1, number: 'K-001', clinic: 'Poli Gigi', clinicType: 'gigi', doctor: 'Dokter Gigi', date: '24/10/2026', status: 'screening', screening, examination: null, prescriptions: [], treatments: [], odontogram: [{ toothFdi: '46', surface: 'O', findingCode: 'caries', notes: null }, { toothFdi: '55', surface: 'O', findingCode: 'restored', notes: null }], attachments: [] };
     const html = await renderPage('pelayanan/pasien/rekam-medis', {
         patient: { id: 7, name: 'Pasien Uji', medicalRecordNumber: 'RM-007', nik: null, gender: 'P', age: 30, bloodType: null, allergies: 'Tidak ada alergi' },
-        visits: [visit, { ...visit, id: 2, number: 'K-002', status: 'batal' }, { ...visit, id: 3, number: 'K-003', status: 'menunggu', isReservation: true }], backUrl: '/pelayanan/pasien/7', canSelectClinic: false,
+        visits: [visit, { ...visit, id: 2, number: 'K-002', status: 'batal', examination: { signedAt: '25/10/2026', integrityValid: false, versions: [], diagnoses: [] } },
+            { ...visit, id: 3, number: 'K-003', status: 'menunggu', isReservation: true },
+            { ...visit, id: 4, number: 'K-004', status: 'selesai', examination: { signedAt: '25/10/2026', integrityValid: true, versions: [], diagnoses: [] } }],
+        backUrl: '/pelayanan/pasien/7', canSelectClinic: false,
         filters: { search: '', poliklinik_id: '', status: '', dari: '', sampai: '' }, clinics: [], pagination: { ...singlePage, total: 2 },
     });
     for (const expected of ['xl:grid-cols-4', 'Tempat, tanggal lahir', 'Alamat', 'Unit kerja', 'Berat / tinggi', '60 kg', '160 cm', 'Pengkajian awal berlangsung', 'Kunjungan dibatalkan', 'Reservasi', 'Belum dapat diketahui', 'aria-controls="medical-record-visit-1"', 'id="medical-record-visit-2"', 'Cetak rekam medis kunjungan K-001', 'Cetak kunjungan ini']) {
@@ -1630,9 +1632,11 @@ test('medical record fills available width, displays dental anthropometry and pr
     assert.match(print, /Peta odontogram FDI permanen 32 gigi/);
     assert.match(print, /Peta odontogram FDI desidui 20 gigi/);
     assert.doesNotMatch(print, /<button|Model peta gigi/);
-    assert.equal((html.match(/class="rme-print-episode"/g) ?? []).length, 3, 'collapsed visits have separate print episodes');
+    assert.equal((html.match(/class="rme-print-episode"/g) ?? []).length, 1);
+    assert.match(print, /K-004/);
+    assert.doesNotMatch(print, /K-001|K-002|K-003/);
     assert.match(html.match(/<button[^>]*aria-label="Cetak rekam medis kunjungan K-001"[^>]*>/)?.[0] ?? '', /disabled=""/);
-    assert.match(html.match(/<button[^>]*title="Cetak tersedia setelah seluruh pemeriksaan pada halaman ini difinalisasi dokter."[^>]*>/)?.[0] ?? '', /disabled=""/);
+    assert.match(html.match(/<button[^>]*title="Cetak tersedia jika seluruh catatan pada halaman ini final dan terverifikasi."[^>]*>/)?.[0] ?? '', /disabled=""/);
     assert.doesNotMatch(html, /bg-emerald-50|xl:col-span-4|lg:grid-cols-2/);
 });
 
@@ -1978,12 +1982,12 @@ async function renderRoleNavigation(role, url, clinicType = null) {
 
 for (const [role, clinicType, dashboard, primary, categories, linkCount] of [
     ['admin', null, '/', '/pelayanan/antrian', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Akun'], 20],
-    ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 10],
+    ['pendaftaran', null, '/pendaftaran', '/pendaftaran/pendaftaran-baru', ['Ringkasan', 'Operasional', 'Pengelolaan', 'Laporan', 'Akun'], 9],
     ['perawat', 'umum', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
     ['perawat', 'gigi', '/perawat/dashboard', '/pelayanan/screening', ['Ringkasan', 'Operasional', 'Koordinasi layanan', 'Laporan', 'Akun'], 10],
     ['dokter', 'umum', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 13],
     ['dokter', 'gigi', '/dokter', '/pelayanan/pemeriksaan', ['Ringkasan', 'Operasional', 'Penunjang', 'Laporan', 'Akun'], 13],
-    ['farmasi', null, '/farmasi/dashboard', '/pelayanan/farmasi', ['Ringkasan', 'Operasional', 'Pengelolaan obat', 'Laporan', 'Akun'], 11],
+    ['farmasi', null, '/farmasi/dashboard', '/pelayanan/farmasi', ['Ringkasan', 'Operasional', 'Pengelolaan obat', 'Laporan', 'Akun'], 10],
 ]) {
     test(role + ' ' + (clinicType ?? '') + ' groups its menus and places primary work immediately after dashboard', async () => {
         const html = await renderRoleNavigation(role, primary, clinicType);
@@ -2358,7 +2362,7 @@ async function clinicalSaveHarness(pendingBodyFinding = false) {
         setSelectedProcedure() {}, setProcedureQuery() {}, setProcedureResults() {}, setSelectedDentalFindingKeys() {},
     };
     Object.defineProperty(scope, 'saving', { get: () => Object.values(forms).some((form) => form.processing) });
-    attachDerivedState(ts, ast, scope, ['savedAnamnesis', 'anamnesisChanged', 'physicalChanged', 'sectionSaveAllowed', 'addendumChanged', 'canSaveAddendum', 'dentalFindingUsesNaturalTooth', 'selectedDentalRecord', 'dentalFindingChanged', 'canSaveDentalFinding']);
+    attachDerivedState(ts, ast, scope, ['savedAnamnesis', 'anamnesisChanged', 'physicalChanged', 'sectionSaveAllowed', 'isAfter48Hours', 'addendumChanged', 'canSaveAddendum', 'dentalFindingUsesNaturalTooth', 'selectedDentalRecord', 'dentalFindingChanged', 'canSaveDentalFinding']);
     const handlers = runInNewContext(code + '\n({ advanceSection, submitClinicalSection, submitForm, canSubmitEntry, submitAddendum, submitDentalFinding })', scope);
     return { handlers, forms, requests, posts, scope, event: { preventDefault() {} } };
 }
@@ -2392,25 +2396,21 @@ test('Lanjut ke tindakan waits for the diagnosis save and stays put on validatio
     assert.deepEqual(navigations, ['tindakan']);
 });
 
-test('saving clinical sections waits for confirmation, preserves position and retains entered data until a successful response', async () => {
-    for (const [section, name, label] of [
-        ['anamnesis', 'examinationForm', 'Simpan anamnesis'],
-        ['pemeriksaan', 'physicalForm', 'Simpan pemeriksaan fisik'],
-        ['diagnosis', 'differentialForm', 'Simpan diagnosis banding'],
-        ['rencana', 'followUpForm', 'Simpan rencana tindak lanjut'],
+test('saving clinical sections executes immediately in one click, preserves position and retains entered data until a successful response', async () => {
+    for (const [section, name] of [
+        ['anamnesis', 'examinationForm'],
+        ['pemeriksaan', 'physicalForm'],
+        ['diagnosis', 'differentialForm'],
+        ['rencana', 'followUpForm'],
     ]) {
         const { handlers, forms, requests, posts, event } = await clinicalSaveHarness();
         const data = forms[name].data;
 
         handlers.submitClinicalSection(event, section);
 
-        assert.equal(posts.length, 0, 'opening or cancelling the confirmation must not send a request');
-        assert.equal(requests.length, 1);
-        assert.equal(requests[0].title, label);
-        assert.equal(requests[0].actionLabel, label);
-        assert.equal(forms[name].data, data);
-        requests[0].action();
+        assert.equal(requests.length, 0, 'routine draft section saves execute in 1 click without modal');
         assert.equal(posts.length, 1);
+        assert.equal(forms[name].data, data);
         assert.equal(posts[0].url, '/pelayanan/pemeriksaan/17');
         assert.equal(posts[0].options.preserveScroll, true);
         assert.equal(posts[0].options.preserveState, true);
@@ -2421,17 +2421,23 @@ test('saving clinical sections waits for confirmation, preserves position and re
     }
 });
 
-test('adding diagnoses, treatments, prescriptions and letters stays on the current section after confirmation', async () => {
+test('adding diagnoses, treatments and prescriptions saves in one click while official letters and referrals confirm first', async () => {
     for (const name of ['diagnosisForm', 'treatmentForm', 'prescriptionForm', 'externalPrescriptionForm', 'letterForm', 'referralForm']) {
         const { handlers, forms, requests, posts, event } = await clinicalSaveHarness();
         const url = '/pelayanan/pemeriksaan/17/' + name;
+        const requiresConfirmation = name === 'letterForm' || name === 'referralForm';
 
         handlers.submitForm(event, forms[name], url);
 
-        assert.equal(posts.length, 0);
-        assert.equal(requests.length, 1);
-        assert.match(requests[0].title, /Tambah|Simpan/);
-        requests[0].action();
+        if (requiresConfirmation) {
+            assert.equal(posts.length, 0);
+            assert.equal(requests.length, 1);
+            assert.match(requests[0].title, /Simpan/);
+            requests[0].action();
+        } else {
+            assert.equal(requests.length, 0);
+            assert.equal(posts.length, 1);
+        }
         assert.equal(posts[0].url, url);
         assert.equal(posts[0].options.preserveScroll, true);
         assert.equal(posts[0].options.preserveState, true);
@@ -2601,7 +2607,8 @@ test('saving a physical examination blocks a pending location entry until it is 
     assert.equal(requests.length, 0);
     assert.equal(posts.length, 0);
     handlers.submitClinicalSection(event, 'anamnesis');
-    assert.equal(requests.length, 1);
+    assert.equal(requests.length, 0);
+    assert.equal(posts.length, 1);
 });
 
 test('finalizing an examination returns to a pending body finding before opening the signature dialog', async () => {
@@ -3494,45 +3501,56 @@ test('clinical save guards wait for changes, reject repeated submits, preserve f
         form.isDirty = false;
         handlers.submitClinicalSection(event, section);
         assert.equal(requests.length, 0);
+        assert.equal(posts.length, 0);
         form.isDirty = true;
         handlers.submitClinicalSection(event, section);
-        assert.equal(posts.length, 0, 'cancelling leaves data unchanged');
-        requests.at(-1).action();
+        assert.equal(requests.length, 0, 'routine draft saves execute in 1 click without modal');
+        assert.equal(posts.length, 1);
         handlers.submitClinicalSection(event, section);
         assert.equal(posts.length, 1, 'processing blocks duplicate submissions');
-        assert.equal(requests.length, 1);
         form.processing = false;
         handlers.submitClinicalSection(event, section);
-        assert.equal(requests.length, 2, 'failed validation allows retrying the retained draft');
-        requests.at(-1).action();
+        assert.equal(posts.length, 2, 'failed validation allows retrying the retained draft');
         posts.at(-1).options.onSuccess();
         form.processing = false;
         handlers.submitClinicalSection(event, section);
-        assert.equal(requests.length, 2, 'saved data cannot be submitted again unchanged');
+        assert.equal(posts.length, 2, 'saved data cannot be submitted again unchanged');
         form.data = { ...form.data, note: 'Perubahan berikutnya' };
         form.isDirty = true;
         handlers.submitClinicalSection(event, section);
-        assert.equal(requests.length, 3, 'a later edit re-enables saving');
+        assert.equal(posts.length, 3, 'a later edit re-enables saving');
     }
 });
 
-test('entry forms disable after adding and only offer confirmation for new input', async () => {
+test('entry forms disable after adding and only offer confirmation for official letters and referrals', async () => {
     for (const name of ['diagnosisForm', 'treatmentForm', 'prescriptionForm', 'externalPrescriptionForm', 'letterForm', 'referralForm']) {
         const { handlers, forms, posts, requests, event } = await clinicalSaveHarness();
         const form = forms[name];
         const url = '/pelayanan/pemeriksaan/17/' + name;
+        const requiresConfirmation = name === 'letterForm' || name === 'referralForm';
         form.isDirty = false;
         handlers.submitForm(event, form, url);
         assert.equal(requests.length, 0);
+        assert.equal(posts.length, 0);
         form.isDirty = true;
         handlers.submitForm(event, form, url);
-        requests[0].action();
+        if (requiresConfirmation) {
+            assert.equal(requests.length, 1);
+            requests[0].action();
+        } else {
+            assert.equal(requests.length, 0);
+        }
         handlers.submitForm(event, form, url);
         assert.equal(posts.length, 1);
         posts[0].options.onSuccess();
         form.processing = false;
         handlers.submitForm(event, form, url);
-        assert.equal(requests.length, 1);
+        assert.equal(posts.length, 1);
+        if (requiresConfirmation) {
+            assert.equal(requests.length, 1);
+        } else {
+            assert.equal(requests.length, 0);
+        }
         assert.equal(handlers.canSubmitEntry(form), false);
     }
 });
@@ -3584,24 +3602,26 @@ test('odontogram updates require a change, retain the selection after saving and
     scope.visit.odontogram = [{ toothFdi: '46', surface: 'O', findingCode: 'caries', notes: 'Kavitas baru' }];
     handlers.submitDentalFinding(event);
     assert.equal(requests.length, 0);
+    assert.equal(posts.length, 0);
     form.data.notes = 'Kavitas diperbarui';
     handlers.submitDentalFinding(event);
-    requests[0].action();
+    assert.equal(requests.length, 0, 'active examination odontogram saves in 1 click');
+    assert.equal(posts.length, 1);
     posts[0].options.onSuccess();
     form.processing = false;
     assert.equal(form.data.tooth_fdi, '46');
     assert.equal(form.data.notes, 'Kavitas diperbarui');
     handlers.submitDentalFinding(event);
-    assert.equal(requests.length, 1);
+    assert.equal(posts.length, 1);
     scope.canEdit = false;
     scope.canCorrect = true;
     form.data.notes = 'Koreksi ukuran kavitas';
     form.isDirty = true;
     handlers.submitDentalFinding(event);
-    assert.equal(requests.length, 1, 'signed corrections need a reason');
+    assert.equal(requests.length, 0, 'signed corrections need a reason');
     form.data.reason = 'Koreksi setelah pemeriksaan ulang';
     handlers.submitDentalFinding(event);
-    assert.equal(requests.length, 2);
+    assert.equal(requests.length, 1);
 });
 
 test('new body findings require confirmation and disable again once added until new input is entered', async () => {
@@ -4374,18 +4394,19 @@ test('pharmacy review exposes signing only for a verified apoteker and keeps pri
     const props = { visit: { id: 1, number: 'KNJ-SYNTHETIC', patient: 'Pasien sintetis' }, qualification: 'ttk', sourceHash: 'a'.repeat(64), currentId: 1, canReview: false,
         history: { data: [{ id: 1, decision: 'hold', at: '20/11/2026 10:00', data: { notes: '<script>catatan</script>', clarification: 'pending' } }] } };
     const readonly = await renderPage('pelayanan/farmasi/review', props);
-    assert.doesNotMatch(readonly, /Simpan review|<script>catatan/);
+    assert.doesNotMatch(readonly, /Simpan telaah resep|<script>catatan/);
     assert.match(readonly, /&lt;script&gt;catatan&lt;\/script&gt;/);
     const writable = await renderPage('pelayanan/farmasi/review', { ...props, qualification: 'apoteker', canReview: true });
-    assert.match(writable, /Simpan review/);
+    assert.match(writable, /Simpan telaah resep/);
     assert.match(writable, /Klarifikasi dokter/);
-    assert.match(writable, /Kata sandi apoteker/);
+    assert.match(writable, /kata sandi apoteker/i);
     assert.doesNotMatch(writable, /type="checkbox"[^>]*checked/);
 });
 
 test('information release keeps registration review administrative and escapes requester values', async () => {
     const html = await renderPage('persuratan/pelepasan', {
         visit: { id: 1, number: 'KNJ-SYNTHETIC', patient: 'Pasien sintetis' }, canAuthorize: false, documents: [],
+        profileUrl: '/pelayanan/pasien/7?bagian=pelepasan', newRequestId: 'synthetic-new',
         events: { data: [{ id: 1, requestId: 'synthetic', version: 1, state: 'requested', at: '20/11/2026 10:00', data: {
             requester: '<script>pemohon</script>', recipient: 'Pasien sintetis', scope: 'ringkasan', purpose: 'Salinan untuk pasien.',
             identity_verification: 'Identitas diperiksa.', authority: 'Permintaan tertulis pasien.',
@@ -4395,6 +4416,23 @@ test('information release keeps registration review administrative and escapes r
     assert.match(html, /Dasar dan bukti verifikasi/);
     assert.match(html, /&lt;script&gt;pemohon&lt;\/script&gt;/);
     assert.doesNotMatch(html, /<script>pemohon|Tindak lanjuti|Dokumen yang diotorisasi|SOAP/);
+});
+
+test('patient profile presents active navigation and authorized consent links', async () => {
+    const html = await renderPage('pelayanan/pasien/show', {
+        patient: { name: 'Pasien <Contoh>', medicalRecordNumber: 'RM-001', gender: 'P', age: 30, allergies: null,
+            visits: [{ id: 1, number: 'KNJ-01', clinic: 'Poli Umum', doctor: 'Dokter Uji', status: 'selesai',
+                actions: [{ label: 'Persetujuan umum', url: '/kunjungan/1/persetujuan-umum?asal=profil' }] }] },
+        section: 'persetujuan',
+        menu: [{ id: 'informasi', label: 'Informasi pasien', url: '/pelayanan/pasien/7' },
+            { id: 'persetujuan', label: 'Persetujuan dan penolakan', url: '/pelayanan/pasien/7?bagian=persetujuan' }],
+        backUrl: '/pendaftaran/database-pasien', editUrl: null, openVisitUrl: null, recordUrl: null, pagination: singlePage,
+        directRecords: [], generalConsent: { status: 'undocumented', recordedAt: null, versionCurrent: false },
+    });
+    assert.match(html, /aria-current="page"[^>]*href="\/pelayanan\/pasien\/7\?bagian=persetujuan"/);
+    assert.match(html, /href="\/kunjungan\/1\/persetujuan-umum\?asal=profil"/);
+    assert.match(html, /Belum terdokumentasi|Pasien &lt;Contoh&gt;/);
+    assert.doesNotMatch(html, /Rekam medis lengkap|Riwayat alergi|Edit data/);
 });
 
 test('general consent records separate decisions and renders no clinical narrative', async () => {
@@ -4426,4 +4464,59 @@ test('general consent records separate decisions and renders no clinical narrati
         summary: { ...props.summary, status: 'accepted', currentId: 1, versionCurrent: false },
     });
     assert.match(outdated, /Konfirmasi keputusan pasien/);
+});
+
+test('page and inline skeletons mirror real card structures across screen archetypes', async () => {
+    const {
+        ConsentDialogSkeleton,
+        PageSkeleton,
+        SearchResultsSkeleton,
+        resolvePageSkeletonVariant,
+    } = await server.ssrLoadModule('/resources/js/components/loading-skeletons.tsx');
+
+    for (const [pathname, expected] of [
+        ['/login', 'auth-login'],
+        ['/bantuan-akses', 'auth-public'],
+        ['/', 'dashboard'],
+        ['/pendaftaran', 'dashboard'],
+        ['/perawat/dashboard', 'dashboard'],
+        ['/farmasi/dashboard', 'dashboard'],
+        ['/dokter', 'dashboard-doctor'],
+        ['/admin/laporan', 'report-hub'],
+        ['/pelayanan/pasien/12', 'patient-profile'],
+        ['/pelayanan/pemeriksaan/45', 'clinical-workspace'],
+        ['/pelayanan/screening/45', 'clinical-workspace'],
+        ['/pelayanan/tindakan-perawat/45', 'clinical-workspace'],
+        ['/pelayanan/farmasi/45', 'clinical-workspace'],
+        ['/pelayanan/pasien/12/rekam-medis', 'clinical-workspace'],
+        ['/setting', 'settings-profile'],
+        ['/profile', 'settings-profile'],
+        ['/pendaftaran/pendaftaran-baru', 'form-tabs'],
+        ['/farmasi/pemberian-obat/baru', 'form'],
+        ['/kunjungan/7/persetujuan-umum', 'form'],
+        ['/stok/persediaan/9', 'stock-detail'],
+        ['/pelayanan/kunjungan/7', 'detail'],
+        ['/kepesertaan/4', 'detail'],
+        ['/persuratan/surat/3/cetak', 'print'],
+        ['/master/nakes', 'table'],
+        ['/pelayanan/antrian', 'table'],
+    ]) {
+        assert.equal(resolvePageSkeletonVariant(pathname), expected, `unexpected skeleton variant for ${pathname}`);
+        const html = renderToString(createElement(PageSkeleton, { pathname }));
+        assert.match(html, new RegExp(`data-page-skeleton="${expected}"`));
+        assert.match(html, /rounded-2xl bg-surface/);
+    }
+
+    const tableHtml = renderToString(createElement(PageSkeleton, { pathname: '/master/nakes' }));
+    assert.match(tableHtml, /data-skeleton-stats/);
+    assert.match(tableHtml, /min-h-32/);
+    assert.match(tableHtml, /data-skeleton-table/);
+
+    const consentHtml = renderToString(createElement(ConsentDialogSkeleton, { label: 'Memuat persetujuan…' }));
+    assert.match(consentHtml, /role="status"/);
+    assert.match(consentHtml, /Memuat persetujuan…/);
+
+    const searchHtml = renderToString(createElement(SearchResultsSkeleton, { label: 'Mencari diagnosis…' }));
+    assert.match(searchHtml, /role="status"/);
+    assert.match(searchHtml, /Mencari diagnosis…/);
 });

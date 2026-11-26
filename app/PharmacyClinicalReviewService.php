@@ -12,17 +12,19 @@ class PharmacyClinicalReviewService
 {
     public function source(Kunjungan $visit): array
     {
-        $visit->load(['resep.resepObat.farmasiResepLuar', 'farmasi.items', 'screening', 'pemeriksaan', 'dokter']);
+        $visit->load(['pasien', 'resep.resepObat.farmasiResepLuar', 'farmasi.items', 'screening', 'pemeriksaan', 'dokter']);
+        $maternal = app(ClinicalSafetyService::class)->maternalSummary($visit->screening, $visit->pasien);
 
         return [
             'visit_id' => $visit->id, 'note_hash' => $visit->pemeriksaan?->latest_note_hash,
             'doctor' => [$visit->dokter_id, $visit->dokter?->no_sip],
             'allergy' => app(PatientAllergyHistory::class)->forVisit($visit),
+            'maternal' => [$maternal['pregnancyStatus'], $maternal['gestationalWeeks'], $maternal['lactationStatus']],
             'weight' => $visit->screening?->berat_badan,
             'weight_at' => $visit->screening?->submitted_at?->toIso8601String(),
             'prescription' => $visit->resep?->resepObat->sortBy('id')->map(fn ($item) => [
                 $item->id, $item->obat_id, $item->nama_obat, (string) $item->jumlah, $item->satuan,
-                $item->aturan_pakai, $item->catatan, $item->is_resep_luar, $item->farmasiResepLuar?->id,
+                $item->aturan_pakai, $item->catatan, $item->allergy_override_reason, $item->is_resep_luar, $item->farmasiResepLuar?->id,
             ])->values()->all() ?? [],
             'dispensing' => $visit->farmasi?->items->sortBy('id')->map(fn ($item) => [
                 $item->resep_obat_id, $item->obat_id, (string) $item->jumlah_diberikan, $item->aturan_pakai, $item->catatan,

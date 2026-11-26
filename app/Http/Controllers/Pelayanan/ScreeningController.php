@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pelayanan;
 
 use App\ClinicalAuditRecorder;
+use App\ClinicalSafetyService;
 use App\ClinicDocumentProfile;
 use App\CorrespondenceService;
 use App\Exports\ScreeningExport;
@@ -42,6 +43,8 @@ class ScreeningController extends Controller
             'search' => ['nullable', 'string', 'max:100'],
             'tanggal' => ['nullable', 'date_format:Y-m-d'],
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
+            'status_pengkajian' => ['nullable', 'in:belum,proses,terkirim'],
+            'status' => ['nullable', 'in:'.implode(',', Kunjungan::STATUSES)],
         ]);
         $isNurse = $request->user()->role === 'perawat';
         $assignedClinicId = $isNurse ? $this->perawatClinicResolver->clinicId($request->user()) : null;
@@ -50,6 +53,17 @@ class ScreeningController extends Controller
             ->when($selectedClinicId, fn ($query, int $clinicId) => $query->where('poliklinik_id', $clinicId));
         $allVisits = (clone $clinicVisits)
             ->when($filters['tanggal'] ?? null, fn ($query, string $date) => $query->whereDate('tanggal', $date))
+            ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
+            ->when($filters['status_pengkajian'] ?? null, function ($query, string $state): void {
+                match ($state) {
+                    'terkirim' => $query->whereHas('screening', fn ($s) => $s->whereNotNull('submitted_at')),
+                    'proses' => $query->where(fn ($q) => $q
+                        ->whereHas('screening', fn ($s) => $s->whereNull('submitted_at'))
+                        ->orWhere(fn ($sub) => $sub->where('status', 'screening')->whereDoesntHave('screening'))),
+                    'belum' => $query->where('status', '!=', 'screening')->whereDoesntHave('screening'),
+                    default => null,
+                };
+            })
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($matches) => $matches
                 ->where('no_kunjungan', 'like', "%{$search}%")
                 ->orWhereHas('pasien', fn ($patients) => $patients->where(fn ($identity) => $identity
@@ -112,6 +126,8 @@ class ScreeningController extends Controller
                 'search' => $filters['search'] ?? '',
                 'tanggal' => $filters['tanggal'] ?? '',
                 'poliklinikId' => $selectedClinicId ? (int) $selectedClinicId : '',
+                'statusPengkajian' => $filters['status_pengkajian'] ?? '',
+                'status' => $filters['status'] ?? '',
             ],
             'canSelectClinic' => ! $isNurse,
             'clinics' => $clinics->map(fn (Poliklinik $clinic): array => [
@@ -128,6 +144,9 @@ class ScreeningController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'tanggal' => ['nullable', 'date_format:Y-m-d'],
+            'dari' => ['nullable', 'date_format:Y-m-d'],
+            'sampai' => ['nullable', 'date_format:Y-m-d'],
+            'status' => ['nullable', 'in:submitted,draft'],
             'prioritas' => ['nullable', 'in:normal,segera,darurat'],
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
         ]);
@@ -135,9 +154,14 @@ class ScreeningController extends Controller
         $nurse = $isNurse ? $this->perawatClinicResolver->nakes($request->user()) : null;
         $assignedClinicId = $nurse?->poliklinik_id;
         $selectedClinicId = $assignedClinicId ?? ($filters['poliklinik_id'] ?? null);
-        $query = (new ScreeningReportQuery)->query($filters, $nurse?->id, $selectedClinicId, $nurse?->user_id)
-            ->paginate(10)
-            ->withQueryString();
+        $baseQuery = (new ScreeningReportQuery)->query($filters, $nurse?->id, $selectedClinicId, $nurse?->user_id);
+        $stats = [
+            'total' => (clone $baseQuery)->count(),
+            'submitted' => (clone $baseQuery)->whereNotNull('submitted_at')->count(),
+            'draft' => (clone $baseQuery)->whereNull('submitted_at')->count(),
+            'highPriority' => (clone $baseQuery)->whereIn('prioritas_layanan', ['darurat', 'segera'])->count(),
+        ];
+        $query = $baseQuery->paginate(10)->withQueryString();
         $clinics = $assignedClinicId
             ? Poliklinik::registrable()->whereKey($assignedClinicId)->orderBy('nama')->get(['id', 'nama'])
             : Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama']);
@@ -154,9 +178,13 @@ class ScreeningController extends Controller
             'serviceName' => $nurse?->poliklinik?->nama ?? 'Semua poli',
             'exportUrl' => $isReport ? route($exportRoute, $filters) : null,
             'baseUrl' => route($reportRoute),
+            'stats' => $stats,
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'tanggal' => $filters['tanggal'] ?? '',
+                'dari' => $filters['dari'] ?? '',
+                'sampai' => $filters['sampai'] ?? '',
+                'status' => $filters['status'] ?? '',
                 'prioritas' => $filters['prioritas'] ?? '',
                 'poliklinikId' => $selectedClinicId ? (int) $selectedClinicId : '',
             ],
@@ -303,7 +331,9 @@ class ScreeningController extends Controller
                 'printDate' => $screening->submitted_at?->locale('id')->isoFormat('D MMMM Y') ?? now()->locale('id')->isoFormat('D MMMM Y'),
                 'printedAt' => now()->format('d/m/Y H:i'),
                 'recordedBy' => $screening->recordedBy?->name,
-                'signatureDataUrl' => $isDraft || ($screening->recorded_by_user_id !== null && $screening->recorded_by_user_id !== $screening->petugas?->user_id) ? null : $correspondence->signatureDataUrl($screening->petugas?->user),
+                'signatureDataUrl' => $isDraft || ($screening->recorded_by_user_id !== null && $screening->recorded_by_user_id !== $screening->petugas?->user_id)
+                    ? null
+                    : $correspondence->signatureDataUrl($screening->petugas?->user, $screening->signature_path_snapshot),
                 'backUrl' => route('pelayanan.screening.index'),
                 'sections' => [
                     'history' => $presentRows([
@@ -346,7 +376,7 @@ class ScreeningController extends Controller
                     'measurements' => $presentRows([
                         'Berat badan' => $screening->berat_badan !== null ? $screening->berat_badan.' kg' : null,
                         'Tinggi badan' => $screening->tinggi_badan !== null ? $screening->tinggi_badan.' cm' : null,
-                        'Indeks massa tubuh' => $screening->imt !== null ? $screening->imt.' kg/m²' : null,
+                        'Indeks massa tubuh' => $screening->imt !== null ? $screening->imt.' kg/m²'.(($imtCat = app(ClinicalSafetyService::class)->imtCategory($screening->imt, $kunjungan->pasien?->umur)) ? ' ('.$imtCat.')' : '') : null,
                         'Lingkar perut' => $screening->lingkar_perut !== null ? $screening->lingkar_perut.' cm' : null,
                     ]),
                     'measurementNote' => $screening->alasan_pengukuran_tidak_lengkap,
@@ -406,7 +436,7 @@ class ScreeningController extends Controller
             'extraoral_symmetry', 'extraoral_swelling', 'extraoral_notes', 'dental_red_flags', 'dental_medication_categories', 'dental_vitals_unmeasurable',
             'petugas_id', 'keluhan', 'td_sistole', 'td_diastole', 'nadi', 'suhu', 'berat_badan', 'tinggi_badan',
             'lingkar_perut', 'spo2', 'respirasi', 'riwayat_penyakit', 'riwayat_alergi', 'risiko_jatuh',
-            'risiko_nyeri', 'skrining_gizi', 'alergi_jenis', 'alergi_reaksi', 'penyakit_nama',
+            'risiko_nyeri', 'skrining_gizi', 'status_kehamilan', 'usia_kehamilan_minggu', 'hpht', 'status_menyusui', 'alergi_jenis', 'alergi_reaksi', 'penyakit_nama',
             'penyakit_keterangan', 'nyeri_dada', 'kondisi_psikiatri', 'nadi_teraba', 'kejang',
             'pola_pernapasan', 'kesadaran', 'risiko_jatuh_visual',
             'riwayat_penyakit_keluarga', 'skala_nyeri', 'lokasi_nyeri_gigi', 'pemicu_nyeri_gigi',
@@ -452,7 +482,8 @@ class ScreeningController extends Controller
                 'clinic' => $kunjungan->poliklinik?->nama ?? 'Belum diisi',
                 'clinicType' => $kunjungan->poliklinik?->jenis,
                 'doctor' => $kunjungan->dokter?->nama ?? 'Belum ditentukan',
-                'screening' => [...$screeningValues, 'vitals_measured_at' => $kunjungan->screening?->vitals_measured_at?->format('Y-m-d\\TH:i'), 'triaged_at' => $kunjungan->screening?->triaged_at?->format('Y-m-d\\TH:i')],
+                'maternalApplicable' => ClinicalSafetyService::isReproductiveAgeFemale($kunjungan->pasien),
+                'screening' => [...$screeningValues, 'hpht' => $kunjungan->screening?->hpht?->format('Y-m-d'), 'vitals_measured_at' => $kunjungan->screening?->vitals_measured_at?->format('Y-m-d\\TH:i'), 'triaged_at' => $kunjungan->screening?->triaged_at?->format('Y-m-d\\TH:i')],
                 'versions' => $kunjungan->screening?->versionSummaries() ?? [],
                 'screeningRevision' => $kunjungan->screening?->revisionToken() ?? 'new',
                 'medicationCategories' => Screening::dentalMedicationCategories(),
@@ -681,6 +712,9 @@ class ScreeningController extends Controller
                 // Preserve legacy content without inventing its author or recording time.
                 $previous->versions()->create(['kind' => 'legacy_snapshot', 'petugas_id' => $previous->petugas_id, 'version' => 1, 'actor_id' => null, 'reason' => 'Salinan catatan lama sebelum revisi; metadata historis tidak tersedia.', 'payload' => $previous->attributesToArray(), 'recorded_at' => now()]);
             }
+            if (! $isDraft) {
+                $data['signature_path_snapshot'] = $request->user()->signature_path;
+            }
             $screening = Screening::updateOrCreate(['kunjungan_id' => $kunjungan->id], $data);
             if (! $isDraft) {
                 $screening->versions()->create(['kind' => $wasSubmitted ? 'revision' : 'submitted', 'petugas_id' => $screening->petugas_id, 'request_id' => $requestId, 'request_hash' => $requestHash, 'version' => ($screening->versions()->max('version') ?? 0) + 1, 'actor_id' => $request->user()->id, 'reason' => $revisionReason, 'payload' => $screening->fresh()->attributesToArray(), 'recorded_at' => now()]);
@@ -707,7 +741,10 @@ class ScreeningController extends Controller
      */
     private function determineTriage(array $data, bool $isDental): array
     {
-        $emergency = (bool) array_intersect($data['dental_red_flags'] ?? [], ['breathing', 'swallowing', 'rapid_swelling', 'severe_allergy', 'heavy_bleeding', 'critical_vitals'])
+        $numericTriage = app(ClinicalSafetyService::class)->evaluateNumericTriage($data, $isDental);
+
+        $emergency = $numericTriage['emergency']
+            || (bool) array_intersect($data['dental_red_flags'] ?? [], ['breathing', 'swallowing', 'rapid_swelling', 'severe_allergy', 'heavy_bleeding', 'critical_vitals'])
             || ($data['nyeri_dada'] ?? null) === 'ya'
             || ($data['kejang'] ?? null) === 'ya'
             || ($data['nadi_teraba'] ?? null) === 'tidak_teraba'
@@ -720,7 +757,11 @@ class ScreeningController extends Controller
 
         $generalNeedsReview = ! $isDental && (($data['general_assessment']['general_condition'] ?? null) === 'lemah' || in_array('perlu_penilaian', [$data['general_assessment']['airway'] ?? null, $data['general_assessment']['circulation'] ?? null], true));
 
-        $priority = $generalNeedsReview || (! $isDental && ! empty($data['vitals_unmeasurable'])) || ($isDental && ! empty($data['dental_vitals_unmeasurable'])) || (bool) array_intersect($data['dental_red_flags'] ?? [], ['trismus', 'fever', 'trauma'])
+        $priority = $numericTriage['priority']
+            || $generalNeedsReview
+            || (! $isDental && ! empty($data['vitals_unmeasurable']))
+            || ($isDental && ! empty($data['dental_vitals_unmeasurable']))
+            || (bool) array_intersect($data['dental_red_flags'] ?? [], ['trismus', 'fever', 'trauma'])
             || ($data['extraoral_swelling'] ?? null) === 'present'
             || ($data['kondisi_psikiatri'] ?? null) === 'terganggu'
             || ($data['kesadaran'] ?? null) === 'menurun'

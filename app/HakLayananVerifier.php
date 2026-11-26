@@ -17,7 +17,7 @@ class HakLayananVerifier
         if (! $member->hak_layanan || $member->status_kepegawaian !== 'aktif') {
             return 'Peserta tidak memiliki hak layanan aktif.';
         }
-        $isInternalAsn = in_array($member->kategori, ['asn', 'pegawai_pusat'], true) && $member->otherTypeKey() === null;
+        $isInternalAsn = in_array($member->kategori, ['asn', 'pppk', 'pegawai_pusat'], true) && $member->otherTypeKey() === null;
         $isInternalNonAsn = in_array($member->kategori, ['lainnya', 'kontrak'], true)
             && Kepesertaan::isInternalOtherType($member->otherTypeKey());
         if (! $isInternalAsn && ! $isInternalNonAsn) {

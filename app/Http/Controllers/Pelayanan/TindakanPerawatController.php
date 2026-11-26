@@ -58,7 +58,7 @@ class TindakanPerawatController extends Controller
         $clinicId = $nurse?->poliklinik_id;
         $query = (new NursingProcedureReportQuery)->query($filters, $clinicId, $nurse?->user_id);
         $audit->record($request, 'nursing_procedure.report_print', metadata: ['clinic_id' => $clinicId, 'filters' => $filters]);
-        $procedures = $query->get()->map(fn (TindakanKunjungan $procedure): array => $this->mapReportProcedure($procedure))->all();
+        $procedures = (clone $query)->limit(1000)->get()->map(fn (TindakanKunjungan $procedure): array => $this->mapReportProcedure($procedure))->all();
         $baseUrl = route($isAdmin ? 'admin.laporan.tindakan-perawat' : 'perawat.laporan-tindakan');
 
         return Inertia::render('pelayanan/tindakan/report', [
@@ -198,7 +198,13 @@ class TindakanPerawatController extends Controller
             }
 
             if ($visit->tindakan_started_at === null) {
-                $visit->update(['tindakan_started_at' => now()]);
+                $now = now();
+                $visit->update(['tindakan_started_at' => $now]);
+                $visit->tindakanKunjungan()
+                    ->where('execution_role', 'perawat')
+                    ->where('execution_status', 'pending')
+                    ->whereNull('started_at')
+                    ->update(['started_at' => $now]);
                 $audit->record($request, 'nursing_procedure.started', $visit->pasien_id, $visit->id, $data ? ['assistance_reason' => $data['assistance_reason'], 'clinic_id' => $visit->poliklinik_id] : []);
             }
         });
@@ -230,6 +236,8 @@ class TindakanPerawatController extends Controller
             $workflow->consumeSupplies($procedure, $visit, $request->user());
             $procedure->update([
                 'execution_status' => 'completed', 'performed_by' => $request->user()->id,
+                'performed_by_nakes_id' => $request->user()->nakes?->id,
+                'started_at' => $procedure->started_at ?? $visit->tindakan_started_at ?? now(),
                 'performed_at' => now(), 'execution_result' => trim($data['execution_result']),
             ]);
             $workflow->advance($visit);

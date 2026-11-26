@@ -3,17 +3,18 @@
 namespace App\Exports;
 
 use App\Models\Obat;
-use Maatwebsite\Excel\Concerns\FromCollection;
+use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class ObatExport extends SafeSpreadsheetValueBinder implements FromCollection, WithHeadings, WithMapping, WithStyles
+class ObatExport extends SafeSpreadsheetValueBinder implements FromQuery, WithHeadings, WithMapping, WithStyles
 {
-    public function collection()
+    public function query(): Builder
     {
-        return Obat::orderBy('nama')->get();
+        return Obat::orderBy('nama')->orderBy('id');
     }
 
     public function headings(): array

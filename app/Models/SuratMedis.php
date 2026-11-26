@@ -12,7 +12,7 @@ class SuratMedis extends Model
 
     protected $fillable = [
         'kunjungan_id', 'dokter_id', 'surat_template_id', 'jenis',
-        'konten', 'tanggal', 'nomor_surat', 'document_data',
+        'konten', 'tanggal', 'nomor_surat', 'document_data', 'satusehat_service_request_id',
     ];
 
     protected $casts = ['tanggal' => 'date', 'document_data' => 'array'];
