@@ -54,7 +54,6 @@ export default function Profile({ profile }: Props) {
         perawat: 'Kelola informasi akun perawat, kontak, dan identitas profesi yang tercatat.',
         farmasi: 'Kelola informasi akun farmasi, kontak, dan identitas profesi yang tercatat.',
         pendaftaran: 'Kelola informasi akun petugas pendaftaran dan data kontak kerja.',
-        manajemen: 'Kelola informasi akun manajemen dan data kontak kerja.',
     };
     const [photoInputKey, setPhotoInputKey] = useState(0);
     const [signatureInputKey, setSignatureInputKey] = useState(0);

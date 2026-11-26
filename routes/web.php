@@ -15,6 +15,7 @@ use App\Http\Controllers\GeneralConsentController;
 use App\Http\Controllers\KepesertaanController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\Master\ClinicalTerminologyController;
+use App\Http\Controllers\Master\MasterDataExportController;
 use App\Http\Controllers\Master\NakesController;
 use App\Http\Controllers\Master\ObatController;
 use App\Http\Controllers\Master\PharmacyCredentialController;
@@ -65,7 +66,7 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 Route::post('/session/activity', SessionActivityController::class)->middleware(['auth', 'throttle:30,1'])->name('session.activity');
 Route::get('/session/status', [SessionActivityController::class, 'status'])->middleware(['auth', 'throttle:60,1'])->name('session.status');
 
-Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pendaftaran,manajemen'])->prefix('profile')->name('profile.')->group(function (): void {
+Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pendaftaran'])->prefix('profile')->name('profile.')->group(function (): void {
     Route::get('/', [ProfileController::class, 'show'])->name('show');
     Route::put('/', [ProfileController::class, 'update'])->name('update');
     Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password');
@@ -78,7 +79,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
 });
 
 // Authenticated routes
-Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pendaftaran,manajemen', RedirectRegistrationRole::class])->group(function () {
+Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pendaftaran', RedirectRegistrationRole::class])->group(function () {
     Route::prefix('persetujuan-tindakan/sesi/{signing}')->name('procedure-signature.')
         ->middleware(EnsureRole::class.':dokter,perawat')->group(function (): void {
             Route::get('/', [ProcedureSignatureController::class, 'show'])->name('show');
@@ -212,7 +213,13 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
 
     // Master Data
     Route::prefix('master')->name('master.')->middleware(EnsureAdminRole::class)->group(function () {
+        Route::get('export/{catalog}', MasterDataExportController::class)
+            ->whereIn('catalog', ['pengguna', 'tenaga-kerja', 'kepesertaan', 'poliklinik', 'ruang-poli', 'referensi-medis', 'template-surat'])
+            ->name('data.export');
         Route::get('template-persetujuan', [ProcedureConsentTemplateController::class, 'index'])->name('consent-templates.index');
+        Route::get('template-persetujuan/template', [ProcedureConsentTemplateController::class, 'template'])->name('consent-templates.template');
+        Route::get('template-persetujuan/export', [ProcedureConsentTemplateController::class, 'export'])->name('consent-templates.export');
+        Route::post('template-persetujuan/import', [ProcedureConsentTemplateController::class, 'import'])->name('consent-templates.import');
         Route::post('template-persetujuan', [ProcedureConsentTemplateController::class, 'store'])->name('consent-templates.store');
         Route::put('template-persetujuan/{template}', [ProcedureConsentTemplateController::class, 'update'])->name('consent-templates.update');
         Route::delete('template-persetujuan/{template}', [ProcedureConsentTemplateController::class, 'destroy'])->name('consent-templates.destroy');
@@ -220,6 +227,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::post('template-persetujuan/{template}/terbitkan', [ProcedureConsentTemplateController::class, 'publish'])->name('consent-templates.publish');
         Route::get('terminologi-klinis', [ClinicalTerminologyController::class, 'index'])->name('terminologi.index');
         Route::get('terminologi-klinis/detail', [ClinicalTerminologyController::class, 'show'])->name('terminologi.show');
+        Route::get('terminologi-klinis/template', [MasterDataExportController::class, 'terminologyTemplate'])->name('terminologi.template');
         Route::post('terminologi-klinis/import', [ClinicalTerminologyController::class, 'import'])->name('terminologi.import');
         Route::delete('terminologi-klinis', [ClinicalTerminologyController::class, 'destroy'])->name('terminologi.destroy');
         Route::resource('poliklinik', PoliklinikController::class)->only(['index', 'show']);
@@ -350,7 +358,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     // Manajemen Stok
 
     // Laporan
-    Route::prefix('laporan')->name('laporan.')->middleware(EnsureRole::class.':admin,manajemen')->group(function () {
+    Route::prefix('laporan')->name('laporan.')->middleware(EnsureRole::class.':admin')->group(function () {
         Route::get('kunjungan', [AggregateClinicalReportController::class, 'index'])->name('kunjungan');
         Route::get('stok', [LaporanController::class, 'stok'])->name('stok');
         Route::get('stok/export', [LaporanController::class, 'exportStok'])->name('stok.export');

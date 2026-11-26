@@ -26,7 +26,7 @@ export function DateRangeFilter({ from: initialFrom, to: initialTo, route, expor
 
     return (
         <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}>
-            <form className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={filterReport}>
+            <form className="grid min-w-0 gap-4" onSubmit={filterReport}>
             <Field htmlFor="report-period" label={periodLabel}><DateRangePicker id="report-period" from={from} onChange={(range) => { setFrom(range.from); setTo(range.to); }} to={to} /></Field>
             <FilterSubmit />
         </form>

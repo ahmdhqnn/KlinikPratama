@@ -51,7 +51,7 @@ export default function ClinicalTerminologyShow({ catalog, codes, search: initia
                     </div>
                     <Button onClick={removeCatalog} variant="destructive"><Trash2 className="size-4" />Hapus katalog</Button>
                 </div>
-                <FilterPanel contextKeys={['system', 'release']}><form className="grid gap-4 sm:grid-cols-2" onSubmit={applySearch}>
+                <FilterPanel contextKeys={['system', 'release']}><form className="grid min-w-0 gap-4" onSubmit={applySearch}>
                             <Field htmlFor="terminology-code-search" label="Cari kode atau uraian"><Input id="terminology-code-search" maxLength={100} onChange={(event) => setSearch(event.target.value)} placeholder="Cari kode atau uraian" value={search} /></Field>
                             <FilterSubmit />
                         </form></FilterPanel>

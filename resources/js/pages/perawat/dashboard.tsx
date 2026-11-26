@@ -49,7 +49,7 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ringkasan pelayanan keperawatan</h2>
                     <p className="mt-1 text-sm text-neutral-500">Pantau pengkajian awal, pemeriksaan dokter, dan tindakan perawat di poliklinik Anda.</p>
                 </div>
-                <section aria-label="Statistik keperawatan" className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4 [&>a>section]:h-full [&>a>section>div]:h-full">
+                <section aria-label="Statistik keperawatan" className="balanced-stats">
                     <StatCard description={`Seluruh kunjungan poli Anda${todayCountDescription(stats.total_kunjungan_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kunjungan" value={stats.total_kunjungan} />
                     <StatCard description="Pengkajian yang masih terbuka hari ini" href="/pelayanan/screening" icon={<HeartPulse className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Pengkajian awal" value={stats.menunggu_ttv} />
                     <StatCard description={`Menunggu / sedang diperiksa${todayCountDescription(stats.siap_dokter_hari_ini)}`} href="/pendaftaran/kunjungan-per-poli?status=pemeriksaan" icon={<Stethoscope className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Pemeriksaan dokter" value={stats.siap_dokter} />
@@ -74,29 +74,28 @@ export default function NurseDashboard({ stats, visits, followUp, schedules, cli
                     <StatCard description="Instruksi dokter yang menunggu pelaksanaan, termasuk kunjungan sebelumnya" href="/pelayanan/tindakan-perawat" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Tindakan perawat" value={stats.menunggu_tindakan} />
                 </section>
                 <FollowUp data={followUp} />
-                <Card id="saksi-persetujuan" className="scroll-mt-6">
+                {signatureWitnessQueue.length > 0 && <Card id="saksi-persetujuan" className="scroll-mt-6">
                     <CardHeader>
                         <CardTitle>Saksi persetujuan tindakan</CardTitle>
                         <CardDescription>Konfirmasi setelah Anda menyaksikan langsung pasien atau wakil menandatangani keputusan.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {signatureWitnessQueue.length === 0 ? <p className="text-sm text-neutral-500">Belum ada sesi tanda tangan aktif di poli Anda.</p> :
-                            <ul className="divide-y divide-neutral-100">
-                                {signatureWitnessQueue.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                                    <div className="min-w-0">
-                                        <p className="break-words text-sm font-semibold">{item.patient} <span className="font-normal text-neutral-500">· {item.visitNumber}</span></p>
-                                        <p className="break-words text-sm text-neutral-600">{item.procedure}</p>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <Badge variant={item.signed ? 'warning' : 'examination'}>{item.signed ? 'Menunggu saksi' : 'Menunggu pasien'}</Badge>
-                                        <Button asChild size="sm" variant={item.signed ? 'default' : 'secondary'}>
-                                            <Link href={item.url}>{item.signed ? 'Konfirmasi saksi' : 'Lihat sesi'}</Link>
-                                        </Button>
-                                    </div>
-                                </li>)}
-                            </ul>}
+                        <ul className="divide-y divide-neutral-100">
+                            {signatureWitnessQueue.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                                <div className="min-w-0">
+                                    <p className="break-words text-sm font-semibold">{item.patient} <span className="font-normal text-neutral-500">· {item.visitNumber}</span></p>
+                                    <p className="break-words text-sm text-neutral-600">{item.procedure}</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant={item.signed ? 'warning' : 'examination'}>{item.signed ? 'Menunggu saksi' : 'Menunggu pasien'}</Badge>
+                                    <Button asChild size="sm" variant={item.signed ? 'default' : 'secondary'}>
+                                        <Link href={item.url}>{item.signed ? 'Konfirmasi saksi' : 'Lihat sesi'}</Link>
+                                    </Button>
+                                </div>
+                            </li>)}
+                        </ul>
                     </CardContent>
-                </Card>
+                </Card>}
                 <Card>
                     <CardHeader>
                         <CardTitle>Akses cepat</CardTitle>

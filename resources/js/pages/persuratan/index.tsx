@@ -1,10 +1,14 @@
+import { MasterExportButton } from '@/components/admin/master-export-button';
+import { RecordDetails } from '@/components/admin/record-details';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DisclosureCard } from '@/components/ui/disclosure-card';
 import { ServiceReportLinks } from '@/components/reports/service-report-links';
 import { InternalReferralTable, type InternalReferralPagination } from '@/components/kunjungan/internal-referral-table';
 import { letterTypes } from '@/components/medical-letter-fields';
 import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { Plus, Save, FileText, ArrowRightLeft, Files, X } from 'lucide-react';
+import { Plus, Save, FileText, ArrowRightLeft, Files } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,7 +49,7 @@ interface DocumentRow {
 }
 
 interface Props {
-    filters: { search: string; visitId?: number | null };
+    filters: { search: string; visitId?: number | null; type?: string; clinic?: string; status?: string };
     isAdmin: boolean;
     templates: PaginationData & { data: Template[] };
     letters: PaginationData & { data: DocumentRow[] };
@@ -61,15 +65,16 @@ const emptyTemplate = {
 };
 
 export default function Persuratan({ filters, isAdmin, templates: templatePagination, letters: letterPagination, referrals: referralPagination, eligibleVisits }: Props) {
-    const [search, setSearch] = useState(filters.search);
     const templates = templatePagination.data;
     const letters = letterPagination.data;
+    const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
     const [editingId, setEditingId] = useState<number | null>(null);
-    const [showArchiveNotice, setShowArchiveNotice] = useState(true);
-    const [showVisitNotice, setShowVisitNotice] = useState(true);
+    const [templateExpanded, setTemplateExpanded] = useState(false);
     const form = useForm(emptyTemplate);
 
     function startEdit(template: Template) {
+        setTemplateExpanded(true);
+        form.clearErrors();
         setEditingId(template.id);
         form.setData({
             kode: template.code,
@@ -91,7 +96,7 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
 
     function saveTemplate(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        const options = { preserveScroll: true, onSuccess: resetForm };
+        const options = { preserveScroll: true, onSuccess: resetForm, onError: () => setTemplateExpanded(true) };
         if (editingId) {
             form.put(`/persuratan/template/${editingId}`, options);
             return;
@@ -115,28 +120,17 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
                     <p className="mt-1 text-sm text-neutral-500">Terbitkan surat dari pemeriksaan pasien dan tinjau dokumen yang sudah dibuat.</p>
                 </div>
 
-                {isAdmin && showArchiveNotice && <div className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-surface p-4 text-sm text-neutral-700" role="status">
-                    <p className="min-w-0 flex-1">Arsip dokumen dapat ditinjau dan dicetak lintas poli. Template dikelola pada tab tersendiri. Surat baru diterbitkan oleh dokter penanggung jawab setelah pemeriksaan final.</p>
-                    <button aria-label="Tutup informasi persuratan" className="-mr-1 -mt-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" onClick={() => setShowArchiveNotice(false)} type="button">
-                        <X aria-hidden="true" className="size-4" />
-                    </button>
-                </div>}
-                {filters.visitId && showVisitNotice && <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-neutral-200 bg-surface p-4 text-sm text-neutral-700" role="status">
-                    <p className="min-w-0 flex-1">Dokumen untuk kunjungan yang dipilih dari antrean.</p>
-                    <div className="flex shrink-0 items-center gap-2">
-                        <Button asChild size="sm" variant="secondary"><Link href="/persuratan">Tampilkan semua dokumen</Link></Button>
-                        <button aria-label="Tutup informasi kunjungan" className="inline-flex size-8 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" onClick={() => setShowVisitNotice(false)} type="button">
-                            <X aria-hidden="true" className="size-4" />
-                        </button>
-                    </div>
-                </div>}
+                {filters.visitId && <Alert dismissLabel="Tutup informasi kunjungan" key={filters.visitId}>
+                    <AlertDescription>Dokumen untuk kunjungan yang dipilih dari antrean.</AlertDescription>
+                </Alert>}
 
-                <section aria-label="Ringkasan persuratan" className={`grid auto-rows-fr gap-4 sm:grid-cols-2 ${isAdmin ? "lg:grid-cols-2" : "xl:grid-cols-3"}`}>
+                <section aria-label="Ringkasan persuratan" className="balanced-stats">
                     {isAdmin ? <StatCard label="Template surat" value={templatePagination.total} description="Format surat dan penomoran" icon={<Files className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" /> : null}
                     {!isAdmin && <StatCard label="Surat medis" value={letterPagination.total} description="Surat yang sudah diterbitkan" icon={<FileText className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />}
-                    <StatCard label="Rujukan internal" value={referralPagination.total} description="Rujukan antarpoliklinik terbit" icon={<ArrowRightLeft className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    {!isAdmin && <StatCard label="Rujukan internal" value={referralPagination.total} description="Rujukan antarpoliklinik terbit" icon={<ArrowRightLeft className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />}
                     {eligibleVisits && <StatCard label="Penerbitan dokumen" value={eligibleVisits.total} description={isAdmin ? 'Kunjungan memenuhi syarat penerbitan oleh dokter' : 'Pemeriksaan final yang dapat dibuatkan surat'} icon={<Plus className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />}
                 </section>
+                {!isAdmin && <SearchFilter key={JSON.stringify(filters)} filters={filters} isAdmin={false} />}
                 {!isAdmin && <section className="space-y-5">
                         {eligibleVisits && <Card className="overflow-hidden">
                             <CardHeader className="min-h-24 border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><FileText className="size-5" /></span><div className="min-w-0"><CardTitle>{isAdmin ? 'Kunjungan siap diterbitkan' : 'Siap diterbitkan surat'}</CardTitle><CardDescription className="mt-1">{isAdmin ? 'Dokter penanggung jawab menerbitkan surat setelah pemeriksaan final.' : 'Pemeriksaan final pasien Anda. Pilih kunjungan untuk membuat surat medis.'}</CardDescription></div></div></CardHeader>
@@ -152,16 +146,10 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
                         </Card>
 
                     </section>}
-                    {isAdmin && <SearchFilter visitId={filters.visitId} search={search} onSearchChange={setSearch} />}
-                    <section id="rujukan-internal">
-                        <InternalReferralTable referrals={referralPagination} canManage={isAdmin} />
-                    </section>
-                    {isAdmin && <details className="group rounded-xl border border-neutral-200 bg-surface">
-                        <summary className="cursor-pointer rounded-xl px-5 py-4 text-sm font-semibold">Template &amp; penomoran <span className="text-xs font-normal text-neutral-500 group-open:hidden">· Buka</span><span className="hidden text-xs font-normal text-neutral-500 group-open:inline"> · Tutup</span></summary>
-                        <div className="space-y-4 p-4 pt-0">
-                        <Card>
-                            <CardHeader><CardTitle>{editingId ? 'Ubah template' : 'Tambah template'}</CardTitle><CardDescription>Atur format dokumen dan penomoran. Nomor surat dibuat otomatis saat dokter menerbitkan dokumen.</CardDescription></CardHeader>
-                            <CardContent>
+                    {(!isAdmin || referralPagination.total > 0) && <InternalReferralTable referrals={referralPagination} canManage={isAdmin} />}
+                    {isAdmin && <>
+                        <DisclosureCard title={editingId ? 'Ubah template surat' : 'Template & penomoran'} description="Atur format surat dan nomor yang dibuat saat dokumen diterbitkan." icon={<Files className="size-5" />} expanded={templateExpanded} onToggle={() => setTemplateExpanded(!templateExpanded)}>
+                            <CardContent className="pt-5 sm:pt-6">
                                 <form className="space-y-5" onSubmit={saveTemplate}>
                                     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                                         <Field error={form.errors.kode} htmlFor="template-kode" label="Kode" required><Input placeholder="Contoh: SURAT-SEHAT" id="template-kode" maxLength={60} onChange={(event) => form.setData('kode', event.target.value)} required value={form.data.kode} /></Field>
@@ -177,22 +165,61 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
                                     <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{editingId && <Button onClick={resetForm} type="button" variant="secondary">Batal ubah</Button>}<Button disabled={form.processing} type="submit">{editingId ? <Save className="size-4" /> : <Plus className="size-4" />}{editingId ? 'Simpan perubahan' : 'Simpan template'}</Button></div>
                                 </form>
                             </CardContent>
-                        </Card>
-
-                        <SearchFilter visitId={filters.visitId} search={search} onSearchChange={setSearch} />
+                        </DisclosureCard>
+                        <SearchFilter key={JSON.stringify(filters)} filters={filters} isAdmin />
                         <Card className="overflow-hidden">
                             <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Files className="size-5" /></span><div><CardTitle>Template tersedia</CardTitle><CardDescription className="mt-1">{templatePagination.total} template surat dan penomoran.</CardDescription></div></div></CardHeader>
                             <CardContent className="p-0"><div className="overflow-x-auto">
                                 <Table className="min-w-[760px]"><TableHeader><TableRow><TableHead className="text-center">Kode / nama</TableHead><TableHead className="text-center">Jenis</TableHead><TableHead className="text-center">Format</TableHead><TableHead className="text-center">Nomor berikutnya</TableHead><TableHead className="text-center">Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
-                                    <TableBody>{templates.length ? templates.map((template) => <TableRow key={template.id}><TableCell className="text-center"><span className="font-sans tabular-nums text-xs">{template.code}</span><p className="font-medium">{template.name}</p></TableCell><TableCell className="text-center">{documentTypes.find(([value]) => value === template.type)?.[1] ?? template.type}</TableCell><TableCell className="font-sans tabular-nums text-xs">{template.numberFormat}</TableCell><TableCell className="text-center">{template.nextNumber}</TableCell><TableCell className="text-center"><Badge variant="default">{template.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell><TableCell className="text-center"><div className="inline-flex flex-wrap items-center justify-center gap-2"><ActionButton onClick={() => startEdit(template)} type="button" action="edit" label={`Ubah ${template.name}`} /><ActionButton disabled={template.inUse} onClick={() => removeTemplate(template)} title={template.inUse ? 'Template sudah digunakan; nonaktifkan jika tidak dipakai lagi.' : undefined} type="button" action="delete" label={`Hapus ${template.name}`} /></div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={6}><Empty size="compact" title="Belum ada template persuratan." /></TableCell></TableRow>}</TableBody>
+                                    <TableBody>{templates.length ? templates.map((template) => <TableRow key={template.id}><TableCell className="text-center"><span className="font-sans tabular-nums text-xs">{template.code}</span><p className="font-medium">{template.name}</p></TableCell><TableCell className="text-center">{documentTypes.find(([value]) => value === template.type)?.[1] ?? template.type}</TableCell><TableCell className="font-sans tabular-nums text-xs">{template.numberFormat}</TableCell><TableCell className="text-center">{template.nextNumber}</TableCell><TableCell className="text-center"><Badge variant="default">{template.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell><TableCell className="text-center"><div className="inline-flex flex-wrap items-center justify-center gap-2"><ActionButton onClick={() => setSelectedTemplate(template)} type="button" action="detail" label={"Detail " + template.name} /><ActionButton onClick={() => startEdit(template)} type="button" action="edit" label={`Ubah ${template.name}`} /><ActionButton disabled={template.inUse} onClick={() => removeTemplate(template)} title={template.inUse ? 'Template sudah digunakan; nonaktifkan jika tidak dipakai lagi.' : undefined} type="button" action="delete" label={`Hapus ${template.name}`} /></div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={6}><Empty size="compact" title="Belum ada template persuratan." /></TableCell></TableRow>}</TableBody>
                                 </Table></div><Pagination pagination={templatePagination} /></CardContent>
                         </Card>
-                    </div></details>}
+                    </>}
+                {isAdmin && <RecordDetails title="Detail template surat" description="Format dokumen dan penomoran yang tersimpan." open={selectedTemplate !== null} onOpenChange={(open) => { if (!open) setSelectedTemplate(null); }} entries={selectedTemplate ? [
+                    ['Kode', selectedTemplate.code], ['Nama', selectedTemplate.name], ['Jenis', documentTypes.find(([value]) => value === selectedTemplate.type)?.[1] ?? selectedTemplate.type],
+                    ['Prefix nomor', selectedTemplate.prefix], ['Format nomor', selectedTemplate.numberFormat], ['Nomor berikutnya', String(selectedTemplate.nextNumber)],
+                    ['Status', selectedTemplate.active ? 'Aktif' : 'Nonaktif'], ['Isi template', selectedTemplate.content],
+                ] : []} />}
             </div>
         </>
     );
 }
 
-function SearchFilter({ search, onSearchChange, visitId }: { visitId?: number | null; search: string; onSearchChange: (value: string) => void }) {
-    return <FilterPanel actions={<ServiceReportLinks kind="letters" size="sm" />}><form className="flex flex-col gap-4 sm:flex-row" onSubmit={(event) => { event.preventDefault(); router.get('/persuratan', { search, kunjungan_id: visitId ?? '' }, { preserveState: true, preserveScroll: true, replace: true }); }}><Input aria-label="Cari dokumen atau pasien" placeholder="Cari nama, No. RM, nomor surat, atau template" value={search} onChange={(event) => onSearchChange(event.target.value)} /><FilterSubmit /></form></FilterPanel>;
+function SearchFilter({ filters, isAdmin }: Pick<Props, 'filters' | 'isAdmin'>) {
+    const [search, setSearch] = useState(filters.search);
+    const [type, setType] = useState(filters.type ?? '');
+    const [status, setStatus] = useState(filters.status ?? '');
+    const [clinic, setClinic] = useState(filters.clinic ?? '');
+
+    function apply(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        router.get('/persuratan', { search, kunjungan_id: filters.visitId ?? undefined, ...(isAdmin ? { jenis: type, status } : { poli: clinic }) }, { preserveState: true, preserveScroll: true, replace: true });
+    }
+
+    return <FilterPanel contextKeys={['kunjungan_id']} actions={<>
+        {filters.visitId && <Button asChild size="sm" variant="secondary"><Link href="/persuratan">Tampilkan semua dokumen</Link></Button>}
+        {isAdmin && <MasterExportButton catalog="template-surat" label="Ekspor semua template" />}
+        <ServiceReportLinks kind="letters" size="sm" />
+    </>}>
+        <form className={isAdmin ? "grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" : "grid min-w-0 gap-4 sm:grid-cols-2"} onSubmit={apply}>
+            <Field htmlFor="letter-search" label={isAdmin ? 'Cari template' : 'Cari dokumen atau pasien'}>
+                <Input id="letter-search" placeholder={isAdmin ? 'Nama atau kode template' : 'Nama, No. RM, No. surat, atau No. kunjungan'} maxLength={100} value={search} onChange={(event) => setSearch(event.target.value)} />
+            </Field>
+            {isAdmin ? <Field htmlFor="letter-type" label="Jenis dokumen">
+                <Select id="letter-type" value={type} onChange={(event) => setType(event.target.value)}>
+                    <option value="">Semua jenis</option>{documentTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+            </Field> : <Field htmlFor="letter-clinic" label="Poliklinik asal">
+                <Select id="letter-clinic" value={clinic} onChange={(event) => setClinic(event.target.value)}>
+                    <option value="">Semua poli</option><option value="umum">Poli Umum</option><option value="gigi">Poli Gigi</option>
+                </Select>
+            </Field>}
+            {isAdmin && <Field htmlFor="letter-status" label="Status template">
+                <Select id="letter-status" value={status} onChange={(event) => setStatus(event.target.value)}>
+                    <option value="">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option>
+                </Select>
+            </Field>}
+            <FilterSubmit />
+        </form>
+    </FilterPanel>;
 }

@@ -68,7 +68,7 @@ class DoctorAccountAssignmentTest extends TestCase
         ])->assertSessionHasErrors('nakes_id');
     }
 
-    public function test_changing_doctor_account_to_admin_unlinks_professional_profile(): void
+    public function test_changing_doctor_account_to_registration_unlinks_professional_profile(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $doctorUser = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
@@ -84,11 +84,11 @@ class DoctorAccountAssignmentTest extends TestCase
         $this->actingAs($admin)->put(route('users.update', $doctorUser), [
             'name' => $doctorUser->name,
             'email' => $doctorUser->email,
-            'role' => 'admin',
+            'role' => 'pendaftaran',
             'is_active' => true,
         ])->assertSessionHasNoErrors();
 
-        $this->assertSame('admin', $doctorUser->fresh()->role);
+        $this->assertSame('pendaftaran', $doctorUser->fresh()->role);
         $this->assertNull($doctor->fresh()->user_id);
     }
 }

@@ -6,6 +6,9 @@ use App\ClinicalAuditRecorder;
 use App\Models\Nakes;
 use App\Models\Poliklinik;
 use App\Models\User;
+use App\PerawatClinicResolver;
+use App\Rules\AvailableAccountEmail;
+use App\StaffAccountAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,11 +20,14 @@ use Inertia\Response;
 
 class UserController extends Controller
 {
+    public function __construct(private StaffAccountAccess $access) {}
+
     public function index(Request $request): Response
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'role' => ['nullable', 'in:admin,dokter,perawat,farmasi,pendaftaran,manajemen'],
+            'role' => ['nullable', Rule::in(User::ROLES)],
+            'status' => ['nullable', 'in:aktif,nonaktif,pensiun'],
         ]);
 
         $users = User::with('nakes.poliklinik')
@@ -30,7 +36,10 @@ class UserController extends Controller
                     ->orWhere('email', 'like', "%{$search}%");
             }))
             ->when($filters['role'] ?? null, fn ($query, string $role) => $query->where('role', $role))
-            ->orderBy('name')
+            ->when(in_array($filters['status'] ?? null, ['aktif', 'nonaktif'], true), fn ($query) => $query
+                ->whereIn('role', User::ROLES)->where('is_active', $filters['status'] === 'aktif'))
+            ->when(($filters['status'] ?? null) === 'pensiun', fn ($query) => $query->whereNotIn('role', User::ROLES))
+            ->orderBy('name')->orderBy('id')
             ->paginate(10)
             ->withQueryString();
 
@@ -49,6 +58,7 @@ class UserController extends Controller
                     'role' => $user->role,
                     'roleLabel' => $user->role_label,
                     'active' => $user->is_active,
+                    'retiredRole' => ! in_array($user->role, User::ROLES, true),
                     'nakes' => $user->nakes ? [
                         'id' => $user->nakes->id,
                         'name' => $user->nakes->nama,
@@ -67,13 +77,13 @@ class UserController extends Controller
                 'previousUrl' => $users->previousPageUrl(),
                 'nextUrl' => $users->nextPageUrl(),
             ],
-            'filters' => ['search' => $filters['search'] ?? '', 'role' => $filters['role'] ?? ''],
+            'filters' => ['search' => $filters['search'] ?? '', 'role' => $filters['role'] ?? '', 'status' => $filters['status'] ?? ''],
+            'occupiedSingleRoles' => User::occupiedSingleRoles(),
             'roles' => [
                 ['value' => 'admin', 'label' => 'Administrator'],
                 ['value' => 'dokter', 'label' => 'Dokter'],
                 ['value' => 'perawat', 'label' => 'Perawat'],
                 ['value' => 'farmasi', 'label' => 'Farmasi'],
-                ['value' => 'manajemen', 'label' => 'Manajemen'],
                 ['value' => 'pendaftaran', 'label' => 'Pendaftaran'],
             ],
             'doctors' => $dokterList->map(fn (Nakes $doctor): array => [
@@ -85,10 +95,7 @@ class UserController extends Controller
             'staffProfiles' => Nakes::query()->where('is_active', true)->orderBy('nama')->get()
                 ->map(fn (Nakes $staff): array => [
                     'id' => $staff->id, 'name' => $staff->nama, 'code' => $staff->kode,
-                    'role' => match ($staff->jabatan) {
-                        'dokter' => 'dokter', 'perawat', 'bidan', 'terapis_gigi' => 'perawat',
-                        'farmasi', 'apotek' => 'farmasi', 'pendaftaran' => 'pendaftaran', default => null,
-                    },
+                    'role' => Nakes::LOGIN_POSITIONS[$staff->jabatan] ?? null,
                     'userId' => $staff->user_id, 'clinicId' => $staff->poliklinik_id,
                 ])->values(),
             'clinics' => Poliklinik::registrable()->orderBy('nama')->get(['id', 'nama'])->map(fn (Poliklinik $clinic): array => [
@@ -102,16 +109,16 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:200'],
-            'email' => ['required', 'email', 'unique:users,email'],
+            'email' => ['required', 'email', 'max:255', new AvailableAccountEmail],
             'password' => ['required', 'string', 'min:8'],
-            'role' => ['required', 'in:admin,dokter,perawat,farmasi,pendaftaran,manajemen'],
+            'role' => ['required', Rule::in(User::ROLES)],
             'is_active' => ['boolean'],
             'poliklinik_id' => [Rule::requiredIf($request->input('role') === 'perawat'), 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'nakes_id' => [
-                Rule::requiredIf($request->input('role') === 'dokter'),
+                Rule::requiredIf(in_array($request->input('role'), ['dokter', 'perawat', 'farmasi'], true)),
                 'nullable',
                 Rule::exists('nakes', 'id')->where(fn ($query) => $query
-                    ->whereIn('jabatan', $this->positionsForRole($request->string('role')->toString()))
+                    ->whereIn('jabatan', Nakes::positionsForRole($request->string('role')->toString()))
                     ->whereNull('deleted_at')
                     ->where('is_active', true)
                     ->whereNull('user_id')),
@@ -121,7 +128,7 @@ class UserController extends Controller
         $data['password'] = Hash::make($data['password']);
         $data['is_active'] = $request->boolean('is_active');
 
-        DB::transaction(function () use ($data, $request, $audit): void {
+        $this->access->save($data['role'], true, null, function () use ($data, $request, $audit): void {
             $user = User::create([...$data, 'must_change_password' => true]);
             $this->syncNakesProfile($user, $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null);
             $audit->record($request, 'user.created', metadata: ['user_id' => $user->id, 'role' => $user->role]);
@@ -132,17 +139,26 @@ class UserController extends Controller
 
     public function update(Request $request, User $user, ClinicalAuditRecorder $audit): RedirectResponse
     {
+        $priorProfile = $user->nakes;
+        if (! $request->exists('nakes_id') && $request->input('role') === $user->role && $priorProfile?->is_active) {
+            $request->merge(['nakes_id' => $priorProfile->id]);
+        }
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:200'],
-            'email' => ['required', 'email', "unique:users,email,{$user->id}"],
-            'role' => ['required', 'in:admin,dokter,perawat,farmasi,pendaftaran,manajemen'],
+            'email' => ['required', 'email', 'max:255', new AvailableAccountEmail($user)],
+            'role' => ['required', Rule::in(User::ROLES)],
             'is_active' => ['boolean'],
             'poliklinik_id' => [Rule::requiredIf($request->input('role') === 'perawat'), 'nullable', Rule::exists('poliklinik', 'id')->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])->whereNull('deleted_at')],
             'nakes_id' => [
-                Rule::requiredIf($request->input('role') === 'dokter'),
+                Rule::requiredIf(
+                    in_array($request->input('role'), ['dokter', 'perawat', 'farmasi'], true)
+                    && ($request->input('role') !== $user->role || ! $priorProfile)
+                    && $request->boolean('is_active', $user->is_active),
+                ),
                 'nullable',
                 Rule::exists('nakes', 'id')->where(fn ($query) => $query
-                    ->whereIn('jabatan', $this->positionsForRole($request->string('role')->toString()))
+                    ->whereIn('jabatan', Nakes::positionsForRole($request->string('role')->toString()))
                     ->whereNull('deleted_at')
                     ->where('is_active', true)
                     ->where(function ($query) use ($user): void {
@@ -161,10 +177,16 @@ class UserController extends Controller
             return back()->with('error', 'Peran dan status akun sendiri tidak dapat diubah.');
         }
 
-        DB::transaction(function () use ($data, $user, $request, $audit): void {
+        $needsSlot = $data['is_active'] || $data['role'] !== $user->role;
+        $this->access->save($data['role'], $needsSlot, $user->id, function () use ($data, $user, $request, $audit): void {
+            $user = User::query()->lockForUpdate()->findOrFail($user->id);
+            $roleChanged = $user->role !== $data['role'];
             $user->update([...$data, 'session_version' => (int) $user->session_version + 1, 'remember_token' => null]);
             $user->forceFill(['remember_token' => null])->save();
-            $this->syncNakesProfile($user->fresh(), $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null);
+            $this->syncNakesProfile($user, $data['nakes_id'] ?? null, isset($data['poliklinik_id']) ? (int) $data['poliklinik_id'] : null, $roleChanged);
+            if ($user->is_active && ! $user->linkedProfileAllowsAccess()) {
+                throw ValidationException::withMessages(['is_active' => 'Tautkan profil aktif yang sesuai dengan peran sebelum mengaktifkan akun.']);
+            }
             $audit->record($request, 'user.updated', metadata: ['user_id' => $user->id, 'role' => $user->role, 'active' => $user->is_active]);
         });
 
@@ -178,28 +200,39 @@ class UserController extends Controller
         }
 
         DB::transaction(function () use ($request, $user, $audit): void {
-            $user->forceFill(['is_active' => false, 'session_version' => (int) $user->session_version + 1, 'remember_token' => null])->save();
+            User::query()->lockForUpdate()->findOrFail($user->id)->revokeAccess();
             $audit->record($request, 'user.deactivated', metadata: ['user_id' => $user->id, 'source' => 'legacy_delete', 'role' => $user->role]);
         });
 
         return back()->with('success', 'Akun dinonaktifkan. Identitas operator dan bukti pelayanan tetap tersimpan.');
     }
 
-    public function toggleActive(Request $request, User $user, ClinicalAuditRecorder $audit): RedirectResponse
+    public function toggleActive(Request $request, User $user, ClinicalAuditRecorder $audit, PerawatClinicResolver $clinics): RedirectResponse
     {
         if ($user->id === auth()->id()) {
             return back()->with('error', 'Tidak dapat mengubah status akun Anda sendiri.');
         }
 
-        if (! $user->is_active && $user->nakes && ! $user->nakes->is_active) {
-            return back()->with('error', 'Aktifkan profil petugas terlebih dahulu sebelum mengaktifkan akun.');
-        }
+        $activate = ! $user->is_active;
 
-        DB::transaction(function () use ($request, $user, $audit): void {
-            $user->update(['is_active' => ! $user->is_active, 'session_version' => (int) $user->session_version + 1]);
-            $user->forceFill(['remember_token' => null])->save();
-            $audit->record($request, 'user.status_changed', metadata: ['user_id' => $user->id, 'active' => $user->is_active]);
-        });
+        try {
+            $this->access->save($user->role, $activate, $user->id, function () use ($request, $user, $audit, $activate, $clinics): void {
+                $lockedUser = User::query()->lockForUpdate()->findOrFail($user->id);
+                if ($lockedUser->role !== $user->role || $lockedUser->is_active !== $user->is_active) {
+                    throw ValidationException::withMessages(['is_active' => 'Status atau peran akun berubah. Muat ulang daftar pengguna.']);
+                }
+                $user = $lockedUser;
+                if ($activate) {
+                    $this->validateActivation($user, $clinics);
+                    $user->forceFill(['is_active' => true, 'session_version' => (int) $user->session_version + 1, 'remember_token' => null])->save();
+                } else {
+                    $user->revokeAccess();
+                }
+                $audit->record($request, 'user.status_changed', metadata: ['user_id' => $user->id, 'active' => $user->is_active]);
+            }, 'is_active');
+        } catch (ValidationException $exception) {
+            return back()->with('error', $exception->errors()['is_active'][0] ?? $exception->getMessage());
+        }
 
         return back()->with('success', 'Status pengguna berhasil diperbarui.');
     }
@@ -209,6 +242,8 @@ class UserController extends Controller
         $request->validate(['password' => ['required', 'string', 'min:8']]);
 
         DB::transaction(function () use ($request, $user, $audit): void {
+            $user = User::query()->lockForUpdate()->findOrFail($user->id);
+            abort_unless($user->hasRole(...User::ROLES), 403);
             $user->update(['password' => Hash::make($request->password), 'must_change_password' => true, 'session_version' => (int) $user->session_version + 1]);
             $user->forceFill(['remember_token' => null])->save();
             $audit->record($request, 'user.password_reset', metadata: ['user_id' => $user->id]);
@@ -217,107 +252,44 @@ class UserController extends Controller
         return back()->with('success', 'Kata sandi pengguna berhasil diatur ulang.');
     }
 
-    private function syncNakesProfile(User $user, ?int $nakesId = null, ?int $clinicId = null): void
+    private function validateActivation(User $user, PerawatClinicResolver $clinics): void
     {
-        $nakesRoles = ['dokter', 'perawat', 'farmasi', 'pendaftaran'];
+        $error = match (true) {
+            ! $user->hasRole(...User::ROLES) => 'Pilih peran yang masih tersedia sebelum mengaktifkan akun.',
+            ! $user->linkedProfileAllowsAccess() => 'Aktifkan profil petugas terlebih dahulu sebelum mengaktifkan akun.',
+            $user->hasRole('dokter', 'perawat', 'farmasi') && ! $user->nakes => 'Tautkan profil petugas yang sesuai sebelum mengaktifkan akun.',
+            $user->isPerawat() && ! $clinics->assignedNakes($user) => 'Lengkapi penugasan poli aktif sebelum mengaktifkan akun perawat.',
+            default => null,
+        };
 
-        if (! in_array($user->role, $nakesRoles, true)) {
-            Nakes::withTrashed()->where('user_id', $user->id)->update(['user_id' => null]);
-
-            return;
+        if ($error !== null) {
+            throw ValidationException::withMessages(['is_active' => $error]);
         }
+    }
 
-        if ($nakesId !== null) {
-            $selectedNakes = Nakes::query()->lockForUpdate()->findOrFail($nakesId);
-            if (! $selectedNakes->is_active || ($selectedNakes->user_id !== null && $selectedNakes->user_id !== $user->id)
-                || ! in_array($selectedNakes->jabatan, $this->positionsForRole($user->role), true)) {
-                throw ValidationException::withMessages(['nakes_id' => 'Profil petugas tidak tersedia untuk akun ini.']);
+    private function syncNakesProfile(User $user, ?int $nakesId = null, ?int $clinicId = null, bool $roleChanged = false): void
+    {
+        $compatiblePositions = Nakes::positionsForRole($user->role);
+        if ($nakesId === null) {
+            if ($roleChanged) {
+                Nakes::withTrashed()->where('user_id', $user->id)->whereNotIn('jabatan', $compatiblePositions)->update(['user_id' => null]);
+            } elseif ($user->role === 'perawat' && $clinicId !== null) {
+                $user->nakes()->whereIn('jabatan', $compatiblePositions)->update(['poliklinik_id' => $clinicId]);
             }
-            $currentNakes = $user->nakes;
-
-            if ($currentNakes && $currentNakes->isNot($selectedNakes)) {
-                $currentNakes->update(['user_id' => null]);
-            }
-
-            $selectedNakes->update([
-                'user_id' => $user->id,
-                ...($user->role === 'perawat' ? ['poliklinik_id' => $clinicId] : []),
-            ]);
 
             return;
         }
 
-        if ($user->nakes?->jabatan === 'dokter') {
-            $user->nakes->update(['user_id' => null]);
+        $selected = Nakes::query()->lockForUpdate()->find($nakesId);
+        if (! $selected?->is_active || ($selected->user_id !== null && $selected->user_id !== $user->id)
+            || ! in_array($selected->jabatan, $compatiblePositions, true)) {
+            throw ValidationException::withMessages(['nakes_id' => 'Profil petugas tidak tersedia untuk akun ini.']);
         }
 
-        $nakes = $user->nakes()->first();
-        $jabatan = $user->role === 'perawat' && in_array($nakes?->jabatan, ['bidan', 'terapis_gigi'], true)
-            ? $nakes->jabatan : $user->role;
-        $kategori = in_array($jabatan, ['dokter', 'perawat', 'bidan', 'terapis_gigi'], true) ? 'medis' : 'non_medis';
-
-        if ($nakes) {
-            $nakes->update([
-                'nama' => $user->name,
-                'jabatan' => $jabatan,
-                'kategori' => $kategori,
-                'poliklinik_id' => $user->role === 'perawat' ? $clinicId : null,
-                'is_active' => $user->is_active,
-            ]);
-
-            return;
-        }
-
-        $nakes = Nakes::withTrashed()->where('user_id', $user->id)->first();
-        if ($nakes) {
-            $nakes->restore();
-            $nakes->update([
-                'nama' => $user->name,
-                'jabatan' => $jabatan,
-                'kategori' => $kategori,
-                'poliklinik_id' => $user->role === 'perawat' ? $clinicId : null,
-                'is_active' => $user->is_active,
-            ]);
-
-            return;
-        }
-
-        Nakes::create([
-            'kode' => $this->generateNakesCode($jabatan),
-            'nama' => $user->name,
-            'kategori' => $kategori,
-            'jabatan' => $jabatan,
-            'poliklinik_id' => $user->role === 'perawat' ? $clinicId : null,
+        Nakes::withTrashed()->where('user_id', $user->id)->whereKeyNot($selected->id)->update(['user_id' => null]);
+        $selected->update([
             'user_id' => $user->id,
-            'is_active' => $user->is_active,
+            ...($user->role === 'perawat' && $clinicId !== null ? ['poliklinik_id' => $clinicId] : []),
         ]);
-    }
-
-    private function positionsForRole(string $role): array
-    {
-        return match ($role) {
-            'dokter' => ['dokter'],
-            'perawat' => ['perawat', 'bidan', 'terapis_gigi'],
-            'farmasi' => ['farmasi', 'apotek'],
-            'pendaftaran' => ['pendaftaran'],
-            default => [],
-        };
-    }
-
-    private function generateNakesCode(string $jabatan): string
-    {
-        $prefix = match ($jabatan) {
-            'dokter' => 'DR',
-            'perawat' => 'PRW',
-            'farmasi' => 'FAR',
-            'pendaftaran' => 'REG',
-            default => 'NKS',
-        };
-
-        do {
-            $code = $prefix.'-'.str()->upper(str()->random(6));
-        } while (Nakes::withTrashed()->where('kode', $code)->exists());
-
-        return $code;
     }
 }

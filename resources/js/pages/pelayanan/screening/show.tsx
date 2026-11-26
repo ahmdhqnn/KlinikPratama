@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { type ConsentSummary } from '../kunjungan/general-consent';
 import { AssociatedSymptoms } from '@/components/kunjungan/associated-symptoms';
 import { ChoiceGroup } from '@/components/kunjungan/assessment-choice-group';
@@ -637,7 +638,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                 </CardContent>
             </Card>
             {visit.submitted && <div className="rounded-xl bg-surface p-4 text-sm"><strong>{visit.reviewedAt ? 'Telah ditinjau dokter' : 'Menunggu evaluasi dokter'}</strong><p>Dikirim: {visit.submittedAt ?? 'Waktu tidak tercatat'} · {visit.submittedBy ?? currentStaff ?? 'Petugas pengkajian'} · Penerima: {visit.doctor}</p>{visit.reviewedAt && <p>Ditinjau dan ditandatangani dokter: {visit.reviewedAt}</p>}</div>}
-            {visit.submitted && <div role="status" className="rounded-xl border border-neutral-200 bg-neutral-100 p-4 text-sm text-neutral-800"><strong>Pengkajian sudah dikirim.</strong> {editable ? 'Anda dapat memperbarui catatan sebelum dokter mulai.' : 'Pengkajian tersedia untuk dibaca dan dicetak.'}</div>}
+            {visit.submitted && <Alert dismissLabel="Tutup pesan pengkajian" key={visit.id}><AlertDescription><strong>Pengkajian sudah dikirim.</strong> {editable ? 'Anda dapat memperbarui catatan sebelum dokter mulai.' : 'Pengkajian tersedia untuk dibaca dan dicetak.'}</AlertDescription></Alert>}
             {visit.patient.allergyHistory && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"><strong>Riwayat alergi tersimpan:</strong> {visit.patient.allergyHistory}<p className="mt-1 text-xs">Konfirmasi kembali dengan pasien. Riwayat sebelumnya tetap tersedia untuk membantu pengkajian.</p></div>}
             {Object.keys(form.errors).length > 0 && <div data-validation-summary tabIndex={-1} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"><strong>Pengkajian belum dapat disimpan.</strong><ul className="mt-2 list-inside list-disc">{Object.entries(form.errors).map(([name, error]) => <li key={name}>{error}</li>)}</ul></div>}
             <ScreeningVersionHistory versions={visit.versions} />

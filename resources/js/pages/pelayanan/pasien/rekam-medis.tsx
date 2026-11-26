@@ -102,7 +102,7 @@ export default function PatientMedicalRecord({ odontogramFindingLabels, clinicPr
                 <AllergyHistory value={patient.allergies} />
             </CardContent>
         </Card>
-        <div className="print:hidden"><FilterPanel><form className={`grid gap-4 sm:grid-cols-2 ${canSelectClinic ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`} onSubmit={applyFilters}>
+        <div className="print:hidden"><FilterPanel><form className={canSelectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-4' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3'} onSubmit={applyFilters}>
                 <Field htmlFor="medical-record-search" label="Kata kunci"><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-500" /><Input className="pl-9" id="medical-record-search" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nomor kunjungan, keluhan, atau diagnosis" value={search} /></div></Field>
                 {canSelectClinic && <Field htmlFor="medical-record-clinic" label="Poliklinik"><Select id="medical-record-clinic" onChange={(event) => setClinicId(event.target.value)} value={clinicId}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>}
             <Field htmlFor="medical-record-status" label="Status kunjungan"><Select id="medical-record-status" onChange={(event) => setStatus(event.target.value)} value={status}><option value="">Semua status</option>{Object.entries(visitStatusFilterLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>

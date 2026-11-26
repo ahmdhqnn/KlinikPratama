@@ -7,23 +7,26 @@ use App\Models\Kunjungan;
 use App\Models\Obat;
 use App\VisitOverviewService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class FarmasiDashboardController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $poli = $request->validate(['poli' => ['nullable', 'in:umum,gigi']])['poli'] ?? null;
+        $visits = Kunjungan::query()->forClinicType($poli);
         $today = today()->toDateString();
-        $activePharmacyVisits = Kunjungan::query()->where('status', 'farmasi')
+        $activePharmacyVisits = (clone $visits)->where('status', 'farmasi')
             ->whereDoesntHave('farmasi', fn (Builder $query) => $query->where('status', 'selesai'));
         $pharmacyVisits = (clone $activePharmacyVisits)->whereDate('tanggal', $today);
         $waitingVisits = (clone $pharmacyVisits)->whereDoesntHave('farmasi', fn (Builder $query) => $query->where('status', 'diproses'))->count();
         $processingVisits = (clone $pharmacyVisits)->whereHas('farmasi', fn (Builder $query) => $query->where('status', 'diproses'))->count();
-        $completedToday = Farmasi::query()->where('status', 'selesai')->whereDate('dispensed_at', $today)->count();
-        $totalPharmacyVisits = Kunjungan::query()->where(fn (Builder $query) => $query->where('status', 'farmasi')
+        $completedToday = Farmasi::query()->whereHas('kunjungan', fn (Builder $query) => $query->forClinicType($poli))->where('status', 'selesai')->whereDate('dispensed_at', $today)->count();
+        $totalPharmacyVisits = (clone $visits)->where(fn (Builder $query) => $query->where('status', 'farmasi')
             ->orWhereHas('farmasi', fn (Builder $records) => $records->where('status', 'selesai')))->count();
-        $externalToday = Kunjungan::query()->whereDate('tanggal', $today)
+        $externalToday = (clone $visits)->whereDate('tanggal', $today)
             ->whereHas('pemeriksaan', fn (Builder $exam) => $exam->whereNotNull('signed_at'))
             ->whereHas('resep.resepObat', fn (Builder $items) => $items->where(fn (Builder $item) => $item
                 ->where('is_resep_luar', true)->orWhereHas('farmasiResepLuar')))->count();
@@ -38,11 +41,12 @@ class FarmasiDashboardController extends Controller
         $recentVisits = (clone $pharmacyVisits)
             ->with(['pasien', 'poliklinik', 'farmasi'])
             ->orderBy('created_at')->orderBy('id')
-            ->paginate(10);
+            ->paginate(10)->withQueryString();
 
         return Inertia::render('farmasi/dashboard', [
-            'followUp' => [...app(VisitOverviewService::class)->summarize($activePharmacyVisits), 'href' => route('pelayanan.farmasi.index')],
-            'externalTodayUrl' => route('farmasi.resep-luar.index', ['tanggal' => $today]),
+            'clinicType' => $poli,
+            'followUp' => [...app(VisitOverviewService::class)->summarize($activePharmacyVisits), 'href' => route('pelayanan.farmasi.index', ['poli' => $poli])],
+            'externalTodayUrl' => route('farmasi.resep-luar.index', ['tanggal' => $today, 'poli' => $poli]),
             'stats' => [
                 'waitingVisits' => $waitingVisits,
                 'processingVisits' => $processingVisits,

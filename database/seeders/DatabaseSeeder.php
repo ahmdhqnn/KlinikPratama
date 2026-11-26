@@ -53,7 +53,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call(KepesertaanSeeder::class);
-        foreach (['dokter', 'perawat', 'farmasi', 'manajemen'] as $role) {
+        foreach (['dokter', 'perawat', 'farmasi'] as $role) {
             User::factory()->create(['name' => ucfirst($role).' Contoh', 'email' => $role.'@klinik.com', 'password' => Hash::make('password'), 'role' => $role, 'is_active' => true]);
         }
 

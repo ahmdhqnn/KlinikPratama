@@ -43,8 +43,8 @@ export default function DoctorPatients({ search, patients }: Props) {
                     <p className="mt-1 text-sm text-neutral-500">Daftar ini hanya mencakup pasien yang memiliki kunjungan dengan Anda.</p>
                 </div>
                 <FilterPanel>
-                    <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={applySearch}>
-                        <Field className="w-full sm:max-w-md" htmlFor="patient-search" label="Cari pasien">
+                    <form className="grid min-w-0 gap-4" onSubmit={applySearch}>
+                        <Field htmlFor="patient-search" label="Cari pasien">
                             <Input id="patient-search" onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, No. RM, atau NIK" value={query} />
                         </Field>
                         <FilterSubmit />

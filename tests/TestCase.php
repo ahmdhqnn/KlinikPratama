@@ -18,14 +18,20 @@ use Illuminate\Support\Str;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function activeAdmin(): User
+    {
+        return User::query()->where('role', 'admin')->where('is_active', true)->first()
+            ?? User::factory()->create(['role' => 'admin']);
+    }
+
     protected function verifySyntheticPharmacyStaff(User $pharmacist): void
     {
         $profile = Nakes::where('user_id', $pharmacist->id)->first();
         $profile ??= Nakes::create(['kode' => 'FARM-TEST-'.$pharmacist->id, 'nama' => 'Apoteker sintetis', 'kategori' => 'medis',
             'jabatan' => 'farmasi', 'user_id' => $pharmacist->id, 'is_active' => true]);
-        $profile->update(['no_sip' => $profile->no_sip ?: 'SIP-SYNTHETIC', 'no_str' => $profile->no_str ?: 'STR-SYNTHETIC']);
+        $profile->update(['no_sip' => $profile->no_sip ?: 'SIP-SYNTHETIC', 'no_str' => $profile->no_str ?: 'STR-SYNTHETIC-'.$profile->id]);
         if (! app(PharmacyStaffAccess::class)->current($pharmacist)) {
-            $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+            $admin = $this->activeAdmin();
             $this->actingAs($admin)->post(route('master.nakes.pharmacy-credential.store', $profile), [
                 'current_id' => PharmacyStaffCredential::where('nakes_id', $profile->id)->max('id'),
                 'qualification' => 'apoteker', 'reference' => 'Dokumen dan penugasan apoteker sintetis diperiksa untuk fixture.',

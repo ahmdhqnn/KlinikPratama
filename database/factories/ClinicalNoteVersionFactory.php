@@ -34,7 +34,7 @@ class ClinicalNoteVersionFactory extends Factory
         return [
             'version' => 1,
             'kind' => 'finalized',
-            'actor_id' => User::factory(),
+            'actor_id' => User::factory()->state(['role' => 'dokter']),
             'reason' => null,
             'payload' => $payload,
             'previous_hash' => null,

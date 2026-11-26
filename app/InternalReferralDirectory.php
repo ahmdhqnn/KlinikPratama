@@ -7,9 +7,12 @@ use Illuminate\Database\Eloquent\Builder;
 
 class InternalReferralDirectory
 {
-    public function paginate(string $search, ?int $visitId, ?int $doctorId, ?string $destinationRoute, bool $canPrint, string $pageName = 'page'): array
+    public function paginate(string $search, ?int $visitId, ?int $doctorId, ?string $destinationRoute, bool $canPrint, string $pageName = 'page', ?int $destinationClinicId = null, ?string $date = null, ?string $originClinicType = null): array
     {
         $referrals = RujukanInternal::query()
+            ->when($originClinicType, fn (Builder $query, string $type) => $query->whereHas('dariPoli', fn (Builder $clinic) => $clinic->where('jenis', $type)))
+            ->when($destinationClinicId, fn (Builder $query, int $id) => $query->where('ke_poli_id', $id))
+            ->when($date, fn (Builder $query, string $value) => $query->whereDate('created_at', $value))
             ->when($visitId, fn (Builder $query, int|string $visitId) => $query->where('kunjungan_id', $visitId))
             ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
                 ->where('nomor_surat', 'like', "%{$search}%")

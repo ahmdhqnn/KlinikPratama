@@ -16,7 +16,7 @@ class EnforceClinicalSession
             $session = $request->session();
             $lastActivity = (int) $session->get('clinical_last_activity', now()->timestamp);
             $version = (int) $session->get('clinical_session_version', $user->session_version ?? 0);
-            if (Auth::viaRemember() || $version !== (int) $user->session_version || now()->timestamp - $lastActivity >= config('clinical_security.idle_minutes') * 60) {
+            if (Auth::viaRemember() || ! $user->linkedProfileAllowsAccess() || $version !== (int) $user->session_version || now()->timestamp - $lastActivity >= config('clinical_security.idle_minutes') * 60) {
                 app(ClinicalAuditRecorder::class)->record($request, 'auth.session_expired', metadata: ['outcome' => 'denied']);
                 Auth::logout();
                 $session->invalidate();

@@ -48,7 +48,7 @@ export default function PatientDatabase({ filters: initialFilters, patients }: P
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pasien</h2>
                     <p className="mt-1 text-sm text-neutral-500">Temukan data pasien dengan nomor rekam medis, nama, NIK, atau nomor telepon.</p>
                 </div>
-                <FilterPanel><form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
+                <FilterPanel><form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={applyFilters}>
                             <Field htmlFor="patient-database-search" label="Cari pasien">
                                 <Input id="patient-database-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama, No. RM, NIK, NIP, atau telepon" value={filters.search} />
                             </Field>

@@ -54,7 +54,7 @@ export default function RegistrationTopDiagnoses({ filters: initialFilters, summ
                     <StatCard label="Total catatan diagnosis" value={summary.caseCount} description="Jumlah pencatatan pada kelompok diagnosis yang ditampilkan." icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-600" />
                 </div>
                 <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}>
-                    <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
+                    <form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={applyFilters}>
                         <Field htmlFor="registration-diagnoses-search" label="Cari diagnosis"><Input id="registration-diagnoses-search" maxLength={100} value={filters.search ?? ''} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Kode ICD atau nama diagnosis" /></Field>
                         <Field htmlFor="registration-diagnoses-period" label="Periode kunjungan">
                             <DateRangePicker id="registration-diagnoses-period" from={filters.tanggalMulai} onChange={(range) => setFilters({ ...filters, tanggalMulai: range.from, tanggalSelesai: range.to })} to={filters.tanggalSelesai} />

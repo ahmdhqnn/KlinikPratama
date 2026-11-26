@@ -31,13 +31,14 @@ class TindakanPerawatController extends Controller
         $isAdmin = $request->user()->isAdmin();
         $nurse = $isAdmin ? null : $clinics->nakes($request->user());
         $clinicId = $nurse?->poliklinik_id;
-        $query = (new NursingProcedureReportQuery)->query($filters, $clinicId);
+        $query = (new NursingProcedureReportQuery)->query($filters, $clinicId, $nurse?->user_id);
         $audit->record($request, 'nursing_procedure.report_view', metadata: ['clinic_id' => $clinicId, 'filters' => $filters]);
         $procedures = (clone $query)->paginate(15)->withQueryString();
         $baseUrl = route($isAdmin ? 'admin.laporan.tindakan-perawat' : 'perawat.laporan-tindakan');
 
         return Inertia::render('pelayanan/tindakan/report', [
             'title' => 'Laporan tindakan perawat',
+            'personal' => ! $isAdmin,
             'clinicName' => $nurse?->poliklinik?->nama ?? 'Semua poli aktif',
             'baseUrl' => $baseUrl,
             'filters' => $filters,
@@ -55,17 +56,18 @@ class TindakanPerawatController extends Controller
         $isAdmin = $request->user()->isAdmin();
         $nurse = $isAdmin ? null : $clinics->nakes($request->user());
         $clinicId = $nurse?->poliklinik_id;
-        $query = (new NursingProcedureReportQuery)->query($filters, $clinicId);
+        $query = (new NursingProcedureReportQuery)->query($filters, $clinicId, $nurse?->user_id);
         $audit->record($request, 'nursing_procedure.report_print', metadata: ['clinic_id' => $clinicId, 'filters' => $filters]);
         $procedures = $query->get()->map(fn (TindakanKunjungan $procedure): array => $this->mapReportProcedure($procedure))->all();
         $baseUrl = route($isAdmin ? 'admin.laporan.tindakan-perawat' : 'perawat.laporan-tindakan');
 
         return Inertia::render('pelayanan/tindakan/report', [
             'title' => 'Laporan tindakan perawat',
+            'personal' => ! $isAdmin,
             'clinicName' => $nurse?->poliklinik?->nama ?? 'Semua poli aktif',
             'baseUrl' => $baseUrl,
             'filters' => $filters,
-            'stats' => $this->reportStats((new NursingProcedureReportQuery)->query($filters, $clinicId)),
+            'stats' => $this->reportStats((new NursingProcedureReportQuery)->query($filters, $clinicId, $nurse?->user_id)),
             'procedures' => ['data' => $procedures, 'total' => count($procedures)],
             'exportUrl' => null,
             'printUrl' => null,
@@ -79,7 +81,7 @@ class TindakanPerawatController extends Controller
         $clinicId = $request->user()->isAdmin() ? null : $clinics->clinicId($request->user());
         $audit->record($request, 'nursing_procedure.report_export', metadata: ['clinic_id' => $clinicId, 'filters' => $filters]);
 
-        return Excel::download(new NursingProcedureExport($filters, $clinicId), 'laporan-tindakan-perawat-'.today()->format('Y-m-d').'.xlsx');
+        return Excel::download(new NursingProcedureExport($filters, $clinicId, $request->user()->isAdmin() ? null : $request->user()->id), 'laporan-tindakan-perawat-'.today()->format('Y-m-d').'.xlsx');
     }
 
     public function index(Request $request, PerawatClinicResolver $clinics): Response

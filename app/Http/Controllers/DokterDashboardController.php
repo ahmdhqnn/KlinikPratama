@@ -112,7 +112,10 @@ class DokterDashboardController extends Controller
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
         $search = $filters['search'] ?? '';
         $base = $isReport ? (new DoctorExaminationReport)->query($isAdmin ? null : $this->dokterId(), $period, $search) : $period->apply($this->doctorVisits())->when($period->to === null && $period->from === null,
-            fn (Builder $query) => $query->where('tanggal', '<', today()->addDays(8)->toDateString()));
+            fn (Builder $query) => $query->where('tanggal', '<', today()->addDays(8)->toDateString()))
+            ->when(filled($search), fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
+                ->where('no_kunjungan', 'like', "%{$search}%")
+                ->orWhereHas('pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))));
         $todayVisits = $isReport ? null : $this->doctorVisits()->whereDate('tanggal', today());
         if ($isAdmin) {
             $audit->record($request, 'admin.report.examination.view', metadata: ['from' => $period->from, 'to' => $period->to]);

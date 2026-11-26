@@ -92,7 +92,7 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
                 </section>
                 <VisitList title="Menunggu pengkajian hari ini" description="Kunjungan hari ini yang belum dikirim ke dokter, diurutkan dari waktu tunggu terlama." icon={<Clock3 className="size-5" />} visits={todayVisits} />
                 <FilterPanel>
-                    <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={applyFilters}>
+                    <form className={canSelectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'grid gap-4 sm:grid-cols-2'} onSubmit={applyFilters}>
                         <Field htmlFor="screening-queue-search" label="Cari pasien">
                             <Input id="screening-queue-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama atau No. RM" value={filters.search} />
                         </Field>

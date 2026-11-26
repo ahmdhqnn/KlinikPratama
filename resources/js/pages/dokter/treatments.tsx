@@ -66,7 +66,7 @@ export default function DoctorTreatments({ filters, stats, actions }: Props) {
                 </section>
 
                 <FilterPanel>
-                    <form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(12rem,1fr)_minmax(18rem,1.2fr)_12rem_auto]" onSubmit={applyFilters}>
+                    <form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={applyFilters}>
                         <Field htmlFor="doctor-treatment-search" label="Cari pasien atau tindakan">
                             <Input id="doctor-treatment-search" onChange={(event) => setValues({ ...values, search: event.target.value })} placeholder="Nama, No. RM, kunjungan" value={values.search} />
                         </Field>

@@ -128,13 +128,14 @@ class ScreeningController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'tanggal' => ['nullable', 'date_format:Y-m-d'],
+            'prioritas' => ['nullable', 'in:normal,segera,darurat'],
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
         ]);
         $isNurse = $request->user()->role === 'perawat';
         $nurse = $isNurse ? $this->perawatClinicResolver->nakes($request->user()) : null;
         $assignedClinicId = $nurse?->poliklinik_id;
         $selectedClinicId = $assignedClinicId ?? ($filters['poliklinik_id'] ?? null);
-        $query = (new ScreeningReportQuery)->query($filters, $nurse?->id, $selectedClinicId)
+        $query = (new ScreeningReportQuery)->query($filters, $nurse?->id, $selectedClinicId, $nurse?->user_id)
             ->paginate(10)
             ->withQueryString();
         $clinics = $assignedClinicId
@@ -156,6 +157,7 @@ class ScreeningController extends Controller
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'tanggal' => $filters['tanggal'] ?? '',
+                'prioritas' => $filters['prioritas'] ?? '',
                 'poliklinikId' => $selectedClinicId ? (int) $selectedClinicId : '',
             ],
             'canSelectClinic' => ! $isNurse,
@@ -192,6 +194,7 @@ class ScreeningController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'tanggal' => ['nullable', 'date_format:Y-m-d'],
+            'prioritas' => ['nullable', 'in:normal,segera,darurat'],
             'poliklinik_id' => ['nullable', 'integer', 'exists:poliklinik,id'],
         ]);
         $nurse = $request->user()->isAdmin() ? null : $this->perawatClinicResolver->nakes($request->user());

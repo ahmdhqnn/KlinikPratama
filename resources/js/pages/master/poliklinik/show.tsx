@@ -1,6 +1,8 @@
+import { MasterExportButton } from '@/components/admin/master-export-button';
+import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { ActionButton } from '@/components/ui/action-button';
 import { Badge } from '@/components/ui/badge';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { ArrowLeft, DoorOpen, Plus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
@@ -18,6 +20,12 @@ interface Props {
 }
 
 export default function ClinicRooms({ clinic }: Props) {
+    const url = usePage().url;
+    const params = new URLSearchParams(url.split('?')[1]);
+    const search = (params.get('search') ?? '').trim().toLocaleLowerCase('id-ID');
+    const status = params.get('status') ?? '';
+    const rooms = clinic.rooms.filter((room) => room.name.toLocaleLowerCase('id-ID').includes(search)
+        && (!status || room.active === (status === 'aktif')));
     const [open, setOpen] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
     const form = useForm({ nama: '', is_active: true });
@@ -65,17 +73,28 @@ export default function ClinicRooms({ clinic }: Props) {
                     <StatCard label="Ruang aktif" value={clinic.rooms.filter((room) => room.active).length} description="Ruang yang tersedia" icon={<DoorOpen className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 </section>
 
+                <FilterPanel actions={<MasterExportButton href={'/master/export/ruang-poli?poliklinik_id=' + clinic.id} label="Ekspor daftar ruang" />}>
+                    <form key={url} className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={(event) => {
+                        event.preventDefault();
+                        const fields = new FormData(event.currentTarget);
+                        router.get('/master/poliklinik/' + clinic.id, { search: String(fields.get('search') ?? '').trim(), status: (fields.get('status') === 'semua' ? '' : String(fields.get('status') ?? '')) }, { preserveScroll: true, replace: true });
+                    }}>
+                        <Field htmlFor="room-search" label="Cari ruang"><Input id="room-search" name="search" defaultValue={params.get('search') ?? ''} maxLength={100} placeholder="Nama ruang" /></Field>
+                        <Field htmlFor="room-status" label="Status ruang"><Select id="room-status" name="status" defaultValue={status || 'semua'}><option value="semua">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option></Select></Field>
+                        <FilterSubmit />
+                    </form>
+                </FilterPanel>
                 <ReportTableCard title="Daftar ruang periksa" description={clinic.name} icon={<DoorOpen className="size-5" />}>
                     <Table className="min-w-[20rem]">
                         <TableHeader><TableRow><TableHead>Nama ruang</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                         <TableBody>
-                            {clinic.rooms.length ? clinic.rooms.map((room) => (
+                            {rooms.length ? rooms.map((room) => (
                                 <TableRow key={room.id}>
                                     <TableCell className="font-medium">{room.name}</TableCell>
                                     <TableCell><Badge>{room.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell>
                                     <TableCell className="text-center"><ActionButton type="button" onClick={() => edit(room)} action="edit" label={`Edit ruang ${room.name}`} /></TableCell>
                                 </TableRow>
-                            )) : <TableRow><TableCell colSpan={3}><Empty size="compact" title="Belum ada ruang periksa di poliklinik ini." /></TableCell></TableRow>}
+                            )) : <TableRow><TableCell colSpan={3}><Empty size="compact" title="Tidak ada ruang periksa yang sesuai." /></TableCell></TableRow>}
                         </TableBody>
                     </Table>
                 </ReportTableCard>

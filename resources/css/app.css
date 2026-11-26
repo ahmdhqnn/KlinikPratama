@@ -535,3 +535,16 @@ input[data-password-toggle]::-ms-reveal {
 /* Keep letter-body paragraph spacing out of every shared letterhead. */
 .clinical-document-head .clinical-head-copy { display:flex; min-width:0; flex-direction:column; align-items:center; gap:0.6mm; }
 .clinical-document-head .clinical-head-copy > :is(strong, p) { margin:0; padding:0; width:100%; }
+
+
+@utility balanced-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 1rem;
+
+    & > * {
+        min-width: 0;
+        flex: 1 1 16rem;
+    }
+}

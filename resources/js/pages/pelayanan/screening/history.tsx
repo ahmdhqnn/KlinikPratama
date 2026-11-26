@@ -35,7 +35,7 @@ interface Props {
     baseUrl?: string;
     serviceName: string;
     exportUrl: string | null;
-    filters: { search: string; tanggal: string; poliklinikId: number | '' };
+    filters: { search: string; tanggal: string; prioritas?: string; poliklinikId: number | '' };
     canSelectClinic: boolean;
     clinics: { id: number; name: string }[];
     screenings: PaginationData & { data: ScreeningRecord[] };
@@ -51,6 +51,7 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
         router.get(pageUrl, {
             search: filters.search,
             tanggal: filters.tanggal,
+            prioritas: filters.prioritas,
             ...(canSelectClinic ? { poliklinik_id: filters.poliklinikId } : {}),
         }, { preserveState: true, preserveScroll: true, replace: true });
     }
@@ -63,9 +64,9 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{title}</h2>
                 <p className="mt-1 text-sm text-neutral-500">{canSelectClinic ? "Riwayat pengkajian awal lintas poliklinik, termasuk draf dan pengkajian terkirim." : 'Riwayat pengkajian yang Anda tangani di ' + serviceName + ', termasuk draf dan pengkajian terkirim.'}</p>
             </div>
-            <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}><form className={`grid gap-4 sm:items-end ${canSelectClinic ? 'sm:grid-cols-2 xl:grid-cols-2' : 'sm:grid-cols-2'}`} onSubmit={applyFilters}>
-                        <Field htmlFor="screening-history-search" label="Cari pasien">
-                            <Input id="screening-history-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama atau No. RM" value={filters.search} />
+            <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}><form className={canSelectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-4' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3'} onSubmit={applyFilters}>
+                        <Field htmlFor="screening-history-search" label="Cari pasien atau kunjungan">
+                            <Input id="screening-history-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama, No. RM, atau No. kunjungan" value={filters.search} />
                         </Field>
                         <Field htmlFor="screening-history-date" label="Tanggal kunjungan">
                             <DatePicker id="screening-history-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} value={filters.tanggal} />
@@ -75,7 +76,12 @@ export default function ScreeningHistory({ filters: initialFilters, canSelectCli
                                 <option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                             </Select>
                         </Field>}
-                        <div className="flex gap-2"><FilterSubmit /></div>
+                        <Field htmlFor="screening-history-priority" label="Prioritas layanan">
+                            <Select id="screening-history-priority" onChange={(event) => setFilters({ ...filters, prioritas: event.target.value })} value={filters.prioritas ?? ''}>
+                                <option value="">Semua prioritas</option><option value="normal">Rutin</option><option value="segera">Segera</option><option value="darurat">Darurat</option>
+                            </Select>
+                        </Field>
+                        <FilterSubmit />
                     </form></FilterPanel>
             <ReportTableCard title="Daftar pengkajian awal" description={`${new Intl.NumberFormat('id-ID').format(screenings.total)} pengkajian tercatat.`} icon={<ClipboardCheck className="size-5" />} pagination={screenings}>
                 <Table className="min-w-[850px]">

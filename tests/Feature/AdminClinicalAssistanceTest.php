@@ -67,9 +67,11 @@ class AdminClinicalAssistanceTest extends TestCase
     public function test_assistance_is_scoped_to_actor_assignment_and_expiry(): void
     {
         [, , $visit] = $this->visitContext();
-        foreach ([now()->addHour(), now()->subMinute()] as $expiry) {
-            $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-            DB::table('admin_clinical_assistances')->insert(['actor_id' => $admin->id, 'kunjungan_id' => $visit->id, 'dokter_id' => $visit->dokter_id, 'poliklinik_id' => $visit->poliklinik_id, 'service_date' => today(), 'reason' => 'Bukti bantuan historis', 'expires_at' => $expiry, 'created_at' => now(), 'updated_at' => now()]);
+        $admin = $this->activeAdmin();
+        $previousAdmin = User::factory()->create(['role' => 'admin', 'is_active' => false]);
+
+        foreach ([[$previousAdmin, now()->addHour()], [$admin, now()->subMinute()]] as [$actor, $expiry]) {
+            DB::table('admin_clinical_assistances')->insert(['actor_id' => $actor->id, 'kunjungan_id' => $visit->id, 'dokter_id' => $visit->dokter_id, 'poliklinik_id' => $visit->poliklinik_id, 'service_date' => today(), 'reason' => 'Bukti bantuan historis', 'expires_at' => $expiry, 'created_at' => now(), 'updated_at' => now()]);
             $this->actingAs($admin)->post(route('pelayanan.pemeriksaan.start', $visit))->assertForbidden();
         }
         $this->assertDatabaseCount('pemeriksaan', 0);

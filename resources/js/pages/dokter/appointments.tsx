@@ -72,7 +72,7 @@ export default function DoctorAppointments({ filters, visits, isReport, isAdmin 
                     <StatCard label={isReport ? 'Pasien ditangani' : 'Pemeriksaan selesai'} value={(isReport ? stats.patients : stats.completed) ?? 0} description={isReport ? 'Pasien unik sesuai filter' : 'Kunjungan hari ini sudah final'} icon={isReport ? <UsersRound className="size-5" /> : <ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 </section>
                 <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}>
-                    <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={applyFilters}>
+                    <form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={applyFilters}>
                         {isReport && <Field htmlFor="doctor-report-search" label="Cari pasien"><Input id="doctor-report-search" placeholder="Cari nama atau No. RM" value={dates.search} onChange={(event) => setDates({ ...dates, search: event.target.value })} /></Field>}
                         <Field htmlFor="doctor-appointments-period" label="Periode kunjungan">
                             <DateRangePicker id="doctor-appointments-period" from={dates.dari} onChange={(range) => setDates({ ...dates, dari: range.from, sampai: range.to })} to={dates.sampai} />

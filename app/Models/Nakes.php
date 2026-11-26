@@ -20,6 +20,21 @@ class Nakes extends Model
 
     protected $casts = ['is_active' => 'boolean'];
 
+    public const LOGIN_POSITIONS = [
+        'dokter' => 'dokter',
+        'perawat' => 'perawat',
+        'bidan' => 'perawat',
+        'terapis_gigi' => 'perawat',
+        'farmasi' => 'farmasi',
+        'apotek' => 'farmasi',
+        'pendaftaran' => 'pendaftaran',
+    ];
+
+    public static function positionsForRole(string $role): array
+    {
+        return array_keys(self::LOGIN_POSITIONS, $role, true);
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

@@ -8,6 +8,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
+import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Head, router, usePoll } from '@inertiajs/react';
@@ -38,17 +39,19 @@ interface Props {
     todayVisits: PaginationData & { data: Visit[] };
     date: string;
     search: string;
+    status?: string;
     stats: { total: number; waiting: number; inProgress: number; completed: number };
 }
 
-export default function ExaminationsIndex({ visits, todayVisits, date: initialDate, search: initialSearch, stats, canIssueLetters }: Props) {
+export default function ExaminationsIndex({ visits, todayVisits, date: initialDate, search: initialSearch, status: initialStatus = '', stats, canIssueLetters }: Props) {
     usePoll(10_000, { only: ['stats', 'todayVisits', 'visits', 'doctorQueues', 'adminQueues'] });
     const [date, setDate] = useState(initialDate);
+    const [status, setStatus] = useState(initialStatus);
     const [search, setSearch] = useState(initialSearch);
 
     function filterVisits(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get('/pelayanan/pemeriksaan', { search, tanggal: date }, { preserveState: true, preserveScroll: true, replace: true });
+        router.get('/pelayanan/pemeriksaan', { search, tanggal: date, status }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     return (
@@ -76,12 +79,17 @@ export default function ExaminationsIndex({ visits, todayVisits, date: initialDa
                     visits={todayVisits}
                 />
                 <FilterPanel>
-                    <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={filterVisits}>
+                    <form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={filterVisits}>
                         <Field htmlFor="examination-visit-search" label="Cari pasien">
                             <Input id="examination-visit-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama atau No. RM" value={search} />
                         </Field>
                         <Field htmlFor="examination-visit-date" label="Tanggal kunjungan">
                             <DatePicker id="examination-visit-date" onChange={(event) => setDate(event.target.value)} value={date} />
+                        </Field>
+                        <Field htmlFor="examination-visit-status" label="Tahap pelayanan">
+                            <Select id="examination-visit-status" onChange={(event) => setStatus(event.target.value)} value={status}>
+                                <option value="">Semua tahap</option><option value="pemeriksaan">Pemeriksaan dokter</option><option value="tindakan">Tindakan</option><option value="farmasi">Farmasi</option><option value="selesai">Selesai</option>
+                            </Select>
                         </Field>
                         <FilterSubmit />
                     </form>

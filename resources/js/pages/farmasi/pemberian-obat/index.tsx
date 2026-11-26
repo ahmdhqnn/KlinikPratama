@@ -30,13 +30,13 @@ export default function DirectMedicineIndex({ stats, search: initialSearch, toda
 
     return <><Head title="Obat langsung" /><div className="space-y-6">
         <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Pelayanan farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Obat langsung</h2><p className="mt-1 text-sm text-neutral-500">Catat obat yang diberikan tanpa pemeriksaan dokter dan lihat riwayat penyerahannya.</p></div><div className="flex flex-wrap justify-end gap-2"><ServiceReportLinks kind="direct" /><Button asChild><Link href="/farmasi/pemberian-obat/baru"><FilePlus2 className="size-4" />Catat pemberian obat</Link></Button></div></div>
-        <section aria-label="Ringkasan obat langsung" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <section aria-label="Ringkasan obat langsung" className="balanced-stats">
             <StatCard label="Pemberian hari ini" value={stats.today} description="Obat langsung yang diserahkan hari ini" icon={<Pill className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
             <StatCard label="Pasien hari ini" value={stats.patients} description="Pasien yang menerima obat langsung" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
             <StatCard label="Seluruh pemberian" value={stats.all} description="Riwayat pemberian obat langsung" icon={<CalendarDays className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
         </section>
         <RecordList title="Pemberian obat hari ini" description="Obat langsung yang telah diserahkan hari ini." records={todayRecords} />
-        <FilterPanel><form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={apply}><Field className="w-full sm:max-w-md" htmlFor="direct-index-search" label="Cari pasien, transaksi, atau obat"><Input id="direct-index-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama, No. RM, nomor transaksi, atau obat" value={search} /></Field><FilterSubmit /></form></FilterPanel>
+        <FilterPanel><form className="grid min-w-0 gap-4" onSubmit={apply}><Field htmlFor="direct-index-search" label="Cari pasien, transaksi, atau obat"><Input id="direct-index-search" onChange={(event) => setSearch(event.target.value)} placeholder="Nama, No. RM, nomor transaksi, atau obat" value={search} /></Field><FilterSubmit /></form></FilterPanel>
         <RecordList title="Semua pemberian obat" description={`${records.total.toLocaleString('id-ID')} catatan sesuai filter.`} records={records} />
     </div></>;
 }

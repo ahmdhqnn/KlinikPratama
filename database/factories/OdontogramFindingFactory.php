@@ -24,7 +24,7 @@ class OdontogramFindingFactory extends Factory
             'surface' => 'O',
             'finding_code' => 'caries',
             'notes' => $this->faker->sentence(),
-            'recorded_by_user_id' => User::factory(),
+            'recorded_by_user_id' => User::factory()->state(['role' => 'dokter']),
         ];
     }
 

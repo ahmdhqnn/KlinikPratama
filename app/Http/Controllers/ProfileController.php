@@ -3,12 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\ClinicalAuditRecorder;
+use App\Rules\AvailableAccountEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -50,11 +50,12 @@ class ProfileController extends Controller
         $user = $request->user();
         $data = $request->validate([
             'name' => ['required', 'string', 'max:200'],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'email' => ['required', 'email', 'max:255', new AvailableAccountEmail($user)],
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:500'],
         ]);
 
+        $data['email'] = strtolower($data['email']);
         if ($user->email !== $data['email']) {
             $user->email_verified_at = null;
         }

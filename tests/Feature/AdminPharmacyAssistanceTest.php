@@ -36,7 +36,7 @@ class AdminPharmacyAssistanceTest extends TestCase
         $admin = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
         $item = $visit->resep()->sole()->resepObat()->sole();
         $payload = ['items' => [['resep_obat_id' => $item->id, 'obat_id' => $medicine->id, 'jumlah_diberikan' => $quantity]], 'catatan' => $quantity < 2 ? 'Sisa obat ditindaklanjuti sesuai instruksi' : null];
-        $operator = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $operator = $this->activeAdmin();
         $this->actingAs($operator)->post(route('pelayanan.farmasi.store', $visit), $payload)->assertForbidden();
         $this->post(route('pelayanan.farmasi.selesai', $visit), $payload)->assertForbidden();
         $this->actingAs($admin);
@@ -69,7 +69,7 @@ class AdminPharmacyAssistanceTest extends TestCase
         $item = $visit->resep()->sole()->resepObat()->sole();
         $admin = User::factory()->create(['role' => 'farmasi', 'is_active' => true]);
         $reason = ['assistance_reason' => 'Bantuan farmasi saat akun petugas terganggu.'];
-        $operator = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $operator = $this->activeAdmin();
         $this->actingAs($operator)->post(route('pelayanan.farmasi.resep-luar', [$visit, $item]), [])->assertForbidden();
         $this->actingAs($admin);
         $this->post(route('pelayanan.farmasi.resep-luar', [$visit, $item]), $reason)->assertSessionHasNoErrors();
@@ -109,7 +109,7 @@ class AdminPharmacyAssistanceTest extends TestCase
         $medicine = Obat::create(['kode' => 'DIRECT', 'nama' => 'Obat langsung', 'satuan_kecil' => 'tablet', 'jenis' => 'obat', 'stok' => 10, 'is_active' => true, 'boleh_diberikan_langsung' => true]);
         ObatBatch::factory()->create(['obat_id' => $medicine->id, 'stok' => 10]);
         $payload = ['pasien_id' => $patient->id, 'obat_id' => $medicine->id, 'jumlah' => 2, 'aturan_pakai' => 'Sesuai instruksi', 'dasar_pemberian' => 'Permintaan pasien sesuai kriteria', 'request_key' => (string) Str::uuid()];
-        $operator = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $operator = $this->activeAdmin();
         $this->actingAs($operator)->post(route('farmasi.pemberian-obat.store'), $payload)->assertForbidden();
         $this->actingAs($admin);
         $payload['assistance_reason'] = 'Akun farmasi sedang mengalami gangguan.';

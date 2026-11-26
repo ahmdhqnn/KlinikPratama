@@ -16,11 +16,14 @@ class PersediaanController extends Controller
 {
     public function index(Request $request): Response
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'jenis' => ['nullable', 'in:obat,bhp']]);
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'jenis' => ['nullable', 'in:obat,bhp'], 'stok' => ['nullable', 'in:minimum,kedaluwarsa']]);
         $medicines = Obat::withSum(['batches as usable_stock' => fn ($query) => $query->usable()], 'stok')
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query->where('nama', 'like', "%{$search}%")->orWhere('kode', 'like', "%{$search}%")))
             ->when($filters['jenis'] ?? null, fn ($query, string $type) => $query->where('jenis', $type))
-            ->orderBy('nama')->paginate(10)->withQueryString()
+            ->when(($filters['stok'] ?? null) === 'minimum', fn ($query) => $query->where('is_active', true)->lowUsableStock())
+            ->when(($filters['stok'] ?? null) === 'kedaluwarsa', fn ($query) => $query->where('is_active', true)
+                ->whereHas('batches', fn ($batch) => $batch->usable()->whereBetween('expired_at', [today()->addDay()->toDateString(), today()->addDays(90)->toDateString()])))
+            ->orderBy('nama')->orderBy('id')->paginate(10)->withQueryString()
             ->through(fn (Obat $medicine): array => [
                 'id' => $medicine->id, 'code' => $medicine->kode, 'name' => $medicine->nama,
                 'type' => $medicine->jenis, 'stock' => (float) $medicine->stok, 'usable' => (float) $medicine->usable_stock,

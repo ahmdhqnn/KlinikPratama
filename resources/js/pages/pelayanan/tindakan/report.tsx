@@ -46,9 +46,10 @@ interface Props {
     exportUrl: string | null;
     printUrl: string | null;
     printMode: boolean;
+    personal?: boolean;
 }
 
-export default function NursingProcedureReport({ title, clinicName, baseUrl = '/perawat/laporan-tindakan', filters: initialFilters, stats, procedures, exportUrl, printMode }: Props) {
+export default function NursingProcedureReport({ title, clinicName, baseUrl = '/perawat/laporan-tindakan', filters: initialFilters, stats, procedures, exportUrl, printMode, personal = false }: Props) {
     const [filters, setFilters] = useState({ dari: initialFilters.dari ?? '', sampai: initialFilters.sampai ?? '', search: initialFilters.search ?? '', status: initialFilters.status ?? '' });
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
@@ -65,24 +66,24 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
             </div> : <div>
                 <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan · {clinicName}</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{title}</h2>
-                <p className="mt-1 text-sm text-neutral-500">Ringkasan tindakan perawat yang disiapkan dokter, berdasarkan tanggal kunjungan dan filter yang dipilih.</p>
+                <p className="mt-1 text-sm text-neutral-500">{personal ? 'Tindakan yang pelaksanaannya dicatat oleh akun Anda, berdasarkan tanggal kunjungan.' : 'Ringkasan tindakan perawat yang disiapkan dokter, berdasarkan tanggal kunjungan.'}</p>
             </div>}
 
-            <section aria-label="Ringkasan laporan tindakan" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 print:grid-cols-4">
+            <section aria-label="Ringkasan laporan tindakan" className={personal ? "grid gap-4 sm:grid-cols-2" : "grid gap-4 sm:grid-cols-2 xl:grid-cols-4 print:grid-cols-4"}>
                 <StatCard label="Total tindakan" value={stats.total} description="Sesuai periode dan filter" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 <StatCard label="Kunjungan" value={stats.visits} description="Memiliki tindakan perawat" icon={<CalendarDays className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
-                <StatCard label="Menunggu tindakan" value={stats.pending} description="Belum dilaksanakan" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
-                <StatCard label="Tindakan selesai" value={stats.completed} description="Hasil pelaksanaan sudah dicatat" icon={<Check className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                {!personal && <StatCard label="Menunggu tindakan" value={stats.pending} description="Belum dilaksanakan" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />}
+                {!personal && <StatCard label="Tindakan selesai" value={stats.completed} description="Hasil pelaksanaan sudah dicatat" icon={<Check className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />}
             </section>
 
             {!printMode && <FilterPanel actions={<div className="flex flex-wrap gap-2">
                 {exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}
             </div>}>
-                <form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:items-end" onSubmit={applyFilters}>
+                <form className={personal ? 'grid gap-4 sm:grid-cols-2' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3'} onSubmit={applyFilters}>
                     <Field htmlFor="nursing-procedure-report-search" label="Cari pasien, kunjungan, atau tindakan"><Input id="nursing-procedure-report-search" placeholder="Nama, No. RM, No. kunjungan, atau tindakan" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} /></Field>
                     <Field htmlFor="nursing-procedure-report-period" label="Periode tanggal kunjungan"><DateRangePicker id="nursing-procedure-report-period" from={filters.dari} onChange={(range) => setFilters({ ...filters, dari: range.from, sampai: range.to })} to={filters.sampai} /></Field>
-                    <Field htmlFor="nursing-procedure-report-status" label="Status tindakan"><Select id="nursing-procedure-report-status" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">Semua status</option><option value="pending">Menunggu tindakan</option><option value="completed">Selesai</option></Select></Field>
-                    <div className="flex gap-2"><FilterSubmit /></div>
+                    {!personal && <Field htmlFor="nursing-procedure-report-status" label="Status tindakan"><Select id="nursing-procedure-report-status" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">Semua status</option><option value="pending">Menunggu tindakan</option><option value="completed">Selesai</option></Select></Field>}
+                    <FilterSubmit />
                 </form>
             </FilterPanel>}
 

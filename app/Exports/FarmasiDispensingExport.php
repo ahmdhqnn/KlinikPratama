@@ -13,18 +13,11 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class FarmasiDispensingExport extends SafeSpreadsheetValueBinder implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
-    /** @param array{dari?: string|null, sampai?: string|null, search?: string|null} $filters */
-    public function __construct(private array $filters) {}
+    public function __construct(private Builder $records) {}
 
     public function query(): Builder
     {
-        return Farmasi::query()->where('status', 'selesai')->whereNotNull('dispensed_at')
-            ->when($this->filters['dari'] ?? null, fn (Builder $query, string $date) => $query->whereDate('dispensed_at', '>=', $date))
-            ->when($this->filters['sampai'] ?? null, fn (Builder $query, string $date) => $query->whereDate('dispensed_at', '<=', $date))
-            ->when($this->filters['search'] ?? null, fn (Builder $query, string $search) => $query->whereHas('kunjungan', fn (Builder $visit) => $visit
-                ->where('no_kunjungan', 'like', "%{$search}%")
-                ->orWhereHas('pasien', fn (Builder $patient) => $patient->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))
-                ->orWhereHas('resep.resepObat', fn (Builder $items) => $items->where('nama_obat', 'like', "%{$search}%"))))
+        return $this->records
             ->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'items.obat', 'dispensingPharmacist'])
             ->orderByDesc('dispensed_at')->orderByDesc('id');
     }

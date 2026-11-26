@@ -35,15 +35,20 @@ class FarmasiController extends Controller
 
     public function index(Request $request, VisitQueryService $visits): Response
     {
+        $poli = $request->validate(['poli' => ['nullable', 'in:umum,gigi']])['poli'] ?? null;
         $filters = $visits->filters($request);
         $pharmacyVisits = fn (Builder $query): Builder => $query
             ->where(fn (Builder $visits) => $visits->where('status', 'farmasi')->orWhereHas('farmasi', fn (Builder $records) => $records->where('status', 'selesai')));
-        $kunjungan = $pharmacyVisits($visits->filtered($filters))
+        $pharmacyStatus = $request->validate(['status_farmasi' => ['nullable', 'in:menunggu,diproses,selesai']])['status_farmasi'] ?? null;
+        $history = $this->searchPrescriptions($visits, $filters)->forClinicType($poli);
+        $kunjungan = $pharmacyVisits($history)
+            ->when($pharmacyStatus === 'menunggu', fn (Builder $query) => $query->whereDoesntHave('farmasi', fn (Builder $records) => $records->whereIn('status', ['diproses', 'selesai'])))
+            ->when(in_array($pharmacyStatus, ['diproses', 'selesai'], true), fn (Builder $query) => $query->whereHas('farmasi', fn (Builder $records) => $records->where('status', $pharmacyStatus)))
             ->with(['pasien', 'poliklinik', 'dokter', 'farmasi', 'resep.resepObat'])
             ->latest('tanggal')->latest('id')
             ->paginate(10)
             ->withQueryString();
-        $activeVisits = Kunjungan::query()->where('status', 'farmasi')
+        $activeVisits = Kunjungan::query()->forClinicType($poli)->where('status', 'farmasi')
             ->whereDoesntHave('farmasi', fn (Builder $records) => $records->where('status', 'selesai'));
         $todayActive = (clone $activeVisits)->whereDate('tanggal', today());
         $todayVisits = (clone $todayActive)->with(['pasien', 'poliklinik', 'dokter', 'farmasi', 'resep.resepObat'])
@@ -61,11 +66,14 @@ class FarmasiController extends Controller
         ];
 
         return Inertia::render('pelayanan/farmasi/index', [
+            'clinicType' => $poli,
+            'pharmacyStatus' => $pharmacyStatus ?? '',
             'stats' => [
-                'today' => $pharmacyVisits(Kunjungan::query()->whereDate('tanggal', today()))->count(),
+                'today' => $pharmacyVisits(Kunjungan::query()->forClinicType($poli)->whereDate('tanggal', today()))->count(),
                 'waiting' => (clone $todayActive)->whereDoesntHave('farmasi', fn (Builder $records) => $records->where('status', 'diproses'))->count(),
                 'processing' => (clone $todayActive)->whereHas('farmasi', fn (Builder $records) => $records->where('status', 'diproses'))->count(),
-                'completed' => Farmasi::query()->where('status', 'selesai')->whereDate('dispensed_at', today())->count(),
+                'completed' => Farmasi::query()->whereHas('kunjungan', fn (Builder $query) => $query->forClinicType($poli))
+                    ->where('status', 'selesai')->whereDate('dispensed_at', today())->count(),
             ],
             'todayVisits' => [
                 'data' => $todayVisits->getCollection()->map($mapVisit)->values(),
@@ -88,17 +96,29 @@ class FarmasiController extends Controller
         ]);
     }
 
+    private function searchPrescriptions(VisitQueryService $visits, array $filters): Builder
+    {
+        $search = $filters['search'] ?? null;
+        unset($filters['search']);
+
+        return $visits->filtered($filters)->when(filled($search), fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
+            ->where('no_kunjungan', 'like', "%{$search}%")
+            ->orWhereHas('pasien', fn (Builder $patients) => $patients->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))
+            ->orWhereHas('resep', fn (Builder $records) => $records->where('no_resep', 'like', "%{$search}%"))));
+    }
+
     public function externalPrescriptions(Request $request, VisitQueryService $visits): Response
     {
+        $poli = $request->validate(['poli' => ['nullable', 'in:umum,gigi']])['poli'] ?? null;
         $filters = $visits->filters($request);
         $query = fn (Builder $builder): Builder => $builder
             ->whereHas('pemeriksaan', fn (Builder $exam) => $exam->whereNotNull('signed_at'))
             ->whereHas('resep.resepObat', fn (Builder $items) => $items->where(fn (Builder $item) => $item
                 ->where('is_resep_luar', true)->orWhereHas('farmasiResepLuar')));
-        $records = $query($visits->filtered($filters))
+        $records = $query($this->searchPrescriptions($visits, $filters)->forClinicType($poli))
             ->with(['pasien', 'poliklinik', 'dokter', 'resep.resepObat.farmasiResepLuar'])
             ->latest('tanggal')->latest('id')->paginate(10)->withQueryString();
-        $todayRecords = $query(Kunjungan::query()->whereDate('tanggal', today()))
+        $todayRecords = $query(Kunjungan::query()->forClinicType($poli)->whereDate('tanggal', today()))
             ->with(['pasien', 'poliklinik', 'dokter', 'resep.resepObat.farmasiResepLuar'])
             ->orderBy('created_at')->orderBy('id')->paginate(10, ['*'], 'today_page')->withQueryString();
         $mapRecord = fn (Kunjungan $visit): array => [
@@ -121,9 +141,10 @@ class FarmasiController extends Controller
         ];
 
         return Inertia::render('farmasi/resep-luar', [
+            'clinicType' => $poli,
             'stats' => [
-                'today' => $query(Kunjungan::query()->whereDate('tanggal', today()))->count(),
-                'all' => $query(Kunjungan::query())->count(),
+                'today' => $query(Kunjungan::query()->forClinicType($poli)->whereDate('tanggal', today()))->count(),
+                'all' => $query(Kunjungan::query()->forClinicType($poli))->count(),
             ],
             'filters' => ['search' => $filters['search'] ?? '', 'tanggal' => $filters['tanggal'] ?? ''],
             'todayRecords' => $page($todayRecords),
@@ -133,14 +154,14 @@ class FarmasiController extends Controller
 
     public function externalReport(Request $request): Response
     {
-        $filters = $request->validate(['dari' => ['nullable', 'date'], 'sampai' => ['nullable', 'date', 'after_or_equal:dari'], 'search' => ['nullable', 'string', 'max:100']]);
-        $filtered = [...$filters, 'dari' => $filters['dari'] ?? today()->startOfMonth()->toDateString(), 'sampai' => $filters['sampai'] ?? today()->toDateString()];
+        $filtered = $this->reportFilters($request);
         $query = $this->externalReportQuery($filtered);
         $rows = (clone $query)->with(['obat', 'resep.kunjungan.pasien', 'resep.kunjungan.poliklinik', 'farmasiResepLuar.petugas'])
             ->latest('id')->paginate(10)->withQueryString();
 
         return Inertia::render('farmasi/laporan-resep-luar', [
-            'filters' => ['dari' => $filtered['dari'], 'sampai' => $filtered['sampai'], 'search' => $filtered['search'] ?? ''],
+            'filters' => ['dari' => $filtered['dari'] ?? '', 'sampai' => $filtered['sampai'] ?? '', 'search' => $filtered['search'] ?? '', 'poli' => $filtered['poli'] ?? ''],
+            'personal' => $filtered['account_id'] !== null,
             'stats' => [
                 'items' => (clone $query)->count(),
                 'prescriptions' => (clone $query)->distinct('resep_id')->count('resep_id'),
@@ -163,15 +184,13 @@ class FarmasiController extends Controller
                 'from' => $rows->firstItem(), 'to' => $rows->lastItem(), 'total' => $rows->total(),
                 'previousUrl' => $rows->previousPageUrl(), 'nextUrl' => $rows->nextPageUrl(),
             ],
-            'exportUrl' => route('farmasi.laporan.resep-luar.export', $request->query()),
+            'exportUrl' => route('farmasi.laporan.resep-luar.export', array_diff_key($filtered, ['account_id' => true])),
         ]);
     }
 
     public function exportExternalReport(Request $request)
     {
-        $filters = $request->validate(['dari' => ['nullable', 'date'], 'sampai' => ['nullable', 'date', 'after_or_equal:dari'], 'search' => ['nullable', 'string', 'max:100']]);
-        $filters['dari'] ??= today()->startOfMonth()->toDateString();
-        $filters['sampai'] ??= today()->toDateString();
+        $filters = $this->reportFilters($request);
 
         return Excel::download(new FarmasiResepLuarExport($this->externalReportQuery($filters)), 'laporan-resep-luar-'.today()->format('Y-m-d').'.xlsx');
     }
@@ -180,7 +199,8 @@ class FarmasiController extends Controller
     {
         return ResepObat::query()
             ->where(fn (Builder $items) => $items->where('is_resep_luar', true)->orWhereHas('farmasiResepLuar'))
-            ->whereHas('resep.kunjungan', fn (Builder $visits) => $visits
+            ->when($filters['account_id'], fn (Builder $items, int $id) => $items->whereHas('farmasiResepLuar', fn (Builder $records) => $records->where('petugas_id', $id)))
+            ->whereHas('resep.kunjungan', fn (Builder $visits) => $visits->forClinicType($filters['poli'] ?? null)
                 ->whereHas('pemeriksaan', fn (Builder $exam) => $exam->whereNotNull('signed_at'))
                 ->when($filters['dari'] ?? null, fn (Builder $records, string $date) => $records->whereDate('tanggal', '>=', $date))
                 ->when($filters['sampai'] ?? null, fn (Builder $records, string $date) => $records->whereDate('tanggal', '<=', $date)))
@@ -192,27 +212,21 @@ class FarmasiController extends Controller
 
     public function report(Request $request): Response
     {
-        $filters = $request->validate([
-            'dari' => ['nullable', 'date'], 'sampai' => ['nullable', 'date', 'after_or_equal:dari'],
-            'search' => ['nullable', 'string', 'max:100'],
-        ]);
-        $filtered = [
-            ...$filters,
-            'dari' => $filters['dari'] ?? today()->startOfMonth()->toDateString(),
-            'sampai' => $filters['sampai'] ?? today()->toDateString(),
-        ];
+        $filtered = $this->reportFilters($request);
         $records = $this->dispensingReportQuery($filtered)
             ->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'items.obat', 'dispensingPharmacist'])
-            ->latest('dispensed_at')->paginate(10)->withQueryString();
+            ->latest('dispensed_at')->latest('id')->paginate(10)->withQueryString();
         $total = $this->dispensingReportQuery($filtered);
         $stats = [
             'total' => (clone $total)->count(),
-            'patients' => (clone $total)->distinct('kunjungan_id')->count('kunjungan_id'),
+            'patients' => Kunjungan::query()->whereHas('farmasi', fn (Builder $query) => $this->applyDispensingReportFilters($query, $filtered))
+                ->distinct()->count('pasien_id'),
             'items' => FarmasiItem::query()->whereHas('farmasi', fn (Builder $query) => $this->applyDispensingReportFilters($query, $filtered))->count(),
         ];
 
         return Inertia::render('farmasi/laporan-penyerahan', [
-            'filters' => ['dari' => $filtered['dari'], 'sampai' => $filtered['sampai'], 'search' => $filtered['search'] ?? ''],
+            'filters' => ['dari' => $filtered['dari'] ?? '', 'sampai' => $filtered['sampai'] ?? '', 'search' => $filtered['search'] ?? '', 'poli' => $filtered['poli'] ?? ''],
+            'personal' => $filtered['account_id'] !== null,
             'stats' => $stats,
             'rows' => [
                 'data' => $records->getCollection()->map(fn (Farmasi $record): array => [
@@ -229,20 +243,15 @@ class FarmasiController extends Controller
                 'currentPage' => $records->currentPage(), 'lastPage' => $records->lastPage(), 'from' => $records->firstItem(), 'to' => $records->lastItem(),
                 'total' => $records->total(), 'previousUrl' => $records->previousPageUrl(), 'nextUrl' => $records->nextPageUrl(),
             ],
-            'exportUrl' => route('farmasi.laporan.export', $request->query()),
+            'exportUrl' => route('farmasi.laporan.export', array_diff_key($filtered, ['account_id' => true])),
         ]);
     }
 
     public function exportReport(Request $request)
     {
-        $filters = $request->validate([
-            'dari' => ['nullable', 'date'], 'sampai' => ['nullable', 'date', 'after_or_equal:dari'],
-            'search' => ['nullable', 'string', 'max:100'],
-        ]);
-        $filters['dari'] ??= today()->startOfMonth()->toDateString();
-        $filters['sampai'] ??= today()->toDateString();
+        $filters = $this->reportFilters($request);
 
-        return Excel::download(new FarmasiDispensingExport($filters), 'laporan-penyerahan-obat-'.today()->format('Y-m-d').'.xlsx');
+        return Excel::download(new FarmasiDispensingExport($this->dispensingReportQuery($filters)), 'laporan-penyerahan-obat-'.today()->format('Y-m-d').'.xlsx');
     }
 
     private function dispensingReportQuery(array $filters): Builder
@@ -253,12 +262,32 @@ class FarmasiController extends Controller
     private function applyDispensingReportFilters(Builder $query, array $filters): Builder
     {
         return $query->where('status', 'selesai')->whereNotNull('dispensed_at')
+            ->when($filters['account_id'], fn (Builder $records, int $id) => $records->where('dispensed_by', $id))
+            ->when($filters['poli'] ?? null, fn (Builder $records, string $poli) => $records
+                ->whereHas('kunjungan', fn (Builder $visits) => $visits->forClinicType($poli)))
             ->when($filters['dari'] ?? null, fn (Builder $records, string $date) => $records->whereDate('dispensed_at', '>=', $date))
             ->when($filters['sampai'] ?? null, fn (Builder $records, string $date) => $records->whereDate('dispensed_at', '<=', $date))
             ->when($filters['search'] ?? null, fn (Builder $records, string $search) => $records->whereHas('kunjungan', fn (Builder $visit) => $visit
                 ->where('no_kunjungan', 'like', "%{$search}%")
                 ->orWhereHas('pasien', fn (Builder $patient) => $patient->where('nama', 'like', "%{$search}%")->orWhere('no_rm', 'like', "%{$search}%"))
-                ->orWhereHas('resep.resepObat', fn (Builder $items) => $items->where('nama_obat', 'like', "%{$search}%"))));
+                ->orWhereHas('farmasi.items.obat', fn (Builder $medicines) => $medicines->where('nama', 'like', "%{$search}%"))));
+    }
+
+    private function reportFilters(Request $request): array
+    {
+        $filters = $request->validate([
+            'dari' => ['nullable', 'date_format:Y-m-d'],
+            'sampai' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dari'],
+            'search' => ['nullable', 'string', 'max:100'],
+            'poli' => ['nullable', 'in:umum,gigi'],
+        ]);
+
+        if (! filled($filters['dari'] ?? null) && ! filled($filters['sampai'] ?? null)) {
+            $filters['dari'] = today()->startOfMonth()->toDateString();
+            $filters['sampai'] = today()->toDateString();
+        }
+
+        return [...$filters, 'account_id' => $request->user()->isAdmin() ? null : $request->user()->id];
     }
 
     public function show(Request $request, Kunjungan $kunjungan, ClinicalAuditRecorder $audit, PatientAllergyHistory $allergies): Response
