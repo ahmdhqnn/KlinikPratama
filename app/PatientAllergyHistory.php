@@ -87,6 +87,69 @@ class PatientAllergyHistory
         $history = $this->normalize($history);
         if ($history !== null) {
             Pasien::whereKey($visit->pasien_id)->lockForUpdate()->firstOrFail()->update(['riwayat_alergi' => $history]);
+            $this->syncStructuredAllergies($visit, $history);
+        }
+    }
+
+    /**
+     * Sync relational FHIR-ready AllergyIntolerance records from confirmed clinical allergy text.
+     */
+    private function syncStructuredAllergies(Kunjungan $visit, string $history): void
+    {
+        $safety = app(ClinicalSafetyService::class);
+        if ($safety->isNegativeAllergyText($history)) {
+            Models\PatientAllergy::query()
+                ->where('pasien_id', $visit->pasien_id)
+                ->whereNull('allergen_code')
+                ->where('clinical_status', 'active')
+                ->update(['clinical_status' => 'inactive', 'verification_status' => 'refuted']);
+
+            return;
+        }
+
+        $category = match (mb_strtolower((string) ($visit->screening?->alergi_jenis ?? ''))) {
+            'makanan' => 'food',
+            'udara', 'udara/lainnya', 'lingkungan' => 'environment',
+            default => 'medication',
+        };
+        $reaction = $this->normalize($visit->screening?->alergi_reaksi);
+        $criticality = match (mb_strtolower((string) ($visit->screening?->alergi_keparahan ?? ''))) {
+            'berat', 'anafilaksis', 'tinggi', 'high' => 'high',
+            'sedang', 'ringan', 'rendah', 'low' => 'low',
+            default => 'unable-to-assess',
+        };
+        $terms = collect(preg_split('/[,;\n]+/u', $history, -1, PREG_SPLIT_NO_EMPTY) ?: [])
+            ->map(fn (string $item): string => mb_substr(trim($item), 0, 255))
+            ->filter(fn (string $item): bool => $item !== '' && ! $safety->isNegativeAllergyText($item))
+            ->unique()
+            ->take(10)
+            ->values();
+
+        if ($terms->isNotEmpty()) {
+            Models\PatientAllergy::query()
+                ->where('pasien_id', $visit->pasien_id)
+                ->whereNull('allergen_code')
+                ->where('clinical_status', 'active')
+                ->whereNotIn('allergen_display', $terms->all())
+                ->update(['clinical_status' => 'inactive', 'verification_status' => 'refuted']);
+        }
+
+        foreach ($terms as $term) {
+            Models\PatientAllergy::query()->updateOrCreate(
+                [
+                    'pasien_id' => $visit->pasien_id,
+                    'allergen_display' => $term,
+                ],
+                [
+                    'kunjungan_id' => $visit->id,
+                    'recorded_by_user_id' => auth()->id(),
+                    'category' => $category,
+                    'criticality' => $criticality,
+                    'reaction_text' => $reaction,
+                    'clinical_status' => 'active',
+                    'verification_status' => 'confirmed',
+                ]
+            );
         }
     }
 

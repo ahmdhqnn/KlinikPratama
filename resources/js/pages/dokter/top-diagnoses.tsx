@@ -1,12 +1,15 @@
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Head, router } from '@inertiajs/react';
-import { Activity } from 'lucide-react';
+import { Activity, BarChart3, ClipboardList } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 interface Diagnosis {
@@ -16,12 +19,14 @@ interface Diagnosis {
 }
 
 interface Props {
-    filters: { dari: string; sampai: string };
+    filters: { dari: string; sampai: string; search?: string };
     diagnoses: PaginationData & { data: Diagnosis[] };
 }
 
 export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
-    const [dates, setDates] = useState(filters);
+    const [dates, setDates] = useState({ ...filters, search: filters.search ?? '' });
+    const pageCases = diagnoses.data.reduce((sum, item) => sum + item.count, 0);
+    const topDiagnosis = diagnoses.data[0];
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -37,12 +42,20 @@ export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Diagnosis terbanyak</h2>
                     <p className="mt-1 text-sm text-neutral-500">Ringkasan diagnosis dari kunjungan yang ditangani selama periode terpilih.</p>
                 </div>
-                <FilterPanel><form className="grid min-w-0 gap-4" onSubmit={applyFilters}>
-                            <Field htmlFor="doctor-diagnoses-period" label="Periode diagnosis">
-                                <DateRangePicker id="doctor-diagnoses-period" from={dates.dari} onChange={(range) => setDates({ dari: range.from, sampai: range.to })} to={dates.sampai} />
-                            </Field>
-                            <FilterSubmit />
-                        </form></FilterPanel>
+                <SummaryStatGrid ariaLabel="Ringkasan diagnosis terbanyak" columns={3}>
+                    <StatCard description="Diagnosis unik pada periode terpilih" icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total jenis diagnosis" value={diagnoses.total} />
+                    <StatCard description="Akumulasi kasus pada halaman ini" icon={<BarChart3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Kasus ditampilkan" value={pageCases} />
+                    <StatCard description={topDiagnosis ? topDiagnosis.name : 'Belum ada data diagnosis'} icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Diagnosis teratas" value={topDiagnosis ? (topDiagnosis.code || 'Manual') : '—'} />
+                </SummaryStatGrid>
+                <FilterPanel><form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={applyFilters}>
+                    <Field htmlFor="doctor-diagnoses-search" label="Cari ICD-10 atau diagnosis">
+                        <Input id="doctor-diagnoses-search" onChange={(event) => setDates({ ...dates, search: event.target.value })} placeholder="Kode ICD-10 atau nama diagnosis" value={dates.search} />
+                    </Field>
+                    <Field htmlFor="doctor-diagnoses-period" label="Periode diagnosis">
+                        <DateRangePicker id="doctor-diagnoses-period" from={dates.dari} onChange={(range) => setDates({ ...dates, dari: range.from, sampai: range.to })} to={dates.sampai} />
+                    </Field>
+                    <FilterSubmit />
+                </form></FilterPanel>
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100">
                         <div className="flex items-start gap-3">

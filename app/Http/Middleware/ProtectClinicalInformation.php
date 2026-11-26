@@ -23,6 +23,7 @@ class ProtectClinicalInformation
                 'TindakanPerawatController', 'PerawatDashboardController' => 'nursing',
                 'FarmasiController', 'FarmasiMandiriController', 'FarmasiDashboardController', 'PharmacyClinicalReviewController' => 'pharmacy',
                 'VisitAttachmentController' => 'attachment',
+                'PatientDocumentController' => 'patient_document',
                 'GeneralConsentController' => $method === 'store' ? 'consent_write' : 'consent_read',
                 'ProcedureConsentController' => $method === 'store' ? 'procedure_consent_write' : 'procedure_consent_read',
                 'MedicalDocumentVerificationController' => $method === 'void' ? 'correspondence' : null,
@@ -54,7 +55,12 @@ class ProtectClinicalInformation
             $response->headers->set('Cache-Control', 'private, no-store');
             $response->headers->set('Pragma', 'no-cache');
             $response->headers->set('X-Content-Type-Options', 'nosniff');
+            $response->headers->set('X-Frame-Options', 'DENY');
+            $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
             $response->headers->set('Referrer-Policy', 'same-origin');
+            if ($request->isSecure()) {
+                $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+            }
         }
 
         return $response;

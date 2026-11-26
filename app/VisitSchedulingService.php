@@ -56,8 +56,11 @@ final class VisitSchedulingService
      */
     public function ensureNoDuplicate(int $patientId, int $clinicId, string $date, ?int $exceptVisitId = null): void
     {
-        $exists = Kunjungan::query()->where('pasien_id', $patientId)->where('poliklinik_id', $clinicId)
-            ->whereDate('tanggal', $date)->whereNotIn('status', ['selesai', 'batal'])
+        $query = Kunjungan::query()->where('pasien_id', $patientId)->where('poliklinik_id', $clinicId);
+        $query = $query->getConnection()->getDriverName() === 'sqlite'
+            ? $query->whereDate('tanggal', $date)
+            : $query->where('tanggal', $date);
+        $exists = $query->whereNotIn('status', ['selesai', 'batal'])
             ->when($exceptVisitId, fn ($query) => $query->where('id', '!=', $exceptVisitId))->exists();
 
         if ($exists) {

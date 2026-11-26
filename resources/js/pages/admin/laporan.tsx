@@ -1,5 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
-import { ArrowUpRight, ChartNoAxesCombined } from 'lucide-react';
+import { Activity, ArrowUpRight, BarChart3, ChartNoAxesCombined, FolderKanban, Pill } from 'lucide-react';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -15,7 +17,15 @@ interface ReportGroup {
     reports: ReportLink[];
 }
 
-export default function AdminReportsPage({ groups }: { groups: ReportGroup[] }) {
+export default function AdminReportsPage({
+    groups,
+    stats,
+}: {
+    groups: ReportGroup[];
+    stats?: { totalReports: number; categories: number; visitsThisMonth: number; activeMedicines: number };
+}) {
+    const totalReports = stats?.totalReports ?? groups.reduce((sum, g) => sum + g.reports.length, 0);
+
     return <>
         <Head title="Pusat laporan" />
         <div className="space-y-6">
@@ -24,6 +34,12 @@ export default function AdminReportsPage({ groups }: { groups: ReportGroup[] }) 
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pusat laporan</h2>
                 <p className="mt-1 text-sm text-neutral-500">Buka laporan pelayanan klinik, farmasi, atau persediaan.</p>
             </div>
+            <SummaryStatGrid ariaLabel="Ringkasan pusat laporan" columns={4}>
+                <StatCard label="Laporan tersedia" value={totalReports} description="Modul rekap siap unduh" icon={<BarChart3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                <StatCard label="Kelompok laporan" value={stats?.categories ?? groups.length} description="Kategori analitik klinik" icon={<FolderKanban className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                <StatCard label="Kunjungan bulan ini" value={stats?.visitsThisMonth ?? 0} description="Akumulasi layanan bulan berjalan" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                <StatCard label="Obat & BHP aktif" value={stats?.activeMedicines ?? 0} description="Item aktif dalam katalog" icon={<Pill className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+            </SummaryStatGrid>
 
             {groups.map((group) => <section aria-label={group.title} className="space-y-3" key={group.title}>
                 <div>

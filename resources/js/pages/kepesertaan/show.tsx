@@ -1,8 +1,8 @@
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, ShieldCheck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Head } from '@inertiajs/react';
+import { ShieldCheck, UserRound } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PageHeaderWithActions } from '@/components/ui/page-header';
 
 interface Member {
     id: number; nama: string; nik: string | null; nip: string | null; kategori: string; jenisLainnya: string | null; status: string;
@@ -31,14 +31,28 @@ export default function MembershipDetail({ member, urls }: { member: Member; url
         <>
             <Head title={`Detail kepesertaan · ${member.nama}`} />
             <div className="space-y-6">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                    <div><p className="text-sm font-medium text-neutral-700">Direktori instansi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Detail kepesertaan</h2><p className="mt-1 text-sm text-neutral-500">Informasi peserta terverifikasi untuk pendaftaran dan hak layanan klinik internal.</p></div>
-                    <Button asChild variant="secondary"><Link href={urls.index}><ArrowLeft className="size-4" />Kembali ke daftar</Link></Button>
-                </div>
-                <Card>
-                    <CardHeader><div className="flex items-start justify-between gap-4"><div><CardTitle>{member.nama}</CardTitle><CardDescription className="mt-1">{member.unitKerja} · {member.kategori}{member.jenisLainnya ? ` / ${member.jenisLainnya}` : ''}</CardDescription></div><Badge variant={member.reason ? 'cancelled' : 'complete'}><ShieldCheck className="size-3.5" />{member.reason ? 'Hak layanan tidak aktif' : 'Hak layanan tersedia'}</Badge></div></CardHeader>
-                    <CardContent className="space-y-7">
-                        {groups.map((group) => <section className="space-y-3" key={group.title}><h3 className="text-sm font-semibold text-neutral-950">{group.title}</h3><dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">{group.entries.map(([label, value]) => <div className="min-w-0" key={label}><dt className="text-xs font-medium uppercase tracking-wide text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm text-neutral-900">{value || 'Belum diisi'}</dd></div>)}</dl></section>)}
+                <PageHeaderWithActions
+                    backHref={urls.index}
+                    backLabel="Kembali ke daftar"
+                    eyebrow="Direktori instansi"
+                    subtitle="Informasi peserta terverifikasi untuk pendaftaran dan hak layanan klinik internal."
+                    title="Detail kepesertaan"
+                />
+                <Card className="overflow-hidden">
+                    <CardHeader className="border-b border-neutral-100">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRound className="size-5" /></span>
+                                <div>
+                                    <CardTitle>{member.nama}</CardTitle>
+                                    <CardDescription className="mt-1">{member.unitKerja} · {member.kategori}{member.jenisLainnya ? ` / ${member.jenisLainnya}` : ''}</CardDescription>
+                                </div>
+                            </div>
+                            <Badge variant={member.reason ? 'cancelled' : 'complete'}><ShieldCheck className="size-3.5" />{member.reason ? 'Hak layanan tidak aktif' : 'Hak layanan tersedia'}</Badge>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-7 p-5 sm:p-6">
+                        {groups.map((group) => <section className="space-y-3" key={group.title}><h3 className="text-sm font-semibold text-neutral-950">{group.title}</h3><dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">{group.entries.map(([label, value]) => <div className="min-w-0" key={label}><dt className="text-xs font-medium uppercase tracking-wide text-neutral-500">{label}</dt><dd className="mt-1 break-words text-sm text-neutral-900">{value || 'Belum dicatat'}</dd></div>)}</dl></section>)}
                     </CardContent>
                 </Card>
             </div>

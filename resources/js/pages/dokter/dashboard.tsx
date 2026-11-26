@@ -49,8 +49,8 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
                         <QuickLink href="/dokter/tindakan" icon={<Syringe className="size-4" />} label="Tindakan" />
                     </CardContent>
                 </Card>
-                <section className="grid items-stretch gap-6 xl:gap-y-0 xl:grid-cols-[minmax(16rem,0.75fr)_minmax(0,1.5fr)]">
-                    <Card className="flex min-w-0 flex-col overflow-hidden xl:row-span-3 xl:grid xl:grid-rows-subgrid xl:gap-y-0">
+                <section className="grid items-stretch gap-6 2xl:gap-y-0 2xl:grid-cols-[minmax(16rem,0.75fr)_minmax(0,1.5fr)]">
+                    <Card className="flex min-w-0 flex-col overflow-hidden 2xl:row-span-3 2xl:grid 2xl:grid-rows-subgrid 2xl:gap-y-0">
                         <CardHeader className="border-b border-neutral-100">
                             <CardTitle>Jadwal praktik hari ini</CardTitle>
                             <CardDescription>Poliklinik dan jam praktik aktif.</CardDescription>
@@ -65,7 +65,7 @@ export default function DoctorDashboard({ stats, schedule, recentVisits, followU
                         </CardContent>
                         <div className="flex justify-end border-t border-neutral-100 p-4"><Button asChild size="sm" variant="secondary"><Link href="/pendaftaran/jadwal-praktik">Lihat jadwal</Link></Button></div>
                     </Card>
-                    <Card className="flex min-w-0 flex-col overflow-hidden xl:row-span-3 xl:grid xl:grid-rows-subgrid xl:gap-y-0">
+                    <Card className="flex min-w-0 flex-col overflow-hidden 2xl:row-span-3 2xl:grid 2xl:grid-rows-subgrid 2xl:gap-y-0">
                         <CardHeader className="border-b border-neutral-100">
                             <CardTitle>Kunjungan saya hari ini</CardTitle>
                             <CardDescription>Pasien yang ditugaskan kepada Anda hari ini.</CardDescription>

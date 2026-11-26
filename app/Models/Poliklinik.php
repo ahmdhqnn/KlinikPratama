@@ -14,7 +14,7 @@ class Poliklinik extends Model
 
     protected $table = 'poliklinik';
 
-    protected $fillable = ['kode', 'nama', 'jenis', 'depo_obat_id', 'is_active'];
+    protected $fillable = ['kode', 'nama', 'jenis', 'satusehat_org_id', 'depo_obat_id', 'is_active'];
 
     protected $casts = ['is_active' => 'boolean'];
 

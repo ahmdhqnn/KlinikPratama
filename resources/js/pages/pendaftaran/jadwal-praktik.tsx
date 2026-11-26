@@ -45,6 +45,9 @@ interface Props {
     canManageHolidays: boolean;
     canSelectClinic: boolean;
     filters: { search?: string; dokterId: number | ''; poliklinikId: number | ''; hari: string; status?: string };
+    holidayFilters?: { tahun: string; jenis: string; search: string };
+    holidayYears?: string[];
+    exceptionFilters?: { dokterId: number | ''; poliklinikId: number | ''; tanggal: string; status: string };
     doctors: Option[];
     clinics: Option[];
     days: string[];
@@ -73,11 +76,33 @@ interface ScheduleForm {
     berlaku_sampai: string;
 }
 
-export default function DoctorSchedule({ canManage, canManageHolidays = false, canSelectClinic, filters: initialFilters, doctors, clinics, days, schedules, today, holidays, matchingDoctors = 0, exceptions: exceptionPagination }: Props) {
+export default function DoctorSchedule({
+    canManage,
+    canManageHolidays = false,
+    canSelectClinic,
+    filters: initialFilters,
+    holidayFilters: initialHolidayFilters = { tahun: '', jenis: '', search: '' },
+    holidayYears = [],
+    exceptionFilters: initialExceptionFilters = { dokterId: '', poliklinikId: '', tanggal: '', status: '' },
+    doctors,
+    clinics,
+    days,
+    schedules,
+    today,
+    holidays,
+    matchingDoctors = 0,
+    exceptions: exceptionPagination,
+}: Props) {
     const exceptions = exceptionPagination?.data ?? [];
     const [filters, setFilters] = useState(initialFilters);
+    const [holidayFilters, setHolidayFilters] = useState(initialHolidayFilters);
+    const [exceptionFilters, setExceptionFilters] = useState(initialExceptionFilters);
     const [asnExpanded, setAsnExpanded] = useState(false);
-    const [addScheduleExpanded, setAddScheduleExpanded] = useState(true);
+    const [holidayExpanded, setHolidayExpanded] = useState(false);
+    const [exceptionExpanded, setExceptionExpanded] = useState(
+        Boolean(initialExceptionFilters.dokterId || initialExceptionFilters.poliklinikId || initialExceptionFilters.tanggal || initialExceptionFilters.status),
+    );
+    const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
     const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
     const [detailSchedule, setDetailSchedule] = useState<Schedule | null>(null);
     const defaultClinicId = !canSelectClinic && clinics.length === 1 ? String(clinics[0].id) : '';
@@ -86,20 +111,42 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
     const holidayForm = useForm({ tanggal: '', nama: '', jenis: 'nasional', sumber: '' });
     const exceptionForm = useForm({ dokter_id: '', poliklinik_id: defaultClinicId, tanggal: '', is_active: true, jam_mulai: '08:00', jam_selesai: '16:00', alasan: '' });
 
-    function applyFilters(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
+    function visitWithAllFilters(overrides: Record<string, string | number> = {}) {
         router.get('/pendaftaran/jadwal-praktik', {
             search: filters.search ?? '',
             dokter_id: filters.dokterId,
             poliklinik_id: filters.poliklinikId,
             hari: filters.hari,
-            status: filters.status,
+            status: filters.status ?? '',
+            libur_tahun: holidayFilters.tahun,
+            libur_jenis: holidayFilters.jenis,
+            libur_search: holidayFilters.search,
+            exc_dokter: exceptionFilters.dokterId,
+            exc_poli: exceptionFilters.poliklinikId,
+            exc_tanggal: exceptionFilters.tanggal,
+            exc_status: exceptionFilters.status,
+            ...overrides,
         }, { preserveState: true, preserveScroll: true, replace: true });
+    }
+
+    function applyFilters(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        visitWithAllFilters();
+    }
+
+    function applyHolidayFilters(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        visitWithAllFilters();
+    }
+
+    function applyExceptionFilters(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        visitWithAllFilters();
     }
 
     function saveSchedule(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        const options = { preserveScroll: true, onSuccess: () => { setEditingSchedule(null); form.reset(); form.setData('berlaku_mulai', today); }, onError: () => { if (!editingSchedule) setAddScheduleExpanded(true); } };
+        const options = { preserveScroll: true, onSuccess: () => { setEditingSchedule(null); setScheduleDialogOpen(false); form.reset(); form.setData('berlaku_mulai', today); } };
         if (editingSchedule) {
             form.put(editingSchedule.updateUrl, options);
             return;
@@ -109,6 +156,7 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
 
     function editSchedule(schedule: Schedule) {
         setEditingSchedule(schedule);
+        setScheduleDialogOpen(true);
         form.clearErrors();
         form.setData({
             dokter_id: String(schedule.doctorId),
@@ -123,9 +171,18 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
 
     function closeScheduleEditor(): void {
         setEditingSchedule(null);
+        setScheduleDialogOpen(false);
         form.clearErrors();
         form.reset();
         form.setData('berlaku_mulai', today);
+    }
+
+    function openScheduleCreator(): void {
+        setEditingSchedule(null);
+        form.clearErrors();
+        form.reset();
+        form.setData('berlaku_mulai', today);
+        setScheduleDialogOpen(true);
     }
 
     function deleteSchedule(schedule: Schedule) {
@@ -136,11 +193,14 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
         <>
             <Head title="Jadwal praktik dokter" />
             <div className="space-y-6">
-                <div>
-                    <p className="text-sm font-medium text-neutral-700">{canManage ? 'Pengaturan layanan' : 'Informasi jadwal layanan'}</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Jadwal praktik dokter</h2>
-                    {!canSelectClinic && <p className="mt-1 text-sm text-neutral-500">Jadwal untuk {clinics[0]?.name ?? 'poli penugasan Anda'}.</p>}
-                    <p className="mt-1 text-sm text-neutral-500">Jadwal baku ASN Senin–Jumat 08.00–16.00. Sabtu, Minggu, libur nasional, dan cuti bersama tutup kecuali ada pengecualian.</p>
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <p className="text-sm font-medium text-neutral-700">{canManage ? 'Pengaturan layanan' : 'Informasi jadwal layanan'}</p>
+                        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Jadwal praktik dokter</h2>
+                        {!canSelectClinic && <p className="mt-1 text-sm text-neutral-500">Jadwal untuk {clinics[0]?.name ?? 'poli penugasan Anda'}.</p>}
+                        <p className="mt-1 text-sm text-neutral-500">Jadwal baku ASN Senin–Jumat 08.00–16.00. Sabtu, Minggu, libur nasional, dan cuti bersama tutup kecuali ada pengecualian.</p>
+                    </div>
+                    {canManage && <Button onClick={openScheduleCreator}><Plus className="size-4" />Tambah jadwal praktik</Button>}
                 </div>
                 <section aria-label="Ringkasan jadwal" className="balanced-stats">
                     <StatCard label="Jadwal praktik" value={schedules.total} description="Jadwal sesuai filter" icon={<CalendarDays className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
@@ -181,38 +241,7 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                     </DisclosureCard>
                 )}
 
-                {canManage && <DisclosureCard title="Tambah jadwal praktik" description="Atur masa berlaku jadwal; periode untuk dokter dan poli yang sama tidak boleh bertumpuk." icon={<Plus className="size-5" />} expanded={addScheduleExpanded} onToggle={() => setAddScheduleExpanded((current) => !current)}>
-                    <CardContent className="pt-5 sm:pt-6">
-                        <form className="space-y-4" onSubmit={saveSchedule}>
-                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                                <Field error={form.errors.dokter_id} htmlFor="schedule-doctor" label="Dokter" required>
-                                    <Select id="schedule-doctor" onChange={(event) => form.setData('dokter_id', event.target.value)} required value={form.data.dokter_id}>
-                                        <option value="">Pilih dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
-                                    </Select>
-                                </Field>
-                                <Field error={form.errors.poliklinik_id} htmlFor="schedule-clinic" label="Poliklinik" required>
-                                    <Select disabled={!canSelectClinic} id="schedule-clinic" onChange={(event) => form.setData('poliklinik_id', event.target.value)} required value={form.data.poliklinik_id}>
-                                        <option value="">Pilih poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
-                                    </Select>
-                                </Field>
-                                <Field error={form.errors.hari} htmlFor="schedule-day" label="Hari" required>
-                                    <Select id="schedule-day" onChange={(event) => form.setData('hari', event.target.value)} required value={form.data.hari}>
-                                        <option value="">Pilih hari</option>{days.map((day) => <option key={day} value={day}>{capitalize(day)}</option>)}
-                                    </Select>
-                                </Field>
-                                <Field error={form.errors.jam_mulai} htmlFor="schedule-start" label="Jam mulai" required>
-                                    <Input id="schedule-start" onChange={(event) => form.setData('jam_mulai', event.target.value)} required type="time" value={form.data.jam_mulai} />
-                                </Field>
-                                <Field error={form.errors.jam_selesai} htmlFor="schedule-end" label="Jam selesai" required>
-                                    <Input id="schedule-end" min={form.data.jam_mulai} onChange={(event) => form.setData('jam_selesai', event.target.value)} required type="time" value={form.data.jam_selesai} />
-                                </Field>
-                                <Field error={form.errors.berlaku_mulai || form.errors.berlaku_sampai} htmlFor="schedule-validity" label="Masa berlaku"><DateRangePicker id="schedule-validity" from={form.data.berlaku_mulai} to={form.data.berlaku_sampai} min={today} onChange={(range) => form.setData((current) => ({ ...current, berlaku_mulai: range.from, berlaku_sampai: range.to }))} /></Field>
-                            </div>
-                            <Button disabled={form.processing || doctors.length === 0 || clinics.length === 0} type="submit"><Plus className="size-4" />{form.processing ? 'Menyimpan…' : 'Tambah jadwal'}</Button>
-                        </form>
-                    </CardContent>
-                </DisclosureCard>}
-                <FilterPanel><form className={canSelectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-5' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-4'} onSubmit={applyFilters}>
+                <FilterPanel filterKeys={['search', 'dokter_id', 'poliklinik_id', 'hari', 'status']}><form className={canSelectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-5' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-4'} onSubmit={applyFilters}>
                             <Field htmlFor="schedule-search" label="Cari jadwal"><Input id="schedule-search" maxLength={100} value={filters.search ?? ''} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama dokter atau poliklinik" /></Field>
                             <Field htmlFor="schedule-doctor-filter" label="Dokter">
                                 <Select id="schedule-doctor-filter" onChange={(event) => setFilters({ ...filters, dokterId: event.target.value ? Number(event.target.value) : '' })} value={filters.dokterId}>
@@ -261,19 +290,10 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                     </CardContent>
                     <Pagination pagination={schedules} />
                 </Card>
-                <div className={canManage ? "grid gap-4 xl:grid-cols-2" : undefined}>
-                    <Card className="min-w-0 overflow-hidden">
-                        <CardHeader className="border-b border-neutral-100">
-                            <div className="flex items-start gap-3">
-                                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span>
-                                <div className="min-w-0">
-                                    <CardTitle>Kalender libur praktik</CardTitle>
-                                    <CardDescription className="mt-1">Libur nasional, cuti bersama, dan libur instansi mulai hari ini.</CardDescription>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4 pt-5 sm:pt-6">
-                            {canManageHolidays && <form className="grid gap-4 sm:grid-cols-2" onSubmit={(event) => {
+                <div className="space-y-4">
+                    {canManageHolidays && <DisclosureCard title="Kalender libur praktik" description="Kelola libur nasional, cuti bersama, dan libur instansi." icon={<CalendarDays className="size-5" />} expanded={holidayExpanded} onToggle={() => setHolidayExpanded((current) => !current)}>
+                        <CardContent className="pt-5 sm:pt-6">
+                            <form className="grid gap-4 sm:grid-cols-2" onSubmit={(event) => {
                                 event.preventDefault();
                                 holidayForm.post('/pendaftaran/jadwal-praktik/libur', { preserveScroll: true, onSuccess: () => holidayForm.reset() });
                             }}>
@@ -291,41 +311,151 @@ export default function DoctorSchedule({ canManage, canManageHolidays = false, c
                                 <Field label="Dasar / surat" htmlFor="holiday-source" error={holidayForm.errors.sumber}>
                                     <Input placeholder="Nomor surat atau dasar penetapan" id="holiday-source" value={holidayForm.data.sumber} onChange={(event) => holidayForm.setData('sumber', event.target.value)} />
                                 </Field>
-                                <Button className="w-full sm:col-span-full sm:w-auto sm:justify-self-end" disabled={holidayForm.processing} type="submit">Simpan hari libur</Button>
-                            </form>}
-                            {holidays.data.length > 0 ? <ul className="divide-y divide-neutral-100">
-                                {holidays.data.map((holiday) => <li className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0" key={holiday.id}>
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-semibold">{holiday.nama}</p>
-                                        <p className="mt-1 text-xs text-muted-foreground">
-                                            <time dateTime={holiday.tanggal}>{holidayDate.format(new Date(holiday.tanggal))}</time>
-                                            {holiday.sumber && <span className="wrap-anywhere"> · {holiday.sumber}</span>}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <Badge>{holidayTypes[holiday.jenis] ?? holiday.jenis}</Badge>
-                                        {canManageHolidays && <ActionButton type="button" onClick={() => confirmAction('Hapus libur '+holiday.tanggal+'?', () => router.delete('/pendaftaran/jadwal-praktik/libur/'+holiday.id, { preserveScroll: true }), 'Hapus')} action="delete" label={'Hapus libur '+holiday.tanggal} />}
-                                    </div>
-                                </li>)}
-                            </ul> : <Empty size="compact" title="Belum ada hari libur mendatang." />}
+                                <Button className="sm:col-span-2 sm:justify-self-end" disabled={holidayForm.processing} type="submit">Simpan hari libur</Button>
+                            </form>
                         </CardContent>
-                        <Pagination pagination={holidays} />
-                    </Card>
-                    {canManage && exceptionPagination && <Card className="min-w-0 overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Clock3 className="size-5" /></span><div className="min-w-0"><CardTitle>Pengecualian per tanggal</CardTitle><CardDescription className="mt-1">Buka layanan pada hari libur atau tutup praktik dokter pada tanggal tertentu.</CardDescription></div></div></CardHeader><CardContent className="space-y-3 pt-5 sm:pt-6">{canManage && <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={(event) => { event.preventDefault(); exceptionForm.post('/pendaftaran/jadwal-praktik/pengecualian', { preserveScroll: true, onSuccess: () => exceptionForm.reset() }); }}><Field label="Dokter" htmlFor="exception-doctor" error={exceptionForm.errors.dokter_id} required><Select id="exception-doctor" value={exceptionForm.data.dokter_id} onChange={(event) => exceptionForm.setData('dokter_id', event.target.value)} required><option value="">Pilih dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}</Select></Field><Field label="Poliklinik" htmlFor="exception-clinic" error={exceptionForm.errors.poliklinik_id} required><Select disabled={!canSelectClinic} id="exception-clinic" value={exceptionForm.data.poliklinik_id} onChange={(event) => exceptionForm.setData('poliklinik_id', event.target.value)} required><option value="">Pilih poli</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field><Field label="Tanggal" htmlFor="exception-date" error={exceptionForm.errors.tanggal} required><DatePicker id="exception-date" value={exceptionForm.data.tanggal} onChange={(event) => exceptionForm.setData('tanggal', event.target.value)} required /></Field><Field label="Keputusan" htmlFor="exception-active" error={exceptionForm.errors.is_active}><Select id="exception-active" value={exceptionForm.data.is_active ? '1' : '0'} onChange={(event) => exceptionForm.setData('is_active', event.target.value === '1')}><option value="1">Buka praktik</option><option value="0">Tutup praktik</option></Select></Field>{exceptionForm.data.is_active && <><Field label="Mulai" htmlFor="exception-start" error={exceptionForm.errors.jam_mulai} required><Input id="exception-start" type="time" value={exceptionForm.data.jam_mulai} onChange={(event) => exceptionForm.setData('jam_mulai', event.target.value)} required /></Field><Field label="Selesai" htmlFor="exception-end" error={exceptionForm.errors.jam_selesai} required><Input id="exception-end" type="time" value={exceptionForm.data.jam_selesai} onChange={(event) => exceptionForm.setData('jam_selesai', event.target.value)} required /></Field></>}<Field label="Alasan" htmlFor="exception-reason" error={exceptionForm.errors.alasan} required><Input placeholder="Alasan pembatalan atau perubahan jam praktik" id="exception-reason" value={exceptionForm.data.alasan} onChange={(event) => exceptionForm.setData('alasan', event.target.value)} required /></Field><Button disabled={exceptionForm.processing} type="submit">Simpan pengecualian</Button></form>}<div className="max-h-64 space-y-2 overflow-y-auto">{exceptions.map((exception) => <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-100 bg-neutral-50/80 px-3 py-2 text-sm" key={exception.id}><span><strong>{exception.tanggal}</strong> · {doctors.find((doctor) => doctor.id === exception.dokter_id)?.name ?? 'Dokter'} · {clinics.find((clinic) => clinic.id === exception.poliklinik_id)?.name ?? 'Poli'}<span className="block text-xs text-neutral-500">{exception.is_active ? `Buka ${exception.jam_mulai?.slice(0, 5)}–${exception.jam_selesai?.slice(0, 5)}` : 'Tutup'} · {exception.alasan}</span></span>{canManage && <ActionButton type="button" onClick={() => confirmAction(`Hapus pengecualian ${exception.tanggal}?`, () => router.delete(`/pendaftaran/jadwal-praktik/pengecualian/${exception.id}`, { preserveScroll: true }), 'Hapus')} action="delete" label={`Hapus pengecualian ${exception.tanggal}`} />}</div>)}</div></CardContent><Pagination pagination={exceptionPagination} /></Card>}
+                    </DisclosureCard>}
+                    <div className="space-y-3">
+                        <FilterPanel ariaLabel="Filter hari libur praktik" filterKeys={['libur_search', 'libur_tahun', 'libur_jenis']}>
+                            <form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={applyHolidayFilters}>
+                                <Field htmlFor="holiday-filter-search" label="Cari nama / dasar libur">
+                                    <Input id="holiday-filter-search" onChange={(event) => setHolidayFilters({ ...holidayFilters, search: event.target.value })} placeholder="Nama libur atau nomor surat" value={holidayFilters.search} />
+                                </Field>
+                                <Field htmlFor="holiday-filter-year" label="Tahun">
+                                    <Select id="holiday-filter-year" onChange={(event) => setHolidayFilters({ ...holidayFilters, tahun: event.target.value })} value={holidayFilters.tahun}>
+                                        <option value="">Mendatang</option>
+                                        {holidayYears.map((year) => <option key={year} value={year}>{year}</option>)}
+                                    </Select>
+                                </Field>
+                                <Field htmlFor="holiday-filter-type" label="Jenis libur">
+                                    <Select id="holiday-filter-type" onChange={(event) => setHolidayFilters({ ...holidayFilters, jenis: event.target.value })} value={holidayFilters.jenis}>
+                                        <option value="">Semua jenis</option>
+                                        {Object.entries(holidayTypes).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                                    </Select>
+                                </Field>
+                                <FilterSubmit />
+                            </form>
+                        </FilterPanel>
+                        <Card className="min-w-0 overflow-hidden">
+                            <CardHeader className="border-b border-neutral-100">
+                                <div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span><div className="min-w-0"><CardTitle>{canManageHolidays ? 'Libur praktik terdaftar' : 'Kalender libur praktik'}</CardTitle><CardDescription className="mt-1">{holidays.total} libur nasional, cuti bersama, dan libur instansi sesuai filter.</CardDescription></div></div>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <div className="overflow-x-auto">
+                                    <Table className="min-w-[760px]">
+                                        <TableHeader><TableRow><TableHead>Tanggal</TableHead><TableHead>Nama libur</TableHead><TableHead>Jenis</TableHead><TableHead>Dasar / surat</TableHead>{canManageHolidays && <TableHead className="text-center">Aksi</TableHead>}</TableRow></TableHeader>
+                                        <TableBody>{holidays.data.length ? holidays.data.map((holiday) => <TableRow key={holiday.id}>
+                                            <TableCell className="whitespace-nowrap"><time dateTime={holiday.tanggal}>{holidayDate.format(new Date(holiday.tanggal))}</time></TableCell>
+                                            <TableCell className="font-medium">{holiday.nama}</TableCell>
+                                            <TableCell><Badge>{holidayTypes[holiday.jenis] ?? holiday.jenis}</Badge></TableCell>
+                                            <TableCell className="max-w-xs whitespace-normal">{holiday.sumber ?? '—'}</TableCell>
+                                            {canManageHolidays && <TableCell><div className="flex justify-center"><ActionButton type="button" onClick={() => confirmAction('Hapus libur '+holiday.tanggal+'?', () => router.delete('/pendaftaran/jadwal-praktik/libur/'+holiday.id, { preserveScroll: true }), 'Hapus')} action="delete" label={'Hapus libur '+holiday.tanggal} /></div></TableCell>}
+                                        </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={canManageHolidays ? 5 : 4}><Empty size="compact" title="Tidak ada hari libur sesuai filter." /></TableCell></TableRow>}</TableBody>
+                                    </Table>
+                                </div>
+                            </CardContent>
+                            <Pagination pagination={holidays} />
+                        </Card>
+                    </div>
+                    {canManage && exceptionPagination && <DisclosureCard title="Pengecualian per tanggal" description="Buka layanan pada hari libur atau tutup praktik dokter pada tanggal tertentu." icon={<Clock3 className="size-5" />} expanded={exceptionExpanded} onToggle={() => setExceptionExpanded((current) => !current)}>
+                        <CardContent className="space-y-5 pt-5 sm:pt-6">
+                            <form className="grid gap-4 sm:grid-cols-2 sm:items-end" onSubmit={(event) => {
+                                event.preventDefault();
+                                exceptionForm.post('/pendaftaran/jadwal-praktik/pengecualian', { preserveScroll: true, onSuccess: () => exceptionForm.reset() });
+                            }}>
+                                <Field label="Dokter" htmlFor="exception-doctor" error={exceptionForm.errors.dokter_id} required>
+                                    <Select id="exception-doctor" value={exceptionForm.data.dokter_id} onChange={(event) => exceptionForm.setData('dokter_id', event.target.value)} required>
+                                        <option value="">Pilih dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
+                                    </Select>
+                                </Field>
+                                <Field label="Poliklinik" htmlFor="exception-clinic" error={exceptionForm.errors.poliklinik_id} required>
+                                    <Select disabled={!canSelectClinic} id="exception-clinic" value={exceptionForm.data.poliklinik_id} onChange={(event) => exceptionForm.setData('poliklinik_id', event.target.value)} required>
+                                        <option value="">Pilih poli</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
+                                    </Select>
+                                </Field>
+                                <Field label="Tanggal" htmlFor="exception-date" error={exceptionForm.errors.tanggal} required>
+                                    <DatePicker id="exception-date" value={exceptionForm.data.tanggal} onChange={(event) => exceptionForm.setData('tanggal', event.target.value)} required />
+                                </Field>
+                                <Field label="Keputusan" htmlFor="exception-active" error={exceptionForm.errors.is_active}>
+                                    <Select id="exception-active" value={exceptionForm.data.is_active ? '1' : '0'} onChange={(event) => exceptionForm.setData('is_active', event.target.value === '1')}>
+                                        <option value="1">Buka praktik</option><option value="0">Tutup praktik</option>
+                                    </Select>
+                                </Field>
+                                {exceptionForm.data.is_active && <>
+                                    <Field label="Mulai" htmlFor="exception-start" error={exceptionForm.errors.jam_mulai} required>
+                                        <Input id="exception-start" type="time" value={exceptionForm.data.jam_mulai} onChange={(event) => exceptionForm.setData('jam_mulai', event.target.value)} required />
+                                    </Field>
+                                    <Field label="Selesai" htmlFor="exception-end" error={exceptionForm.errors.jam_selesai} required>
+                                        <Input id="exception-end" type="time" value={exceptionForm.data.jam_selesai} onChange={(event) => exceptionForm.setData('jam_selesai', event.target.value)} required />
+                                    </Field>
+                                </>}
+                                <Field label="Alasan" htmlFor="exception-reason" error={exceptionForm.errors.alasan} required>
+                                    <Input placeholder="Alasan pembatalan atau perubahan jam praktik" id="exception-reason" value={exceptionForm.data.alasan} onChange={(event) => exceptionForm.setData('alasan', event.target.value)} required />
+                                </Field>
+                                <Button className="sm:col-span-2 sm:justify-self-end" disabled={exceptionForm.processing} type="submit">Simpan pengecualian</Button>
+                            </form>
+                            <div className="space-y-3 border-t border-neutral-200 pt-4">
+                                <FilterPanel ariaLabel="Filter pengecualian jadwal" filterKeys={['exc_dokter', 'exc_poli', 'exc_tanggal', 'exc_status']}>
+                                    <form className={canSelectClinic ? 'grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4' : 'grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3'} onSubmit={applyExceptionFilters}>
+                                        <Field htmlFor="exc-filter-doctor" label="Dokter">
+                                            <Select id="exc-filter-doctor" onChange={(event) => setExceptionFilters({ ...exceptionFilters, dokterId: event.target.value ? Number(event.target.value) : '' })} value={exceptionFilters.dokterId}>
+                                                <option value="">Semua dokter</option>
+                                                {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
+                                            </Select>
+                                        </Field>
+                                        {canSelectClinic && (
+                                            <Field htmlFor="exc-filter-poli" label="Poliklinik">
+                                                <Select id="exc-filter-poli" onChange={(event) => setExceptionFilters({ ...exceptionFilters, poliklinikId: event.target.value ? Number(event.target.value) : '' })} value={exceptionFilters.poliklinikId}>
+                                                    <option value="">Semua poliklinik</option>
+                                                    {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
+                                                </Select>
+                                            </Field>
+                                        )}
+                                        <Field htmlFor="exc-filter-date" label="Tanggal">
+                                            <DatePicker id="exc-filter-date" onChange={(event) => setExceptionFilters({ ...exceptionFilters, tanggal: event.target.value })} value={exceptionFilters.tanggal} />
+                                        </Field>
+                                        <Field htmlFor="exc-filter-status" label="Keputusan">
+                                            <Select id="exc-filter-status" onChange={(event) => setExceptionFilters({ ...exceptionFilters, status: event.target.value })} value={exceptionFilters.status}>
+                                                <option value="">Semua keputusan</option>
+                                                <option value="buka">Buka praktik</option>
+                                                <option value="tutup">Tutup praktik</option>
+                                            </Select>
+                                        </Field>
+                                        <FilterSubmit />
+                                    </form>
+                                </FilterPanel>
+                                <div className="overflow-x-auto">
+                                    <Table className="min-w-[700px]">
+                                        <TableHeader><TableRow><TableHead>Tanggal</TableHead><TableHead>Dokter</TableHead><TableHead>Poliklinik</TableHead><TableHead>Keputusan / alasan</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
+                                        <TableBody>{exceptions.length ? exceptions.map((exception) => <TableRow key={exception.id}>
+                                            <TableCell className="whitespace-nowrap">{exception.tanggal}</TableCell>
+                                            <TableCell>{doctors.find((doctor) => doctor.id === exception.dokter_id)?.name ?? 'Dokter'}</TableCell>
+                                            <TableCell>{clinics.find((clinic) => clinic.id === exception.poliklinik_id)?.name ?? 'Poli'}</TableCell>
+                                            <TableCell>{exception.is_active ? `Buka ${exception.jam_mulai?.slice(0, 5)}–${exception.jam_selesai?.slice(0, 5)}` : 'Tutup'}<p className="text-xs text-neutral-500">{exception.alasan}</p></TableCell>
+                                            <TableCell><div className="flex justify-center"><ActionButton type="button" onClick={() => confirmAction(`Hapus pengecualian ${exception.tanggal}?`, () => router.delete(`/pendaftaran/jadwal-praktik/pengecualian/${exception.id}`, { preserveScroll: true }), 'Hapus')} action="delete" label={`Hapus pengecualian ${exception.tanggal}`} /></div></TableCell>
+                                        </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada pengecualian jadwal sesuai filter." /></TableCell></TableRow>}</TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+                        </CardContent>
+                        <Pagination pagination={exceptionPagination} />
+                    </DisclosureCard>}
                 </div>
-                <Dialog onOpenChange={(open) => { if (!open) closeScheduleEditor(); }} open={Boolean(editingSchedule)}>
+                <Dialog onOpenChange={(open) => { if (!open) closeScheduleEditor(); }} open={scheduleDialogOpen}>
                     <DialogContent className="max-w-3xl">
-                        <DialogHeader><DialogTitle>Perbarui jadwal praktik</DialogTitle><DialogDescription>Perubahan periode akan diperiksa agar tidak bertumpuk dengan jadwal dokter yang sama.</DialogDescription></DialogHeader>
+                        <DialogHeader><DialogTitle>{editingSchedule ? 'Perbarui jadwal praktik' : 'Tambah jadwal praktik'}</DialogTitle><DialogDescription>Atur masa berlaku jadwal; periode untuk dokter dan poli yang sama tidak boleh bertumpuk.</DialogDescription></DialogHeader>
                         <form className="space-y-4" onSubmit={saveSchedule}>
                             <div className="grid gap-4 sm:grid-cols-2">
-                                <Field error={form.errors.dokter_id} htmlFor="edit-schedule-doctor" label="Dokter" required><Select id="edit-schedule-doctor" onChange={(event) => form.setData('dokter_id', event.target.value)} required value={form.data.dokter_id}><option value="">Pilih dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}</Select></Field>
-                                <Field error={form.errors.poliklinik_id} htmlFor="edit-schedule-clinic" label="Poliklinik" required><Select disabled={!canSelectClinic} id="edit-schedule-clinic" onChange={(event) => form.setData('poliklinik_id', event.target.value)} required value={form.data.poliklinik_id}><option value="">Pilih poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>
-                                <Field error={form.errors.hari} htmlFor="edit-schedule-day" label="Hari" required><Select id="edit-schedule-day" onChange={(event) => form.setData('hari', event.target.value)} required value={form.data.hari}><option value="">Pilih hari</option>{days.map((day) => <option key={day} value={day}>{capitalize(day)}</option>)}</Select></Field>
-                                <div className="grid grid-cols-2 gap-3"><Field error={form.errors.jam_mulai} htmlFor="edit-schedule-start" label="Jam mulai" required><Input id="edit-schedule-start" onChange={(event) => form.setData('jam_mulai', event.target.value)} required type="time" value={form.data.jam_mulai} /></Field><Field error={form.errors.jam_selesai} htmlFor="edit-schedule-end" label="Jam selesai" required><Input id="edit-schedule-end" min={form.data.jam_mulai} onChange={(event) => form.setData('jam_selesai', event.target.value)} required type="time" value={form.data.jam_selesai} /></Field></div>
+                                <Field error={form.errors.dokter_id} htmlFor="schedule-doctor" label="Dokter" required><Select id="schedule-doctor" onChange={(event) => form.setData('dokter_id', event.target.value)} required value={form.data.dokter_id}><option value="">Pilih dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}</Select></Field>
+                                <Field error={form.errors.poliklinik_id} htmlFor="schedule-clinic" label="Poliklinik" required><Select disabled={!canSelectClinic} id="schedule-clinic" onChange={(event) => form.setData('poliklinik_id', event.target.value)} required value={form.data.poliklinik_id}><option value="">Pilih poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>
+                                <Field error={form.errors.hari} htmlFor="schedule-day" label="Hari" required><Select id="schedule-day" onChange={(event) => form.setData('hari', event.target.value)} required value={form.data.hari}><option value="">Pilih hari</option>{days.map((day) => <option key={day} value={day}>{capitalize(day)}</option>)}</Select></Field>
+                                <div className="grid grid-cols-2 gap-3"><Field error={form.errors.jam_mulai} htmlFor="schedule-start" label="Jam mulai" required><Input id="schedule-start" onChange={(event) => form.setData('jam_mulai', event.target.value)} required type="time" value={form.data.jam_mulai} /></Field><Field error={form.errors.jam_selesai} htmlFor="schedule-end" label="Jam selesai" required><Input id="schedule-end" min={form.data.jam_mulai} onChange={(event) => form.setData('jam_selesai', event.target.value)} required type="time" value={form.data.jam_selesai} /></Field></div>
                             </div>
-                            <Field error={form.errors.berlaku_mulai || form.errors.berlaku_sampai} htmlFor="edit-schedule-validity" label="Masa berlaku" required><DateRangePicker id="edit-schedule-validity" from={form.data.berlaku_mulai} to={form.data.berlaku_sampai} required={false} onChange={(range) => form.setData((current) => ({ ...current, berlaku_mulai: range.from, berlaku_sampai: range.to }))} /></Field>
-                            <p className="text-xs text-neutral-500">Tanggal akhir boleh dikosongkan untuk jadwal tanpa batas akhir.</p>
-                            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-4"><Button onClick={closeScheduleEditor} type="button" variant="secondary">Batal</Button><Button disabled={form.processing} type="submit">{form.processing ? 'Menyimpan…' : 'Simpan perubahan'}</Button></div>
+                            <Field error={form.errors.berlaku_mulai || form.errors.berlaku_sampai} htmlFor="schedule-validity" label="Masa berlaku">
+                                <DateRangePicker id="schedule-validity" from={form.data.berlaku_mulai} to={form.data.berlaku_sampai} min={today} onChange={(range) => form.setData((current) => ({ ...current, berlaku_mulai: range.from, berlaku_sampai: range.to }))} />
+                                <p className="text-xs leading-5 text-neutral-500">Tanggal akhir boleh dikosongkan untuk jadwal tanpa batas akhir.</p>
+                            </Field>
+                            <div className="flex justify-end gap-2 border-t border-neutral-100 pt-4"><Button onClick={closeScheduleEditor} type="button" variant="secondary">Batal</Button><Button disabled={form.processing || doctors.length === 0 || clinics.length === 0} type="submit">{form.processing ? 'Menyimpan…' : editingSchedule ? 'Simpan perubahan' : 'Tambah jadwal'}</Button></div>
                         </form>
                     </DialogContent>
                 </Dialog>

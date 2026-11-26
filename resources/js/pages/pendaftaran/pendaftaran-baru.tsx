@@ -45,6 +45,7 @@ interface PatientForm extends VisitFormValues {
     general_consent_relationship: string;
     general_consent_representative: string;
     general_consent_authority: string;
+    satusehat_sharing_decision: string;
 }
 
 interface Props {
@@ -65,7 +66,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
         agama: '', telepon: '', alamat: '', rt: '', rw: '', kelurahan: '', kecamatan: '',
         riwayat_alergi: '', poliklinik_id: clinics.find((clinic) => clinic.type === 'umum')?.id.toString() ?? '', dokter_id: '', tanggal: today, catatan: '',
         general_consent_confirmed: '', general_consent_version: generalConsent?.version ?? '', general_consent_relationship: 'patient',
-        general_consent_representative: '', general_consent_authority: '',
+        general_consent_representative: '', general_consent_authority: '', satusehat_sharing_decision: 'undocumented',
     };
     const manualForm = useForm<PatientForm>({ ...defaultData, registration_type: 'manual' });
     const directoryForm = useForm<PatientForm>(defaultData);
@@ -180,11 +181,20 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <p className="text-sm leading-6 text-neutral-700">{generalConsent.text}</p>
-                        <Field label="Pemberi keputusan" htmlFor="registration-consent-relationship" error={form.errors.general_consent_relationship}>
-                            <Select id="registration-consent-relationship" value={form.data.general_consent_relationship} onChange={(event) => form.setData((data) => ({ ...data, general_consent_relationship: event.target.value, general_consent_confirmed: '' }))}>
-                                <option value="patient">Pasien sendiri</option><option value="parent">Orang tua</option><option value="spouse">Suami / istri</option><option value="guardian">Wali / pengampu</option><option value="other">Wakil lain yang sah</option>
-                            </Select>
-                        </Field>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Field label="Pemberi keputusan" htmlFor="registration-consent-relationship" error={form.errors.general_consent_relationship}>
+                                <Select id="registration-consent-relationship" value={form.data.general_consent_relationship} onChange={(event) => form.setData((data) => ({ ...data, general_consent_relationship: event.target.value, general_consent_confirmed: '' }))}>
+                                    <option value="patient">Pasien sendiri</option><option value="parent">Orang tua</option><option value="spouse">Suami / istri</option><option value="guardian">Wali / pengampu</option><option value="other">Wakil lain yang sah</option>
+                                </Select>
+                            </Field>
+                            <Field label="Pertukaran data SATUSEHAT Kemenkes (opsional)" htmlFor="registration-satusehat-sharing" error={form.errors.satusehat_sharing_decision}>
+                                <Select id="registration-satusehat-sharing" value={form.data.satusehat_sharing_decision} onChange={(event) => form.setData('satusehat_sharing_decision', event.target.value)}>
+                                    <option value="undocumented">Belum ditetapkan saat ini</option>
+                                    <option value="opt_in">Setuju berbagi ke SATUSEHAT (Opt-In)</option>
+                                    <option value="opt_out">Menolak berbagi ke SATUSEHAT (Opt-Out)</option>
+                                </Select>
+                            </Field>
+                        </div>
                         {form.data.general_consent_relationship !== 'patient' && <>
                             <Field label="Nama wakil" htmlFor="registration-consent-name" error={form.errors.general_consent_representative} required>
                                 <Input id="registration-consent-name" required minLength={2} maxLength={150} value={form.data.general_consent_representative} onChange={(event) => updateField('general_consent_representative', event.target.value)} />

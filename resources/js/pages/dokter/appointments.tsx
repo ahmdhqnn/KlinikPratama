@@ -7,10 +7,11 @@ import { Activity, CalendarDays, ClipboardCheck, Clock3, Download, FileText, Use
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { PriorityBadge } from '@/components/dashboard/priority-badge';
-import { StatusBadge } from '@/components/dashboard/status-badge';
+import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
+import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
@@ -38,7 +39,8 @@ interface Visit {
 }
 
 interface Props {
-    filters: { dari: string; sampai: string; search: string };
+    filters: { dari: string; sampai: string; search: string; status?: string; poliklinik_id?: string };
+    clinics?: { id: number; name: string }[];
     isReport: boolean;
     isAdmin?: boolean;
     pageUrl?: string;
@@ -47,8 +49,12 @@ interface Props {
     visits: PaginationData & { data: Visit[] };
 }
 
-export default function DoctorAppointments({ filters, visits, isReport, isAdmin = false, pageUrl = isReport ? '/dokter/laporan-pemeriksaan' : '/dokter/kunjungan', exportUrl, stats }: Props) {
-    const [dates, setDates] = useState(filters);
+export default function DoctorAppointments({ filters, clinics = [], visits, isReport, isAdmin = false, pageUrl = isReport ? '/dokter/laporan-pemeriksaan' : '/dokter/kunjungan', exportUrl, stats }: Props) {
+    const [dates, setDates] = useState({
+        ...filters,
+        status: filters.status ?? '',
+        poliklinik_id: filters.poliklinik_id ?? '',
+    });
     const title = isAdmin ? 'Laporan pemeriksaan dokter' : isReport ? 'Laporan pemeriksaan' : 'Daftar kunjungan pasien';
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
@@ -72,10 +78,31 @@ export default function DoctorAppointments({ filters, visits, isReport, isAdmin 
                     <StatCard label={isReport ? 'Pasien ditangani' : 'Pemeriksaan selesai'} value={(isReport ? stats.patients : stats.completed) ?? 0} description={isReport ? 'Pasien unik sesuai filter' : 'Kunjungan hari ini sudah final'} icon={isReport ? <UsersRound className="size-5" /> : <ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 </section>
                 <FilterPanel actions={exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}>
-                    <form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={applyFilters}>
-                        {isReport && <Field htmlFor="doctor-report-search" label="Cari pasien"><Input id="doctor-report-search" placeholder="Cari nama atau No. RM" value={dates.search} onChange={(event) => setDates({ ...dates, search: event.target.value })} /></Field>}
+                    <form className={`grid min-w-0 gap-4 sm:grid-cols-2 ${isAdmin && clinics.length > 0 ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`} onSubmit={applyFilters}>
+                        <Field htmlFor="doctor-report-search" label="Cari pasien atau kunjungan"><Input id="doctor-report-search" placeholder="Nama, No. RM, atau No. kunjungan" value={dates.search} onChange={(event) => setDates({ ...dates, search: event.target.value })} /></Field>
                         <Field htmlFor="doctor-appointments-period" label="Periode kunjungan">
                             <DateRangePicker id="doctor-appointments-period" from={dates.dari} onChange={(range) => setDates({ ...dates, dari: range.from, sampai: range.to })} to={dates.sampai} />
+                        </Field>
+                        {isAdmin && clinics.length > 0 && (
+                            <Field htmlFor="doctor-appointments-clinic" label="Poliklinik">
+                                <Select id="doctor-appointments-clinic" value={dates.poliklinik_id} onChange={(event) => setDates({ ...dates, poliklinik_id: event.target.value })}>
+                                    <option value="">Semua poliklinik</option>
+                                    {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
+                                </Select>
+                            </Field>
+                        )}
+                        <Field htmlFor="doctor-appointments-status" label={isReport ? 'Status pemeriksaan' : 'Status kunjungan'}>
+                            <Select id="doctor-appointments-status" value={dates.status} onChange={(event) => setDates({ ...dates, status: event.target.value })}>
+                                <option value="">Semua status</option>
+                                {isReport ? (
+                                    <>
+                                        <option value="draf">Draf</option>
+                                        <option value="final">Final</option>
+                                    </>
+                                ) : (
+                                    Object.entries(visitStatusFilterLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)
+                                )}
+                            </Select>
                         </Field>
                         <FilterSubmit />
                     </form>

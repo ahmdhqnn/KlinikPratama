@@ -37,7 +37,8 @@ class PersediaanRecorder
             if (! $medicine->is_active || $quantity <= 0) {
                 throw ValidationException::withMessages(['items' => 'Obat/BHP tidak aktif atau jumlah tidak valid.']);
             }
-            $batches = $medicine->batches()->usable()->orderBy('expired_at')->orderBy('id')->lockForUpdate()->get();
+            $depoId = $visit->poliklinik?->depo_obat_id;
+            $batches = $medicine->batches()->usable()->forDepo($depoId)->orderBy('expired_at')->orderBy('id')->lockForUpdate()->get();
             if (round((float) $batches->sum('stok'), 2) < round($quantity, 2)) {
                 throw ValidationException::withMessages(['items' => "Stok layak pakai {$medicine->nama} tidak mencukupi. Batch kedaluwarsa atau karantina tidak dapat digunakan."]);
             }
@@ -52,15 +53,15 @@ class PersediaanRecorder
         });
     }
 
-    public function issueWithoutVisit(int $medicineId, int $quantity, User $actor, Pasien $patient, string $referenceType, int $referenceId): void
+    public function issueWithoutVisit(int $medicineId, int $quantity, User $actor, Pasien $patient, string $referenceType, int $referenceId, ?int $depoId = null): void
     {
-        DB::transaction(function () use ($medicineId, $quantity, $actor, $patient, $referenceType, $referenceId): void {
+        DB::transaction(function () use ($medicineId, $quantity, $actor, $patient, $referenceType, $referenceId, $depoId): void {
             $medicine = Obat::whereKey($medicineId)->lockForUpdate()->firstOrFail();
             $this->assertBalance($medicine);
             if (! $medicine->is_active || $medicine->jenis !== 'obat' || ! $medicine->boleh_diberikan_langsung || $quantity <= 0) {
                 throw ValidationException::withMessages(['obat_id' => 'Pilih obat aktif yang sudah disetujui untuk layanan langsung.']);
             }
-            $batches = $medicine->batches()->usable()->orderBy('expired_at')->orderBy('id')->lockForUpdate()->get();
+            $batches = $medicine->batches()->usable()->forDepo($depoId)->orderBy('expired_at')->orderBy('id')->lockForUpdate()->get();
             if (round((float) $batches->sum('stok'), 2) < $quantity) {
                 throw ValidationException::withMessages(['jumlah' => "Stok layak pakai {$medicine->nama} tidak mencukupi."]);
             }

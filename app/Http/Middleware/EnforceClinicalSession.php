@@ -26,9 +26,10 @@ class EnforceClinicalSession
                     ? response()->json(['message' => 'Sesi berakhir. Silakan masuk kembali.'], 401)->header('Cache-Control', 'private, no-store')
                     : redirect()->route('login')->with('error', 'Sesi berakhir. Silakan masuk kembali.');
             }
-            $session->put('clinical_last_activity', $lastActivity);
+            $isActiveMutation = ! $request->isMethodSafe() && ! $request->routeIs('session.activity', 'session.status', 'logout');
+            $session->put('clinical_last_activity', $isActiveMutation ? now()->timestamp : $lastActivity);
             $session->put('clinical_session_version', $version);
-            if ($user->must_change_password && ! $request->routeIs('profile.show', 'profile.password', 'logout', 'session.activity', 'session.status')) {
+            if ($user->must_change_password && ! $request->routeIs('profile.show', 'profile.password', 'profile.signing-pin', 'logout', 'session.activity', 'session.status')) {
                 return $request->expectsJson()
                     ? response()->json(['message' => 'Ubah kata sandi sementara melalui Profil saya.'], 403)
                     : redirect()->route('profile.show')->with('error', 'Ubah kata sandi sementara sebelum melanjutkan pelayanan.');

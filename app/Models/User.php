@@ -29,10 +29,14 @@ class User extends Authenticatable
         'signature_path',
         'must_change_password',
         'session_version',
+        'signing_pin_hash',
+        'signing_pin_set_at',
+        'must_setup_signing_pin',
     ];
 
     protected $hidden = [
         'password',
+        'signing_pin_hash',
         'remember_token',
         'photo_path',
         'signature_path',
@@ -45,8 +49,20 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'must_change_password' => 'boolean',
+            'must_setup_signing_pin' => 'boolean',
+            'signing_pin_set_at' => 'datetime',
             'session_version' => 'integer',
         ];
+    }
+
+    public function hasSigningPin(): bool
+    {
+        return filled($this->signing_pin_hash);
+    }
+
+    public function supportsSigningPin(): bool
+    {
+        return in_array($this->role, ['dokter', 'perawat', 'farmasi', 'admin'], true);
     }
 
     protected function email(): Attribute

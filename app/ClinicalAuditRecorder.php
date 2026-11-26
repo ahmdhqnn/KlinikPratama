@@ -8,14 +8,14 @@ use Illuminate\Support\Str;
 
 class ClinicalAuditRecorder
 {
-    public function record(Request $request, string $action, ?int $patientId = null, ?int $kunjunganId = null, array $metadata = []): void
+    public function record(Request $request, string $action, ?int $patientId = null, ?int $kunjunganId = null, array $metadata = [], ?string $outcome = null): void
     {
         DB::table('clinical_audit_events')->insert([
             'actor_id' => $request->user()?->id,
             'actor_role' => $request->user()?->role,
             'user_agent' => mb_substr($request->userAgent() ?? '', 0, 512),
             'request_id' => $request->attributes->get('audit_request_id') ?? tap((string) Str::uuid(), fn ($id) => $request->attributes->set('audit_request_id', $id)),
-            'outcome' => $metadata['outcome'] ?? 'success',
+            'outcome' => $outcome ?? $metadata['outcome'] ?? 'success',
             'patient_id' => $patientId,
             'kunjungan_id' => $kunjunganId,
             'action' => $action,

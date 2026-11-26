@@ -35,3 +35,7 @@ export function DialogTitle({ className, ...props }: ComponentProps<typeof Dialo
 export function DialogDescription({ className, ...props }: ComponentProps<typeof DialogPrimitive.Description>) {
     return <DialogPrimitive.Description className={cn('text-sm leading-relaxed text-neutral-500', className)} {...props} />;
 }
+
+export function DialogFooter({ className, ...props }: ComponentProps<'div'>) {
+    return <div className={cn('flex flex-col-reverse justify-end gap-2 sm:flex-row', className)} {...props} />;
+}

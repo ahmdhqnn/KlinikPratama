@@ -6,7 +6,7 @@ import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
 import { Activity, CalendarDays, Clock3, ClipboardCheck, HeartPulse } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { StatusBadge } from '@/components/dashboard/status-badge';
+import { StatusBadge, visitStatusFilterLabels } from '@/components/dashboard/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -44,7 +44,7 @@ interface Visit {
 interface Props {
     serviceName: string;
     stats: { total: number; waiting: number; submitted: number; allPending: number };
-    filters: { search: string; tanggal: string; poliklinikId: number | '' };
+    filters: { search: string; tanggal: string; poliklinikId: number | ''; statusPengkajian?: string; status?: string };
     clinics: Clinic[];
     canSelectClinic: boolean;
     visits: PaginationData & { data: Visit[] };
@@ -52,7 +52,11 @@ interface Props {
 }
 
 export default function ScreeningQueue({ filters: initialFilters, clinics, canSelectClinic, visits, todayVisits, stats, serviceName }: Props) {
-    const [filters, setFilters] = useState(initialFilters);
+    const [filters, setFilters] = useState({
+        ...initialFilters,
+        statusPengkajian: initialFilters.statusPengkajian ?? '',
+        status: initialFilters.status ?? '',
+    });
 
     useEffect(() => {
         const refresh = () => {
@@ -71,6 +75,8 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
         router.get('/pelayanan/screening', {
             search: filters.search,
             tanggal: filters.tanggal,
+            status_pengkajian: filters.statusPengkajian,
+            status: filters.status,
             ...(canSelectClinic ? { poliklinik_id: filters.poliklinikId } : {}),
         }, { preserveState: true, preserveScroll: true, replace: true });
     }
@@ -92,9 +98,9 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
                 </section>
                 <VisitList title="Menunggu pengkajian hari ini" description="Kunjungan hari ini yang belum dikirim ke dokter, diurutkan dari waktu tunggu terlama." icon={<Clock3 className="size-5" />} visits={todayVisits} />
                 <FilterPanel>
-                    <form className={canSelectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'grid gap-4 sm:grid-cols-2'} onSubmit={applyFilters}>
-                        <Field htmlFor="screening-queue-search" label="Cari pasien">
-                            <Input id="screening-queue-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama atau No. RM" value={filters.search} />
+                    <form className={canSelectClinic ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-5' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-4'} onSubmit={applyFilters}>
+                        <Field htmlFor="screening-queue-search" label="Cari pasien atau kunjungan">
+                            <Input id="screening-queue-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama, No. RM, atau No. kunjungan" value={filters.search} />
                         </Field>
                         <Field htmlFor="screening-queue-date" label="Tanggal kunjungan">
                             <DatePicker id="screening-queue-date" onChange={(event) => setFilters({ ...filters, tanggal: event.target.value })} value={filters.tanggal} />
@@ -104,6 +110,20 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
                                 <option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                             </Select>
                         </Field>}
+                        <Field htmlFor="screening-queue-state" label="Status pengkajian">
+                            <Select id="screening-queue-state" onChange={(event) => setFilters({ ...filters, statusPengkajian: event.target.value })} value={filters.statusPengkajian}>
+                                <option value="">Semua status pengkajian</option>
+                                <option value="belum">Belum dikaji</option>
+                                <option value="proses">Dalam proses</option>
+                                <option value="terkirim">Terkirim</option>
+                            </Select>
+                        </Field>
+                        <Field htmlFor="screening-queue-visit-status" label="Status kunjungan">
+                            <Select id="screening-queue-visit-status" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}>
+                                <option value="">Semua status kunjungan</option>
+                                {Object.entries(visitStatusFilterLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                            </Select>
+                        </Field>
                         <FilterSubmit />
                     </form>
                 </FilterPanel>

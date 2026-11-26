@@ -1,9 +1,11 @@
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, router } from '@inertiajs/react';
-import { ClipboardCheck, Download, Printer } from 'lucide-react';
+import { Activity, ClipboardCheck, Download, Printer, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { type PaginationData } from '@/components/dashboard/pagination';
 import { ReportTableCard } from '@/components/dashboard/report-table-card';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
 import { Button } from '@/components/ui/button';
 import { Empty } from '@/components/ui/empty';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
@@ -52,6 +54,12 @@ export default function AssistanceAuditPage({ filters, actions, events, activity
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{activityLog ? 'Log aktivitas' : 'Audit bantuan layanan'}</h2>
                 <p className="mt-1 text-sm text-neutral-500">{activityLog ? 'Jejak akses, ekspor, bantuan layanan, dan pengelolaan akun yang dicatat aplikasi. Aktivitas sebelum pencatatan tersedia tidak direkonstruksi.' : 'Riwayat bantuan layanan oleh admin dan peninjauan draf oleh dokter.'}</p>
             </div>
+
+            <SummaryStatGrid ariaLabel="Ringkasan audit aktivitas" columns={3}>
+                <StatCard description="Total entri log sesuai filter aktif" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Total kegiatan" value={events.total} />
+                <StatCard description="Entri yang ditampilkan di halaman ini" icon={<Activity className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Baris ditampilkan" value={events.data.length} />
+                <StatCard description="Operator berbeda pada halaman ini" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" label="Operator unik" value={new Set(events.data.map((item) => item.actor)).size} />
+            </SummaryStatGrid>
 
             <FilterPanel actions={activityLog && <div className="flex flex-wrap gap-2">{exportUrl && <Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}{printUrl && <Button asChild size="sm" variant="secondary"><a href={printUrl}><Printer className="size-4" />Cetak / PDF</a></Button>}</div>}><form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={applyFilters}>
                 <Field htmlFor="audit-period" label="Periode kegiatan"><DateRangePicker id="audit-period" from={from} to={to} onChange={(range) => { setFrom(range.from); setTo(range.to); }} /></Field>

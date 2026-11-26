@@ -1,3 +1,4 @@
+import { SearchResultsSkeleton } from '@/components/loading-skeletons';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -47,7 +48,7 @@ export function ProcedureCodingReview({ visitId, procedureId, name, revision, se
             <form className="space-y-4 text-left" onSubmit={submit}><fieldset className="space-y-4" disabled={form.processing}>
                 <Field htmlFor={`coding-classification-${procedureId}`} label="Klasifikasi coding" error={form.errors.classification}><Select id={`coding-classification-${procedureId}`} value={form.data.classification} onChange={(event) => { form.setData('classification', event.target.value); form.setData('terminology_id', ''); setSelected(null); setQuery(''); }}><option value="mapped">Prosedur medis — ICD-9-CM</option><option value="not_applicable">Perawatan yang tidak memerlukan kode prosedur</option></Select></Field>
                 {form.data.classification === 'mapped' && <><Field htmlFor={`coding-search-${procedureId}`} label="Cari ICD-9-CM" error={form.errors.terminology_id}><Input id={`coding-search-${procedureId}`} autoComplete="off" value={query} onChange={(event) => { setQuery(event.target.value); setSelected(null); form.setData('terminology_id', ''); }} /></Field>
-                    {loading && <p role="status" className="text-sm text-neutral-500">Mencari prosedur…</p>}
+                    {loading && <SearchResultsSkeleton label="Mencari prosedur…" rows={3} />}
                     {failed && <p role="alert" className="text-sm text-red-700">Pencarian gagal. Coba kembali setelah memeriksa koneksi.</p>}
                     {!!results.length && <div className="max-h-48 overflow-auto rounded-lg border border-neutral-200">{results.map((item) => <Button type="button" key={item.id} variant="ghost" className="h-auto w-full justify-start whitespace-normal rounded-none p-3 text-left" onClick={() => { setSelected(item); setResults([]); form.setData('terminology_id', String(item.id)); }}>{item.code} · {item.display} · {item.release}</Button>)}</div>}
                     {selected && <p className="rounded-lg bg-neutral-50 p-3 text-sm">{selected.code} · {selected.display} · {selected.release}</p>}

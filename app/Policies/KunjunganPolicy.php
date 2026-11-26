@@ -17,6 +17,7 @@ class KunjunganPolicy
             'examination', 'correspondence' => $user->role === 'dokter',
             'pharmacy' => $user->role === 'farmasi',
             'history', 'attachment' => in_array($user->role, ['dokter', 'perawat'], true),
+            'patient_document' => in_array($user->role, ['admin', 'pendaftaran', 'dokter', 'perawat'], true),
             'consent_read' => in_array($user->role, ['admin', 'pendaftaran', 'dokter', 'perawat'], true),
             'consent_write' => in_array($user->role, ['admin', 'pendaftaran'], true),
             'procedure_consent_read' => in_array($user->role, ['dokter', 'perawat'], true),
@@ -33,7 +34,9 @@ class KunjunganPolicy
         }
 
         $allowed = $user->role === 'dokter'
-            ? app(DoctorAccessService::class)->visibleVisits($user, today()->toDateString())->whereKey($visit->id)->exists()
+            ? app(DoctorAccessService::class)->visibleVisits($user, today()->toDateString())
+                ->where(fn ($query) => $query->whereKey($visit->id)->orWhere('pasien_id', $visit->pasien_id))
+                ->exists()
             : (int) $visit->poliklinik_id === app(PerawatClinicResolver::class)->clinicId($user);
 
         return $allowed ? Response::allow() : Response::denyAsNotFound();

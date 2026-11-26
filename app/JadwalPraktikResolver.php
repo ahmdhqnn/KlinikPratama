@@ -28,6 +28,20 @@ class JadwalPraktikResolver
         return $added;
     }
 
+    private function whereExactDate(mixed $query, string $column, string $date): mixed
+    {
+        return DB::connection()->getDriverName() === 'sqlite'
+            ? $query->whereDate($column, $date)
+            : $query->where($column, $date);
+    }
+
+    private function orWhereDateBound(mixed $query, string $column, string $operator, string $date): mixed
+    {
+        return DB::connection()->getDriverName() === 'sqlite'
+            ? $query->orWhereDate($column, $operator, $date)
+            : $query->orWhere($column, $operator, $date);
+    }
+
     /**
      * @return Collection<int, Nakes>
      */
@@ -40,11 +54,11 @@ class JadwalPraktikResolver
                 ->where('poliklinik_id', $clinicId)
                 ->where('hari', strtolower($date->locale('id')->dayName))
                 ->where('is_active', true)
-                ->where(fn ($query) => $query->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', $day))
-                ->where(fn ($query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', $day))
+                ->where(fn ($query) => $this->orWhereDateBound($query->whereNull('berlaku_mulai'), 'berlaku_mulai', '<=', $day))
+                ->where(fn ($query) => $this->orWhereDateBound($query->whereNull('berlaku_sampai'), 'berlaku_sampai', '>=', $day))
                 ->pluck('dokter_id');
 
-        $exceptions = DB::table('jadwal_khusus_dokter')->where('poliklinik_id', $clinicId)->whereDate('tanggal', $day)->get();
+        $exceptions = $this->whereExactDate(DB::table('jadwal_khusus_dokter')->where('poliklinik_id', $clinicId), 'tanggal', $day)->get();
         foreach ($exceptions as $exception) {
             $doctorIds = $doctorIds->reject(fn ($id): bool => (int) $id === (int) $exception->dokter_id);
             if ($exception->is_active) {
@@ -58,7 +72,7 @@ class JadwalPraktikResolver
 
     public function isHoliday(string $date): bool
     {
-        return DB::table('hari_libur_praktik')->whereDate('tanggal', $date)->exists();
+        return $this->whereExactDate(DB::table('hari_libur_praktik'), 'tanggal', substr($date, 0, 10))->exists();
     }
 
     /**
@@ -73,15 +87,15 @@ class JadwalPraktikResolver
             ->where('dokter_id', $doctorId)
             ->where('hari', strtolower($date->locale('id')->dayName))
             ->where('is_active', true)
-            ->where(fn ($query) => $query->whereNull('berlaku_mulai')->orWhereDate('berlaku_mulai', '<=', $day))
-            ->where(fn ($query) => $query->whereNull('berlaku_sampai')->orWhereDate('berlaku_sampai', '>=', $day))
+            ->where(fn ($query) => $this->orWhereDateBound($query->whereNull('berlaku_mulai'), 'berlaku_mulai', '<=', $day))
+            ->where(fn ($query) => $this->orWhereDateBound($query->whereNull('berlaku_sampai'), 'berlaku_sampai', '>=', $day))
             ->get()
             ->mapWithKeys(fn (JadwalDokter $schedule): array => [$schedule->poliklinik_id => [
                 'id' => $schedule->poliklinik_id, 'clinic' => $schedule->poliklinik?->nama ?? 'Poliklinik',
                 'start' => substr($schedule->jam_mulai, 0, 5), 'end' => substr($schedule->jam_selesai, 0, 5),
             ]]);
 
-        $exceptions = DB::table('jadwal_khusus_dokter')->where('dokter_id', $doctorId)->whereDate('tanggal', $day)->get();
+        $exceptions = $this->whereExactDate(DB::table('jadwal_khusus_dokter')->where('dokter_id', $doctorId), 'tanggal', $day)->get();
         $clinics = Poliklinik::registrable()->whereIn('id', $exceptions->pluck('poliklinik_id'))->pluck('nama', 'id');
         foreach ($exceptions as $exception) {
             $entries->forget($exception->poliklinik_id);

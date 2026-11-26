@@ -33,8 +33,15 @@ final readonly class DateRangeFilter
      * @param  T  $query
      * @return T
      */
-    public function apply(Builder|QueryBuilder $query, string $column = 'tanggal'): Builder|QueryBuilder
+    public function apply(Builder|QueryBuilder $query, string $column = 'tanggal', bool $isDateColumn = true): Builder|QueryBuilder
     {
+        $driver = $query->getConnection()->getDriverName();
+        if ($isDateColumn && $driver !== 'sqlite' && ($column === 'tanggal' || str_ends_with($column, '.tanggal'))) {
+            return $query
+                ->when($this->from, fn ($query) => $query->where($column, '>=', $this->from))
+                ->when($this->to, fn ($query) => $query->where($column, '<=', $this->to));
+        }
+
         return $query
             ->when($this->from, fn ($query) => $query->whereDate($column, '>=', $this->from))
             ->when($this->to, fn ($query) => $query->whereDate($column, '<=', $this->to));

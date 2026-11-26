@@ -1,5 +1,7 @@
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Link, usePage } from '@inertiajs/react';
+import type { SharedProps } from '@/types';
 
 const clinicOptions = [
     ['', 'Semua poli'],
@@ -8,7 +10,16 @@ const clinicOptions = [
 ] as const;
 
 export function PharmacyClinicTabs({ clinicType }: { clinicType?: string | null }) {
-    const { url } = usePage();
+    const page = usePage<SharedProps>();
+    const user = page.props.auth?.user;
+
+    if (user?.role === 'farmasi' && user.clinicType) {
+        return <div aria-label="Unit penugasan farmasi" className="flex items-center gap-2">
+            <Badge className="px-3 py-1 text-xs font-medium">Unit penugasan: {user.clinicName ?? (user.clinicType === 'gigi' ? 'Poli Gigi' : 'Poli Umum')}</Badge>
+        </div>;
+    }
+
+    const { url } = page;
     const [path, query] = url.split('?');
     const params = new URLSearchParams(query);
     for (const key of [...params.keys()]) {

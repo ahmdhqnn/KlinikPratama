@@ -45,10 +45,10 @@ class KepesertaanRegistry
             }
         }
 
-        if ($data['kategori'] === 'asn' && empty($data['nip'])) {
-            throw ValidationException::withMessages(['nip' => 'Peserta ASN wajib memiliki NIP.']);
+        if (in_array($data['kategori'], ['asn', 'pppk'], true) && empty($data['nip'])) {
+            throw ValidationException::withMessages(['nip' => 'Peserta ASN / PPPK wajib memiliki NIP atau NI PPPK.']);
         }
-        if ($data['kategori'] === 'asn') {
+        if (in_array($data['kategori'], ['asn', 'pppk'], true)) {
             $data['jenis_lainnya'] = null;
         } else {
             $data['jenis_lainnya'] = trim($data['jenis_lainnya']);
@@ -59,6 +59,8 @@ class KepesertaanRegistry
                 $data['jenis_lainnya'] = 'staf';
             } elseif (mb_strtolower($data['jenis_lainnya']) === 'magang') {
                 $data['jenis_lainnya'] = 'magang';
+            } elseif (in_array(mb_strtolower($data['jenis_lainnya']), ['tenaga penunjang', 'tenaga_penunjang'], true)) {
+                $data['jenis_lainnya'] = 'tenaga_penunjang';
             }
         }
         if ($data['hak_layanan'] && $data['status_kepegawaian'] === 'nonaktif') {

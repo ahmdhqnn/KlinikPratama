@@ -1,9 +1,12 @@
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AssistanceReasonField } from '@/components/kunjungan/assistance-reason-field';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ArrowLeft, ClipboardCheck, Pill, Search, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ClipboardCheck, Pill, Search, UserRound } from 'lucide-react';
+import { handleBackNavigation } from '@/lib/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Field } from '@/components/ui/field';
 import { Empty } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
@@ -36,7 +39,7 @@ export default function DirectDispensing({ search, patients, medicines, adminAss
     }
 
     return <><Head title="Catat pemberian obat langsung" /><div className="mx-auto max-w-5xl space-y-6">
-        <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-neutral-700">Pelayanan farmasi</p><h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Catat pemberian obat langsung</h1><p className="mt-1 text-sm text-neutral-500">Pastikan pasien, riwayat alergi, obat, dan aturan pakai sebelum diserahkan.</p></div><Button asChild variant="secondary"><Link href="/farmasi/pemberian-obat"><ArrowLeft className="size-4" />Kembali ke obat langsung</Link></Button></header>
+        <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-neutral-700">Pelayanan farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Catat pemberian obat langsung</h2><p className="mt-1 text-sm text-neutral-500">Pastikan pasien, riwayat alergi, obat, dan aturan pakai sebelum diserahkan.</p></div><Button asChild variant="secondary"><Link href="/farmasi/pemberian-obat" onClick={(event) => handleBackNavigation(event, '/farmasi/pemberian-obat')}><ArrowLeft className="size-4" />Kembali ke obat langsung</Link></Button></header>
         <Tabs className="space-y-5" onValueChange={(value) => { setPatientMode(value as 'list' | 'search'); form.setData('pasien_id', ''); if (value === 'list' && search) router.get('/farmasi/pemberian-obat/baru', {}, { preserveState: true, replace: true }); }} value={patientMode}><TabsList aria-label="Pilih pasien" className="h-auto flex-wrap"><TabsTrigger value="list"><UserRound className="size-4" />Pilih dari daftar</TabsTrigger><TabsTrigger value="search"><Search className="size-4" />Cari pasien</TabsTrigger></TabsList>
         <Card><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRound className="size-5" /></span><div><CardTitle>Pilih pasien</CardTitle><CardDescription className="mt-1">Pilih pasien yang menerima obat langsung.</CardDescription></div></div></CardHeader><CardContent className="space-y-5 pt-5 sm:pt-6">
             <TabsContent className="space-y-4" value="list">
@@ -52,15 +55,43 @@ export default function DirectDispensing({ search, patients, medicines, adminAss
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Field className="md:col-span-2" error={form.errors.obat_id} htmlFor="direct-medicine" label="Obat dari stok klinik" required><Select id="direct-medicine" onChange={(event) => form.setData('obat_id', event.target.value)} required value={form.data.obat_id}><option value="">Pilih obat</option>{medicines.map((item) => <option disabled={item.stock < 1} key={item.id} value={item.id}>{item.name} · {item.stock >= 1 ? `stok layak pakai ${item.stock} ${item.unit}` : 'stok layak pakai kurang dari 1 satuan'}</option>)}</Select></Field><Field error={form.errors.jumlah} htmlFor="direct-quantity" label="Jumlah" required><Input id="direct-quantity" min="1" max={medicine ? Math.floor(medicine.stock) : undefined} onChange={(event) => form.setData('jumlah', event.target.value)} required type="number" value={form.data.jumlah} /></Field><Field htmlFor="direct-unit" label="Satuan"><Input id="direct-unit" readOnly placeholder="Terisi dari obat" value={medicine?.unit ?? ''} /></Field></div>
             <Field error={form.errors.aturan_pakai} htmlFor="direct-instruction" label="Aturan pakai" required><Input id="direct-instruction" maxLength={255} onChange={(event) => form.setData('aturan_pakai', event.target.value)} placeholder="Dosis, frekuensi, dan waktu penggunaan" required value={form.data.aturan_pakai} /></Field>
             <Field error={form.errors.catatan} htmlFor="direct-notes" label="Catatan tambahan"><Input id="direct-notes" maxLength={2000} onChange={(event) => form.setData('catatan', event.target.value)} placeholder="Informasi tambahan saat penyerahan obat" value={form.data.catatan} /></Field>
-            <div className="space-y-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+            <div className="space-y-4 border-t border-neutral-200 pt-4">
                 <p className="text-sm font-medium">Review dan penyerahan oleh apoteker terverifikasi</p>
-                {([['administrative_review', 'Identitas dan dasar pemberian telah diperiksa'], ['pharmaceutical_review', 'Bentuk, kekuatan, jumlah dan aturan pakai telah diperiksa'], ['clinical_review', 'Indikasi, dosis, alergi, interaksi dan kontraindikasi telah diperiksa'], ['recipient_verified', 'Identitas penerima telah diperiksa'], ['counseling_completed', 'Konseling penggunaan, penyimpanan dan tindak lanjut telah diberikan']] as const).map(([key, label]) => <Field key={key} label={label} htmlFor={`direct-${key}`} error={form.errors[key]}><input id={`direct-${key}`} type="checkbox" checked={form.data[key]} onChange={(event) => form.setData(key, event.target.checked)} /></Field>)}
+                <div className="space-y-2.5 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4">
+                    {([['administrative_review', 'Identitas dan dasar pemberian telah diperiksa'], ['pharmaceutical_review', 'Bentuk, kekuatan, jumlah dan aturan pakai telah diperiksa'], ['clinical_review', 'Indikasi, dosis, alergi, interaksi dan kontraindikasi telah diperiksa'], ['recipient_verified', 'Identitas penerima telah diperiksa'], ['counseling_completed', 'Konseling penggunaan, penyimpanan dan tindak lanjut telah diberikan']] as const).map(([key, label]) => (
+                        <div key={key} className="space-y-1">
+                            <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-6 text-neutral-800" htmlFor={`direct-${key}`}>
+                                <Checkbox id={`direct-${key}`} className="mt-1 shrink-0" checked={form.data[key]} onCheckedChange={(checked) => form.setData(key, checked === true)} />
+                                <span>{label}</span>
+                            </label>
+                            {form.errors[key] && <p role="alert" className="text-xs text-red-600">{form.errors[key]}</p>}
+                        </div>
+                    ))}
+                </div>
                 {([['review_notes', 'Hasil review dan kondisi yang relevan'], ['recipient_name', 'Nama penerima'], ['recipient_relationship', 'Hubungan dengan pasien'], ['counseling_notes', 'Catatan konseling dan pemahaman penerima']] as const).map(([key, label]) => <Field key={key} label={label} htmlFor={`direct-${key}`} error={form.errors[key]} required><Textarea id={`direct-${key}`} value={form.data[key]} onChange={(event) => form.setData(key, event.target.value)} required maxLength={key === 'review_notes' ? 3000 : key === 'counseling_notes' ? 2000 : 200} /></Field>)}
             </div>
             {adminAssistance && <AssistanceReasonField error={form.errors.assistance_reason} id="direct-assistance" value={form.data.assistance_reason} onChange={(value) => form.setData('assistance_reason', value)} disabled={form.processing} />}
             <Field error={form.errors.dasar_pemberian} htmlFor="direct-basis" label="Alasan pemberian langsung" required><Textarea id="direct-basis" maxLength={2000} onChange={(event) => form.setData('dasar_pemberian', event.target.value)} placeholder="Catat permintaan atau keluhan pasien dan alasan pemberian obat." required rows={4} value={form.data.dasar_pemberian} /></Field>
-            {availableMedicines.length === 0 && <div role="status" className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-4 text-sm text-neutral-700">{medicines.length === 0 ? 'Belum ada obat aktif yang disetujui untuk pemberian langsung tanpa pemeriksaan. Minta pengelola master obat menetapkan obat yang sesuai sebelum layanan ini digunakan.' : <>Stok layak pakai obat yang disetujui belum mencukupi untuk pemberian minimal satu satuan. Periksa tanggal kedaluwarsa, status, dan stok pada <Link className="font-medium underline underline-offset-2" href="/stok/persediaan">Obat & BHP</Link>.</>}</div>}
-            <div className="flex justify-end border-t border-neutral-100 pt-5"><Button disabled={form.processing || availableMedicines.length === 0 || !form.data.pasien_id} type="submit"><ClipboardCheck className="size-4" />Catat dan serahkan obat</Button></div>
+            {availableMedicines.length === 0 && (
+                <Alert
+                    action={medicines.length > 0 ? (
+                        <Button asChild size="sm" variant="secondary">
+                            <Link href="/stok/persediaan">Buka Obat & BHP</Link>
+                        </Button>
+                    ) : undefined}
+                    dismissible={false}
+                    variant="default"
+                >
+                    <AlertTriangle aria-hidden="true" className="size-4" />
+                    <AlertTitle>Obat pemberian langsung belum tersedia</AlertTitle>
+                    <AlertDescription>
+                        {medicines.length === 0
+                            ? 'Belum ada obat aktif yang disetujui untuk pemberian langsung tanpa pemeriksaan. Minta pengelola master obat menetapkan obat yang sesuai sebelum layanan ini digunakan.'
+                            : 'Stok layak pakai obat yang disetujui belum mencukupi untuk pemberian minimal satu satuan. Periksa tanggal kedaluwarsa, status, dan stok pada Obat & BHP.'}
+                    </AlertDescription>
+                </Alert>
+            )}
+            <div className="flex justify-end border-t border-neutral-100 pt-5"><Button disabled={form.processing || availableMedicines.length === 0 || !form.data.pasien_id} type="submit"><ClipboardCheck className="size-4" />{form.processing ? 'Menyimpan…' : 'Catat dan serahkan obat'}</Button></div>
         </form></CardContent></Card></Tabs>
     </div></>;
 }

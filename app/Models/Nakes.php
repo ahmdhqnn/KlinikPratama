@@ -14,11 +14,16 @@ class Nakes extends Model
     protected $table = 'nakes';
 
     protected $fillable = [
-        'kode', 'nama', 'jenis_kelamin', 'kategori', 'jabatan',
-        'poliklinik_id', 'no_sip', 'no_str', 'telepon', 'user_id', 'is_active',
+        'kode', 'nama', 'nik', 'ihs_number', 'jenis_kelamin', 'tanggal_lahir', 'kategori', 'jabatan',
+        'poliklinik_id', 'no_sip', 'sip_berlaku_sampai', 'no_str', 'str_berlaku_sampai', 'telepon', 'user_id', 'is_active',
     ];
 
-    protected $casts = ['is_active' => 'boolean'];
+    protected $casts = [
+        'is_active' => 'boolean',
+        'tanggal_lahir' => 'date',
+        'sip_berlaku_sampai' => 'date',
+        'str_berlaku_sampai' => 'date',
+    ];
 
     public const LOGIN_POSITIONS = [
         'dokter' => 'dokter',

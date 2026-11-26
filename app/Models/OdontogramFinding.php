@@ -21,7 +21,8 @@ class OdontogramFinding extends Model
     use HasFactory;
 
     protected $fillable = [
-        'kunjungan_id', 'tooth_fdi', 'surface', 'finding_code', 'notes', 'details', 'recorded_by_user_id',
+        'kunjungan_id', 'tooth_fdi', 'surface', 'finding_code', 'snomed_finding_code', 'snomed_bodysite_code',
+        'satusehat_observation_id', 'notes', 'details', 'recorded_by_user_id',
     ];
 
     protected $casts = ['details' => 'array'];

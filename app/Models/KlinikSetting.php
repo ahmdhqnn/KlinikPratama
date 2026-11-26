@@ -10,7 +10,15 @@ class KlinikSetting extends Model
 
     protected $fillable = [
         'nama_klinik',
+        'kode_fasyankes',
+        'izin_operasional',
+        'satusehat_org_id',
         'alamat',
+        'kode_provinsi',
+        'kode_kabupaten',
+        'kode_kecamatan',
+        'kode_kelurahan',
+        'kode_pos',
         'telepon',
         'email',
         'logo',

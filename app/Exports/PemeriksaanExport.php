@@ -14,11 +14,17 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class PemeriksaanExport extends SafeSpreadsheetValueBinder implements FromQuery, WithHeadings, WithMapping, WithStrictNullComparison, WithStyles
 {
-    public function __construct(private ?int $doctorId, private DateRangeFilter $period, private string $search = '') {}
+    public function __construct(
+        private ?int $doctorId,
+        private DateRangeFilter $period,
+        private string $search = '',
+        private ?string $status = null,
+        private ?int $clinicId = null,
+    ) {}
 
     public function query(): Builder
     {
-        return (new DoctorExaminationReport)->query($this->doctorId, $this->period, $this->search)
+        return (new DoctorExaminationReport)->query($this->doctorId, $this->period, $this->search, $this->status, $this->clinicId)
             ->when($this->doctorId === null, fn (Builder $query) => $query->with('pemeriksaan.dokter'));
     }
 

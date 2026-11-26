@@ -198,7 +198,7 @@ class NonPharmacologicalWorkflowTest extends TestCase
     {
         [$doctor, , $visit] = $this->context('gigi');
         $this->actingAs($doctor)->post(route('pelayanan.pemeriksaan.tindakan.store', $visit), ['nama_tindakan_manual' => 'Tindakan oleh dokter', 'jumlah' => 1, 'execution_role' => 'dokter', 'catatan' => 'Hasil baik'])->assertSessionHasNoErrors();
-        $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['nama_obat' => 'Obat luar', 'jumlah' => 1, 'jenis' => 'jadi', 'is_resep_luar' => true])->assertSessionHasNoErrors();
+        $this->post(route('pelayanan.pemeriksaan.resep.store', $visit), ['nama_obat' => 'Obat luar', 'jumlah' => 1, 'jenis' => 'jadi', 'aturan_pakai' => '1 x 1 tablet bila nyeri', 'is_resep_luar' => true])->assertSessionHasNoErrors();
         $this->classifySyntheticProceduresAsNotRequiringConsent($visit, $doctor);
         $this->post(route('pelayanan.pemeriksaan.selesai', $visit), ['review_final_plan' => true, 'review_performed_procedures' => true, 'review_nursing_assessment' => true, 'screening_revision' => $visit->fresh()->screening?->revisionToken(), 'signature_password' => 'password', 'review_dental_assessment' => true])->assertSessionHasNoErrors();
         $this->assertSame('selesai', $visit->fresh()->status);

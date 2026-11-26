@@ -99,15 +99,21 @@ export default function ConsentTemplates({ templates, releases }: { templates: T
                 <StatCard label="Arsip" value={templates.filter((item) => item.deleted_at).length} description="Template yang diarsipkan" icon={<Archive className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
             </section>
             <SpreadsheetImportDialog title="Impor template SOP" description="Gunakan template Excel. Isi kode ICD-9-CM, rilis, dan versi sebagai teks. Maksimal 500 baris. Jika ada kesalahan, seluruh impor dibatalkan. Template yang lolos tersimpan sebagai draf untuk ditinjau sebelum diterbitkan." importUrl={url + '/import'} templateUrl={url + '/template'} open={importOpen} onOpenChange={setImportOpen} submitLabel="Impor sebagai draf" />
-            <nav aria-label="Daftar template SOP" className="flex flex-wrap gap-2">
-                <Button size="sm" variant={tab === 'template' ? 'default' : 'secondary'} onClick={() => router.get(url, { tab: 'template' })}>Template</Button>
-                <Button size="sm" variant={tab === 'arsip' ? 'default' : 'secondary'} onClick={() => router.get(url, { tab: 'arsip' })}>Arsip</Button>
-            </nav>
-            <FilterPanel actions={<>
-                <MasterExportButton href={url + '/template'} label="Unduh template" />
-                <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}><Upload aria-hidden="true" className="size-4" />Impor Excel</Button>
-                <MasterExportButton href={url + '/export?' + exportQuery} label="Ekspor Excel" />
-            </>}>
+            <FilterPanel
+                leading={
+                    <nav aria-label="Daftar template SOP" className="flex flex-wrap items-center gap-2">
+                        <Button size="sm" variant={tab === 'template' ? 'default' : 'secondary'} onClick={() => router.get(url, { tab: 'template' })}>Template</Button>
+                        <Button size="sm" variant={tab === 'arsip' ? 'default' : 'secondary'} onClick={() => router.get(url, { tab: 'arsip' })}>Arsip</Button>
+                    </nav>
+                }
+                actions={
+                    <>
+                        <MasterExportButton href={url + '/template'} label="Unduh template" />
+                        <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}><Upload aria-hidden="true" className="size-4" />Impor Excel</Button>
+                        <MasterExportButton href={url + '/export?' + exportQuery} label="Ekspor Excel" />
+                    </>
+                }
+            >
                 <form key={pageUrl} className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={(event) => {
                     event.preventDefault();
                     const fields = new FormData(event.currentTarget);

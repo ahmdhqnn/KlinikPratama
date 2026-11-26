@@ -34,7 +34,14 @@ class PatientRegistrationService
             'rw' => ['nullable', 'string', 'max:5'],
             'kelurahan' => ['nullable', 'string', 'max:100'],
             'kecamatan' => ['nullable', 'string', 'max:100'],
+            'kode_pos' => ['nullable', 'digits:5'],
             'telepon' => ['nullable', 'string', 'max:20'],
+            'nama_wali' => ['nullable', 'string', 'max:200'],
+            'telepon_wali' => ['nullable', 'string', 'max:20'],
+            'pendidikan' => ['nullable', 'string', 'max:50'],
+            'kewarganegaraan' => ['nullable', 'in:WNI,WNA'],
+            'no_paspor' => ['nullable', 'string', 'max:32'],
+            'alasan_tanpa_nik' => ['nullable', 'string', 'max:255'],
             'riwayat_alergi' => $includeClinicalHistory ? ['nullable', 'string', 'max:2000'] : ['exclude'],
         ];
 
@@ -56,7 +63,8 @@ class PatientRegistrationService
                 if ($member && array_key_exists($field, $data) && ($data[$field] ?? null) !== $member->getAttribute($field)) {
                     throw ValidationException::withMessages([$field => strtoupper($field).' pasien terverifikasi harus sesuai dengan kepesertaan.']);
                 }
-                if (filled($data[$field] ?? null) && Pasien::withTrashed()->where($field, $data[$field])->whereKeyNot($patient->id)->exists()) {
+                if (filled($data[$field] ?? null) && (string) $data[$field] !== (string) $patient->getAttribute($field)
+                    && Pasien::withTrashed()->where($field, $data[$field])->whereKeyNot($patient->id)->exists()) {
                     throw ValidationException::withMessages([$field => strtoupper($field).' sudah terhubung dengan pasien lain.']);
                 }
             }
@@ -99,7 +107,14 @@ class PatientRegistrationService
                 'jenis_kelamin' => $data['jenis_kelamin'] ?? null, 'golongan_darah' => $data['golongan_darah'] ?? null,
                 'agama' => $data['agama'] ?? null, 'unit_kerja' => $data['unit_kerja'] ?? null, 'alamat' => $data['alamat'] ?? null, 'rt' => $data['rt'] ?? null,
                 'rw' => $data['rw'] ?? null, 'kelurahan' => $data['kelurahan'] ?? null, 'kecamatan' => $data['kecamatan'] ?? null,
+                'kode_pos' => $data['kode_pos'] ?? null,
                 'telepon' => $data['telepon'] ?? null,
+                'nama_wali' => $data['nama_wali'] ?? null,
+                'telepon_wali' => $data['telepon_wali'] ?? null,
+                'pendidikan' => $data['pendidikan'] ?? null,
+                'kewarganegaraan' => $data['kewarganegaraan'] ?? 'WNI',
+                'no_paspor' => $data['no_paspor'] ?? null,
+                'alasan_tanpa_nik' => $data['alasan_tanpa_nik'] ?? null,
                 'riwayat_alergi' => $data['riwayat_alergi'] ?? null,
             ]);
         });

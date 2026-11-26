@@ -1,4 +1,5 @@
 import { Head, Link, useForm } from "@inertiajs/react";
+import { handleBackNavigation } from "@/lib/navigation";
 import {
     AlertTriangle,
     ArrowLeft,
@@ -259,7 +260,7 @@ export default function ProcedureConsent({
                         </p>
                     </div>
                     <Button asChild variant="secondary">
-                        <Link href={backUrl}>
+                        <Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}>
                             <ArrowLeft className="size-4" />
                             Kembali ke pelayanan
                         </Link>
@@ -267,6 +268,7 @@ export default function ProcedureConsent({
                 </div>}
 
                 <Alert
+                    dismissible={false}
                     variant={
                         summary.decision === "refused" ||
                         summary.decision === "withdrawn" ||
@@ -346,10 +348,21 @@ export default function ProcedureConsent({
                     </CardContent>
                 </Card>
 
-                {signatureSessionUrl && <Alert>
-                    <AlertDescription>Ada sesi tanda tangan yang perlu diselesaikan.</AlertDescription>
-                    <Button className="mt-2" size="sm" variant="secondary" asChild><Link href={signatureSessionUrl}>Buka sesi tanda tangan</Link></Button>
-                </Alert>}
+                {signatureSessionUrl && (
+                    <Alert
+                        action={
+                            <Button size="sm" variant="secondary" asChild>
+                                <Link href={signatureSessionUrl}>Buka sesi tanda tangan</Link>
+                            </Button>
+                        }
+                        dismissible={false}
+                        variant="default"
+                    >
+                        <AlertTriangle aria-hidden="true" className="size-4" />
+                        <AlertTitle>Sesi tanda tangan belum selesai</AlertTitle>
+                        <AlertDescription>Ada sesi tanda tangan yang perlu diselesaikan.</AlertDescription>
+                    </Alert>
+                )}
                 {canWrite && !signatureSessionUrl && (
                     <Card>
                         <CardHeader>
@@ -454,7 +467,7 @@ export default function ProcedureConsent({
                                     </Field>
                                 </div>
                                 {form.data.decision === "emergency" && (
-                                    <Alert>
+                                    <Alert dismissible={false} variant="default">
                                         <AlertTriangle className="size-4" />
                                         <AlertTitle>
                                             Khusus keadaan darurat
@@ -466,7 +479,7 @@ export default function ProcedureConsent({
                                     </Alert>
                                 )}
                                 {form.data.decision === "not_required" && (
-                                    <Alert>
+                                    <Alert dismissible={false} variant="default">
                                         <FileCheck2 className="size-4" />
                                         <AlertTitle>
                                             Klasifikasi klinis, bukan
@@ -809,14 +822,16 @@ export default function ProcedureConsent({
                                                 </p>
                                             ),
                                     )}
-                                    <Button
-                                        type="submit"
-                                        disabled={form.processing || !ready}
-                                    >
-                                        {form.processing
-                                            ? "Menyimpan…"
-                                            : startQr ? "Buat QR tanda tangan" : "Simpan keputusan tindakan"}
-                                    </Button>
+                                    <div className="flex justify-end border-t border-neutral-200 pt-4">
+                                        <Button
+                                            type="submit"
+                                            disabled={form.processing || !ready}
+                                        >
+                                            {form.processing
+                                                ? "Menyimpan…"
+                                                : startQr ? "Buat QR tanda tangan" : "Simpan keputusan tindakan"}
+                                        </Button>
+                                    </div>
                                 </div>
                             </form>
                         </CardContent>

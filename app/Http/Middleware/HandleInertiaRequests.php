@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\DoctorAccessService;
+use App\FarmasiClinicResolver;
 use App\Models\Kunjungan;
 use App\Models\RujukanInternal;
 use App\NurseQueueCounts;
@@ -44,17 +45,22 @@ class HandleInertiaRequests extends Middleware
         if ($request->routeIs('medical-document.verify')) {
             return parent::share($request);
         }
-        $doctorProfile = $request->user()?->role === 'dokter' ? $request->user()->nakes : null;
-        $practiceClinic = $doctorProfile?->is_active ? $doctorProfile->poliklinik : null;
+        $user = $request->user();
+        $practiceClinic = match ($user?->role) {
+            'dokter' => ($user->nakes?->is_active ? $user->nakes->poliklinik : null),
+            'perawat' => app(PerawatClinicResolver::class)->assignedNakes($user)?->poliklinik,
+            'farmasi' => app(FarmasiClinicResolver::class)->clinic($user),
+            default => null,
+        };
 
         return [
             ...parent::share($request),
-            'sessionSecurity' => $request->user() ? [
-                'userId' => $request->user()->id,
+            'sessionSecurity' => $user ? [
+                'userId' => $user->id,
                 'serverNow' => now()->getTimestampMs(),
                 'expiresAt' => ((int) $request->session()->get('clinical_last_activity', now()->timestamp) + config('clinical_security.idle_minutes') * 60) * 1000,
                 'idleMinutes' => config('clinical_security.idle_minutes'),
-                'mustChangePassword' => (bool) $request->user()->must_change_password,
+                'mustChangePassword' => (bool) $user->must_change_password,
             ] : null,
             'adminQueues' => fn (): ?array => $this->adminQueues($request),
             'nurseQueues' => fn (): ?array => $this->nurseQueues($request),
@@ -62,16 +68,19 @@ class HandleInertiaRequests extends Middleware
             'registrationReferralCount' => fn (): ?int => $this->registrationReferralCount($request),
             'pharmacyQueues' => fn (): ?array => $this->pharmacyQueues($request),
             'auth' => [
-                'user' => $request->user() ? [
-                    ...$request->user()->only('id', 'name', 'email', 'role'),
-                    'roleLabel' => $request->user()->role_label,
+                'user' => $user ? [
+                    ...$user->only('id', 'name', 'email', 'role'),
+                    'roleLabel' => $user->role_label,
                     'clinicType' => $practiceClinic?->is_active ? $practiceClinic->jenis : null,
-                    'photoUrl' => $request->user()->photo_path ? route('profile.photo', ['v' => basename($request->user()->photo_path)]) : null,
+                    'clinicName' => $practiceClinic?->is_active ? $practiceClinic->nama : null,
+                    'photoUrl' => $user->photo_path ? route('profile.photo', ['v' => basename($user->photo_path)]) : null,
                 ] : null,
             ],
             'flash' => [
                 'success' => fn (): ?string => $request->session()->get('success'),
                 'error' => fn (): ?string => $request->session()->get('error'),
+                'warning' => fn (): ?string => $request->session()->get('warning'),
+                'info' => fn (): ?string => $request->session()->get('info'),
             ],
         ];
     }
@@ -83,10 +92,14 @@ class HandleInertiaRequests extends Middleware
             return null;
         }
 
+        $todayVisits = Kunjungan::query();
+        $todayVisits = $todayVisits->getConnection()->getDriverName() === 'sqlite'
+            ? $todayVisits->whereDate('tanggal', today())
+            : $todayVisits->where('tanggal', today()->toDateString());
+
         return [
             ...app(NurseQueueCounts::class)->forAllClinics(),
-            'examinations' => Kunjungan::query()->whereDate('tanggal', today())
-                ->where('status', 'pemeriksaan')->whereDoesntHave('pemeriksaan')->count(),
+            'examinations' => $todayVisits->where('status', 'pemeriksaan')->whereDoesntHave('pemeriksaan')->count(),
             'handovers' => $this->pendingHandovers(),
         ];
     }
@@ -125,7 +138,9 @@ class HandleInertiaRequests extends Middleware
             return null;
         }
 
-        return ['handovers' => $this->pendingHandovers()];
+        $clinicId = app(FarmasiClinicResolver::class)->optionalClinicId($request->user());
+
+        return ['handovers' => $this->pendingHandovers($clinicId)];
     }
 
     private function registrationReferralCount(Request $request): ?int
@@ -142,9 +157,12 @@ class HandleInertiaRequests extends Middleware
             ->count();
     }
 
-    private function pendingHandovers(): int
+    private function pendingHandovers(?int $clinicId = null): int
     {
-        return Kunjungan::query()->where('status', 'farmasi')
-            ->whereDoesntHave('farmasi', fn (Builder $records) => $records->where('status', 'selesai'))->count();
+        return Kunjungan::query()
+            ->when($clinicId !== null, fn (Builder $query) => $query->where('poliklinik_id', $clinicId))
+            ->where('status', 'farmasi')
+            ->whereDoesntHave('farmasi', fn (Builder $records) => $records->where('status', 'selesai'))
+            ->count();
     }
 }

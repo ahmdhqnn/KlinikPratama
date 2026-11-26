@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, FileText, Plus } from 'lucide-react';
+import { handleBackNavigation } from '@/lib/navigation';
 import { FormEvent } from 'react';
 
 interface Props {
@@ -29,8 +30,8 @@ export default function IssueLetter({ visit, templates, today, replaceableLetter
         <Head title="Terbitkan dokumen" />
         <div className="mx-auto max-w-5xl space-y-6">
             <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                <div><p className="text-sm font-medium text-neutral-700">Persuratan dokter</p><h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Terbitkan dokumen</h1><p className="mt-1 text-sm text-neutral-500">Pilih jenis surat dan lengkapi keterangan untuk kunjungan ini.</p></div>
-                <div className="flex flex-wrap gap-2"><Button asChild variant="secondary"><Link href={`/pelepasan-informasi/${visit.id}`}>Register pelepasan</Link></Button><Button asChild variant="secondary"><Link href="/persuratan"><ArrowLeft className="size-4" />Kembali ke persuratan</Link></Button></div>
+                <div><p className="text-sm font-medium text-neutral-700">Persuratan dokter</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Terbitkan dokumen</h2><p className="mt-1 text-sm text-neutral-500">Pilih jenis surat dan lengkapi keterangan untuk kunjungan ini.</p></div>
+                <div className="flex flex-wrap gap-2"><Button asChild variant="secondary"><Link href={`/pelepasan-informasi/${visit.id}`}>Register pelepasan</Link></Button><Button asChild variant="secondary"><Link href="/persuratan" onClick={(event) => handleBackNavigation(event, '/persuratan')}><ArrowLeft className="size-4" />Kembali</Link></Button></div>
             </header>
 
             <Card>
@@ -40,7 +41,7 @@ export default function IssueLetter({ visit, templates, today, replaceableLetter
                         <div><CardTitle>Data kunjungan</CardTitle><CardDescription className="mt-1">Pastikan dokumen diterbitkan untuk pasien dan kunjungan yang benar.</CardDescription></div>
                     </div>
                 </CardHeader>
-                <CardContent className="pt-5">
+                <CardContent className="pt-5 sm:pt-6">
                     <dl className="grid overflow-hidden rounded-xl bg-neutral-50/60 sm:grid-cols-2 lg:grid-cols-4">
                         <Info label="Pasien" value={visit.patient} detail={`No. RM ${visit.medicalRecordNumber}`} />
                         <Info label="No. kunjungan" value={visit.number} detail={visit.date} />

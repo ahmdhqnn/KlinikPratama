@@ -118,7 +118,7 @@ class RegistrationRoleTest extends TestCase
             ->where('permissions.viewRme', false)
             ->where('permissions.processScreening', false)
             ->where('links.edit', route('pendaftaran.edit-kunjungan', $visit))
-            ->where('links.patient', route('pendaftaran.database-pasien', ['search' => $patient->no_rm]))
+            ->where('links.patient', route('pelayanan.pasien.show', $patient))
             ->where('links.medicalRecord', null)
             ->where('links.screening', null)
             ->where('visit.patient.allergies', null)

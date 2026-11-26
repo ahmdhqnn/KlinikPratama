@@ -3,9 +3,11 @@ import { ReligionSelect } from '@/components/pasien/religion-select';
 import { ActionButton } from '@/components/ui/action-button';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { Download, FileSpreadsheet, Plus, ShieldCheck, UsersRound } from 'lucide-react';
+import { Clock3, Download, FileSpreadsheet, Plus, ShieldCheck, UserPlus, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -73,16 +75,21 @@ interface VerificationFormData {
 }
 
 interface Props {
+    stats?: { total: number; verified: number; unverified: number; registeredToday: number };
     permissions: { viewRme: boolean; managePatients: boolean };
-    filters: { search: string; kategori: string };
+    filters: { search: string; kategori: string; jenisKelamin?: string };
     patients: PaginationData & { data: Patient[] };
     categories: Record<string, string>;
     otherTypes: Record<string, string>;
     today: string;
 }
 
-export default function PatientsIndex({ filters: initialFilters, patients, categories, otherTypes, permissions, today }: Props) {
-    const [filters, setFilters] = useState(initialFilters);
+export default function PatientsIndex({ stats, filters: initialFilters, patients, categories, otherTypes, permissions, today }: Props) {
+    const [filters, setFilters] = useState({
+        search: initialFilters.search,
+        kategori: initialFilters.kategori,
+        jenis_kelamin: initialFilters.jenisKelamin ?? '',
+    });
     const [mergeOpen, setMergeOpen] = useState(false);
     const [verificationPatient, setVerificationPatient] = useState<Patient | null>(null);
     const [verificationOpen, setVerificationOpen] = useState(false);
@@ -102,7 +109,7 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
 
     function submitMerge(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        confirmAction('Gabungkan rekam medis dan pindahkan seluruh kunjungan ke pasien utama?', () => { mergeForm.post('/pelayanan/pasien/gabung', { onSuccess: () => setMergeOpen(false) }); }, 'Lanjutkan');
+        confirmAction('Arsipkan identitas duplikat dan pertahankan pasien utama?', () => { mergeForm.post('/pelayanan/pasien/gabung', { onSuccess: () => setMergeOpen(false) }); }, 'Lanjutkan');
     }
 
     function openVerification(patient: Patient) {
@@ -139,9 +146,16 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
                     <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Data pasien</h2><p className="mt-1 text-sm text-neutral-500">Kelola identitas pasien dan verifikasi kepesertaannya.</p></div>
                     {permissions.managePatients && <Button asChild size="sm"><Link href="/pendaftaran/pendaftaran-baru"><Plus className="size-4" />Pendaftaran pasien</Link></Button>}
                 </div>
-                <FilterPanel actions={permissions.managePatients && <div className="flex flex-wrap gap-2"><Button asChild size="sm" variant="secondary"><Link href="/kepesertaan"><FileSpreadsheet className="size-4" />Impor kepesertaan</Link></Button><Button asChild size="sm" variant="secondary"><a href="/pelayanan/pasien-export"><Download className="size-4" />Ekspor semua pasien</a></Button><Button onClick={() => setMergeOpen(true)} size="sm" variant="secondary">Gabung RM</Button></div>}><form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={applyFilters}>
+                <SummaryStatGrid ariaLabel="Ringkasan data pasien" columns={4}>
+                    <StatCard label="Total pasien" value={stats?.total ?? patients.total} description="Seluruh rekam medis aktif" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Terverifikasi" value={stats?.verified ?? patients.data.filter((p) => p.membership !== 'Belum terverifikasi').length} description="Terhubung kepesertaan internal" icon={<ShieldCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Belum verifikasi" value={stats?.unverified ?? patients.data.filter((p) => p.membership === 'Belum terverifikasi').length} description="Menunggu verifikasi admin" icon={<Clock3 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Baru hari ini" value={stats?.registeredToday ?? 0} description="Pasien didaftarkan hari ini" icon={<UserPlus className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                </SummaryStatGrid>
+                <FilterPanel actions={permissions.managePatients && <div className="flex flex-wrap gap-2"><Button asChild size="sm" variant="secondary"><Link href="/kepesertaan"><FileSpreadsheet className="size-4" />Impor kepesertaan</Link></Button><Button asChild size="sm" variant="secondary"><a href="/pelayanan/pasien-export"><Download className="size-4" />Ekspor semua pasien</a></Button><Button onClick={() => setMergeOpen(true)} size="sm" variant="secondary">Arsipkan duplikat</Button></div>}><form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={applyFilters}>
                             <Field htmlFor="patient-search" label="Cari pasien"><Input id="patient-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama, No. RM, NIK, NIP, atau telepon" value={filters.search} /></Field>
                             <Field htmlFor="patient-membership-filter" label="Kategori peserta"><Select id="patient-membership-filter" onChange={(event) => setFilters({ ...filters, kategori: event.target.value })} value={filters.kategori}><option value="">Semua kategori</option>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
+                            <Field htmlFor="patient-gender-filter" label="Jenis kelamin"><Select id="patient-gender-filter" onChange={(event) => setFilters({ ...filters, jenis_kelamin: event.target.value })} value={filters.jenis_kelamin}><option value="">Semua</option><option value="L">Laki-laki</option><option value="P">Perempuan</option></Select></Field>
                             <FilterSubmit />
                         </form></FilterPanel>
                 <Card className="overflow-hidden">
@@ -162,7 +176,7 @@ export default function PatientsIndex({ filters: initialFilters, patients, categ
                     </CardContent>
                 </Card>
             </div>
-            <Dialog onOpenChange={setMergeOpen} open={mergeOpen}><DialogContent><DialogHeader><DialogTitle>Gabungkan rekam medis</DialogTitle><DialogDescription>Riwayat kunjungan pasien duplikat akan dipindahkan ke pasien utama.</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={submitMerge}><Field error={mergeForm.errors.pasien_utama_id} htmlFor="merge-primary-patient" label="ID pasien utama" required><Input placeholder="ID pasien yang dipertahankan" id="merge-primary-patient" min={1} onChange={(event) => mergeForm.setData('pasien_utama_id', event.target.value)} required type="number" value={mergeForm.data.pasien_utama_id} /></Field><Field error={mergeForm.errors.pasien_hapus_id} htmlFor="merge-duplicate-patient" label="ID pasien duplikat" required><Input placeholder="ID pasien yang digabung" id="merge-duplicate-patient" min={1} onChange={(event) => mergeForm.setData('pasien_hapus_id', event.target.value)} required type="number" value={mergeForm.data.pasien_hapus_id} /></Field><div className="flex justify-end gap-2"><Button onClick={() => setMergeOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={mergeForm.processing} type="submit">Gabungkan</Button></div></form></DialogContent></Dialog>
+            <Dialog onOpenChange={setMergeOpen} open={mergeOpen}><DialogContent><DialogHeader><DialogTitle>Arsipkan pasien duplikat</DialogTitle><DialogDescription>Tindakan ini tersedia untuk duplikat beridentitas sama yang belum memiliki catatan pelayanan.</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={submitMerge}><Field error={mergeForm.errors.pasien_utama_id} htmlFor="merge-primary-patient" label="ID pasien utama" required><Input placeholder="ID pasien yang dipertahankan" id="merge-primary-patient" min={1} onChange={(event) => mergeForm.setData('pasien_utama_id', event.target.value)} required type="number" value={mergeForm.data.pasien_utama_id} /></Field><Field error={mergeForm.errors.pasien_hapus_id} htmlFor="merge-duplicate-patient" label="ID pasien duplikat" required><Input placeholder="ID pasien yang diarsipkan" id="merge-duplicate-patient" min={1} onChange={(event) => mergeForm.setData('pasien_hapus_id', event.target.value)} required type="number" value={mergeForm.data.pasien_hapus_id} /></Field><div className="flex justify-end gap-2"><Button onClick={() => setMergeOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={mergeForm.processing} type="submit">Arsipkan</Button></div></form></DialogContent></Dialog>
             <Dialog onOpenChange={setVerificationOpen} open={verificationOpen}><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>Verifikasi kepesertaan</DialogTitle><DialogDescription>Periksa identitas, pilih kategori, dan catat bukti sebelum menambahkan pasien ke kepesertaan.</DialogDescription></DialogHeader><form className="space-y-5" onSubmit={submitVerification}>
                 <div className="grid gap-4 sm:grid-cols-2">
                     <Field error={verificationForm.errors.nama} htmlFor="verify-patient-name" label="Nama pasien" required><Input placeholder={identityPlaceholders.nama} id="verify-patient-name" onChange={(event) => verificationForm.setData('nama', event.target.value)} required value={verificationForm.data.nama} /></Field>

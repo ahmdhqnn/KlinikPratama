@@ -272,7 +272,7 @@ class OdontogramFlowTest extends TestCase
         $prescription = $visit->resep()->create(['no_resep' => 'RSP-PROCESSED', 'status' => 'diproses']);
 
         $this->actingAs($user)->post(route('pelayanan.pemeriksaan.resep.store', $visit), [
-            'nama_obat' => 'Obat luar', 'jumlah' => 3, 'jenis' => 'jadi', 'is_resep_luar' => true,
+            'nama_obat' => 'Obat luar', 'jumlah' => 3, 'jenis' => 'jadi', 'aturan_pakai' => '3 x 1 tablet sesudah makan', 'is_resep_luar' => true,
         ])->assertUnprocessable();
 
         $this->assertDatabaseMissing('resep_obat', ['resep_id' => $prescription->id]);

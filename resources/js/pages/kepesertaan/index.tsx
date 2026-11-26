@@ -6,8 +6,10 @@ import { confirmAction } from '@/components/ui/confirm-dialog';
 import { MasterExportButton } from '@/components/admin/master-export-button';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { Download, FileSpreadsheet, Plus, ShieldCheck, UsersRound } from 'lucide-react';
+import { Download, FileSpreadsheet, Plus, ShieldCheck, UserCheck, UserMinus, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
@@ -30,11 +32,23 @@ interface Member {
     alamat: string | null;
     verified_at: string | null; reason: string | null; detail_url: string;
 }
-interface Props { members: PaginationData & { data: Member[] }; search: string; filterCategory?: string; categories: Record<string, string>; otherTypes: Record<string, string>; canManage: boolean; errors?: { delete?: string }; urls: { index: string; import: string; template: string } }
+interface Props {
+    stats?: { total: number; eligible: number; activeStaff: number; inactiveStaff: number };
+    members: PaginationData & { data: Member[] };
+    search: string;
+    filterCategory?: string;
+    filterStatus?: string;
+    categories: Record<string, string>;
+    otherTypes: Record<string, string>;
+    canManage: boolean;
+    errors?: { delete?: string };
+    urls: { index: string; import: string; template: string };
+}
 
-export default function MembershipDirectory({ members, search, filterCategory = '', categories, otherTypes, canManage, errors, urls }: Props) {
+export default function MembershipDirectory({ stats, members, search, filterCategory = '', filterStatus = '', categories, otherTypes, canManage, errors, urls }: Props) {
     const [query, setQuery] = useState(search);
     const [category, setCategory] = useState(filterCategory);
+    const [staffStatus, setStaffStatus] = useState(filterStatus);
     const [open, setOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
     const [editing, setEditing] = useState<number | null>(null);
@@ -48,7 +62,7 @@ export default function MembershipDirectory({ members, search, filterCategory = 
     function show(member?: Member) {
         form.clearErrors(); setEditing(member?.id ?? null);
         const otherType = member?.jenis_lainnya ?? '';
-        setSelectedOtherType(otherType && !['magang', 'staf'].includes(otherType) ? 'lainnya' : otherType);
+        setSelectedOtherType(otherType && !['magang', 'staf', 'tenaga_penunjang'].includes(otherType) ? 'lainnya' : otherType);
         form.setData({
             nama: member?.nama ?? '', nik: member?.nik ?? '', nip: member?.nip ?? '', kategori: member?.kategori ?? 'asn', jenis_lainnya: member?.jenis_lainnya ?? '',
             status_kepegawaian: member?.status_kepegawaian ?? 'aktif', unit_kerja: member?.unit_kerja ?? '',
@@ -71,6 +85,12 @@ export default function MembershipDirectory({ members, search, filterCategory = 
 
     return <><Head title="Kepesertaan" /><div className="space-y-6">
         <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Direktori instansi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Kepesertaan</h2><p className="mt-1 text-sm text-neutral-500">Data pegawai internal dan status hak layanan yang diverifikasi admin.</p></div>{canManage && <Button onClick={() => show()}><Plus className="size-4" />Tambah peserta</Button>}</div>
+        <SummaryStatGrid ariaLabel="Ringkasan kepesertaan internal" columns={4}>
+            <StatCard label="Total peserta" value={stats?.total ?? members.total} description="Seluruh data pegawai internal" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+            <StatCard label="Berhak layanan" value={stats?.eligible ?? members.data.filter((m) => !m.reason).length} description="Aktif & terverifikasi" icon={<ShieldCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+            <StatCard label="Pegawai aktif" value={stats?.activeStaff ?? members.data.filter((m) => m.status_kepegawaian === 'aktif').length} description="Status kepegawaian aktif" icon={<UserCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+            <StatCard label="Nonaktif / pensiun" value={stats?.inactiveStaff ?? members.data.filter((m) => m.status_kepegawaian !== 'aktif').length} description="Tidak aktif dalam instansi" icon={<UserMinus className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+        </SummaryStatGrid>
         {errors?.delete && <p role="alert" className="text-sm text-red-700">{errors.delete}</p>}
         {canManage && <Dialog open={importOpen} onOpenChange={setImportOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>Impor data kepesertaan</DialogTitle><DialogDescription>Gunakan template Excel peserta internal. NIP dan NIK harus bertipe teks. Semua baris diperiksa; impor dibatalkan jika ada kesalahan.</DialogDescription></DialogHeader>
             <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); upload.post(urls.import, { forceFormData: true, preserveScroll: true, onSuccess: () => { upload.reset(); setImportOpen(false); } }); }}>
@@ -83,17 +103,23 @@ export default function MembershipDirectory({ members, search, filterCategory = 
             <MasterExportButton catalog="kepesertaan" label="Ekspor daftar peserta" />
             <Button asChild size="sm" variant="secondary"><a href={urls.template}><Download className="size-4" />Unduh template</a></Button>
             <Button onClick={() => setImportOpen(true)} size="sm" variant="secondary"><FileSpreadsheet className="size-4" />Impor kepesertaan</Button>
-        </>}><form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); router.get(urls.index, { search: query, kategori: category }, { preserveState: true, replace: true }); }}><Field htmlFor="filter-kepesertaan-index-1" label="Cari peserta"><Input id="filter-kepesertaan-index-1" placeholder="Cari nama, NIP, NIK, atau unit kerja" value={query} onChange={(event) => setQuery(event.target.value)} /></Field>
+        </>}><form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={(event) => { event.preventDefault(); router.get(urls.index, { search: query, kategori: category, status_kepegawaian: staffStatus }, { preserveState: true, replace: true }); }}>
+            <Field htmlFor="filter-kepesertaan-index-1" label="Cari peserta"><Input id="filter-kepesertaan-index-1" placeholder="Cari nama, NIP, NIK, atau unit kerja" value={query} onChange={(event) => setQuery(event.target.value)} /></Field>
             <Field htmlFor="membership-category-filter" label="Kategori peserta"><Select id="membership-category-filter" value={category} onChange={(event) => setCategory(event.target.value)}>
                 <option value="">Semua kategori</option>{Object.entries(categories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-            </Select></Field><FilterSubmit /></form></FilterPanel>
+            </Select></Field>
+            <Field htmlFor="membership-status-filter" label="Status kepegawaian"><Select id="membership-status-filter" value={staffStatus} onChange={(event) => setStaffStatus(event.target.value)}>
+                <option value="">Semua status</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option>
+            </Select></Field>
+            <FilterSubmit />
+        </form></FilterPanel>
         <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UsersRound className="size-5" /></span><div><CardTitle>Daftar peserta internal</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(members.total)} peserta sesuai pencarian.</CardDescription></div></div></CardHeader><CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[900px]"><TableHeader><TableRow><TableHead>Peserta</TableHead><TableHead>Kategori</TableHead><TableHead>Unit kerja</TableHead><TableHead>Status kepegawaian</TableHead><TableHead>Hak layanan</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader><TableBody>
             {members.data.length ? members.data.map((member) => <TableRow key={member.id}><TableCell><p className="font-semibold">{member.nama}</p><p className="mt-1 font-sans tabular-nums text-xs text-neutral-500">NIP {member.nip ?? 'Belum diisi'}<br />NIK {member.nik ?? 'Belum diisi'}</p></TableCell><TableCell>{categories[member.kategori] ?? member.kategori}{member.jenis_lainnya && <p className="text-xs text-neutral-500">{otherTypes[member.jenis_lainnya] ?? member.jenis_lainnya}</p>}</TableCell><TableCell>{member.unit_kerja}</TableCell><TableCell><Badge variant="default">{({ aktif: 'Aktif', pensiun: 'Pensiun', nonaktif: 'Nonaktif' } as Record<string, string>)[member.status_kepegawaian] ?? member.status_kepegawaian}</Badge></TableCell><TableCell><Badge variant={member.reason ? 'cancelled' : 'complete'}>{member.reason ? 'Tidak berhak' : 'Berhak'}</Badge>{member.reason && <p className="mt-1 max-w-64 text-xs text-red-700">{member.reason}</p>}</TableCell><TableCell><div className="flex flex-wrap items-center justify-center gap-2"><ActionButton asChild action="detail" label="Detail"><Link href={member.detail_url} /></ActionButton><><ActionButton disabledReason="Aksi ini memerlukan hak akses pengelolaan yang sesuai." disabled={!canManage} onClick={() => show(member)} action="edit" label={`Edit ${member.nama}`} /><ActionButton disabledReason="Aksi ini memerlukan hak akses pengelolaan yang sesuai." disabled={!canManage} onClick={() => confirmAction(`Hapus kepesertaan ${member.nama}?`, () => router.delete(`/kepesertaan/${member.id}`, { preserveScroll: true }), 'Hapus')} action="delete" label={`Hapus ${member.nama}`} /></></div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty title="Belum ada peserta" description="Belum ada data pegawai internal." size="compact" /></TableCell></TableRow>}
         </TableBody></Table></div><Pagination pagination={members} /></CardContent></Card>
     </div>
     <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{editing ? 'Perbarui verifikasi kepesertaan' : 'Verifikasi peserta instansi'}</DialogTitle><DialogDescription>Catat sumber resmi dan hak fasilitas yang telah diverifikasi.</DialogDescription></DialogHeader>
         <form onSubmit={save} className="space-y-5"><div className="space-y-5"><section className="space-y-3"><h3 className="text-sm font-semibold text-neutral-800">Identitas peserta</h3><div className="grid gap-4 sm:grid-cols-2">
-            {(['nama', 'nik', 'nip', 'unit_kerja'] as const).map((key) => <Field key={key} label={{ nama: 'Nama lengkap', nik: 'NIK (16 digit)', nip: 'NIP (8–30 digit)', unit_kerja: 'Unit kerja' }[key]} htmlFor={'member-' + key} error={form.errors[key]} required={['nama', 'unit_kerja'].includes(key)}><Input placeholder={identityPlaceholders[key]} id={'member-' + key} inputMode={key === 'nik' || key === 'nip' ? 'numeric' : undefined} maxLength={{ nama: 255, nik: 16, nip: 30, unit_kerja: 200 }[key]} value={form.data[key]} onChange={(event) => form.setData(key, key === 'nik' || key === 'nip' ? event.target.value.replace(/\D/g, '') : event.target.value)} /></Field>)}
+            {(['nama', 'nik', 'nip', 'unit_kerja'] as const).map((key) => <Field key={key} label={{ nama: 'Nama lengkap', nik: 'NIK (16 digit)', nip: 'NIP / NI PPPK (8–30 digit)', unit_kerja: 'Unit kerja' }[key]} htmlFor={'member-' + key} error={form.errors[key]} required={['nama', 'unit_kerja'].includes(key)}><Input list={key === 'unit_kerja' ? 'kemenpar-directory-units' : undefined} placeholder={identityPlaceholders[key]} id={'member-' + key} inputMode={key === 'nik' || key === 'nip' ? 'numeric' : undefined} maxLength={{ nama: 255, nik: 16, nip: 30, unit_kerja: 200 }[key]} value={form.data[key]} onChange={(event) => form.setData(key, key === 'nik' || key === 'nip' ? event.target.value.replace(/\D/g, '') : event.target.value)} />{key === 'unit_kerja' && <datalist id="kemenpar-directory-units"><option value="Sekretariat Kementerian" /><option value="Deputi Bidang Pengembangan Destinasi dan Infrastruktur" /><option value="Deputi Bidang Produk Wisata dan Penyelenggara Kegiatan" /><option value="Deputi Bidang Pemasaran" /><option value="Deputi Bidang Industri dan Investasi" /><option value="Deputi Bidang Sumber Daya dan Kelembagaan" /><option value="Inspektorat Utama" /></datalist>}</Field>)}
             <Field label="Tempat lahir" htmlFor="member-tempat-lahir" error={form.errors.tempat_lahir} required><IdentitySuggestionInput placeholder={identityPlaceholders.tempat_lahir} field="tempat_lahir" id="member-tempat-lahir" value={form.data.tempat_lahir} onChange={(event) => form.setData('tempat_lahir', event.target.value)} required /></Field>
             <Field label="Tanggal lahir" htmlFor="member-tanggal-lahir" error={form.errors.tanggal_lahir} required><DateOfBirthPicker id="member-tanggal-lahir" value={form.data.tanggal_lahir} onChange={(event) => form.setData('tanggal_lahir', event.target.value)} required /></Field>
             <Field label="Jenis kelamin" htmlFor="member-jenis-kelamin" error={form.errors.jenis_kelamin} required><Select id="member-jenis-kelamin" value={form.data.jenis_kelamin} onChange={(event) => form.setData('jenis_kelamin', event.target.value)} required><option value="">Pilih jenis kelamin</option><option value="L">Laki-laki</option><option value="P">Perempuan</option></Select></Field>

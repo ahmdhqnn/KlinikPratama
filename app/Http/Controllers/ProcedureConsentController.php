@@ -8,6 +8,7 @@ use App\Models\Kunjungan;
 use App\Models\ProcedureSignatureSession;
 use App\Models\TindakanKunjungan;
 use App\ProcedureConsentService;
+use App\Rules\ClinicalSigningCredential;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -57,9 +58,13 @@ class ProcedureConsentController extends Controller
             'signatureAvailable' => $canWrite && ($request->isSecure() || app()->environment('local', 'testing')),
             'emergencyAvailable' => $canWrite && $kunjungan->screening?->prioritas_layanan === 'darurat',
             'storeUrl' => route('procedure-consent.store', [$kunjungan, $procedure]),
-            'backUrl' => $isDoctor
-                ? route('pelayanan.pemeriksaan.show', ['kunjungan' => $kunjungan, 'tab' => 'tindakan'])
-                : route($kunjungan->status === 'tindakan' ? 'pelayanan.tindakan.show' : 'pelayanan.screening.show', $kunjungan),
+            'backUrl' => match (true) {
+                $request->query('asal') === 'profil' => route('pelayanan.pasien.show', [$kunjungan->pasien_id, 'bagian' => 'persetujuan']),
+                $isDoctor => route('pelayanan.pemeriksaan.show', ['kunjungan' => $kunjungan, 'tab' => 'tindakan']),
+                $kunjungan->status === 'tindakan' => route('pelayanan.tindakan.show', $kunjungan),
+                $kunjungan->canUpdateScreening() => route('pelayanan.screening.show', $kunjungan),
+                default => route('pelayanan.pasien.rekam-medis', [$kunjungan->pasien_id, 'kunjungan_id' => $kunjungan->id]),
+            },
             'history' => InformedConsent::with('recordedBy')->where('tindakan_kunjungan_id', $procedure->id)->latest('id')->get()->map(fn (InformedConsent $item): array => [
                 'id' => $item->id, 'decision' => $item->decision, 'signer' => $item->nama_penandatangan, 'relationship' => $item->hubungan_pasien,
                 'witness' => $item->witness_name, 'actor' => $item->recordedBy?->name, 'at' => $item->recorded_at?->format('d/m/Y H:i'),
@@ -91,7 +96,7 @@ class ProcedureConsentController extends Controller
             'plan_hash' => ['required', 'string', 'size:64'],
             'text_version' => ['required', Rule::in([ProcedureConsentService::VERSION])],
             'decision' => ['required', Rule::in(['accepted', 'oral', 'refused', 'withdrawn', 'not_required', 'emergency'])],
-            'signature_password' => [Rule::requiredIf(! $recentlyVerified), 'nullable', 'current_password'],
+            'signature_password' => [Rule::requiredIf(! $recentlyVerified), 'nullable', new ClinicalSigningCredential],
             'remember_verification' => ['sometimes', 'boolean'],
             'template_id' => ['sometimes', 'nullable', 'integer'],
             'template_revision' => ['sometimes', 'nullable', 'string', 'size:64'],

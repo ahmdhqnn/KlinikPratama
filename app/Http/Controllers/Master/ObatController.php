@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Master;
 
 use App\Exports\ObatExport;
 use App\Exports\ObatTemplateExport;
+use App\FarmasiClinicResolver;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Stok\PersediaanController;
 use App\Imports\ObatImport;
@@ -15,6 +16,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
+use Maatwebsite\Excel\Validators\ValidationException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ObatController extends Controller
@@ -24,6 +26,7 @@ class ObatController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'jenis' => ['nullable', 'in:obat,bhp'],
+            'status' => ['nullable', 'in:aktif,nonaktif'],
             'stok_rendah' => ['nullable', 'boolean'],
         ]);
         $obat = Obat::query()
@@ -32,17 +35,29 @@ class ObatController extends Controller
                 ->orWhere('kode', 'like', "%{$search}%")
                 ->orWhere('kode_kfa', 'like', "%{$search}%")))
             ->when($filters['jenis'] ?? null, fn ($query, string $type) => $query->where('jenis', $type))
+            ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('is_active', $status === 'aktif'))
             ->when(filter_var($filters['stok_rendah'] ?? false, FILTER_VALIDATE_BOOL), fn ($query) => $query->whereColumn('stok', '<=', 'stok_minimum'))
             ->orderBy('nama')
             ->paginate(10)
             ->withQueryString();
 
         return Inertia::render('master/obat/index', [
+            'stats' => [
+                'total' => Obat::count(),
+                'obat' => Obat::where('jenis', 'obat')->count(),
+                'bhp' => Obat::where('jenis', 'bhp')->count(),
+                'lowStock' => Obat::where('is_active', true)->whereColumn('stok', '<=', 'stok_minimum')->count(),
+            ],
             'medicines' => [
                 'data' => $obat->getCollection()->map(fn (Obat $medicine): array => [
                     'id' => $medicine->id,
                     'code' => $medicine->kode,
                     'kfaCode' => $medicine->kode_kfa,
+                    'kfaPoaCode' => $medicine->kode_kfa_poa,
+                    'kfaPovCode' => $medicine->kode_kfa_pov,
+                    'kfaName' => $medicine->nama_kfa,
+                    'dosageFormCode' => $medicine->kode_bentuk_sediaan,
+                    'dosageFormName' => $medicine->nama_bentuk_sediaan,
                     'name' => $medicine->nama,
                     'largeUnit' => $medicine->satuan_besar,
                     'smallUnit' => $medicine->satuan_kecil,
@@ -54,6 +69,9 @@ class ObatController extends Controller
                     'type' => $medicine->jenis,
                     'active' => $medicine->is_active,
                     'directDispensingAllowed' => $medicine->boleh_diberikan_langsung,
+                    'isHighAlert' => (bool) $medicine->is_high_alert,
+                    'isLasa' => (bool) $medicine->is_lasa,
+                    'defaultRoute' => $medicine->rute_default,
                 ])->values(),
                 'currentPage' => $obat->currentPage(),
                 'lastPage' => $obat->lastPage(),
@@ -67,6 +85,7 @@ class ObatController extends Controller
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'type' => $filters['jenis'] ?? '',
+                'status' => $filters['status'] ?? '',
                 'lowStock' => filter_var($filters['stok_rendah'] ?? false, FILTER_VALIDATE_BOOL),
             ],
         ]);
@@ -77,6 +96,11 @@ class ObatController extends Controller
         $data = $request->validate([
             'kode' => ['required', 'string', 'max:30', 'unique:obat,kode'],
             'kode_kfa' => ['nullable', 'string', 'max:30'],
+            'kode_kfa_poa' => ['nullable', 'string', 'max:32'],
+            'kode_kfa_pov' => ['nullable', 'string', 'max:32'],
+            'nama_kfa' => ['nullable', 'string', 'max:255'],
+            'kode_bentuk_sediaan' => ['nullable', 'string', 'max:32'],
+            'nama_bentuk_sediaan' => ['nullable', 'string', 'max:100'],
             'nama' => ['required', 'string', 'max:200'],
             'satuan_besar' => ['nullable', 'string', 'max:50'],
             'satuan_kecil' => ['nullable', 'string', 'max:50'],
@@ -88,10 +112,15 @@ class ObatController extends Controller
             'jenis' => ['required', 'in:obat,bhp'],
             'is_active' => ['boolean'],
             'boleh_diberikan_langsung' => ['boolean'],
+            'is_high_alert' => ['sometimes', 'boolean'],
+            'is_lasa' => ['sometimes', 'boolean'],
+            'rute_default' => ['nullable', 'in:oral,topikal,tetes_mata,tetes_telinga,inhalasi,sublingual,injeksi,lainnya'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
         $data['boleh_diberikan_langsung'] = $request->boolean('boleh_diberikan_langsung') && $data['jenis'] === 'obat';
+        $data['is_high_alert'] = $request->boolean('is_high_alert') && $data['jenis'] === 'obat';
+        $data['is_lasa'] = $request->boolean('is_lasa') && $data['jenis'] === 'obat';
         Obat::create($data);
 
         return back()->with('success', 'Item obat/BHP berhasil ditambahkan.');
@@ -102,6 +131,11 @@ class ObatController extends Controller
         $data = $request->validate([
             'kode' => ['required', 'string', 'max:30', "unique:obat,kode,{$obat->id}"],
             'kode_kfa' => ['nullable', 'string', 'max:30'],
+            'kode_kfa_poa' => ['nullable', 'string', 'max:32'],
+            'kode_kfa_pov' => ['nullable', 'string', 'max:32'],
+            'nama_kfa' => ['nullable', 'string', 'max:255'],
+            'kode_bentuk_sediaan' => ['nullable', 'string', 'max:32'],
+            'nama_bentuk_sediaan' => ['nullable', 'string', 'max:100'],
             'nama' => ['required', 'string', 'max:200'],
             'satuan_besar' => ['nullable', 'string', 'max:50'],
             'satuan_kecil' => ['nullable', 'string', 'max:50'],
@@ -112,10 +146,15 @@ class ObatController extends Controller
             'jenis' => ['required', 'in:obat,bhp'],
             'is_active' => ['boolean'],
             'boleh_diberikan_langsung' => ['boolean'],
+            'is_high_alert' => ['sometimes', 'boolean'],
+            'is_lasa' => ['sometimes', 'boolean'],
+            'rute_default' => ['nullable', 'in:oral,topikal,tetes_mata,tetes_telinga,inhalasi,sublingual,injeksi,lainnya'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active');
         $data['boleh_diberikan_langsung'] = $request->boolean('boleh_diberikan_langsung') && $data['jenis'] === 'obat';
+        $data['is_high_alert'] = $request->boolean('is_high_alert') && $data['jenis'] === 'obat';
+        $data['is_lasa'] = $request->boolean('is_lasa') && $data['jenis'] === 'obat';
         $obat->update($data);
 
         return back()->with('success', 'Item obat/BHP berhasil diperbarui.');
@@ -131,7 +170,7 @@ class ObatController extends Controller
     public function stok(Obat $obat): Response
     {
         $mutasi = StokMutasi::where('obat_id', $obat->id)
-            ->latest()
+            ->latest('id')
             ->paginate(10)
             ->withQueryString();
 
@@ -152,7 +191,9 @@ class ObatController extends Controller
                     'quantity' => (float) $movement->jumlah,
                     'stockBefore' => (float) $movement->stok_sebelum,
                     'stockAfter' => (float) $movement->stok_sesudah,
-                    'description' => $movement->keterangan,
+                    'description' => request()->user()?->role === 'admin' && in_array($movement->referensi_type, ['Farmasi', 'FarmasiMandiri', 'TindakanBhp'], true)
+                        ? 'Mutasi pelayanan tercatat'
+                        : $movement->keterangan,
                 ])->values(),
                 'currentPage' => $mutasi->currentPage(),
                 'lastPage' => $mutasi->lastPage(),
@@ -168,7 +209,12 @@ class ObatController extends Controller
 
     public function tambahStok(Request $request, Obat $obat): RedirectResponse
     {
-        return app(PersediaanController::class)->receive($request, $obat, app(PersediaanRecorder::class));
+        return app(PersediaanController::class)->receive(
+            $request,
+            $obat,
+            app(PersediaanRecorder::class),
+            app(FarmasiClinicResolver::class),
+        );
     }
 
     public function export(): BinaryFileResponse
@@ -183,11 +229,18 @@ class ObatController extends Controller
         ]);
 
         try {
-            Excel::import(new ObatImport, $request->file('file'));
+            DB::transaction(fn () => Excel::import(new ObatImport, $request->file('file')));
 
             return back()->with('success', 'Data obat dan BHP berhasil diimpor.');
-        } catch (\Exception $e) {
-            return back()->with('error', 'Gagal mengimpor data: '.$e->getMessage());
+        } catch (ValidationException $e) {
+            $firstFailure = $e->failures()[0] ?? null;
+            $message = $firstFailure
+                ? 'Baris '.$firstFailure->row().': '.($firstFailure->errors()[0] ?? 'Data tidak sesuai format.')
+                : 'Periksa format dan kelengkapan baris impor obat.';
+
+            return back()->with('error', 'Gagal mengimpor data: '.$message);
+        } catch (\Throwable) {
+            return back()->with('error', 'Gagal mengimpor data: periksa keunikan kode obat dan kesesuaian format template.');
         }
     }
 

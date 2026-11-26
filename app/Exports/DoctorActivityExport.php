@@ -21,6 +21,8 @@ class DoctorActivityExport extends SafeSpreadsheetValueBinder implements FromQue
         private ?int $doctorId,
         private DateRangeFilter $period,
         private string $search = '',
+        private ?string $status = null,
+        private ?int $clinicId = null,
     ) {}
 
     public function query(): Builder
@@ -28,8 +30,8 @@ class DoctorActivityExport extends SafeSpreadsheetValueBinder implements FromQue
         $reports = new DoctorActivityReportQuery;
 
         return $this->type === 'tindakan'
-            ? $reports->treatments($this->doctorId, $this->period, $this->search)
-            : $reports->medicines($this->doctorId, $this->period, $this->search);
+            ? $reports->treatments($this->doctorId, $this->period, $this->search, $this->status, $this->clinicId)
+            : $reports->medicines($this->doctorId, $this->period, $this->search, $this->status, $this->clinicId);
     }
 
     public function headings(): array

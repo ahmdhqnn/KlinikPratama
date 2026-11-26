@@ -5,6 +5,9 @@ import AppLayout from '@/layouts/app-layout';
 import { ConfirmDialogProvider } from '@/components/ui/confirm-dialog';
 import { RequestFeedback } from '@/components/request-feedback';
 import { PageLoading } from '@/components/page-loading';
+import { installNavigationHistoryTracker } from '@/lib/navigation';
+
+installNavigationHistoryTracker();
 
 const configuredAppName = import.meta.env.VITE_APP_NAME?.trim();
 const appName = configuredAppName && !configuredAppName.includes('${') ? configuredAppName : 'Klinik Pratama';

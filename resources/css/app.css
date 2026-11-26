@@ -2,11 +2,9 @@
 @import "@fontsource-variable/plus-jakarta-sans/wght.css";
 @import "@fontsource-variable/plus-jakarta-sans/wght-italic.css";
 @import "tw-animate-css";
-@import '../../vendor/livewire/flux/dist/flux.css';
 
 @source '../views';
 @source '../js';
-@source '../../vendor/livewire/flux/stubs/**/*.blade.php';
 
 @custom-variant dark {
     @media screen {
@@ -119,6 +117,7 @@
     --color-neutral-950: var(--clinic-neutral-950);
     --color-surface: var(--clinic-surface);
     --color-canvas: var(--clinic-canvas);
+    --color-muted-foreground: var(--clinic-neutral-500);
 }
 
 :root {
@@ -142,8 +141,8 @@
     color-scheme: dark;
     --clinic-canvas: hsl(0 0% 3.9%);
     --clinic-surface: hsl(0 0% 9%);
-    --clinic-neutral-50: hsl(0 0% 14.9%);
-    --clinic-neutral-100: hsl(0 0% 14.9%);
+    --clinic-neutral-50: hsl(0 0% 11.5%);
+    --clinic-neutral-100: hsl(0 0% 15.5%);
     --clinic-neutral-200: hsl(0 0% 25.1%);
     --clinic-neutral-300: hsl(0 0% 32.2%);
     --clinic-neutral-400: hsl(0 0% 63.9%);
@@ -193,6 +192,18 @@
         --color-indigo-50: color-mix(in srgb, var(--color-indigo-500) 16%, var(--clinic-surface));
         --color-indigo-100: color-mix(in srgb, var(--color-indigo-500) 24%, var(--clinic-surface));
         --color-indigo-200: color-mix(in srgb, var(--color-indigo-500) 42%, var(--clinic-surface));
+        --color-rose-50: color-mix(in srgb, var(--color-rose-500) 16%, var(--clinic-surface));
+        --color-rose-100: color-mix(in srgb, var(--color-rose-500) 24%, var(--clinic-surface));
+        --color-rose-200: color-mix(in srgb, var(--color-rose-500) 42%, var(--clinic-surface));
+        --color-cyan-50: color-mix(in srgb, var(--color-cyan-500) 16%, var(--clinic-surface));
+        --color-cyan-100: color-mix(in srgb, var(--color-cyan-500) 24%, var(--clinic-surface));
+        --color-cyan-200: color-mix(in srgb, var(--color-cyan-500) 42%, var(--clinic-surface));
+        --color-teal-50: color-mix(in srgb, var(--color-teal-500) 16%, var(--clinic-surface));
+        --color-teal-100: color-mix(in srgb, var(--color-teal-500) 24%, var(--clinic-surface));
+        --color-teal-200: color-mix(in srgb, var(--color-teal-500) 42%, var(--clinic-surface));
+        --color-sky-50: color-mix(in srgb, var(--color-sky-500) 16%, var(--clinic-surface));
+        --color-sky-100: color-mix(in srgb, var(--color-sky-500) 24%, var(--clinic-surface));
+        --color-sky-200: color-mix(in srgb, var(--color-sky-500) 42%, var(--clinic-surface));
     }
 }
 
@@ -212,6 +223,11 @@
 @media screen {
     [data-page-content="loading"] {
         visibility: hidden;
+    }
+
+    [data-page-content="updating"] {
+        opacity: 0.6;
+        transition: opacity 150ms ease;
     }
 }
 
@@ -485,11 +501,11 @@ input[data-password-toggle]::-ms-reveal {
     .rme-print-maps h2 { font-weight: 700; margin-bottom: 1.5mm; break-after: avoid; }
     .rme-print-map-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 2mm; margin-bottom: 3mm; }
     .rme-print-map-grid > :only-child { grid-column: 1 / -1; }
-    .rme-print-map-card { margin-bottom: 0; min-width: 0; min-height: 158mm; }
+    .rme-print-map-card { margin-bottom: 0; min-width: 0; min-height: 96mm; }
     .rme-print-map-heading { min-height: 17mm; border-bottom: 1px solid #ddd; margin-bottom: 2mm; padding-bottom: 2mm; }
     .rme-print-map-heading :is(h3, h4) { font-size: 11pt; line-height: 1.25; font-weight: 700; }
     .rme-print-map-heading p { margin-top: 1mm; font-size: 9pt; line-height: 1.35; color: #444; }
-    .rme-print-map-stage { display: flex; justify-content: center; align-items: center; min-height: 116mm; background: #fafafa; }
+    .rme-print-map-stage { display: flex; justify-content: center; align-items: center; min-height: 82mm; background: #fafafa; }
     .rme-print-body-map svg { width: auto; max-width: 100%; height: 100mm; }
     .rme-print-map-detail, .rme-print-map-legend { min-height: 13mm; margin-top: 2mm; font-size: 8pt; }
     .rme-print-map-legend { display: flex; flex-wrap: wrap; align-content: start; gap: 1mm; }

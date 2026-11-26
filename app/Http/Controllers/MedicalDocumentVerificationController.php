@@ -7,6 +7,7 @@ use App\DoctorAccessService;
 use App\MedicalDocumentVerificationService;
 use App\Models\MedicalDocumentVerification;
 use App\Models\SuratMedis;
+use App\Rules\ClinicalSigningCredential;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,7 +38,7 @@ class MedicalDocumentVerificationController extends Controller
         if (is_string($request->input('reason'))) {
             $request->merge(['reason' => trim($request->input('reason'))]);
         }
-        $data = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:2000'], 'signature_password' => ['required', 'current_password']]);
+        $data = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:2000'], 'signature_password' => ['required', new ClinicalSigningCredential]]);
         DB::transaction(function () use ($request, $suratMedis, $audit, $data): void {
             $verification = MedicalDocumentVerification::where('surat_medis_id', $suratMedis->id)->lockForUpdate()->firstOrFail();
             if (DB::table('medical_document_verification_events')->where('verification_id', $verification->id)->where('action', 'void')->exists()) {

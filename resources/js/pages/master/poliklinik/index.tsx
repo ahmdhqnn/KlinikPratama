@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Head, Link, router } from '@inertiajs/react';
-import { Building2, CalendarDays } from 'lucide-react';
+import { Building2, CalendarDays, CheckCircle2, DoorOpen } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
@@ -23,11 +25,12 @@ interface Clinic {
 }
 
 interface Props {
+    stats?: { total: number; active: number; totalRooms: number; activeRooms: number };
     clinics: PaginationData & { data: Clinic[] };
     filters: { search: string; jenis?: string; status?: string };
 }
 
-export default function ClinicIndex({ clinics, filters }: Props) {
+export default function ClinicIndex({ stats, clinics, filters }: Props) {
     const [search, setSearch] = useState(filters.search);
     const [jenis, setJenis] = useState(filters.jenis ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
@@ -36,10 +39,19 @@ export default function ClinicIndex({ clinics, filters }: Props) {
         router.get('/master/poliklinik', { search, jenis, status }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
+    const totalClinics = stats?.total ?? clinics.total;
+    const activeClinics = stats?.active ?? clinics.data.filter((c) => c.active).length;
+
     return (
         <>
             <Head title="Poliklinik" />
             <div className="space-y-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Konfigurasi layanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Poliklinik</h2><p className="mt-1 text-sm text-neutral-500">Buka Poli Umum atau Poli Gigi untuk mengelola ruang periksa.</p></div></div>
+                <SummaryStatGrid ariaLabel="Ringkasan poliklinik dan ruang periksa" columns={4}>
+                    <StatCard label="Total poliklinik" value={totalClinics} description="Unit pelayanan klinik" icon={<Building2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Poliklinik aktif" value={activeClinics} description="Tersedia untuk layanan" icon={<CheckCircle2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Total ruang periksa" value={stats?.totalRooms ?? 0} description="Ruang terdaftar di poli" icon={<DoorOpen className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Ruang aktif" value={stats?.activeRooms ?? 0} description="Siap digunakan praktik" icon={<CheckCircle2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                </SummaryStatGrid>
                 <FilterPanel actions={<><Button asChild size="sm" variant="secondary"><Link href="/pendaftaran/jadwal-praktik"><CalendarDays className="size-4" />Jadwal praktik</Link></Button><MasterExportButton catalog="poliklinik" /></>}><form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3" onSubmit={applyFilter}><Field htmlFor="clinic-search" label="Cari nama atau kode poli"><Input id="clinic-search" onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama atau kode poli" value={search} /></Field>
                     <Field htmlFor="clinic-type" label="Jenis unit"><Select id="clinic-type" value={jenis} onChange={(event) => setJenis(event.target.value)}>
                         <option value="">Semua jenis</option><option value="umum">Poli Umum</option><option value="gigi">Poli Gigi</option>

@@ -66,11 +66,26 @@ class ProcedureSignatureController extends Controller
         ]);
     }
 
-    public function pair(Request $request, string $token): RedirectResponse
+    public function pair(Request $request, string $token, ClinicalAuditRecorder $audit): RedirectResponse
     {
         $signing = $this->patientSession($request, $token);
         $data = $request->validate(['pair_code' => ['required', 'digits:6']]);
         if (! hash_equals($signing->credentials['code'], (string) $data['pair_code'])) {
+            $locked = DB::transaction(function () use ($request, $signing, $audit): bool {
+                [$row, , $visit] = $this->lockSession($signing);
+                $attempts = (int) $row->failed_attempts + 1;
+                if ($attempts >= 5) {
+                    $row->forceFill(['failed_attempts' => $attempts, 'cancelled_at' => now(), 'credentials' => null])->save();
+                    $audit->record($request, 'procedure_signature.pair_locked', $visit->pasien_id, $visit->id, ['session_id' => $row->id, 'outcome' => 'denied']);
+
+                    return true;
+                }
+                $row->forceFill(['failed_attempts' => $attempts])->save();
+                $audit->record($request, 'procedure_signature.pair_failed', $visit->pasien_id, $visit->id, ['session_id' => $row->id, 'outcome' => 'denied']);
+
+                return false;
+            });
+            abort_if($locked, 410, 'Sesi tanda tangan dibatalkan karena terlalu banyak percobaan kode tidak sesuai.');
             throw ValidationException::withMessages(['pair_code' => 'Kode pendamping tidak cocok.']);
         }
         $request->session()->put('procedure_signature.paired', $signing->id);

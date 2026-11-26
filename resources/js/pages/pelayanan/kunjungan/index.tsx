@@ -41,20 +41,21 @@ interface Props {
     visits: VisitPagination;
     todayVisits: VisitPagination;
     stats: { total: number; waiting: number; examination: number; completedToday: number };
-    filters: { search: string; date: string; status: string; clinicId: string };
+    filters: { search: string; date: string; status: string; clinicId: string; doctorId?: string };
     clinics: Option[];
+    doctors?: Option[];
     canSelectClinic: boolean;
     canManageVisits: boolean;
 }
 
 const statuses = ['menunggu', 'screening', 'pemeriksaan', 'tindakan', 'farmasi', 'selesai', 'batal'];
 
-export default function VisitsIndex({ visits, todayVisits, stats, filters: initialFilters, clinics, canSelectClinic, canManageVisits }: Props) {
-    const [filters, setFilters] = useState(initialFilters);
+export default function VisitsIndex({ visits, todayVisits, stats, filters: initialFilters, clinics, doctors = [], canSelectClinic, canManageVisits }: Props) {
+    const [filters, setFilters] = useState({ ...initialFilters, doctorId: initialFilters.doctorId ?? '' });
 
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        router.get('/pelayanan/kunjungan', { search: filters.search, tanggal: filters.date, status: filters.status, poliklinik_id: filters.clinicId }, { preserveState: true, preserveScroll: true, replace: true });
+        router.get('/pelayanan/kunjungan', { search: filters.search, tanggal: filters.date, status: filters.status, poliklinik_id: filters.clinicId, dokter_id: filters.doctorId }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     function cancelVisit(id: number) {
@@ -73,11 +74,12 @@ export default function VisitsIndex({ visits, todayVisits, stats, filters: initi
                     <StatCard label="Kunjungan selesai hari ini" value={stats.completedToday} description="Pelayanan selesai pada tanggal hari ini" icon={<ClipboardCheck className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 </section>
                 <VisitList icon={<Clock3 className="size-5" />} title="Kunjungan hari ini" description="Seluruh kunjungan hari ini sesuai akses poliklinik." visits={todayVisits} canManageVisits={canManageVisits} onCancel={cancelVisit} />
-                <FilterPanel><form className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4" onSubmit={applyFilters}>
-                    <Field htmlFor="visit-search" label="Cari pasien"><Input id="visit-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Cari nama atau No. RM" value={filters.search} /></Field>
+                <FilterPanel><form className={`grid min-w-0 gap-4 sm:grid-cols-2 ${canSelectClinic ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`} onSubmit={applyFilters}>
+                    <Field htmlFor="visit-search" label="Cari pasien atau kunjungan"><Input id="visit-search" onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nama, No. RM, atau No. kunjungan" value={filters.search} /></Field>
                     <Field htmlFor="visit-date-filter" label="Tanggal kunjungan"><DatePicker id="visit-date-filter" onChange={(event) => setFilters({ ...filters, date: event.target.value })} value={filters.date} /></Field>
-                    <Field htmlFor="visit-status-filter" label="Status"><Select id="visit-status-filter" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}><option value="">Semua status</option>{statuses.map((status) => <option key={status} value={status}>{visitStatusFilterLabels[status]}</option>)}</Select></Field>
                     {canSelectClinic && <Field htmlFor="visit-clinic-filter" label="Poliklinik"><Select id="visit-clinic-filter" onChange={(event) => setFilters({ ...filters, clinicId: event.target.value })} value={filters.clinicId}><option value="">Semua poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field>}
+                    {doctors.length > 0 && <Field htmlFor="visit-doctor-filter" label="Dokter"><Select id="visit-doctor-filter" onChange={(event) => setFilters({ ...filters, doctorId: event.target.value })} value={filters.doctorId}><option value="">Semua dokter</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}</Select></Field>}
+                    <Field htmlFor="visit-status-filter" label="Status"><Select id="visit-status-filter" onChange={(event) => setFilters({ ...filters, status: event.target.value })} value={filters.status}><option value="">Semua status</option>{statuses.map((status) => <option key={status} value={status}>{visitStatusFilterLabels[status]}</option>)}</Select></Field>
                     <FilterSubmit />
                 </form></FilterPanel>
                 <VisitList icon={<CalendarDays className="size-5" />} title="Daftar kunjungan pasien" description={`${new Intl.NumberFormat('id-ID').format(visits.total)} kunjungan sesuai filter poli, tanggal, dan status.`} visits={visits} canManageVisits={canManageVisits} onCancel={cancelVisit} />

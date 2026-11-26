@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Pasien extends Model
@@ -14,17 +15,28 @@ class Pasien extends Model
     protected $table = 'pasien';
 
     protected $fillable = [
-        'no_rm', 'nama', 'nik', 'nip', 'kepesertaan_id', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin',
+        'no_rm', 'nama', 'nik', 'ihs_number', 'nip', 'kepesertaan_id', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin',
         'golongan_darah', 'alamat', 'rt', 'rw', 'kelurahan', 'kecamatan',
-        'telepon', 'pekerjaan', 'unit_kerja', 'agama', 'status_perkawinan', 'nama_wali',
-        'nama_ibu', 'telepon_wali', 'riwayat_alergi',
+        'kode_provinsi', 'kode_kabupaten', 'kode_kecamatan', 'kode_kelurahan', 'kode_pos',
+        'telepon', 'pekerjaan', 'pendidikan', 'unit_kerja', 'agama', 'kewarganegaraan', 'no_paspor', 'alasan_tanpa_nik',
+        'status_perkawinan', 'nama_wali', 'nama_ibu', 'telepon_wali', 'riwayat_alergi',
     ];
 
     protected $casts = [
         'tanggal_lahir' => 'date',
     ];
 
-    public function latestGeneralConsent(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function allergies(): HasMany
+    {
+        return $this->hasMany(PatientAllergy::class);
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(PatientDocument::class);
+    }
+
+    public function latestGeneralConsent(): HasOne
     {
         return $this->hasOne(GeneralConsent::class)->latestOfMany();
     }

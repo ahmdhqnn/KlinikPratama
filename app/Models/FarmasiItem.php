@@ -18,6 +18,8 @@ class FarmasiItem extends Model
         'obat_id',
         'jumlah_diberikan',
         'aturan_pakai',
+        'days_supply',
+        'satusehat_medication_dispense_id',
         'catatan',
     ];
 

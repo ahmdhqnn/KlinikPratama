@@ -22,12 +22,13 @@ class KunjunganExport extends SafeSpreadsheetValueBinder implements FromQuery, W
         private readonly ?string $search = null,
         private readonly ?string $date = null,
         private readonly ?int $registrarId = null,
+        private readonly ?int $doctorId = null,
     ) {}
 
     public function query(): Builder
     {
         return (new VisitQueryService)->filtered(
-            ['poliklinik_id' => $this->clinicId, 'status' => $this->status, 'search' => $this->search, 'tanggal' => $this->date],
+            ['poliklinik_id' => $this->clinicId, 'dokter_id' => $this->doctorId, 'status' => $this->status, 'search' => $this->search, 'tanggal' => $this->date],
             period: new DateRangeFilter($this->dari, $this->sampai),
         )->when($this->registrarId, fn (Builder $query, int $id) => $query->where('registered_by', $id))
             ->with(['pasien', 'poliklinik', 'dokter'])->latest('tanggal')->latest('id');

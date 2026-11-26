@@ -1,3 +1,4 @@
+import { SearchResultsSkeleton } from '@/components/loading-skeletons';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeft, Search } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Search, ShieldCheck } from 'lucide-react';
+import { handleBackNavigation } from '@/lib/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 
 interface Diagnosis { key: number; code: string | null; name: string; type: string; tooth: string | null; status: string; }
@@ -52,8 +54,8 @@ export default function DiagnosisCorrection({ visit, diagnoses, history, baseHas
     return <>
         <Head title="Koreksi coding diagnosis" />
         <div className="mx-auto max-w-4xl space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-semibold">Koreksi coding diagnosis</h1><p className="mt-1 text-sm text-neutral-500">{visit.patient} · {visit.number}</p></div><Button asChild variant="secondary"><Link href={backUrl}><ArrowLeft className="size-4" />Kembali ke pemeriksaan</Link></Button></div>
-            <Alert><AlertTitle>Addendum coding</AlertTitle><AlertDescription>Tinjau kesesuaian diagnosis dengan pelayanan yang sudah diberikan. Koreksi ini menyimpan versi baru beserta alasan; resep, pelaksanaan tindakan, dan stok tetap mengikuti catatan layanan masing-masing.</AlertDescription></Alert>
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold text-neutral-950">Koreksi coding diagnosis</h2><p className="mt-1 text-sm text-neutral-500">{visit.patient} · {visit.number}</p></div><Button asChild variant="secondary"><Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}><ArrowLeft className="size-4" />Kembali ke pemeriksaan</Link></Button></div>
+            <Alert dismissible={false} variant="default"><ShieldCheck aria-hidden="true" className="size-4" /><AlertTitle>Addendum coding</AlertTitle><AlertDescription>Tinjau kesesuaian diagnosis dengan pelayanan yang sudah diberikan. Koreksi ini menyimpan versi baru beserta alasan; resep, pelaksanaan tindakan, dan stok tetap mengikuti catatan layanan masing-masing.</AlertDescription></Alert>
             <Card><CardHeader><CardTitle>Pemetaan ICD-10 WHO</CardTitle><CardDescription>Pilih diagnosis dari catatan final, lalu kode dan rilis katalog yang sesuai.</CardDescription></CardHeader><CardContent>
                 <form className="space-y-5" onSubmit={submit}><fieldset className="space-y-5" disabled={form.processing}>
                     <Field htmlFor="correction-diagnosis" label="Diagnosis yang dikoreksi" required error={form.errors.diagnosis_key}><Select id="correction-diagnosis" value={form.data.diagnosis_key} onChange={(event) => { form.setData('diagnosis_key', Number(event.target.value)); setSelected(null); setQuery(''); form.setData('terminology_id', ''); }}>
@@ -61,7 +63,7 @@ export default function DiagnosisCorrection({ visit, diagnoses, history, baseHas
                     </Select></Field>
                     {current && <p className="rounded-lg bg-neutral-50 p-3 text-sm">{current.type === 'utama' ? 'Diagnosis utama' : 'Diagnosis tambahan'} · {current.status === 'verified' ? 'Terverifikasi' : 'Perlu verifikasi'}{current.tooth ? ` · Gigi ${current.tooth}` : ''}</p>}
                     <Field htmlFor="correction-code-search" label="Cari ICD-10 WHO" required error={form.errors.terminology_id}><div className="relative"><Search className="absolute left-3 top-3 size-4 text-neutral-500" /><Input id="correction-code-search" autoComplete="off" className="pl-9" value={query} onChange={(event) => { setQuery(event.target.value); setSelected(null); form.setData('terminology_id', ''); }} placeholder="Kode atau uraian diagnosis" /></div></Field>
-                    {loading && <p role="status" className="text-sm text-neutral-500">Mencari diagnosis…</p>}
+                    {loading && <SearchResultsSkeleton label="Mencari diagnosis…" rows={3} />}
                     {failed && <p role="alert" className="text-sm text-red-700">Pencarian gagal. Periksa koneksi lalu coba kembali.</p>}
                     {!!results.length && <div className="max-h-64 overflow-y-auto rounded-xl border border-neutral-200">{results.map((item) => <Button key={item.id} type="button" variant="ghost" className="h-auto w-full justify-start whitespace-normal rounded-none border-b border-neutral-100 px-4 py-3 text-left" onClick={() => { setSelected(item); setResults([]); form.setData('terminology_id', String(item.id)); }}><span className="font-semibold tabular-nums">{item.kode}</span><span>{item.nama} · {item.release}</span></Button>)}</div>}
                     {!loading && !failed && !selected && query.trim().length >= 2 && !results.length && <p className="text-sm text-neutral-600" role="status">Kode dengan rilis terverifikasi belum ditemukan pada katalog aktif.</p>}
@@ -70,7 +72,7 @@ export default function DiagnosisCorrection({ visit, diagnoses, history, baseHas
                     <label className="flex items-start gap-2 text-sm leading-6"><Checkbox checked={form.data.review_clinical_impact} onCheckedChange={(checked) => form.setData('review_clinical_impact', checked === true)} /><span>Saya telah memeriksa kesesuaian diagnosis, dampaknya pada terapi dan rujukan, serta kebutuhan tindak lanjut atau komunikasi kepada petugas terkait.</span></label>
                     {form.errors.review_clinical_impact && <p role="alert" className="text-sm text-red-700">{form.errors.review_clinical_impact}</p>}
                     <Field htmlFor="correction-password" label="Kata sandi akun" required error={form.errors.signature_password}><Input id="correction-password" type="password" autoComplete="current-password" required value={form.data.signature_password} onChange={(event) => form.setData('signature_password', event.target.value)} /></Field>
-                    {form.errors.base_hash && <Alert variant="warning"><AlertTitle>Catatan berubah</AlertTitle><AlertDescription>{form.errors.base_hash}<Button className="mt-3" type="button" variant="secondary" onClick={() => window.location.reload()}>Muat ulang catatan</Button></AlertDescription></Alert>}
+                    {form.errors.base_hash && <Alert action={<Button size="sm" type="button" variant="secondary" onClick={() => window.location.reload()}>Muat ulang catatan</Button>} dismissible={false} variant="default"><AlertTriangle aria-hidden="true" className="size-4" /><AlertTitle>Catatan berubah</AlertTitle><AlertDescription>{form.errors.base_hash}</AlertDescription></Alert>}
                     <div className="flex justify-end"><Button type="submit" disabled={!selected || !form.data.review_clinical_impact || form.data.reason.trim().length < 10 || form.processing}>Simpan addendum coding</Button></div>
                 </fieldset></form>
             </CardContent></Card>

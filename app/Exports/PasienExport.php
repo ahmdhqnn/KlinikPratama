@@ -3,18 +3,18 @@
 namespace App\Exports;
 
 use App\Models\Pasien;
-use Illuminate\Support\Enumerable;
-use Maatwebsite\Excel\Concerns\FromCollection;
+use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class PasienExport extends SafeSpreadsheetValueBinder implements FromCollection, WithHeadings, WithMapping, WithStyles
+class PasienExport extends SafeSpreadsheetValueBinder implements FromQuery, WithHeadings, WithMapping, WithStyles
 {
-    public function collection(): Enumerable
+    public function query(): Builder
     {
-        return Pasien::with('kepesertaan')->orderBy('no_rm')->get();
+        return Pasien::with('kepesertaan')->orderBy('no_rm')->orderBy('id');
     }
 
     public function headings(): array

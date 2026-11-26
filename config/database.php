@@ -17,7 +17,24 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => (static function (): string {
+        $connection = (string) env('DB_CONNECTION', 'sqlite');
+        $database = (string) env('DB_DATABASE', '');
+
+        if (
+            env('APP_ENV') !== 'testing'
+            && $connection === 'sqlite'
+            && $database !== ''
+            && $database !== ':memory:'
+            && ! str_ends_with(strtolower($database), '.sqlite')
+            && ! is_file($database)
+            && filled(env('DB_USERNAME'))
+        ) {
+            return (string) env('DB_PORT') === '5433' || (string) env('DB_PORT') === '5432' ? 'pgsql' : 'mysql';
+        }
+
+        return $connection;
+    })(),
 
     /*
     |--------------------------------------------------------------------------
@@ -39,8 +56,8 @@ return [
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
             'busy_timeout' => (int) env('DB_BUSY_TIMEOUT', 5000),
-            'journal_mode' => null,
-            'synchronous' => null,
+            'journal_mode' => env('DB_JOURNAL_MODE', 'wal'),
+            'synchronous' => env('DB_SYNCHRONOUS', 'normal'),
             'transaction_mode' => env('DB_TRANSACTION_MODE', 'IMMEDIATE'),
         ],
 

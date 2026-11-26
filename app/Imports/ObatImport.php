@@ -30,8 +30,11 @@ class ObatImport implements ToModel, WithHeadingRow, WithValidation
     public function rules(): array
     {
         return [
-            'kode' => ['required'],
-            'nama' => ['required'],
+            'kode' => ['required', 'string', 'max:100'],
+            'nama' => ['required', 'string', 'max:255'],
+            'jenis' => ['nullable', 'in:obat,bhp,alkes'],
+            'konversi_satuan' => ['nullable', 'numeric', 'min:1'],
+            'stok_minimum' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 }

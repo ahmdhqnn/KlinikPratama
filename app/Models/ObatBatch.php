@@ -31,4 +31,9 @@ class ObatBatch extends Model
     {
         $query->where('status', 'tersedia')->where('stok', '>', 0)->whereDate('expired_at', '>', today());
     }
+
+    public function scopeForDepo(Builder $query, ?int $depoId): Builder
+    {
+        return $depoId !== null ? $query->where('depo_id', $depoId) : $query;
+    }
 }

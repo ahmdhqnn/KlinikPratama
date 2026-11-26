@@ -47,11 +47,14 @@
     <header class="clinical-document-head">
         <img class="clinical-logo" src="{{ asset('logo_kemenpar.webp') }}" alt="Kementerian Pariwisata RI">
         <div class="clinical-head-copy">
-            <strong>Klinik Pratama</strong><strong>Kementerian Pariwisata RI</strong>
-            <p class="clinical-license">Izin Operasional Klinik Nomor: 6/B.6.1/31.09.86/e/2023</p>
-            @php($defaultAddress = $clinic['address'] === 'Jl. Medan Merdeka Barat No. 17, Gambir, Jakarta Pusat 10110')
-            <p>{{ $defaultAddress ? 'Jl. Medan Merdeka Barat No. 17' : $clinic['address'] }}</p>
-            <p>{{ $defaultAddress ? 'Jakarta 10110 ' : '' }}Telp. {{ $clinic['phone'] === '021 3838142' ? '3838142' : $clinic['phone'] }}</p>
+            <strong>{{ $clinic['name'] ?: 'Klinik Pratama Kementerian Pariwisata' }}</strong>
+            @if (! empty($clinic['license']))
+                <p class="clinical-license">Izin Operasional Klinik Nomor: {{ $clinic['license'] }}</p>
+            @endif
+            <p>{{ $clinic['address'] }}</p>
+            @if (! empty($clinic['phone']))
+                <p>Telp. {{ $clinic['phone'] }}</p>
+            @endif
         </div>
         <img class="clinical-logo" src="{{ asset('logo_wonderful.png') }}" alt="Wonderful Indonesia">
     </header>

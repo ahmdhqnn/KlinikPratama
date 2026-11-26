@@ -9,6 +9,7 @@ use App\Models\ClinicalNoteVersion;
 use App\Models\ClinicalTerminology;
 use App\Models\Kunjungan;
 use App\Models\Pemeriksaan;
+use App\Rules\ClinicalSigningCredential;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -66,7 +67,7 @@ class DiagnosisCodingCorrectionController extends Controller
             'base_hash' => ['required', 'string', 'size:64'], 'request_id' => ['required', 'uuid'],
             'diagnosis_key' => ['required', 'integer', 'min:0'], 'terminology_id' => ['required', 'integer'],
             'reason' => ['required', 'string', 'min:10', 'max:2000'],
-            'review_clinical_impact' => ['required', 'accepted'], 'signature_password' => ['required', 'current_password'],
+            'review_clinical_impact' => ['required', 'accepted'], 'signature_password' => ['required', new ClinicalSigningCredential],
         ]);
         $requestHash = hash('sha256', json_encode(collect($data)->except('signature_password')->all(), JSON_THROW_ON_ERROR));
         DB::transaction(function () use ($request, $kunjungan, $notes, $audit, $data, $requestHash): void {

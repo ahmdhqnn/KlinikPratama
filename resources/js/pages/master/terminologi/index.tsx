@@ -1,10 +1,13 @@
+import { MasterExportButton } from '@/components/admin/master-export-button';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ActionButton } from '@/components/ui/action-button';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { FileSpreadsheet, Upload } from 'lucide-react';
+import { Database, FileSpreadsheet, Layers, Upload } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,14 +68,23 @@ export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Terminologi klinis</h2>
                     <p className="mt-1 text-sm text-neutral-500">Impor katalog resmi untuk pencarian kode dan uraian saat pencatatan klinis.</p>
                 </div>
-                <FilterPanel actions={<Button onClick={() => setImportOpen(true)} size="sm" variant="secondary"><Upload className="size-4" />Impor terminologi</Button>}>
-                    <form className="grid gap-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); router.get('/master/terminologi-klinis', { search, system: systemFilter }, { preserveScroll: true, replace: true }); }}>
+                <SummaryStatGrid ariaLabel="Ringkasan katalog terminologi klinis" columns={3}>
+                    <StatCard label="Katalog terpasang" value={systems.length} description="Total rilis terminologi aktif" icon={<FileSpreadsheet className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Sistem kode unik" value={new Set(systems.map((s) => s.system)).size} description="ICD-10, ICD-9-CM, dll." icon={<Layers className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                    <StatCard label="Total kode aktif" value={systems.reduce((sum, s) => sum + s.count, 0)} description="Tersedia untuk pencarian klinis" icon={<Database className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
+                </SummaryStatGrid>
+                <FilterPanel actions={<>
+                    <MasterExportButton catalog="referensi-medis" label="Ekspor katalog" />
+                    <MasterExportButton href="/master/terminologi-klinis/template" label="Unduh template" />
+                    <Button onClick={() => setImportOpen(true)} size="sm" variant="secondary"><Upload className="size-4" />Impor terminologi</Button>
+                </>}>
+                    <form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); router.get('/master/terminologi-klinis', { search, system: systemFilter }, { preserveScroll: true, replace: true }); }}>
                         <Field htmlFor="terminology-search" label="Cari katalog atau rilis"><Input id="terminology-search" maxLength={100} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nama sistem kode atau versi rilis" /></Field>
                         <Field htmlFor="terminology-filter-system" label="Sistem kode"><Select id="terminology-filter-system" value={systemFilter} onChange={(event) => setSystemFilter(event.target.value)}><option value="">Semua sistem kode</option>{[...new Map(systems.map((system) => [system.system, system])).values()].map((system) => <option key={system.system} value={system.system}>{system.label}</option>)}</Select></Field>
                         <FilterSubmit />
                     </form>
                 </FilterPanel>
-                <Dialog open={importOpen} onOpenChange={setImportOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>Impor berkas terminologi</DialogTitle><DialogDescription>Unggah CSV atau Excel dari sumber resmi. Data divalidasi sebelum disimpan.</DialogDescription></DialogHeader>
+                <Dialog open={importOpen} onOpenChange={setImportOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>Impor berkas terminologi</DialogTitle><DialogDescription>Gunakan data dari sumber resmi. Unduh template untuk melihat format kolom dan pertahankan kode sebagai teks.</DialogDescription></DialogHeader>
                         <form className="space-y-4" encType="multipart/form-data" onSubmit={submit}>
                             <div className="grid gap-4 md:grid-cols-2">
                                 <Field error={form.errors.code_system} htmlFor="terminology-system" label="Sistem kode" required><Select id="terminology-system" onChange={(event) => form.setData('code_system', event.target.value)} value={form.data.code_system}>{codeSystems.map((system) => <option key={system.value} value={system.value}>{system.label}</option>)}<option value="other">Terminologi lain</option></Select></Field>
@@ -81,7 +93,7 @@ export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props
                                 <Field error={form.errors.file} htmlFor="terminology-file" label="Berkas CSV / Excel / ZIP ICD-9-CM" required><Input accept=".csv,.xls,.xlsx,.zip" id="terminology-file" onChange={(event) => form.setData('file', event.target.files?.[0] ?? null)} required type="file" /></Field>
                             </div>
                             <p className="text-xs text-neutral-500">Berkas CSV/Excel dideteksi dari header kode dan uraian. Arsip ZIP ICD-9-CM CMS dibaca langsung dari file uraian panjang DX/SG. Katalog versi berbeda disimpan terpisah. Maksimum 20 MB.</p>
-                            <div className="flex justify-end gap-2"><Button onClick={() => setImportOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={form.processing || !form.data.file} type="submit"><FileSpreadsheet className="size-4" />{form.processing ? 'Memproses…' : 'Validasi dan impor'}</Button></div>
+                            <div className="flex flex-wrap items-center justify-between gap-3"><MasterExportButton href="/master/terminologi-klinis/template" label="Unduh template" /><div className="ml-auto flex flex-wrap justify-end gap-2"><Button disabled={form.processing} onClick={() => setImportOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={form.processing || !form.data.file} type="submit"><FileSpreadsheet className="size-4" />{form.processing ? 'Memproses…' : 'Validasi dan impor'}</Button></div></div>
                         </form>
                 </DialogContent></Dialog>
                 <Card className="overflow-hidden">

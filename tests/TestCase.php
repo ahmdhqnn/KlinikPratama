@@ -6,6 +6,7 @@ use App\GeneralConsentService;
 use App\Models\Kunjungan;
 use App\Models\Nakes;
 use App\Models\PharmacyStaffCredential;
+use App\Models\Poliklinik;
 use App\Models\User;
 use App\PharmacyClinicalReviewService;
 use App\PharmacyStaffAccess;
@@ -24,12 +25,19 @@ abstract class TestCase extends BaseTestCase
             ?? User::factory()->create(['role' => 'admin']);
     }
 
-    protected function verifySyntheticPharmacyStaff(User $pharmacist): void
+    protected function verifySyntheticPharmacyStaff(User $pharmacist, ?int $poliklinikId = null): void
     {
+        $resolvedClinicId = $poliklinikId
+            ?? Poliklinik::registrable()->value('id')
+            ?? Poliklinik::firstOrCreate(['kode' => 'SYNTH-UMUM'], ['nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true])->id;
         $profile = Nakes::where('user_id', $pharmacist->id)->first();
         $profile ??= Nakes::create(['kode' => 'FARM-TEST-'.$pharmacist->id, 'nama' => 'Apoteker sintetis', 'kategori' => 'medis',
-            'jabatan' => 'farmasi', 'user_id' => $pharmacist->id, 'is_active' => true]);
-        $profile->update(['no_sip' => $profile->no_sip ?: 'SIP-SYNTHETIC', 'no_str' => $profile->no_str ?: 'STR-SYNTHETIC-'.$profile->id]);
+            'jabatan' => 'farmasi', 'user_id' => $pharmacist->id, 'poliklinik_id' => $resolvedClinicId, 'is_active' => true]);
+        $profile->update([
+            'no_sip' => $profile->no_sip ?: 'SIP-SYNTHETIC',
+            'no_str' => $profile->no_str ?: 'STR-SYNTHETIC-'.$profile->id,
+            ...($poliklinikId !== null ? ['poliklinik_id' => $poliklinikId] : ($profile->poliklinik_id === null && $resolvedClinicId !== null ? ['poliklinik_id' => $resolvedClinicId] : [])),
+        ]);
         if (! app(PharmacyStaffAccess::class)->current($pharmacist)) {
             $admin = $this->activeAdmin();
             $this->actingAs($admin)->post(route('master.nakes.pharmacy-credential.store', $profile), [
@@ -43,7 +51,7 @@ abstract class TestCase extends BaseTestCase
 
     protected function reviewSyntheticPharmacyPlan(Kunjungan $visit, User $pharmacist): void
     {
-        $this->verifySyntheticPharmacyStaff($pharmacist);
+        $this->verifySyntheticPharmacyStaff($pharmacist, $visit->poliklinik_id);
         $service = app(PharmacyClinicalReviewService::class);
         $this->actingAs($pharmacist)->post(route('pelayanan.farmasi.review.store', $visit), [
             'source_hash' => $service->hash($visit->fresh()), 'current_id' => $service->latest($visit)?->id,

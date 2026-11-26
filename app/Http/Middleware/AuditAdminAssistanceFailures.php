@@ -2,10 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\ClinicalAuditRecorder;
 use App\Models\Kunjungan;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuditAdminAssistanceFailures
@@ -33,17 +33,18 @@ class AuditAdminAssistanceFailures
             ? 'server_error'
             : (in_array($status, [401, 403], true) ? 'access_denied' : 'validation_or_workflow');
 
-        DB::table('clinical_audit_events')->insert([
-            'actor_id' => $request->user()->id,
-            'kunjungan_id' => $visitId,
-            'action' => 'admin_assistance.attempt_rejected',
-            'route_name' => $routeName,
-            'occurred_at' => now(),
-            'metadata' => json_encode([
+        $patientId = $visit instanceof Kunjungan ? $visit->pasien_id : null;
+        app(ClinicalAuditRecorder::class)->record(
+            $request,
+            'admin_assistance.attempt_rejected',
+            $patientId,
+            $visitId,
+            [
                 'failure_kind' => $failureKind,
                 'status' => $status,
-            ], JSON_THROW_ON_ERROR),
-        ]);
+            ],
+            'denied',
+        );
 
         return $response;
     }

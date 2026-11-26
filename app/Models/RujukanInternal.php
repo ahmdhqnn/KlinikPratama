@@ -11,9 +11,15 @@ class RujukanInternal extends Model
 {
     protected $table = 'rujukan_internal';
 
-    protected $fillable = ['kunjungan_id', 'dari_poli_id', 'ke_poli_id', 'surat_template_id', 'nomor_surat', 'konten_surat', 'catatan', 'status', 'document_data'];
+    protected $fillable = [
+        'kunjungan_id', 'dari_poli_id', 'ke_poli_id', 'surat_template_id', 'nomor_surat', 'konten_surat',
+        'catatan', 'jawaban_konsultasi', 'dijawab_pada', 'satusehat_service_request_id', 'status', 'document_data',
+    ];
 
-    protected $casts = ['document_data' => 'array'];
+    protected $casts = [
+        'document_data' => 'array',
+        'dijawab_pada' => 'datetime',
+    ];
 
     public function kunjungan(): BelongsTo
     {

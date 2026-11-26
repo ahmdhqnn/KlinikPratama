@@ -8,13 +8,16 @@ use Illuminate\Database\Eloquent\Builder;
 
 class DoctorActivityReportQuery
 {
-    public function treatments(?int $doctorId, DateRangeFilter $period, string $search = ''): Builder
+    public function treatments(?int $doctorId, DateRangeFilter $period, string $search = '', ?string $status = null, ?int $clinicId = null): Builder
     {
         return TindakanKunjungan::query()
             ->with(['kunjungan.pasien', 'kunjungan.poliklinik', 'kunjungan.dokter', 'kunjungan.pemeriksaan.clinicalNoteVersions', 'tindakan', 'performedBy'])
             ->when($doctorId !== null, fn (Builder $query) => $query->where('dokter_id', $doctorId))
+            ->when($status === 'completed', fn (Builder $query) => $query->where('execution_status', 'completed'))
+            ->when($status === 'pending', fn (Builder $query) => $query->where('execution_status', '!=', 'completed'))
             ->whereHas('kunjungan', fn (Builder $visit) => $period->apply($visit
                 ->when($doctorId !== null, fn (Builder $query) => $query->where('dokter_id', $doctorId))
+                ->when($clinicId !== null, fn (Builder $query) => $query->where('poliklinik_id', $clinicId))
                 ->when($doctorId === null, fn (Builder $query) => $query->whereHas('poliklinik', fn (Builder $clinic) => $clinic->where('is_active', true)->whereIn('jenis', ['umum', 'gigi'])))))
             ->when($search !== '', fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
                 ->where('nama_tindakan', 'like', "%{$search}%")
@@ -27,14 +30,16 @@ class DoctorActivityReportQuery
             ->latest('tindakan_kunjungan.created_at')->latest('tindakan_kunjungan.id');
     }
 
-    public function medicines(?int $doctorId, DateRangeFilter $period, string $search = ''): Builder
+    public function medicines(?int $doctorId, DateRangeFilter $period, string $search = '', ?string $status = null, ?int $clinicId = null): Builder
     {
         return ResepObat::query()
             ->with(['resep.kunjungan.pasien', 'resep.kunjungan.poliklinik', 'resep.kunjungan.pemeriksaan.clinicalNoteVersions', 'resep', 'obat'])
             ->whereHas('resep', fn (Builder $prescription) => $prescription
                 ->when($doctorId !== null, fn (Builder $query) => $query->where('dokter_id', $doctorId))
+                ->when(filled($status), fn (Builder $query) => $query->where('status', $status))
                 ->whereHas('kunjungan', fn (Builder $visit) => $period->apply($visit
                     ->when($doctorId !== null, fn (Builder $query) => $query->where('dokter_id', $doctorId))
+                    ->when($clinicId !== null, fn (Builder $query) => $query->where('poliklinik_id', $clinicId))
                     ->when($doctorId === null, fn (Builder $query) => $query->whereHas('poliklinik', fn (Builder $clinic) => $clinic->where('is_active', true)->whereIn('jenis', ['umum', 'gigi']))))))
             ->when($search !== '', fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
                 ->where('nama_obat', 'like', "%{$search}%")

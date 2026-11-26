@@ -59,9 +59,11 @@ class ClinicalTerminologyController extends Controller
             'system' => ['required', 'string', 'max:100'],
             'release' => ['present', 'string', 'max:100'],
             'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:aktif,nonaktif'],
         ]);
         $system = $data['system'];
         $release = $data['release'];
+        $status = $data['status'] ?? '';
         $catalog = ClinicalTerminology::query()
             ->where('code_system', $system)
             ->where('release', $release)
@@ -77,6 +79,7 @@ class ClinicalTerminologyController extends Controller
                         ->orWhere('display', 'like', '%'.$search.'%');
                 });
             })
+            ->when($status !== '', fn ($query) => $query->where('is_active', $status === 'aktif'))
             ->orderBy('code')
             ->paginate(10)
             ->withQueryString();
@@ -106,6 +109,7 @@ class ClinicalTerminologyController extends Controller
                 'nextUrl' => $codes->nextPageUrl(),
             ],
             'search' => $data['search'] ?? '',
+            'status' => $status,
         ]);
     }
 

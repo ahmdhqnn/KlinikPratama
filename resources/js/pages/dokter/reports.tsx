@@ -9,6 +9,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Head, router } from '@inertiajs/react';
 import { ClipboardCheck, Download, FileText, Pill, UsersRound } from 'lucide-react';
@@ -37,7 +38,8 @@ interface Props {
     type: ReportType;
     baseUrl?: string;
     isAdmin?: boolean;
-    filters: { dari: string; sampai: string; search: string };
+    clinics?: { id: number; name: string }[];
+    filters: { dari: string; sampai: string; search: string; status?: string; poliklinik_id?: string };
     stats: { total: number; secondary: number; tertiary: number; related: number };
     rows: PaginationData & { data: ReportRow[] };
     exportUrl: string;
@@ -48,8 +50,12 @@ const reportDetails: Record<ReportType, { title: string; description: string; ic
     obat: { title: 'Laporan obat', description: 'Obat yang diresepkan pada pemeriksaan dokter.', icon: Pill, empty: 'Belum ada obat yang diresepkan pada periode ini.' },
 };
 
-export default function DoctorReports({ type, baseUrl = `/dokter/laporan/${type}`, isAdmin = false, filters, stats, rows, exportUrl }: Props) {
-    const [values, setValues] = useState(filters);
+export default function DoctorReports({ type, baseUrl = `/dokter/laporan/${type}`, isAdmin = false, clinics = [], filters, stats, rows, exportUrl }: Props) {
+    const [values, setValues] = useState({
+        ...filters,
+        status: filters.status ?? '',
+        poliklinik_id: filters.poliklinik_id ?? '',
+    });
     const detail = reportDetails[type];
     const Icon = detail.icon;
     const title = isAdmin ? (type === 'tindakan' ? 'Laporan tindakan dokter' : 'Laporan resep dokter') : detail.title;
@@ -75,9 +81,35 @@ export default function DoctorReports({ type, baseUrl = `/dokter/laporan/${type}
                     <StatCard label={type === 'tindakan' ? 'Kunjungan terkait' : 'Resep terkait'} value={stats.related} description="Sesuai filter laporan" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                 </section>
                 <FilterPanel actions={<Button asChild size="sm" variant="secondary"><a href={exportUrl}><Download className="size-4" />Ekspor Excel</a></Button>}>
-                    <form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={applyFilters}>
-                        <Field htmlFor="doctor-report-search" label="Cari pasien atau catatan"><Input id="doctor-report-search" onChange={(event) => setValues({ ...values, search: event.target.value })} placeholder="Nama, No. RM, atau nama catatan" value={values.search} /></Field>
+                    <form className={`grid min-w-0 gap-4 sm:grid-cols-2 ${isAdmin && clinics.length > 0 ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`} onSubmit={applyFilters}>
+                        <Field htmlFor="doctor-report-search" label="Cari pasien atau catatan"><Input id="doctor-report-search" onChange={(event) => setValues({ ...values, search: event.target.value })} placeholder="Nama, No. RM, No. kunjungan, atau catatan" value={values.search} /></Field>
                         <Field htmlFor="doctor-report-period" label="Periode kunjungan"><DateRangePicker from={values.dari} id="doctor-report-period" onChange={(range) => setValues({ ...values, dari: range.from, sampai: range.to })} to={values.sampai} /></Field>
+                        {isAdmin && clinics.length > 0 && (
+                            <Field htmlFor="doctor-report-clinic" label="Poliklinik">
+                                <Select id="doctor-report-clinic" onChange={(event) => setValues({ ...values, poliklinik_id: event.target.value })} value={values.poliklinik_id}>
+                                    <option value="">Semua poliklinik</option>
+                                    {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
+                                </Select>
+                            </Field>
+                        )}
+                        <Field htmlFor="doctor-report-status" label={type === 'tindakan' ? 'Status tindakan' : 'Status resep'}>
+                            <Select id="doctor-report-status" onChange={(event) => setValues({ ...values, status: event.target.value })} value={values.status}>
+                                <option value="">Semua status</option>
+                                {type === 'tindakan' ? (
+                                    <>
+                                        <option value="pending">Belum selesai</option>
+                                        <option value="completed">Selesai</option>
+                                    </>
+                                ) : (
+                                    <>
+                                        <option value="menunggu">Menunggu farmasi</option>
+                                        <option value="diproses">Sedang disiapkan</option>
+                                        <option value="selesai">Disiapkan farmasi</option>
+                                        <option value="batal">Resep dibatalkan</option>
+                                    </>
+                                )}
+                            </Select>
+                        </Field>
                         <FilterSubmit />
                     </form>
                 </FilterPanel>

@@ -26,11 +26,21 @@ class Kepesertaan extends Model
     ];
 
     public const CATEGORIES = [
-        'asn' => 'ASN', 'lainnya' => 'Lainnya',
+        'asn' => 'ASN', 'pppk' => 'PPPK', 'lainnya' => 'Lainnya',
     ];
 
     public const OTHER_TYPES = [
-        'magang' => 'Magang', 'staf' => 'Staff', 'lainnya' => 'Lainnya',
+        'magang' => 'Magang', 'staf' => 'Staff', 'tenaga_penunjang' => 'Tenaga Penunjang', 'lainnya' => 'Lainnya',
+    ];
+
+    public const KEMENPAR_UNITS = [
+        'Sekretariat Kementerian',
+        'Deputi Bidang Pengembangan Destinasi dan Infrastruktur',
+        'Deputi Bidang Produk Wisata dan Penyelenggara Kegiatan',
+        'Deputi Bidang Pemasaran',
+        'Deputi Bidang Industri dan Investasi',
+        'Deputi Bidang Sumber Daya dan Kelembagaan',
+        'Inspektorat Utama',
     ];
 
     private const LEGACY_CATEGORY_ALIASES = [
@@ -55,6 +65,7 @@ class Kepesertaan extends Model
     {
         return match ($category) {
             'asn' => ['asn', 'pegawai_pusat'],
+            'pppk' => ['pppk'],
             'lainnya' => ['lainnya', 'kontrak', 'pensiunan', 'keluarga', 'tamu', 'khusus'],
             default => [$category],
         };
