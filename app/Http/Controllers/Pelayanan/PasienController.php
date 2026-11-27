@@ -276,6 +276,8 @@ class PasienController extends Controller
     public function show(Request $request, Pasien $pasien, ClinicalAuditRecorder $auditRecorder, PerawatClinicResolver $perawatClinicResolver, PatientProfileSections $profileSections): Response
     {
         $user = $request->user();
+        $user->loadMissing('nakes.poliklinik:id,nama,jenis');
+        $userClinic = $user->nakes?->poliklinik;
         $role = $user->role;
         $canManage = in_array($role, ['admin', 'pendaftaran'], true);
         $canViewRme = in_array($role, ['dokter', 'perawat'], true);
@@ -305,6 +307,10 @@ class PasienController extends Controller
         if ($role !== 'farmasi' && in_array($data['section'], ['informasi', 'dokumen'], true)) {
             $docQuery = PatientDocument::query()
                 ->where('pasien_id', $pasien->id)
+                ->when($role === 'pendaftaran', fn ($query) => $query->where('sensitivity', PatientDocument::SENSITIVITY_ADMINISTRATIVE))
+                ->when($role === 'admin', fn ($query) => $query->where(fn ($scope) => $scope
+                    ->where('sensitivity', PatientDocument::SENSITIVITY_ADMINISTRATIVE)
+                    ->orWhere('uploaded_by', $user->id)))
                 ->with(['uploadedBy:id,name', 'kunjungan:id,no_kunjungan']);
 
             if ($data['section'] === 'dokumen') {
@@ -431,6 +437,9 @@ class PasienController extends Controller
                 'editPatient' => $canManage,
                 'openVisit' => $canManage,
                 'isPharmacy' => $role === 'farmasi',
+                'role' => $role,
+                'clinicType' => $userClinic?->jenis,
+                'clinicName' => $userClinic?->nama,
             ],
             'patient' => [
                 'id' => $pasien->id,
@@ -469,12 +478,72 @@ class PasienController extends Controller
     /** @return array<string, mixed> */
     private function documentPermissionsPayload(Request $request, User $user, Pasien $pasien, PerawatClinicResolver $perawatClinicResolver): array
     {
+        $user->loadMissing('nakes.poliklinik:id,nama,jenis');
+        $clinic = $user->nakes?->poliklinik;
+        $clinicType = $clinic?->jenis;
+        $clinicName = $clinic?->nama;
+
         $allowedCategories = collect(PatientDocument::CATEGORIES)
-            ->filter(fn (array $meta, string $key): bool => $user->can('upload', [PatientDocument::class, $pasien, $key]))
+            ->filter(function (array $meta, string $key) use ($user, $pasien, $clinicType): bool {
+                if (! $user->can('upload', [PatientDocument::class, $pasien, $key])) {
+                    return false;
+                }
+
+                if (in_array($user->role, ['dokter', 'perawat'], true)
+                    && $clinicType === 'umum'
+                    && $key === PatientDocument::CATEGORY_RADIOLOGI_GIGI) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->sortBy(function (array $meta, string $key) use ($clinicType): int {
+                if ($clinicType === 'gigi') {
+                    return match ($key) {
+                        PatientDocument::CATEGORY_RADIOLOGI_GIGI => 0,
+                        PatientDocument::CATEGORY_RME_LAMA => 1,
+                        PatientDocument::CATEGORY_RESUME_MEDIS => 2,
+                        PatientDocument::CATEGORY_SURAT_RUJUKAN => 3,
+                        PatientDocument::CATEGORY_HASIL_LAB => 4,
+                        default => 10,
+                    };
+                }
+
+                return match ($key) {
+                    PatientDocument::CATEGORY_RME_LAMA => 0,
+                    PatientDocument::CATEGORY_HASIL_LAB => 1,
+                    PatientDocument::CATEGORY_RADIOLOGI_UMUM => 2,
+                    PatientDocument::CATEGORY_RESUME_MEDIS => 3,
+                    PatientDocument::CATEGORY_SURAT_RUJUKAN => 4,
+                    PatientDocument::CATEGORY_HASIL_MCU => 5,
+                    default => 10,
+                };
+            })
             ->map(fn (array $meta, string $key): array => [
                 'value' => $key,
                 'label' => $meta['label'],
                 'sensitivity' => $meta['sensitivity'],
+            ])->values()->all();
+
+        $visibleCategories = collect(PatientDocument::CATEGORIES)
+            ->filter(function (array $meta, string $key) use ($user): bool {
+                if ($user->role === 'pendaftaran') {
+                    return $meta['sensitivity'] === PatientDocument::SENSITIVITY_ADMINISTRATIVE;
+                }
+
+                if ($user->role === 'admin') {
+                    return in_array($key, [
+                        PatientDocument::CATEGORY_DOKUMEN_IDENTITAS,
+                        PatientDocument::CATEGORY_RME_LAMA,
+                        PatientDocument::CATEGORY_SURAT_RUJUKAN,
+                    ], true);
+                }
+
+                return true;
+            })
+            ->map(fn (array $meta, string $key): array => [
+                'value' => $key,
+                'label' => $meta['label'],
             ])->values()->all();
 
         $visitOptions = $this->authorizedVisits($request, $pasien, $perawatClinicResolver)
@@ -487,11 +556,11 @@ class PasienController extends Controller
 
         return [
             'canUpload' => $allowedCategories !== [],
+            'role' => $user->role,
+            'clinicType' => $clinicType,
+            'clinicName' => $clinicName,
             'allowedCategories' => $allowedCategories,
-            'allCategories' => collect(PatientDocument::CATEGORIES)->map(fn (array $meta, string $key): array => [
-                'value' => $key,
-                'label' => $meta['label'],
-            ])->values()->all(),
+            'allCategories' => $visibleCategories,
             'uploadUrl' => route('pelayanan.pasien.documents.store', $pasien),
             'visitOptions' => $visitOptions,
         ];

@@ -85,10 +85,10 @@ export default function MedicineIndex({ stats, medicines, filters }: Props) {
         confirmAction(`Hapus ${item.name} dari master obat dan BHP?`, () => { router.delete(`/master/obat/${item.id}`, { preserveScroll: true }); }, 'Hapus');
     }
     return <>
-        <Head title="Obat & BHP" />
+        <Head title="Master obat & BHP" />
         <div className="space-y-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
-                <div><p className="text-sm font-medium text-neutral-700">Katalog farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Obat & bahan habis pakai</h2><p className="mt-1 text-sm text-neutral-500">Kelola identitas, satuan, dan batas stok. Saldo fisik dicatat per batch.</p></div>
+                <div><p className="text-sm font-medium text-neutral-700">Katalog farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Master obat & bahan habis pakai</h2><p className="mt-1 text-sm text-neutral-500">Kelola katalog obat dan BHP, satuan, kode KFA, serta batas stok minimum. Saldo fisik dan kedaluwarsa dicatat per batch pada modul Persediaan.</p></div>
                 <Button onClick={create}><Plus className="size-4" />Tambah item</Button>
             </div>
             <SummaryStatGrid ariaLabel="Ringkasan master obat dan BHP" columns={4}>

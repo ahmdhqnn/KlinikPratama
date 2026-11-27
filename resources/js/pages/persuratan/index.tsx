@@ -112,12 +112,16 @@ export default function Persuratan({ filters, isAdmin, templates: templatePagina
 
     return (
         <>
-            <Head title="Persuratan" />
+            <Head title={isAdmin ? 'Template surat' : 'Persuratan'} />
             <div className="space-y-6">
                 <div>
-                    <p className="text-sm font-medium text-neutral-600">Dokumen klinis dan administrasi</p>
-                    <h2 className="mt-1 text-2xl font-semibold text-neutral-950">Persuratan</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Terbitkan surat dari pemeriksaan pasien dan tinjau dokumen yang sudah dibuat.</p>
+                    <p className="text-sm font-medium text-neutral-600">{isAdmin ? 'Administrasi dokumen' : 'Dokumen klinis dan administrasi'}</p>
+                    <h2 className="mt-1 text-2xl font-semibold text-neutral-950">{isAdmin ? 'Template surat' : 'Persuratan'}</h2>
+                    <p className="mt-1 text-sm text-neutral-500">
+                        {isAdmin
+                            ? 'Kelola format surat medis, rujukan internal, dan aturan penomoran dokumen klinik. Penerbitan surat resmi dilakukan oleh dokter penanggung jawab setelah pemeriksaan final.'
+                            : 'Terbitkan surat keterangan medis dan rujukan internal dari pemeriksaan yang telah difinalisasi serta tinjau arsip dokumen terbit.'}
+                    </p>
                 </div>
 
                 {filters.visitId && <Alert dismissLabel="Tutup informasi kunjungan" key={filters.visitId}>

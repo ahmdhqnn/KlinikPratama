@@ -4520,3 +4520,53 @@ test('page and inline skeletons mirror real card structures across screen archet
     assert.match(searchHtml, /role="status"/);
     assert.match(searchHtml, /Mencari diagnosis…/);
 });
+
+test('patient profile renders icon-only table actions and role-aware document descriptions', async () => {
+    const registrationHtml = await renderPage('pelayanan/pasien/show', {
+        patient: {
+            id: 7,
+            name: 'Pasien Administrasi',
+            medicalRecordNumber: 'RM-007',
+            gender: 'L',
+            age: 34,
+            allergies: null,
+            visits: [{
+                id: 1,
+                number: 'KNJ-07',
+                date: '27 Nov 2026',
+                clinic: 'Poli Umum',
+                doctor: 'dr. Umum',
+                status: 'selesai',
+                examinationStarted: true,
+                isReservation: false,
+                actions: [{ label: 'Detail kunjungan', url: '/pendaftaran/kunjungan/1' }],
+            }],
+        },
+        section: 'informasi',
+        menu: [
+            { id: 'informasi', label: 'Informasi pasien', url: '/pelayanan/pasien/7' },
+            { id: 'dokumen', label: 'Dokumen pasien', url: '/pelayanan/pasien/7?bagian=dokumen' },
+        ],
+        backUrl: '/pendaftaran/database-pasien',
+        editUrl: '/pelayanan/pasien/7/edit',
+        openVisitUrl: '/pendaftaran/pendaftaran-baru?tab=registered&pasien_id=7',
+        recordUrl: null,
+        pagination: singlePage,
+        directRecords: [],
+        generalConsent: null,
+        permissions: { viewRme: false, editPatient: true, openVisit: true, isPharmacy: false, role: 'pendaftaran', clinicType: null, clinicName: null },
+        documentPermissions: {
+            canUpload: true,
+            role: 'pendaftaran',
+            clinicType: null,
+            allowedCategories: [{ value: 'dokumen_identitas', label: 'Dokumen Identitas / Kepesertaan / Persetujuan', sensitivity: 'administrative' }],
+            allCategories: [{ value: 'dokumen_identitas', label: 'Dokumen Identitas / Kepesertaan / Persetujuan' }],
+            uploadUrl: '/pelayanan/pasien/7/dokumen',
+            visitOptions: [],
+        },
+    });
+    assert.match(registrationHtml, /aria-label="Detail kunjungan"[^>]*href="\/pendaftaran\/kunjungan\/1"/);
+    assert.doesNotMatch(registrationHtml, />Detail kunjungan<\/a>/);
+    assert.match(registrationHtml, /Arsip dokumen identitas, bukti kepesertaan, dan persetujuan administratif pasien/);
+    assert.doesNotMatch(registrationHtml, /hasil laboratorium/);
+});

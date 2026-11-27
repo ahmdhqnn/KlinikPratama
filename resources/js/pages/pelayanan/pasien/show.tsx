@@ -10,6 +10,7 @@ import {
     type DocumentPermissions,
     type PatientDocumentItem,
 } from '@/components/pasien/document-uploader-modal';
+import { ActionButton } from '@/components/ui/action-button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,7 +27,6 @@ import { cn } from '@/lib/utils';
 import { Head, Link, router } from '@inertiajs/react';
 import {
     Activity,
-    Archive,
     ArrowRightLeft,
     ArrowUpRight,
     CalendarCheck2,
@@ -34,8 +34,6 @@ import {
     ChevronRight,
     ClipboardCheck,
     ClipboardList,
-    Download,
-    Eye,
     FileCheck2,
     FilePlus2,
     FileText,
@@ -142,21 +140,53 @@ interface Props {
     documentPermissions?: DocumentPermissions | null;
     clinicalNotes?: ClinicalNoteSummary[];
     adminSummary?: AdminSummary | null;
-    permissions?: { viewRme: boolean; editPatient: boolean; openVisit: boolean; isPharmacy?: boolean };
+    permissions?: {
+        viewRme: boolean;
+        editPatient: boolean;
+        openVisit: boolean;
+        isPharmacy?: boolean;
+        role?: string | null;
+        clinicType?: string | null;
+        clinicName?: string | null;
+    };
 }
 
 const descriptions: Record<string, string> = {
-    kontrol: 'Reservasi kontrol dan kunjungan yang ditautkan ke pelayanan sebelumnya.',
-    'catatan-medis': 'Pemeriksaan dokter, diagnosis, rencana perawatan, dan riwayat koreksi per kunjungan.',
-    pengkajian: 'Pengkajian awal dan tanda vital yang dicatat saat kunjungan.',
-    odontogram: 'Kunjungan dengan temuan odontogram yang tercatat.',
-    penunjang: 'Hasil penunjang dari pemeriksaan dan lampiran yang tersimpan pada kunjungan.',
-    tindakan: 'Rencana dan catatan pelaksanaan tindakan per kunjungan.',
-    obat: 'Buka kunjungan untuk melihat catatan obat sesuai kewenangan.',
-    persetujuan: 'Persetujuan umum pasien serta persetujuan atau penolakan tindakan tertentu.',
-    pelepasan: 'Register permintaan, otorisasi, dan penyerahan informasi medis per kunjungan.',
-    dokumen: 'Berkas eksternal pasien (hasil laboratorium, radiologi, RME lama, surat rujukan, atau identitas).',
+    kontrol: 'Reservasi kontrol lanjutan dan kunjungan yang ditautkan dengan episode pelayanan sebelumnya.',
+    'catatan-medis': 'Ringkasan pemeriksaan dokter, diagnosis terstandar (ICD-10), rencana terapi, dan riwayat koreksi per kunjungan.',
+    pengkajian: 'Catatan pengkajian awal keperawatan, tanda vital, dan triase yang terekam pada setiap kunjungan.',
+    odontogram: 'Kunjungan Poli Gigi dengan temuan odontogram terstandar notasi FDI yang terdokumentasi.',
+    penunjang: 'Hasil pemeriksaan penunjang dan lampiran klinis yang tersimpan pada kunjungan terkait.',
+    tindakan: 'Rencana tindakan (ICD-9-CM) dan dokumentasi pelaksanaannya sesuai kewenangan tenaga kesehatan.',
+    obat: 'Riwayat resep klinik dan penyerahan obat per kunjungan sesuai batas kewenangan peran.',
+    persetujuan: 'Catatan persetujuan umum layanan klinik serta persetujuan atau penolakan tindakan medis.',
+    surat: 'Arsip surat keterangan medis resmi yang telah diterbitkan dan ditandatangani dokter penanggung jawab.',
+    rujukan: 'Rujukan internal antarpoliklinik serta surat rujukan eksternal beserta status tindak lanjutnya.',
+    pelepasan: 'Register permintaan, otorisasi, dan bukti penyerahan salinan informasi medis sesuai PMK No. 24 Tahun 2022.',
+    dokumen: 'Arsip berkas pasien terverifikasi yang tersimpan terpisah sesuai tingkat sensitivitas dan kewenangan peran.',
 };
+
+function documentDescriptionFor(
+    permissions?: Props['permissions'],
+    documentPermissions?: DocumentPermissions | null,
+): string {
+    const role = permissions?.role ?? documentPermissions?.role ?? null;
+    const clinicType = permissions?.clinicType ?? documentPermissions?.clinicType ?? null;
+
+    if (role === 'pendaftaran') {
+        return 'Arsip dokumen identitas, bukti kepesertaan, dan persetujuan administratif pasien. Berkas klinis dibatasi hanya untuk tenaga kesehatan berwenang.';
+    }
+
+    if (role === 'admin') {
+        return 'Arsip identitas, surat rujukan eksternal, dan kelengkapan pendaftaran pasien. Pratinjau berkas klinis dibatasi bagi dokter atau perawat penanggung jawab.';
+    }
+
+    if (clinicType === 'gigi') {
+        return 'Arsip radiologi gigi (panoramik/periapikal/CBCT), RME sebelumnya (PDF), resume medis fasyankes lain, dan berkas penunjang pasien.';
+    }
+
+    return 'Arsip RME sebelumnya (PDF), hasil laboratorium, radiologi, resume medis fasyankes lain, dan dokumen penunjang pasien.';
+}
 
 const consentLabels: Record<string, string> = {
     undocumented: 'Belum terdokumentasi',
@@ -256,6 +286,7 @@ export default function PatientDetail({
     const canSeeClinical = Boolean(permissions?.viewRme);
     const isPharmacy = Boolean(permissions?.isPharmacy);
     const hasAllergyAlert = hasRecordedAllergy(patient.allergies);
+    const documentSectionDescription = documentDescriptionFor(permissions, documentPermissions);
     const visitDoctors = visitFilterOptions.doctors ?? [];
     const SectionIcon = sectionIcons[section] ?? CalendarCheck2;
     const visitCardTitle = overview || section === 'kunjungan'
@@ -263,8 +294,8 @@ export default function PatientDetail({
         : title;
     const visitCardDescription = overview || section === 'kunjungan'
         ? (visitTab === 'upcoming'
-            ? `${new Intl.NumberFormat('id-ID').format(upcomingCount)} jadwal kunjungan mendatang atau reservasi aktif.`
-            : `${new Intl.NumberFormat('id-ID').format(pagination?.total ?? patient.visits.length)} kunjungan tercatat sesuai filter.`)
+            ? `${new Intl.NumberFormat('id-ID').format(upcomingCount)} jadwal kunjungan mendatang atau reservasi kontrol aktif.`
+            : `${new Intl.NumberFormat('id-ID').format(pagination?.total ?? patient.visits.length)} kunjungan tercatat sesuai batas akses peran dan filter aktif.`)
         : (descriptions[section] ?? 'Catatan layanan pasien pada bagian ini.');
 
     function applyVisitQuery(next: Partial<{ visit_tab: string; visit_poli: string; visit_dokter: string; visit_jenis: string; visit_status: string; visit_tahun: string }>) {
@@ -442,6 +473,7 @@ export default function PatientDetail({
 
                         {section === 'dokumen' ? (
                             <DocumentsSectionCard
+                                description={documentSectionDescription}
                                 documents={documents}
                                 filters={documentFilters}
                                 onArchive={setArchiveDoc}
@@ -461,18 +493,20 @@ export default function PatientDetail({
                                         </span>
                                         <div className="min-w-0">
                                             <CardTitle>{title}</CardTitle>
-                                            <CardDescription className="mt-1">Catatan pemberian obat mandiri tanpa kunjungan poliklinik.</CardDescription>
+                                            <CardDescription className="mt-1">Catatan penyerahan obat langsung tanpa kunjungan poliklinik oleh apoteker terverifikasi.</CardDescription>
                                         </div>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="space-y-3 p-5 sm:p-6">
                                     {directRecords.length ? directRecords.map((item) => (
-                                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 p-3" key={item.id}>
-                                            <div>
+                                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 p-3.5" key={item.id}>
+                                            <div className="min-w-0">
                                                 <p className="text-sm font-medium text-neutral-950">{item.medicine ?? 'Obat belum tercatat'} · {item.quantity} {item.unit}</p>
-                                                <p className="text-xs tabular-nums text-neutral-500">{item.number} · {item.date ?? 'Tanggal belum tercatat'}</p>
+                                                <p className="mt-0.5 text-xs tabular-nums text-neutral-500">{item.number} · {item.date ?? 'Tanggal belum tercatat'}</p>
                                             </div>
-                                            <Button asChild size="sm" variant="secondary"><Link href={item.url}>Lihat bukti</Link></Button>
+                                            <ActionButton action="print" asChild label={`Lihat bukti pemberian ${item.number}`}>
+                                                <Link href={item.url} />
+                                            </ActionButton>
                                         </div>
                                     )) : <Empty size="compact" title="Belum ada pemberian obat langsung." />}
                                 </CardContent>
@@ -647,7 +681,7 @@ export default function PatientDetail({
                                                 </span>
                                                 <div className="min-w-0">
                                                     <CardTitle>Dokumen pasien</CardTitle>
-                                                    <CardDescription className="mt-1">Berkas eksternal, RME sebelumnya, penunjang, & arsip identitas ({new Intl.NumberFormat('id-ID').format(documentsTotal)} dokumen aktif).</CardDescription>
+                                                    <CardDescription className="mt-1">{documentSectionDescription} ({new Intl.NumberFormat('id-ID').format(documentsTotal)} dokumen aktif).</CardDescription>
                                                 </div>
                                             </div>
                                         </CardHeader>
@@ -667,35 +701,25 @@ export default function PatientDetail({
                                                                     </p>
                                                                 </div>
                                                             </div>
-                                                            <div className="flex shrink-0 items-center gap-1">
-                                                                {doc.canDownload && doc.downloadUrl && (
-                                                                    <Button asChild size="icon-sm" title="Unduh berkas" variant="ghost">
-                                                                        <a aria-label={`Unduh ${doc.title}`} href={doc.downloadUrl}>
-                                                                            <Download className="size-4" />
-                                                                        </a>
-                                                                    </Button>
-                                                                )}
+                                                            <div className="flex shrink-0 items-center gap-1.5">
                                                                 {doc.canPreview && doc.previewUrl && (
-                                                                    <Button
-                                                                        aria-label={`Pratinjau ${doc.title}`}
+                                                                    <ActionButton
+                                                                        action="detail"
+                                                                        label={`Pratinjau ${doc.title}`}
                                                                         onClick={() => setPreviewDoc(doc)}
-                                                                        size="icon-sm"
-                                                                        title="Pratinjau berkas"
-                                                                        variant="ghost"
-                                                                    >
-                                                                        <Eye className="size-4" />
-                                                                    </Button>
+                                                                    />
+                                                                )}
+                                                                {doc.canDownload && doc.downloadUrl && (
+                                                                    <ActionButton action="download" asChild label={`Unduh ${doc.title}`}>
+                                                                        <a href={doc.downloadUrl} />
+                                                                    </ActionButton>
                                                                 )}
                                                                 {doc.canArchive && doc.archiveUrl && (
-                                                                    <Button
-                                                                        aria-label={`Arsipkan ${doc.title}`}
+                                                                    <ActionButton
+                                                                        action="archive"
+                                                                        label={`Arsipkan ${doc.title}`}
                                                                         onClick={() => setArchiveDoc(doc)}
-                                                                        size="icon-sm"
-                                                                        title="Arsipkan dokumen"
-                                                                        variant="ghost"
-                                                                    >
-                                                                        <Archive className="size-4" />
-                                                                    </Button>
+                                                                    />
                                                                 )}
                                                             </div>
                                                         </li>
@@ -726,7 +750,7 @@ export default function PatientDetail({
                                                     </span>
                                                     <div className="min-w-0">
                                                         <CardTitle>Catatan medis</CardTitle>
-                                                        <CardDescription className="mt-1">Ringkasan pemeriksaan dan diagnosis kronologis</CardDescription>
+                                                        <CardDescription className="mt-1">Ringkasan pemeriksaan dokter dan diagnosis kronologis sesuai akses layanan.</CardDescription>
                                                     </div>
                                                 </div>
                                             </CardHeader>
@@ -746,15 +770,13 @@ export default function PatientDetail({
                                                                         </p>
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex shrink-0 items-center gap-1.5">
+                                                                <div className="flex shrink-0 items-center gap-2">
                                                                     <Badge variant={note.signed ? 'success' : 'secondary'}>
                                                                         {note.signed ? 'Final' : 'Draf'}
                                                                     </Badge>
-                                                                    <Button asChild size="icon-sm" title="Lihat detail catatan" variant="ghost">
-                                                                        <Link aria-label={`Lihat catatan ${note.visitNumber}`} href={note.detailUrl}>
-                                                                            <Eye className="size-4" />
-                                                                        </Link>
-                                                                    </Button>
+                                                                    <ActionButton action="detail" asChild label={`Lihat catatan medis ${note.visitNumber}`}>
+                                                                        <Link href={note.detailUrl} />
+                                                                    </ActionButton>
                                                                 </div>
                                                             </li>
                                                         ))}
@@ -774,7 +796,7 @@ export default function PatientDetail({
                                                 </span>
                                                 <div className="min-w-0">
                                                     <CardTitle>Persetujuan & administrasi layanan</CardTitle>
-                                                    <CardDescription className="mt-1">Status legal administratif dan koordinasi antar-poli</CardDescription>
+                                                    <CardDescription className="mt-1">Status kelengkapan administratif, persetujuan umum, dan koordinasi rujukan antarpoliklinik.</CardDescription>
                                                 </div>
                                             </div>
                                         </CardHeader>
@@ -792,37 +814,37 @@ export default function PatientDetail({
                                                             {consentLabels[adminSummary.consentStatus] ?? 'Belum dicatat'}
                                                         </Badge>
                                                         {adminSummary.consentUrl && (
-                                                            <Button asChild size="icon-sm" title="Buka persetujuan umum" variant="ghost">
-                                                                <Link aria-label="Buka persetujuan umum" href={adminSummary.consentUrl}><Eye className="size-4" /></Link>
-                                                            </Button>
+                                                            <ActionButton action="consent" asChild label="Tinjau persetujuan umum">
+                                                                <Link href={adminSummary.consentUrl} />
+                                                            </ActionButton>
                                                         )}
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 p-3.5 sm:p-4">
                                                     <div className="min-w-0">
                                                         <p className="text-sm font-medium text-neutral-950">Rujukan internal menunggu</p>
-                                                        <p className="mt-0.5 text-xs text-neutral-500">Koordinasi pendaftaran antar-poliklinik</p>
+                                                        <p className="mt-0.5 text-xs text-neutral-500">Koordinasi penjadwalan kunjungan antarpoliklinik</p>
                                                     </div>
                                                     <div className="flex shrink-0 items-center gap-2">
                                                         <Badge variant={adminSummary.openReferrals > 0 ? 'warning' : 'secondary'}>
                                                             {adminSummary.openReferrals} menunggu
                                                         </Badge>
-                                                        <Button asChild size="icon-sm" title="Lihat rujukan internal" variant="ghost">
-                                                            <Link aria-label="Lihat rujukan internal" href={adminSummary.referralsUrl}><ChevronRight className="size-4" /></Link>
-                                                        </Button>
+                                                        <ActionButton action="referral" asChild label="Lihat rujukan internal">
+                                                            <Link href={adminSummary.referralsUrl} />
+                                                        </ActionButton>
                                                     </div>
                                                 </div>
                                                 {adminSummary.releasesUrl && (
                                                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 p-3.5 sm:p-4">
                                                         <div className="min-w-0">
-                                                            <p className="text-sm font-medium text-neutral-950">Register pelepasan informasi</p>
-                                                            <p className="mt-0.5 text-xs text-neutral-500">Catatan otorisasi & penyerahan dokumen medis</p>
+                                                            <p className="text-sm font-medium text-neutral-950">Register pelepasan informasi medis</p>
+                                                            <p className="mt-0.5 text-xs text-neutral-500">Catatan permintaan, otorisasi, dan penyerahan salinan informasi medis</p>
                                                         </div>
                                                         <div className="flex shrink-0 items-center gap-2">
                                                             <Badge variant="secondary">{adminSummary.releaseCount} tercatat</Badge>
-                                                            <Button asChild size="icon-sm" title="Lihat register pelepasan" variant="ghost">
-                                                                <Link aria-label="Lihat register pelepasan" href={adminSummary.releasesUrl}><ChevronRight className="size-4" /></Link>
-                                                            </Button>
+                                                            <ActionButton action="release" asChild label="Lihat register pelepasan informasi medis">
+                                                                <Link href={adminSummary.releasesUrl} />
+                                                            </ActionButton>
                                                         </div>
                                                     </div>
                                                 )}
@@ -921,6 +943,7 @@ function ContactInfoCard({ patient }: { patient: Patient }) {
 }
 
 function DocumentsSectionCard({
+    description,
     documents,
     total,
     pagination,
@@ -931,6 +954,7 @@ function DocumentsSectionCard({
     onPreview,
     onArchive,
 }: {
+    description: string;
     documents: PatientDocumentItem[];
     total: number;
     pagination: PaginationData | null;
@@ -1024,7 +1048,7 @@ function DocumentsSectionCard({
                         </span>
                         <div className="min-w-0">
                             <CardTitle>Dokumen pasien ({new Intl.NumberFormat('id-ID').format(total)})</CardTitle>
-                            <CardDescription className="mt-1">{descriptions.dokumen}</CardDescription>
+                            <CardDescription className="mt-1">{description}</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -1072,29 +1096,25 @@ function DocumentsSectionCard({
                                             <p className="text-xs tabular-nums text-neutral-500">{doc.uploadedAt ?? ''}</p>
                                         </TableCell>
                                         <TableCell>
-                                            <div className="flex items-center justify-center gap-1">
+                                            <div className="flex items-center justify-center gap-1.5">
                                                 {doc.canPreview && doc.previewUrl && (
-                                                    <Button onClick={() => onPreview(doc)} size="sm" variant="secondary">
-                                                        <Eye className="size-3.5" />Pratinjau
-                                                    </Button>
+                                                    <ActionButton
+                                                        action="detail"
+                                                        label={`Pratinjau ${doc.title}`}
+                                                        onClick={() => onPreview(doc)}
+                                                    />
                                                 )}
                                                 {doc.canDownload && doc.downloadUrl && (
-                                                    <Button asChild size="icon-sm" title="Unduh" variant="ghost">
-                                                        <a aria-label={`Unduh ${doc.title}`} href={doc.downloadUrl}>
-                                                            <Download className="size-4" />
-                                                        </a>
-                                                    </Button>
+                                                    <ActionButton action="download" asChild label={`Unduh ${doc.title}`}>
+                                                        <a href={doc.downloadUrl} />
+                                                    </ActionButton>
                                                 )}
                                                 {doc.canArchive && doc.archiveUrl && (
-                                                    <Button
-                                                        aria-label={`Arsipkan ${doc.title}`}
+                                                    <ActionButton
+                                                        action="archive"
+                                                        label={`Arsipkan ${doc.title}`}
                                                         onClick={() => onArchive(doc)}
-                                                        size="icon-sm"
-                                                        title="Arsipkan"
-                                                        variant="ghost"
-                                                    >
-                                                        <Archive className="size-4" />
-                                                    </Button>
+                                                    />
                                                 )}
                                             </div>
                                         </TableCell>
@@ -1171,16 +1191,59 @@ function VisitHistory({ visits, canSeeClinical }: { visits: Visit[]; canSeeClini
     );
 }
 
+function resolveVisitActionIcon(action: Action): 'consent' | 'detail' | 'examination' | 'letter' | 'pharmacy' | 'print' | 'referral' | 'release' | 'rme' | 'schedule' | 'screening' {
+    const url = action.url ?? '';
+    const label = action.label.toLowerCase();
+
+    if (url.includes('persetujuan-umum') || url.includes('/persetujuan') || label.includes('persetujuan')) {
+        return 'consent';
+    }
+    if (url.includes('pelepasan-informasi') || label.includes('pelepasan')) {
+        return 'release';
+    }
+    if (url.includes('pendaftaran-baru') && url.includes('rujukan_internal_id')) {
+        return 'schedule';
+    }
+    if (url.includes('/rujukan/') || label.includes('rujukan')) {
+        return 'referral';
+    }
+    if (url.includes('/surat/') || label.includes('surat')) {
+        return 'letter';
+    }
+    if (url.includes('/cetak')) {
+        return 'print';
+    }
+    if (url.includes('/farmasi/') || label.includes('farmasi') || label.includes('penyerahan') || label.includes('resep')) {
+        return 'pharmacy';
+    }
+    if (url.includes('/pemeriksaan/')) {
+        return 'examination';
+    }
+    if (url.includes('/screening/') || label.includes('pengkajian')) {
+        return 'screening';
+    }
+    if (url.includes('/rekam-medis') || label.includes('riwayat') || label.includes('catatan')) {
+        return 'rme';
+    }
+
+    return 'detail';
+}
+
 function VisitActions({ actions }: { actions: Action[] }) {
     return (
-        <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
             {actions.map((action, index) => (
                 action.url ? (
-                    <Button asChild className="h-auto min-h-8 whitespace-normal text-left" key={action.url} size="sm" variant="secondary">
-                        <Link href={action.url}>{action.label}</Link>
-                    </Button>
+                    <ActionButton
+                        action={resolveVisitActionIcon(action)}
+                        asChild
+                        key={`${action.url}-${index}`}
+                        label={action.label}
+                    >
+                        <Link href={action.url} />
+                    </ActionButton>
                 ) : (
-                    <span className="text-xs text-neutral-500" key={index}>{action.label}</span>
+                    <Badge className="whitespace-nowrap" key={index} variant="secondary">{action.label}</Badge>
                 )
             ))}
         </div>

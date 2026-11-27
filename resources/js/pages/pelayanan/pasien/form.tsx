@@ -66,9 +66,9 @@ export default function PatientForm({ patient, backUrl }: Props) {
     return (
         <>
             <Head title={patient ? `Edit ${patient.name}` : 'Daftarkan pasien baru'} />
-            <form className="mx-auto max-w-5xl space-y-6" onSubmit={submit}>
+            <form className="space-y-6" onSubmit={submit}>
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                    <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{patient ? 'Perbarui data pasien' : 'Daftarkan pasien baru'}</h2><p className="mt-1 text-sm text-neutral-500">Lengkapi identitas dan kontak pasien.</p></div>
+                    <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{patient ? 'Perbarui data pasien' : 'Daftarkan pasien baru'}</h2><p className="mt-1 text-sm text-neutral-500">{patient ? 'Perbarui identitas dan kontak pasien pada data induk rekam medis. Perubahan tersimpan dalam jejak audit akses.' : 'Daftarkan identitas pasien internal dan pastikan NIK serta tanggal lahir sesuai dokumen identitas untuk mencegah duplikasi nomor rekam medis.'}</p></div>
                     <Button asChild variant="secondary"><Link href={resolvedBackUrl} onClick={(event) => handleBackNavigation(event, resolvedBackUrl)}><ArrowLeft className="size-4" />Kembali</Link></Button>
                 </div>
                 {!patient && <Tabs className="space-y-5" onValueChange={(value) => { const next = value as 'directory' | 'manual'; setRegistrationType(next); form.setData('registration_type', next); }} value={registrationType}>
@@ -78,7 +78,7 @@ export default function PatientForm({ patient, backUrl }: Props) {
                     </TabsContent>}
                     {registrationType === 'manual' && <TabsContent className="space-y-6" value="manual">
                         <Card>
-                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Identitas pasien</CardTitle><CardDescription className="mt-1">Simpan identitas pasien, lalu verifikasi kepesertaannya melalui data pasien.</CardDescription></div></div></CardHeader>
+                            <CardHeader><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Identitas pasien</CardTitle><CardDescription className="mt-1">Simpan identitas pasien sesuai dokumen resmi; verifikasi kepesertaan internal dilakukan oleh admin melalui menu Data pasien.</CardDescription></div></div></CardHeader>
                             <CardContent className="space-y-6">
                                 <ManualPatientFields errors={form.errors} onChange={(field, value) => form.setData(field, value)} value={form.data} />
 
@@ -86,7 +86,7 @@ export default function PatientForm({ patient, backUrl }: Props) {
                         </Card>
                     </TabsContent>}
                 </Tabs>}
-                {patient && <Card><CardHeader><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Informasi pasien</CardTitle><CardDescription className="mt-1">Kolom bertanda bintang wajib diisi.</CardDescription></div></div></CardHeader><CardContent><ManualPatientFields value={form.data} errors={form.errors} onChange={(field, value) => form.setData(field, value)} showAllergy={false} suggestExisting={false} lockIdentity={Boolean(patient.membershipId)} /></CardContent></Card>}
+                {patient && <Card><CardHeader><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Informasi pasien</CardTitle><CardDescription className="mt-1">Kolom bertanda bintang wajib diisi sesuai dokumen identitas resmi pasien.</CardDescription></div></div></CardHeader><CardContent><ManualPatientFields value={form.data} errors={form.errors} onChange={(field, value) => form.setData(field, value)} showAllergy={false} suggestExisting={false} lockIdentity={Boolean(patient.membershipId)} /></CardContent></Card>}
                 <div className="flex flex-col-reverse justify-end gap-3 border-t border-neutral-100 pt-5 sm:flex-row">
                     <Button asChild variant="secondary"><Link href={resolvedBackUrl} onClick={(event) => handleBackNavigation(event, resolvedBackUrl)}>Batalkan</Link></Button>
                     <Button disabled={form.processing || (Boolean(patient) && !form.isDirty) || !form.data.nama.trim()} type="submit"><Save className="size-4" />{form.processing ? 'Menyimpan…' : patient ? 'Simpan perubahan' : 'Daftarkan pasien'}</Button>
@@ -99,11 +99,11 @@ export default function PatientForm({ patient, backUrl }: Props) {
 function PatientIdentityCard({ form }: { form: ReturnType<typeof useForm<FormData>> }) {
     return (
         <Card>
-            <CardHeader><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Data pasien terverifikasi</CardTitle><CardDescription className="mt-1">Identitas utama diambil dari direktori kepesertaan; kontak dan alergi dicatat pada rekam pasien.</CardDescription></div></div></CardHeader>
+            <CardHeader><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span><div><CardTitle>Data pasien terverifikasi</CardTitle><CardDescription className="mt-1">Identitas utama bersumber dari direktori kepesertaan instansi; riwayat alergi dicatat oleh tenaga kesehatan pada pengkajian awal atau pemeriksaan.</CardDescription></div></div></CardHeader>
             <CardContent className="space-y-6">
                 <PatientFields data={form.data} errors={form.errors} onChange={(field, value) => form.setData(field, value)} showPhone={false} />
                 <section className="space-y-4">
-                    <div><h3 className="text-sm font-semibold text-neutral-950">Kontak dan riwayat kesehatan</h3><p className="mt-1 text-sm text-neutral-500">Gunakan nomor telepon yang dapat dihubungi dan catat alergi yang diketahui.</p></div>
+                    <div><h3 className="text-sm font-semibold text-neutral-950">Kontak pasien</h3><p className="mt-1 text-sm text-neutral-500">Catat nomor telepon aktif yang dapat dihubungi untuk koordinasi jadwal atau tindak lanjut kunjungan.</p></div>
                     <div className="grid gap-4 md:grid-cols-2">
                         <Field error={form.errors.telepon} htmlFor="admin-patient-phone" label="Nomor telepon"><Input placeholder={identityPlaceholders.telepon} autoComplete="tel" id="admin-patient-phone" onChange={(event) => form.setData('telepon', event.target.value)} type="tel" value={form.data.telepon} /></Field>
                     </div>

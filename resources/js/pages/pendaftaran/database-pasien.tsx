@@ -60,7 +60,7 @@ export default function PatientDatabase({ stats, categories = {}, filters: initi
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Data induk pasien</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Pasien</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Temukan data pasien dengan nomor rekam medis, nama, NIK, atau nomor telepon.</p>
+                    <p className="mt-1 text-sm text-neutral-500">Telusuri data pasien terdaftar berdasarkan nomor rekam medis, nama lengkap, NIK, NIP, atau nomor telepon. Verifikasi kepesertaan internal dikelola oleh admin.</p>
                 </div>
                 <SummaryStatGrid ariaLabel="Ringkasan data pasien terdaftar" columns={4}>
                     <StatCard label="Total pasien" value={stats?.total ?? patients.total} description="Seluruh rekam medis aktif" icon={<UsersRound className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />

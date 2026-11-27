@@ -96,7 +96,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Layanan pendaftaran</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{internalReferral ? 'Pendaftaran rujukan internal' : 'Pendaftaran pasien'}</h2>
-                    {internalReferral ? <Link className="mt-1 inline-block text-sm font-medium text-neutral-700 underline-offset-4 hover:underline" href={referralBackUrl}>Kembali ke daftar rujukan</Link> : <p className="mt-1 text-sm text-neutral-500">Daftarkan pasien internal dan tentukan tujuan kunjungan.</p>}
+                    {internalReferral ? <Link className="mt-1 inline-block text-sm font-medium text-neutral-700 underline-offset-4 hover:underline" href={referralBackUrl}>Kembali ke daftar rujukan</Link> : <p className="mt-1 text-sm text-neutral-500">Daftarkan kunjungan pasien internal dan tentukan poliklinik tujuan. Pasien baru otomatis dibuatkan nomor rekam medis dan kunjungan awal, sedangkan verifikasi kepesertaan dilakukan oleh admin.</p>}
                 </div>
 
                 {internalReferral ? <RegisteredPatientForm initialPatient={initialPatient} internalReferral={internalReferral} clinics={clinics} today={today} doctorsUrl={doctorsUrl} /> : <Tabs className="space-y-5" onValueChange={(value) => {
@@ -116,7 +116,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                     <CardHeader>
                         <div className="flex items-start gap-3">
                             <span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UserRoundPlus className="size-5" /></span>
-                            <div><CardTitle>Data identitas pasien</CardTitle><CardDescription className="mt-1">Informasi ini digunakan untuk rekam medis dan komunikasi layanan.</CardDescription></div>
+                            <div><CardTitle>Data identitas pasien</CardTitle><CardDescription className="mt-1">Identitas utama bersumber dari direktori kepesertaan instansi sebagai dasar rekam medis pasien.</CardDescription></div>
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-5">
@@ -187,7 +187,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                                     <option value="patient">Pasien sendiri</option><option value="parent">Orang tua</option><option value="spouse">Suami / istri</option><option value="guardian">Wali / pengampu</option><option value="other">Wakil lain yang sah</option>
                                 </Select>
                             </Field>
-                            <Field label="Pertukaran data SATUSEHAT Kemenkes (opsional)" htmlFor="registration-satusehat-sharing" error={form.errors.satusehat_sharing_decision}>
+                            <Field label="Persetujuan berbagi data SATUSEHAT (kesiapan interoperabilitas)" htmlFor="registration-satusehat-sharing" error={form.errors.satusehat_sharing_decision}>
                                 <Select id="registration-satusehat-sharing" value={form.data.satusehat_sharing_decision} onChange={(event) => form.setData('satusehat_sharing_decision', event.target.value)}>
                                     <option value="undocumented">Belum ditetapkan saat ini</option>
                                     <option value="opt_in">Setuju berbagi ke SATUSEHAT (Opt-In)</option>

@@ -44,8 +44,8 @@ export default function ClinicIndex({ stats, clinics, filters }: Props) {
 
     return (
         <>
-            <Head title="Poliklinik" />
-            <div className="space-y-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Konfigurasi layanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Poliklinik</h2><p className="mt-1 text-sm text-neutral-500">Buka Poli Umum atau Poli Gigi untuk mengelola ruang periksa.</p></div></div>
+            <Head title="Poliklinik & ruang periksa" />
+            <div className="space-y-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Konfigurasi layanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Poliklinik & ruang periksa</h2><p className="mt-1 text-sm text-neutral-500">Kelola unit Poli Umum dan Poli Gigi beserta ruang pemeriksaan aktif untuk penugasan layanan dan kesiapan pemetaan lokasi SATUSEHAT.</p></div></div>
                 <SummaryStatGrid ariaLabel="Ringkasan poliklinik dan ruang periksa" columns={4}>
                     <StatCard label="Total poliklinik" value={totalClinics} description="Unit pelayanan klinik" icon={<Building2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />
                     <StatCard label="Poliklinik aktif" value={activeClinics} description="Tersedia untuk layanan" icon={<CheckCircle2 className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />

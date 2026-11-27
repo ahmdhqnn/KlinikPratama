@@ -64,7 +64,7 @@ export default function PharmacyQueue({ visits, todayVisits, stats, date: initia
         <>
             <Head title="Penyerahan obat" />
             <div className="space-y-6">
-                <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Pelayanan obat</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Penyerahan obat</h2><p className="mt-1 text-sm text-neutral-500">Siapkan resep, periksa jumlah dan aturan pakai, lalu catat penyerahan obat kepada pasien.</p></div><ServiceReportLinks kind="handover" /></div>
+                <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-neutral-700">Pelayanan farmasi</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Penyerahan obat</h2><p className="mt-1 text-sm text-neutral-500">Lakukan telaah resep, siapkan obat dari batch layak pakai (FEFO), dan dokumentasikan penyerahan beserta konseling kepada pasien sesuai poliklinik penugasan.</p></div><ServiceReportLinks kind="handover" /></div>
                 <PharmacyClinicTabs clinicType={clinicType} />
                 <section aria-label="Ringkasan penyerahan obat" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Resep hari ini" value={stats.today} description="Kunjungan poli yang memerlukan layanan obat" icon={<ClipboardList className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />

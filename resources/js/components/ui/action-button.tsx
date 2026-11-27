@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Ban, BadgeCheck, ClipboardCheck, ClipboardList, DoorOpen, Download, Eye, FilePlus2, FlaskConical, HeartPulse, KeyRound, Package, PackageSearch, Pencil, Pill, Printer, ShieldCheck, Stethoscope, Syringe, Trash2, Undo2, UserCheck, UserX } from 'lucide-react';
+import { Archive, ArrowLeftRight, Ban, BadgeCheck, CalendarPlus, ClipboardCheck, ClipboardList, DoorOpen, Download, Eye, FileCheck2, FilePlus2, FileText, FlaskConical, HeartPulse, KeyRound, Package, PackageSearch, Pencil, Pill, Printer, ShieldCheck, Stethoscope, Syringe, Trash2, Undo2, UserCheck, UserX } from 'lucide-react';
 import { cloneElement, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -6,7 +6,9 @@ import { cn } from '@/lib/utils';
 const actionIcons = {
     activate: UserCheck,
     adjust: ClipboardList,
+    archive: Archive,
     cancel: Ban,
+    consent: ShieldCheck,
     deactivate: UserX,
     delete: Trash2,
     detail: Eye,
@@ -15,14 +17,18 @@ const actionIcons = {
     issue: FilePlus2,
     examination: Stethoscope,
     laboratory: FlaskConical,
+    letter: FileText,
     pharmacy: Pill,
     primary: BadgeCheck,
     print: Printer,
     procedure: Syringe,
+    referral: ArrowLeftRight,
+    release: FileCheck2,
     resetPassword: KeyRound,
     return: Undo2,
     rme: HeartPulse,
     rooms: DoorOpen,
+    schedule: CalendarPlus,
     screening: ClipboardCheck,
     stock: PackageSearch,
     ticket: Printer,

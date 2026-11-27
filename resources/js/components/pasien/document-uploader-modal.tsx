@@ -1,4 +1,4 @@
-import { Alert } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useForm } from '@inertiajs/react';
-import { Archive, Download, FileImage, FileText, Upload } from 'lucide-react';
-import { useId, type FormEvent } from 'react';
+import { AlertTriangle, Archive, Download, FileImage, FileText, Upload } from 'lucide-react';
+import { useEffect, useId, type FormEvent } from 'react';
 
 export interface PatientDocumentItem {
     id: number;
@@ -40,6 +40,9 @@ export interface PatientDocumentItem {
 
 export interface DocumentPermissions {
     canUpload: boolean;
+    role?: string | null;
+    clinicType?: string | null;
+    clinicName?: string | null;
     allowedCategories: { value: string; label: string; sensitivity: string }[];
     allCategories: { value: string; label: string }[];
     uploadUrl: string;
@@ -72,11 +75,68 @@ interface UploadModalProps {
     defaultCategory?: string;
 }
 
+function uploadCopyFor(permissions: DocumentPermissions) {
+    const role = permissions.role ?? null;
+    const isDental = permissions.clinicType === 'gigi';
+    const isClinicalRole = role === 'dokter' || role === 'perawat' || permissions.allowedCategories.some((cat) => cat.value === 'hasil_lab');
+
+    if (role === 'pendaftaran') {
+        return {
+            title: 'Unggah dokumen administrasi pasien',
+            description: 'Simpan berkas identitas, bukti kepesertaan, atau formulir persetujuan administratif (PDF, JPG, PNG · maks. 10 MB). Berkas tersimpan pada arsip pasien dengan pencatatan audit sesuai PMK No. 24 Tahun 2022.',
+            titlePlaceholder: 'Contoh: Salinan KTP / Kartu Kepesertaan / Persetujuan Umum',
+            issuerPlaceholder: 'Contoh: Disdukcapil / Unit Kepegawaian / Instansi',
+            visitEmptyOption: 'Tidak dikaitkan ke kunjungan tertentu (arsip pasien)',
+            visitHelper: 'Kosongkan apabila dokumen berlaku umum untuk identitas atau kepesertaan pasien.',
+            notesLabel: 'Keterangan administrasi (opsional)',
+            notesPlaceholder: 'Catat nomor dokumen atau keterangan verifikasi secara ringkas.',
+        };
+    }
+
+    if (role === 'admin' && !isClinicalRole) {
+        return {
+            title: 'Unggah dokumen administrasi & arsip awal pasien',
+            description: 'Simpan dokumen identitas, surat rujukan eksternal, atau berkas rekam medis sebelumnya untuk kelengkapan pendaftaran (PDF, JPG, PNG · maks. 10 MB). Akses pratinjau berkas klinis dibatasi hanya bagi tenaga medis berwenang.',
+            titlePlaceholder: 'Contoh: Surat Rujukan Eksternal / Kartu Kepesertaan / RME Sebelumnya',
+            issuerPlaceholder: 'Contoh: RSUD / Puskesmas / Unit Kepegawaian',
+            visitEmptyOption: 'Bukan kunjungan di aplikasi (arsip pasien / fasyankes lain)',
+            visitHelper: 'Kosongkan apabila berkas merupakan dokumen identitas atau riwayat dari fasyankes sebelumnya.',
+            notesLabel: 'Keterangan arsip (opsional)',
+            notesPlaceholder: 'Catat sumber dokumen atau keterangan kelengkapan administrasi secara ringkas.',
+        };
+    }
+
+    if (isDental) {
+        return {
+            title: 'Unggah dokumen klinis & radiologi gigi pasien',
+            description: 'Simpan hasil radiologi gigi (panoramik/periapikal/CBCT), berkas rekam medis sebelumnya (PDF), resume medis fasyankes lain, atau hasil penunjang (PDF, JPG, PNG · maks. 10 MB). Dokumen tersimpan dalam arsip RME pasien dan dapat diunggah tanpa terikat kunjungan di aplikasi.',
+            titlePlaceholder: 'Contoh: Foto Panoramik Gigi / Rontgen Periapikal / RME Sebelumnya (PDF)',
+            issuerPlaceholder: 'Contoh: RSGM / Laboratorium Radiologi / Klinik Gigi Sebelumnya',
+            visitEmptyOption: 'Bukan kunjungan di aplikasi (RME / riwayat eksternal)',
+            visitHelper: 'Kosongkan apabila berkas merupakan RME lama atau hasil penunjang dari fasyankes lain.',
+            notesLabel: 'Catatan klinis (opsional)',
+            notesPlaceholder: 'Catat ringkasan temuan radiologi, elemen gigi terkait, atau konteks klinis secara objektif.',
+        };
+    }
+
+    return {
+        title: 'Unggah dokumen klinis & RME eksternal pasien',
+        description: 'Simpan berkas rekam medis sebelumnya (PDF), hasil laboratorium atau radiologi luar, resume medis fasyankes lain, atau hasil MCU (PDF, JPG, PNG · maks. 10 MB). Dokumen tersimpan dalam arsip RME pasien sesuai PMK No. 24 Tahun 2022 dan dapat diunggah tanpa terikat kunjungan di aplikasi.',
+        titlePlaceholder: 'Contoh: RME Sebelumnya (PDF) / Hasil Laboratorium / Resume Medis RS',
+        issuerPlaceholder: 'Contoh: RSUD / Klinik Sebelumnya / Laboratorium Klinik',
+        visitEmptyOption: 'Bukan kunjungan di aplikasi (RME / riwayat eksternal)',
+        visitHelper: 'Kosongkan apabila berkas merupakan RME lama atau riwayat medis dari fasyankes lain.',
+        notesLabel: 'Catatan klinis (opsional)',
+        notesPlaceholder: 'Catat ringkasan temuan atau keterangan konteks klinis secara ringkas dan objektif.',
+    };
+}
+
 export function DocumentUploadModal({ open, onOpenChange, permissions, defaultCategory: preferredCategory }: UploadModalProps) {
     const idPrefix = useId();
+    const copy = uploadCopyFor(permissions);
     const defaultCategory = (preferredCategory && permissions.allowedCategories.some((cat) => cat.value === preferredCategory)
         ? preferredCategory
-        : permissions.allowedCategories.find((cat) => cat.value === 'rme_lama')?.value ?? permissions.allowedCategories[0]?.value) ?? '';
+        : permissions.allowedCategories[0]?.value) ?? '';
     const form = useForm<{
         title: string;
         category: string;
@@ -97,6 +157,12 @@ export function DocumentUploadModal({ open, onOpenChange, permissions, defaultCa
         file: null,
     });
 
+    useEffect(() => {
+        if (open && !permissions.allowedCategories.some((cat) => cat.value === form.data.category)) {
+            form.setData('category', defaultCategory);
+        }
+    }, [open, defaultCategory]);
+
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         form.post(permissions.uploadUrl, {
@@ -114,10 +180,8 @@ export function DocumentUploadModal({ open, onOpenChange, permissions, defaultCa
         <Dialog onOpenChange={onOpenChange} open={open}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>Unggah dokumen & RME eksternal pasien</DialogTitle>
-                    <DialogDescription>
-                        Simpan berkas rekam medis sebelumnya (PDF), resume medis fasyankes lain, hasil laboratorium/radiologi, atau dokumen identitas (PDF, JPG, PNG · maksimal 10 MB). Dokumen dapat disimpan tanpa dikaitkan ke kunjungan di aplikasi.
-                    </DialogDescription>
+                    <DialogTitle>{copy.title}</DialogTitle>
+                    <DialogDescription>{copy.description}</DialogDescription>
                 </DialogHeader>
                 <form className="space-y-4" onSubmit={handleSubmit}>
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -148,7 +212,7 @@ export function DocumentUploadModal({ open, onOpenChange, permissions, defaultCa
                             id={`${idPrefix}-title`}
                             maxLength={160}
                             onChange={(event) => form.setData('title', event.target.value)}
-                            placeholder="Contoh: RME Sebelumnya (PDF) / Resume Medis RS / Hasil Lab"
+                            placeholder={copy.titlePlaceholder}
                             required
                             value={form.data.title}
                         />
@@ -159,28 +223,26 @@ export function DocumentUploadModal({ open, onOpenChange, permissions, defaultCa
                                 id={`${idPrefix}-issuer`}
                                 maxLength={160}
                                 onChange={(event) => form.setData('issuer_facility', event.target.value)}
-                                placeholder="Contoh: RSUD / Klinik Sebelumnya / Lab"
+                                placeholder={copy.issuerPlaceholder}
                                 value={form.data.issuer_facility}
                             />
                         </Field>
-                        <Field error={form.errors.kunjungan_id} htmlFor={`${idPrefix}-visit`} label="Kaitan kunjungan di aplikasi (opsional)">
+                        <Field error={form.errors.kunjungan_id} htmlFor={`${idPrefix}-visit`} label="Kaitan kunjungan (opsional)">
                             <Select
                                 id={`${idPrefix}-visit`}
                                 onChange={(event) => form.setData('kunjungan_id', event.target.value)}
                                 value={form.data.kunjungan_id}
                             >
-                                <option value="">Bukan kunjungan di aplikasi (RME / riwayat eksternal)</option>
+                                <option value="">{copy.visitEmptyOption}</option>
                                 {permissions.visitOptions.map((visit) => (
                                     <option key={visit.id} value={String(visit.id)}>{visit.label}</option>
                                 ))}
                             </Select>
-                            <p className="text-xs leading-5 text-neutral-500">
-                                Kosongkan jika berkas merupakan RME lama atau riwayat medis dari fasyankes lain.
-                            </p>
+                            <p className="text-xs leading-5 text-neutral-500">{copy.visitHelper}</p>
                         </Field>
                     </div>
                     {form.data.category === 'radiologi_gigi' && (
-                        <Field error={form.errors.tooth_fdi} htmlFor={`${idPrefix}-tooth`} label="Nomor elemen gigi (FDI, opsional)">
+                        <Field error={form.errors.tooth_fdi} htmlFor={`${idPrefix}-tooth`} label="Nomor elemen gigi (notasi FDI, opsional)">
                             <Input
                                 id={`${idPrefix}-tooth`}
                                 maxLength={4}
@@ -199,12 +261,12 @@ export function DocumentUploadModal({ open, onOpenChange, permissions, defaultCa
                             type="file"
                         />
                     </Field>
-                    <Field error={form.errors.notes} htmlFor={`${idPrefix}-notes`} label="Catatan klinis / keterangan">
+                    <Field error={form.errors.notes} htmlFor={`${idPrefix}-notes`} label={copy.notesLabel}>
                         <Textarea
                             id={`${idPrefix}-notes`}
                             maxLength={1000}
                             onChange={(event) => form.setData('notes', event.target.value)}
-                            placeholder="Ringkasan temuan atau keterangan konteks dokumen (opsional)"
+                            placeholder={copy.notesPlaceholder}
                             rows={2}
                             value={form.data.notes}
                         />
@@ -322,11 +384,12 @@ export function DocumentArchiveModal({ document, onOpenChange }: ArchiveModalPro
                 <DialogHeader>
                     <DialogTitle>Arsipkan dokumen pasien</DialogTitle>
                     <DialogDescription>
-                        Sesuai PMK No. 24 Tahun 2022, berkas rekam medis tidak dihapus permanen. Dokumen akan dipindahkan ke arsip dengan catatan alasan yang tercatat di log audit.
+                        Sesuai PMK No. 24 Tahun 2022, dokumen rekam medis tidak dihapus permanen. Berkas dipindahkan ke arsip dengan alasan yang tercatat pada log audit.
                     </DialogDescription>
                 </DialogHeader>
-                <Alert dismissible={false} variant="warning">
-                    <p className="text-xs font-medium">{document.title} ({document.originalName})</p>
+                <Alert dismissible={false} variant="default">
+                    <AlertTriangle aria-hidden="true" className="size-4" />
+                    <AlertDescription className="text-xs font-medium">{document.title} ({document.originalName})</AlertDescription>
                 </Alert>
                 <form className="space-y-4" onSubmit={handleSubmit}>
                     <Field error={form.errors.archive_reason} htmlFor={`${idPrefix}-reason`} label="Alasan pengarsipan (minimal 10 karakter)" required>
@@ -334,7 +397,7 @@ export function DocumentArchiveModal({ document, onOpenChange }: ArchiveModalPro
                             id={`${idPrefix}-reason`}
                             minLength={10}
                             onChange={(event) => form.setData('archive_reason', event.target.value)}
-                            placeholder="Contoh: Berkas terunggah ganda atau digantikan versi hasil pemeriksaan terbaru."
+                            placeholder="Contoh: Berkas terunggah ganda atau digantikan hasil pemeriksaan terbaru."
                             required
                             rows={3}
                             value={form.data.archive_reason}

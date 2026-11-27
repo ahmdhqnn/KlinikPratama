@@ -143,7 +143,7 @@ export default function PatientsIndex({ stats, filters: initialFilters, patients
             <Head title="Data pasien" />
             <div className="space-y-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                    <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Data pasien</h2><p className="mt-1 text-sm text-neutral-500">Kelola identitas pasien dan verifikasi kepesertaannya.</p></div>
+                    <div><p className="text-sm font-medium text-neutral-700">Data induk pasien</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Data pasien</h2><p className="mt-1 text-sm text-neutral-500">Kelola data induk identitas pasien, verifikasi kepesertaan internal, dan konsistensi nomor rekam medis untuk mencegah duplikasi.</p></div>
                     {permissions.managePatients && <Button asChild size="sm"><Link href="/pendaftaran/pendaftaran-baru"><Plus className="size-4" />Pendaftaran pasien</Link></Button>}
                 </div>
                 <SummaryStatGrid ariaLabel="Ringkasan data pasien" columns={4}>
