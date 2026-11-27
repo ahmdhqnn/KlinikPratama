@@ -97,7 +97,7 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
                 <CardContent className="p-0 print:px-0">
                     <div className="overflow-x-auto print:overflow-visible">
                         <Table className={printMode ? 'min-w-[1120px] print:min-w-0' : 'min-w-[980px]'}>
-                            <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Tindakan</TableHead>{printMode && <TableHead>Instruksi dan hasil</TableHead>}<TableHead>Pelaksana</TableHead><TableHead>Status</TableHead>{!printMode && <TableHead className="print:hidden">Aksi</TableHead>}</TableRow></TableHeader>
+                            <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Tindakan</TableHead>{printMode && <TableHead>Instruksi dan hasil</TableHead>}<TableHead>Pelaksana</TableHead><TableHead>Status</TableHead>{!printMode && <TableHead className="text-center print:hidden">Aksi</TableHead>}</TableRow></TableHeader>
                             <TableBody>{procedures.data.length ? procedures.data.map((procedure) => <TableRow className="align-top" key={procedure.id}>
                                 <TableCell className="whitespace-nowrap font-sans tabular-nums text-xs text-neutral-600">{procedure.visitNumber}</TableCell>
                                 <TableCell className="whitespace-nowrap text-neutral-600">{procedure.date}</TableCell>

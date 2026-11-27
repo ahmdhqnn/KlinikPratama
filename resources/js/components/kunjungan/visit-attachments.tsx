@@ -88,11 +88,11 @@ export function VisitAttachments({ attachments = [], archive = [], uploadUrl, di
                 </Field>
             </div>
             {form.progress && <div className="space-y-1"><progress aria-label="Progres unggah lampiran" className="h-2 w-full" max={100} value={form.progress.percentage} /><p className="text-xs text-neutral-500">Mengunggah {form.progress.percentage}%</p></div>}
-            <div className="flex flex-wrap items-center gap-2">
-                <Button disabled={busy || !form.data.file || form.data.file.size > 5 * 1024 * 1024 || attachments.length >= 10} onClick={upload} type="button" variant="secondary"><Upload className="size-4" />{form.processing ? 'Mengunggah…' : 'Unggah lampiran'}</Button>
-                {(form.data.file || form.data.note) && <Button disabled={busy} onClick={reset} type="button" variant="ghost">Batalkan pilihan</Button>}
-            </div>
             {form.data.file && <p className="text-xs leading-5 text-amber-700" role="status">Berkas belum tersimpan. Unggah atau batalkan pilihan sebelum menyimpan asesmen.</p>}
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-100 pt-3">
+                {(form.data.file || form.data.note) && <Button disabled={busy} onClick={reset} type="button" variant="ghost">Batalkan pilihan</Button>}
+                <Button disabled={busy || !form.data.file || form.data.file.size > 5 * 1024 * 1024 || attachments.length >= 10} onClick={upload} type="button" variant="secondary"><Upload className="size-4" />{form.processing ? 'Mengunggah…' : 'Unggah lampiran'}</Button>
+            </div>
         </fieldset>}
     </div>;
 }

@@ -4,33 +4,34 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Verifikasi Persetujuan Umum</title>
+    @include('partials.theme-init')
     @vite('resources/css/app.css')
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 24px 16px; background: #fafafa; font-size: 15px; line-height: 1.55; color: #171717; }
+        body { margin: 0; padding: 24px 16px; background: var(--clinic-canvas); font-size: 15px; line-height: 1.55; color: var(--clinic-neutral-900); }
         main { max-width: 210mm; margin: auto; }
         nav { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
-        .action { padding: 8px 14px; border: 1px solid #d4d4d4; border-radius: 8px; background: white; color: inherit; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
-        .primary { background: #171717; color: white; border-color: #171717; }
-        .sheet { padding: clamp(16px, 4vw, 36px); border: 1px solid #e5e5e5; border-radius: 16px; background: white; }
+        .action { padding: 8px 14px; border: 1px solid var(--clinic-neutral-200); border-radius: 8px; background: var(--clinic-surface); color: inherit; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+        .primary { background: var(--clinic-neutral-900); color: var(--clinic-neutral-50); border-color: transparent; }
+        .sheet { padding: clamp(16px, 4vw, 36px); border: 1px solid var(--clinic-neutral-200); border-radius: 16px; background: var(--clinic-surface); }
         h1 { margin: 24px 0 10px; text-align: center; font-size: 1.125rem; font-weight: 700; line-height: 1.25; text-transform: uppercase; }
         p { margin: 0; }
-        .muted { color: #525252; font-size: .875rem; }
-        .status { display: inline-block; padding: 3px 10px; border: 1px solid #d4d4d4; border-radius: 99px; font-size: .8125rem; }
+        .muted { color: var(--clinic-neutral-600); font-size: .875rem; }
+        .status { display: inline-block; padding: 3px 10px; border: 1px solid var(--clinic-neutral-200); border-radius: 99px; font-size: .8125rem; }
         .status + p { margin-top: 8px; }
         dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 20px 0; }
         .full { grid-column: 1 / -1; }
-        dt { color: #525252; font-size: .8125rem; font-weight: 600; }
+        dt { color: var(--clinic-neutral-600); font-size: .8125rem; font-weight: 600; }
         dd { margin: 2px 0 0; overflow-wrap: anywhere; }
-        .qr { display: flex; align-items: center; gap: 16px; border-top: 1px solid #e5e5e5; padding-top: 12px; break-inside: avoid; }
-        .code { position: relative; flex: 0 0 120px; height: 120px; }
+        .qr { display: flex; align-items: center; gap: 16px; border-top: 1px solid var(--clinic-neutral-200); padding-top: 12px; break-inside: avoid; }
+        .code { position: relative; flex: 0 0 120px; height: 120px; background: white; }
         .logo { position: absolute; top: 43.75%; left: 43.75%; width: 12.5%; height: 12.5%; object-fit: contain; background: white; border-radius: 2px; }
         @media screen and (max-width: 420px) { dl { grid-template-columns: 1fr; } }
         @page { size: A4; margin: 16mm; }
         @media print {
             body { padding: 0; background: white; font-size: 11pt; }
             nav { display: none; }
-            .sheet { padding: 0; border: 0; }
+            .sheet { padding: 0; border: 0; background: white; }
             header, dl > div { break-inside: avoid; }
         }
     </style>

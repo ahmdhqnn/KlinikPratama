@@ -5,14 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/webp" href="{{ asset('logo_kemenpar.webp') }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <script>
-        (() => {
-            let savedTheme;
-            try { savedTheme = localStorage.getItem('clinic-theme'); } catch {}
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            document.documentElement.classList.toggle('dark', savedTheme === 'dark' || (savedTheme !== 'light' && prefersDark));
-        })();
-    </script>
+    @include('partials.theme-init')
     @viteReactRefresh
     @vite(['resources/css/app.css', 'resources/js/app.tsx'])
     @inertiaHead

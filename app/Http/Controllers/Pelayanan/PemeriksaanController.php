@@ -9,6 +9,7 @@ use App\ClinicalAuditRecorder;
 use App\ClinicalCodingService;
 use App\ClinicalNoteRecorder;
 use App\ClinicalSafetyService;
+use App\ClinicalWorkflowSettings;
 use App\CorrespondenceService;
 use App\DentalAssessment;
 use App\DoctorAccessService;
@@ -343,6 +344,7 @@ class PemeriksaanController extends Controller
                     'kebiasaan_gigi' => ClinicalAnswer::normalize(is_array($effectiveNote) ? ($effectiveNote['kebiasaan_gigi'] ?? null) : $kunjungan->pemeriksaan->kebiasaan_gigi),
                     'supportingExams' => is_array($effectiveNote) ? ($effectiveNote['supporting_exams'] ?? []) : ($kunjungan->pemeriksaan?->supporting_exams ?? []),
                     'reviewOfSystems' => is_array($effectiveNote) ? ($effectiveNote['review_of_systems'] ?? []) : ($kunjungan->pemeriksaan?->review_of_systems ?? []),
+                    'clinicalAssessment' => is_array($effectiveNote) ? ($effectiveNote['clinical_assessment'] ?? []) : ($kunjungan->pemeriksaan?->clinical_assessment ?? []),
                     'socialHistory' => is_array($effectiveNote) ? ($effectiveNote['riwayat_sosial'] ?? null) : $kunjungan->pemeriksaan?->riwayat_sosial,
                     'finalCondition' => is_array($effectiveNote) ? ($effectiveNote['kondisi_akhir'] ?? null) : $kunjungan->pemeriksaan?->kondisi_akhir,
                     'disposition' => is_array($effectiveNote) ? ($effectiveNote['disposisi'] ?? null) : $kunjungan->pemeriksaan?->disposisi,
@@ -373,6 +375,7 @@ class PemeriksaanController extends Controller
                         'notes' => $version->payload['catatan'] ?? null,
                         'education' => $version->payload['edukasi'] ?? null,
                         'nonPharmacological' => $version->payload['non_farmakologis'] ?? null,
+                        'clinicalAssessmentSummary' => ClinicalWorkflowSettings::summarizeDoctorAssessment($version->payload['clinical_assessment'] ?? null),
                         'odontogram' => collect($version->payload['odontogram'] ?? [])->map(fn (array $finding): array => [
                             'toothFdi' => $finding['tooth_fdi'],
                             'surface' => $finding['surface'],
@@ -483,7 +486,10 @@ class PemeriksaanController extends Controller
             'treatments' => $tindakanList->map(fn (Tindakan $treatment) => [
                 'id' => $treatment->id,
                 'name' => $treatment->nama,
+                'icd9Code' => $treatment->kode_icd9,
                 'canDelegateToNurse' => (bool) $treatment->can_delegate_to_nurse,
+                'consentMode' => $treatment->consentMode(),
+                'consentModeLabel' => $treatment->consentModeLabel(),
             ]),
             'medicines' => $obatList->map(function (Obat $medicine): array {
                 $earliestExpiry = $medicine->earliest_usable_expiry ? Carbon::parse($medicine->earliest_usable_expiry) : null;
@@ -528,6 +534,7 @@ class PemeriksaanController extends Controller
                     'type' => $template->jenis,
                     'content' => $template->isi,
                 ])->values(),
+            'workflowSettings' => ClinicalWorkflowSettings::current(),
         ]);
     }
 
@@ -652,6 +659,11 @@ class PemeriksaanController extends Controller
     {
         $examination = $visit->pemeriksaan()->firstOrNew();
         $previousDate = $examination->kontrol_berikutnya?->toDateString();
+        if (array_key_exists('clinical_assessment', $data)) {
+            $existing = is_array($examination->clinical_assessment) ? $examination->clinical_assessment : [];
+            $incoming = is_array($data['clinical_assessment']) ? $data['clinical_assessment'] : [];
+            $data['clinical_assessment'] = ClinicalWorkflowSettings::normalizeDoctorAssessment(array_merge($existing, $incoming));
+        }
         $examination->fill($data)->save();
 
         if (array_key_exists('kontrol_berikutnya', $data) || array_key_exists('catatan', $data)) {
@@ -1088,6 +1100,15 @@ class PemeriksaanController extends Controller
                 }
                 $tindakanId = $tindakan->id;
                 $treatmentName ??= $tindakan->nama;
+                if ($terminology === null && filled($tindakan->kode_icd9)) {
+                    $terminology = ClinicalTerminology::query()
+                        ->where('code_system', 'icd9cm_procedure')
+                        ->where('code_type', 'procedure')
+                        ->where('is_active', true)
+                        ->where('code', $tindakan->kode_icd9)
+                        ->latest('id')
+                        ->first();
+                }
             } elseif ($hasManualName) {
                 $manualName = ClinicalAnswer::normalize(preg_replace('/\s+/u', ' ', trim($data['nama_tindakan_manual'])));
                 if ($manualName === null || mb_strlen($manualName) < 3) {
@@ -1514,6 +1535,7 @@ class PemeriksaanController extends Controller
             'kebiasaan_gigi' => ['sometimes', Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'riwayat_alergi' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'pemeriksaan_fisik' => ['sometimes', 'nullable', 'string'],
+            ...ClinicalWorkflowSettings::doctorAssessmentRules($isGeneralClinic, $isDentalClinic),
             'ringkasan_odontogram' => ['sometimes', Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'pemeriksaan_fisik_terstruktur' => ['sometimes', Rule::excludeIf(! $isGeneralClinic), 'nullable', 'array'],
             'pemeriksaan_fisik_terstruktur.*' => ['nullable', 'string', 'max:3000'],
@@ -1530,7 +1552,7 @@ class PemeriksaanController extends Controller
             'kontrol_berikutnya' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
         ]);
         $fields = array_intersect_key($data, array_flip([
-            'supporting_exams', 'review_of_systems', 'riwayat_sosial', 'kondisi_akhir', 'disposisi',
+            'supporting_exams', 'review_of_systems', 'clinical_assessment', 'riwayat_sosial', 'kondisi_akhir', 'disposisi',
             'riwayat_obat', 'riwayat_perawatan_gigi', 'kebiasaan_gigi',
             'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu',
             'riwayat_penyakit_keluarga', 'riwayat_alergi', 'pemeriksaan_fisik',
@@ -1575,6 +1597,10 @@ class PemeriksaanController extends Controller
 
                 if ($field === 'body_map' && is_array($normalized)) {
                     $normalized = BodyMapPayload::hasContent($normalized) ? BodyMapPayload::normalize($normalized) : null;
+                }
+                if ($field === 'clinical_assessment' && is_array($normalized)) {
+                    $existingAssessment = is_array($payload['clinical_assessment'] ?? null) ? $payload['clinical_assessment'] : [];
+                    $normalized = ClinicalWorkflowSettings::normalizeDoctorAssessment(array_merge($existingAssessment, $normalized));
                 }
                 $payload[$field] = blank($normalized) ? null : $normalized;
             }
@@ -1973,6 +1999,7 @@ class PemeriksaanController extends Controller
             'kebiasaan_gigi' => [Rule::excludeIf(! $isDentalClinic), 'nullable', 'string', 'max:5000'],
             'anamnesis' => ['nullable', 'string', 'max:10000'],
             ...$this->generalExaminationRules($isGeneralClinic),
+            ...ClinicalWorkflowSettings::doctorAssessmentRules($isGeneralClinic, $isDentalClinic),
             'riwayat_penyakit_sekarang' => ['nullable', 'string', 'max:10000'],
             'riwayat_penyakit_dahulu' => ['nullable', 'string', 'max:10000'],
             'riwayat_penyakit_keluarga' => ['nullable', 'string', 'max:10000'],
@@ -1998,8 +2025,8 @@ class PemeriksaanController extends Controller
         unset($data['section']);
         if ($section !== null) {
             $sectionFields = match ($section) {
-                'anamnesis' => ['review_of_systems', 'riwayat_sosial', 'riwayat_obat', 'riwayat_perawatan_gigi', 'kebiasaan_gigi', 'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu', 'riwayat_penyakit_keluarga', 'riwayat_alergi'],
-                'pemeriksaan' => ['supporting_exams', 'pemeriksaan_fisik', 'td_sistole_ulang', 'td_diastole_ulang', 'nadi_ulang', 'suhu_ulang', 'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'ringkasan_odontogram', 'body_map'],
+                'anamnesis' => ['review_of_systems', 'clinical_assessment', 'riwayat_sosial', 'riwayat_obat', 'riwayat_perawatan_gigi', 'kebiasaan_gigi', 'anamnesis', 'riwayat_penyakit_sekarang', 'riwayat_penyakit_dahulu', 'riwayat_penyakit_keluarga', 'riwayat_alergi'],
+                'pemeriksaan' => ['supporting_exams', 'clinical_assessment', 'pemeriksaan_fisik', 'td_sistole_ulang', 'td_diastole_ulang', 'nadi_ulang', 'suhu_ulang', 'pemeriksaan_fisik_terstruktur', 'pemeriksaan_ekstraoral', 'ringkasan_odontogram', 'body_map'],
                 'diagnosis' => ['diagnosis_banding'],
                 'rencana' => ['kondisi_akhir', 'disposisi', 'kontrol_berikutnya', 'catatan', 'edukasi', 'non_farmakologis'],
             };

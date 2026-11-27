@@ -14,12 +14,17 @@ export function RequestFeedback() {
         };
 
         const focusValidationError = (errors?: Record<string, string>) => {
+            const messages = errors ? Object.values(errors).filter((value): value is string => typeof value === 'string' && value.trim() !== '') : [];
+            if (messages.length > 0) {
+                const suffix = messages.length > 1 ? ` (+${messages.length - 1} isian lainnya)` : '';
+                toast.error(`${messages[0]}${suffix}`, { id: 'request-validation' });
+            }
+
             afterRender(() => {
                 const root = document.querySelector('[role="dialog"][data-state="open"]') ?? document;
                 if (!focusFirstInvalidField(root)) {
                     const summary = root.querySelector<HTMLElement>('[data-validation-summary]');
                     if (summary && revealFormControl(summary)) focusFormControl(summary);
-                    else if (errors) toast.error(Object.values(errors)[0] ?? 'Periksa kembali isian formulir.', { id: 'request-validation' });
                 }
             });
         };

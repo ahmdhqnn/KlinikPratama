@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="referrer" content="no-referrer">
     <title>Keputusan tindakan pasien</title>
+    @include('partials.theme-init')
     @vite('resources/css/app.css')
 </head>
-<body class="min-h-screen bg-neutral-50 px-4 py-8 text-neutral-950">
-<main class="mx-auto max-w-xl space-y-5 rounded-2xl border border-neutral-200 bg-white p-5 sm:p-8">
+<body class="min-h-screen bg-canvas px-4 py-8 text-neutral-950">
+<main class="mx-auto max-w-xl space-y-5 rounded-2xl border border-neutral-200 bg-surface p-5 sm:p-8">
     <header class="flex items-center gap-3">
         <img src="{{ asset('logo_kemenpar.webp') }}" alt="" class="size-10 object-contain">
         <div>
@@ -24,7 +25,7 @@
             <label for="pair-code">Masukkan kode pendamping 6 digit dari dokter</label>
             <input id="pair-code" name="pair_code" type="text" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required class="rounded-lg border border-neutral-300 px-3 py-2">
             @error('pair_code')<p role="alert" class="text-sm text-red-700">{{ $message }}</p>@enderror
-            <button class="rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white">Lihat penjelasan</button>
+            <button class="rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-neutral-50">Lihat penjelasan</button>
         </form>
     @else
         <div class="rounded-lg border border-neutral-200 p-4">
@@ -48,7 +49,7 @@
             <p id="signature-error" role="alert" class="text-sm text-red-700">@error('signature'){{ $message }}@enderror</p>
             <div class="flex flex-wrap justify-between gap-2">
                 <button type="button" id="clear-signature" class="rounded-lg border border-neutral-300 px-4 py-2">Hapus goresan</button>
-                <button type="submit" class="rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-white">Kirim keputusan</button>
+                <button type="submit" class="rounded-lg bg-neutral-900 px-4 py-2 font-semibold text-neutral-50">Kirim keputusan</button>
             </div>
         </form>
         <script>

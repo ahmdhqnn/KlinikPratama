@@ -1,9 +1,9 @@
 import { useForm } from '@inertiajs/react';
 import { Download } from 'lucide-react';
+import { useState } from 'react';
+import { Attachment } from '@/components/ui/attachment';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Field } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 
 interface Props {
     title: string;
@@ -18,6 +18,7 @@ interface Props {
 }
 
 export function SpreadsheetImportDialog({ title, description, importUrl, templateUrl, open, onOpenChange, accept = '.xlsx', fileLabel = 'Berkas Excel (.xlsx)', submitLabel = 'Impor data' }: Props) {
+    const [inputKey, setInputKey] = useState(0);
     const upload = useForm<{ file: File | null }>({ file: null });
 
     function changeOpen(next: boolean) {
@@ -25,6 +26,7 @@ export function SpreadsheetImportDialog({ title, description, importUrl, templat
         if (!next) {
             upload.reset();
             upload.clearErrors();
+            setInputKey((key) => key + 1);
         }
         onOpenChange(next);
     }
@@ -37,13 +39,25 @@ export function SpreadsheetImportDialog({ title, description, importUrl, templat
                 upload.post(importUrl, { preserveScroll: true, forceFormData: true, onSuccess: () => {
                     upload.reset();
                     upload.clearErrors();
+                    setInputKey((key) => key + 1);
                     onOpenChange(false);
                 } });
             }}>
-                <Field label={fileLabel} htmlFor="spreadsheet-import-file" required error={upload.errors.file}>
-                    <Input id="spreadsheet-import-file" type="file" accept={accept} required disabled={upload.processing} onChange={(event) => upload.setData('file', event.target.files?.[0] ?? null)} />
-                </Field>
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <Attachment
+                    accept={accept}
+                    disabled={upload.processing}
+                    error={upload.errors.file}
+                    fileName={upload.data.file?.name}
+                    id="spreadsheet-import-file"
+                    inputKey={inputKey}
+                    label={fileLabel}
+                    onFileChange={(file) => {
+                        upload.clearErrors('file');
+                        upload.setData('file', file);
+                    }}
+                    required
+                />
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-3">
                     <Button asChild variant="secondary"><a href={templateUrl}><Download className="size-4" />Unduh template</a></Button>
                     <div className="ml-auto flex flex-wrap justify-end gap-2">
                         <Button type="button" variant="secondary" disabled={upload.processing} onClick={() => changeOpen(false)}>Batal</Button>

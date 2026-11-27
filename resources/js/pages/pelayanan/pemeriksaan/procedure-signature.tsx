@@ -41,46 +41,57 @@ export default function ProcedureSignature({ id, procedure, decision, signer, st
 
     return <>
         <Head title="Sesi tanda tangan tindakan" />
-        <Card className="mx-auto max-w-2xl">
-            <CardHeader>
-                <CardTitle>Sesi tanda tangan tindakan</CardTitle>
-                <CardDescription>{procedure} · {signer} · {{ accepted: 'Setuju', refused: 'Menolak', withdrawn: 'Mencabut' }[decision]}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-                <p role="status" className="text-sm font-medium">{descriptions[status]}</p>
-                {qr && <div className="flex flex-col items-start gap-4 rounded-xl border border-neutral-200 p-4 sm:flex-row sm:items-center">
-                    <div className="relative w-40 shrink-0 bg-white">
-                        <img src={qr} width={160} height={160} alt="QR sesi tanda tangan pasien" />
-                        <img src="/logo_kemenpar.webp" alt="" className="absolute top-1/2 left-1/2 size-[12.5%] -translate-x-1/2 -translate-y-1/2 rounded-sm bg-white object-contain" />
-                    </div>
-                    <div className="space-y-2 text-sm">
-                        <p>Pasien memindai QR dan memasukkan kode pendamping berikut.</p>
-                        <p className="text-2xl font-semibold tracking-widest tabular-nums">{code}</p>
-                        {patientUrl && <a className="underline underline-offset-4" href={patientUrl} target="_blank" rel="noreferrer">Tanda tangan di perangkat ini</a>}
-                    </div>
-                </div>}
-                {canWitness && status === 'signed' && <form className="space-y-3" onSubmit={confirm}>
-                    <Field htmlFor="confirm-signature-witness" label="Konfirmasi saksi" error={form.errors.witnessed}>
-                        <label className="flex items-start gap-2 text-sm">
-                            <Checkbox id="confirm-signature-witness" checked={form.data.witnessed} onCheckedChange={(value) => form.setData('witnessed', value === true)} />
-                            <span>Saya hadir, memeriksa identitas pasien atau wakil, dan menyaksikan pengambilan keputusan serta tanda tangan.</span>
-                        </label>
-                    </Field>
-                    <FormActionFooter className="pt-3">
-                        <Button type="submit" disabled={!form.data.witnessed || form.processing}>Konfirmasi dan arsipkan PDF</Button>
-                    </FormActionFooter>
-                </form>}
-                <div className="flex flex-wrap gap-2">
-                    <Button asChild variant="secondary"><Link href={backUrl}>Kembali ke persetujuan tindakan</Link></Button>
-                    <Button asChild variant="secondary"><Link href={workflowUrl}>{canWitness ? 'Kembali ke dasbor perawat' : 'Kembali ke pemeriksaan'}</Link></Button>
-                    {evidenceUrl && <Button asChild><a href={evidenceUrl}>Unduh bukti PDF</a></Button>}
-                    {canCancel && ['waiting', 'signed'].includes(status) && <Button variant="secondary" onClick={() => confirmReason(
-                        'Jelaskan alasan membatalkan sesi ini.',
-                        (reason) => router.post(`${url}/batal`, { reason }),
-                        'Batalkan sesi',
-                    )}>Batalkan sesi</Button>}
+        <div className="space-y-6">
+            <header className="flex flex-wrap items-end justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-neutral-700">Dokumentasi klinis</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Sesi tanda tangan tindakan</h2>
+                    <p className="mt-1 max-w-3xl text-sm text-neutral-500">{procedure} · {signer} · {{ accepted: 'Setuju', refused: 'Menolak', withdrawn: 'Mencabut' }[decision]}</p>
                 </div>
-            </CardContent>
-        </Card>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button asChild size="sm" variant="secondary"><Link href={backUrl}>Kembali ke persetujuan tindakan</Link></Button>
+                    <Button asChild size="sm" variant="secondary"><Link href={workflowUrl}>{canWitness ? 'Kembali ke dasbor perawat' : 'Kembali ke pemeriksaan'}</Link></Button>
+                </div>
+            </header>
+            <Card>
+                <CardHeader className="border-b border-neutral-100">
+                    <CardTitle>Status sesi tanda tangan</CardTitle>
+                    <CardDescription>{descriptions[status]}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5 p-5 sm:p-6">
+                    <p role="status" className="text-sm font-medium">{descriptions[status]}</p>
+                    {qr && <div className="flex flex-col items-start gap-4 rounded-xl border border-neutral-200 p-4 sm:flex-row sm:items-center">
+                        <div className="relative w-40 shrink-0 bg-white">
+                            <img src={qr} width={160} height={160} alt="QR sesi tanda tangan pasien" />
+                            <img src="/logo_kemenpar.webp" alt="" className="absolute top-1/2 left-1/2 size-[12.5%] -translate-x-1/2 -translate-y-1/2 rounded-sm bg-white object-contain" />
+                        </div>
+                        <div className="space-y-2 text-sm">
+                            <p>Pasien memindai QR dan memasukkan kode pendamping berikut.</p>
+                            <p className="text-2xl font-semibold tracking-widest tabular-nums">{code}</p>
+                            {patientUrl && <a className="underline underline-offset-4" href={patientUrl} target="_blank" rel="noreferrer">Tanda tangan di perangkat ini</a>}
+                        </div>
+                    </div>}
+                    {canWitness && status === 'signed' && <form className="space-y-3" onSubmit={confirm}>
+                        <Field htmlFor="confirm-signature-witness" label="Konfirmasi saksi" error={form.errors.witnessed}>
+                            <label className="flex items-start gap-2 text-sm">
+                                <Checkbox id="confirm-signature-witness" checked={form.data.witnessed} onCheckedChange={(value) => form.setData('witnessed', value === true)} />
+                                <span>Saya hadir, memeriksa identitas pasien atau wakil, dan menyaksikan pengambilan keputusan serta tanda tangan.</span>
+                            </label>
+                        </Field>
+                        <FormActionFooter className="pt-3">
+                            <Button type="submit" disabled={!form.data.witnessed || form.processing}>Konfirmasi dan arsipkan PDF</Button>
+                        </FormActionFooter>
+                    </form>}
+                    {(evidenceUrl || (canCancel && ['waiting', 'signed'].includes(status))) && <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-100 pt-4">
+                        {evidenceUrl && <Button asChild size="sm"><a href={evidenceUrl}>Unduh bukti PDF</a></Button>}
+                        {canCancel && ['waiting', 'signed'].includes(status) && <Button size="sm" variant="secondary" onClick={() => confirmReason(
+                            'Jelaskan alasan membatalkan sesi ini.',
+                            (reason) => router.post(`${url}/batal`, { reason }),
+                            'Batalkan sesi',
+                        )}>Batalkan sesi</Button>}
+                    </div>}
+                </CardContent>
+            </Card>
+        </div>
     </>;
 }

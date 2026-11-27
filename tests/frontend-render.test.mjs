@@ -374,13 +374,16 @@ test('general nursing form locks before start and presents each clinical input o
         staff: [], canSelectStaff: false, currentStaff: 'Perawat Uji',
     };
     const locked = await renderPage('pelayanan/screening/show', props);
-    assert.match(locked, /Klik Mulai pengkajian untuk membuka isian pasien/);
+    assert.match(locked, /Klik Mulai pengkajian untuk membuka formulir pengkajian awal pasien/);
     assert.match(locked, /<fieldset disabled="" class="min-w-0 space-y-4">/);
     assert.doesNotMatch(locked, /type="datetime-local"/);
     assert.doesNotMatch(locked, /Informasi kunjungan dan kondisi kedatangan/);
     assert.doesNotMatch(locked, /id="general-(?:visit_purpose|onset|severity|chronic|summary|doctor_notes)"/);
-    const active = await renderPage('pelayanan/screening/show', { ...props, visit: { ...props.visit, status: 'screening', startedAt: '06/11/2026 09:00' } });
+    const active = await renderPage('pelayanan/screening/show', { ...props, visit: { ...props.visit, status: 'screening', startedAt: '06/11/2026 09:00', screening: { konfirmasi_riwayat: true } } });
     assert.doesNotMatch(active, /<fieldset disabled="" class="min-w-0 space-y-4">/);
+    assert.match(active, /aria-label="Konteks klinis pasien"[^>]*lg:top-\[5\.75rem\]/);
+    assert.match(active, /aria-label="Konteks klinis pasien"[^>]*bg-surface\b/);
+    assert.match(active, /aria-checked="true"[^>]*id="konfirmasi_riwayat"/);
     assert.ok(active.indexOf('id="skala_nyeri"') < active.indexOf('id="general-complaint_notes"'));
     const narrated = await renderPage('pelayanan/screening/show', { ...props, visit: { ...props.visit, status: 'screening', startedAt: '06/11/2026 09:00', screening: { status_alergi: 'ada', riwayat_alergi: 'Amoxicillin', general_assessment: { systems: { neurological: { status: 'negative', notes: 'Kesemutan dilaporkan pasien' } } } } } });
     assert.match(narrated, /Ringkasan sistem tubuh: Sistem Neurologis negatif setelah dikaji; catatan: Kesemutan dilaporkan pasien/);
@@ -887,7 +890,7 @@ test('shared waiting and completed codes retain their visit and pharmacy meaning
         assert.doesNotMatch(html, /bg-(?:blue|violet|orange|emerald)-50/, `${context}: ${status} avoids decorative colors`);
     }
     const cancelled = renderToString(createElement(StatusBadge, { status: 'batal' }));
-    assert.match(cancelled, /border-red-300 text-red-700/, 'cancellation remains a clear warning');
+    assert.match(cancelled, /border-red-200 text-red-700/, 'cancellation remains a clear warning');
     const reservation = renderToString(createElement(StatusBadge, { status: 'menunggu', reservation: true }));
     assert.match(reservation, />Reservasi</);
     assert.doesNotMatch(reservation, /Menunggu pengkajian awal/);
@@ -3698,7 +3701,8 @@ for (const hasMedication of [true, false]) {
             treatments: [{ id: 1, name: 'Perawatan uji', code: null, quantity: 1, toothFdi: null, instructions: 'Instruksi dokter', status: 'pending', result: null, performedBy: null, performedAt: null, completeUrl: '/pelayanan/tindakan-perawat/1/1/selesai' }],
         };
         const html = await renderPage('pelayanan/tindakan/show', { visit });
-        assert.match(html, /mx-auto max-w-5xl space-y-6/);
+        assert.match(html, /<div class="space-y-6">/);
+        assert.doesNotMatch(html, /mx-auto max-w-5xl/);
         assert.match(html, /href="\/pelayanan\/tindakan-perawat"[^>]*>[\s\S]*?Kembali<\/a>/);
         assert.match(html, /href="\/perawat\/laporan-tindakan\/cetak\?search=K-CARE"[^>]*target="_blank"[^>]*>[\s\S]*?Cetak tindakan/);
         assert.match(html, /Belum diketahui; konfirmasi bersama pasien sebelum tindakan/);
@@ -3723,6 +3727,22 @@ test('completed nursing result shows attribution and cannot be resubmitted', asy
     assert.match(html, /Respons pasien tercatat/);
     assert.match(html, /Perawat Uji/);
     assert.doesNotMatch(html, /<textarea|Simpan pelaksanaan tindakan/);
+});
+
+test('nursing consent panels use the theme-aware neutral surface', async () => {
+    const html = await renderPage('pelayanan/tindakan/show', { visit: {
+        id: 1, number: 'K-UJI', status: 'tindakan', patient: 'Pasien uji', clinic: 'Poli Umum', diagnoses: [],
+        delegation: { doctor: 'Dokter uji', verified: true },
+        generalConsent: { status: 'accepted', active: true, url: '/persetujuan' },
+        treatments: [{ id: 1, name: 'Tindakan uji', status: 'pending', quantity: 1, consent: { decision: 'oral', canPerform: true } }],
+    } });
+    for (const title of ['Delegasi dokter', 'Persetujuan Umum (General Consent)', 'Persetujuan lisan tercatat']) {
+        const heading = html.indexOf(`>${title}</p>`);
+        assert.ok(heading >= 0, title);
+        const panel = [...html.slice(0, heading).matchAll(/<div class="([^"]*\brounded-xl\b[^"]*)"/g)].at(-1)?.[1] ?? '';
+        assert.match(panel, /\bbg-neutral-50\b/, title);
+        assert.doesNotMatch(panel, /dark:(?:bg|border)-neutral-[789]00/, title);
+    }
 });
 
 
@@ -4569,4 +4589,135 @@ test('patient profile renders icon-only table actions and role-aware document de
     assert.doesNotMatch(registrationHtml, />Detail kunjungan<\/a>/);
     assert.match(registrationHtml, /Arsip dokumen identitas, bukti kepesertaan, dan persetujuan administratif pasien/);
     assert.doesNotMatch(registrationHtml, /hasil laboratorium/);
+});
+
+test('clinic settings renders tabbed profile and clinical workflow configuration', async () => {
+    const html = await renderPage('setting/index', {
+        initialTab: 'alur-klinis',
+        setting: {
+            namaKlinik: 'Klinik Pratama Kemenpar',
+            alamat: 'Jl. Medan Merdeka Barat',
+            telepon: '0213838142',
+            email: 'klinik@kemenpar.go.id',
+            kepalaKlinik: 'dr. Kepala',
+            nipKepala: '19800101',
+            tagline: 'Layanan Prima',
+            website: 'https://klinik.kemenpar.go.id',
+            pelaksanaTtv: 'perawat',
+            logoUrl: null,
+        },
+        clinicalWorkflow: {
+            umum_complaint_details: 'dokter',
+            umum_system_review: 'dokter',
+            umum_nutrition_needs: 'perawat',
+            umum_anthropometry_mode: 'ringkas',
+            gigi_pain_details: 'perawat',
+            gigi_mucosa_observation: 'perawat',
+            gigi_additional_assessment: 'perawat',
+            dokter_soap_tab: true,
+            dokter_repeat_vitals: true,
+        },
+    });
+    assert.match(html, /Pengaturan klinik/);
+    assert.match(html, /Profil klinik/);
+    assert.match(html, /Pengkajian &amp; pemeriksaan/);
+    assert.match(html, /Poli Umum — Distribusi bagian pengkajian &amp; pemeriksaan/);
+    assert.match(html, /Poli Gigi &amp; Mulut — Distribusi bagian pengkajian &amp; pemeriksaan/);
+    assert.match(html, /Batasan keselamatan &amp; kepatuhan regulasi/);
+    assert.match(html, /PMK No\. 24 Tahun 2022/);
+});
+
+test('clinical workflow settings dynamically move general complaint details and ROS from nurse to doctor', async () => {
+    const doctorWorkflow = {
+        umum_complaint_details: 'dokter',
+        umum_system_review: 'dokter',
+        umum_nutrition_needs: 'nonaktif',
+        umum_anthropometry_mode: 'lengkap',
+        gigi_pain_details: 'dokter',
+        gigi_mucosa_observation: 'dokter',
+        gigi_additional_assessment: 'nonaktif',
+        dokter_soap_tab: false,
+        dokter_repeat_vitals: false,
+    };
+
+    const nurseHtml = await renderPage('pelayanan/screening/show', {
+        visit: {
+            id: 91,
+            number: 'KNJ-WF-91',
+            status: 'screening',
+            examinationStarted: false,
+            editable: true,
+            submitted: false,
+            clinic: 'Poli Umum',
+            clinicType: 'umum',
+            doctor: 'dr. Umum',
+            patient: { name: 'Pasien Umum', medicalRecordNumber: 'RM-91', gender: 'L', age: 30, bloodType: 'O', allergyHistory: null },
+            screening: {
+                general_assessment: {
+                    complaint_notes: 'Ringkasan otomatis. Keluhan utama: Demam. Lama keluhan: 2 hari.',
+                    systems_notes: 'Ringkasan otomatis. Seluruh sistem tubuh negatif setelah dikaji.',
+                },
+            },
+            triage: null,
+            priority: null,
+            printUrl: null,
+            startedAt: '27/11/2026 09:00',
+        },
+        staff: [],
+        canSelectStaff: false,
+        currentStaff: 'Ns. Rina',
+        workflowSettings: doctorWorkflow,
+    });
+    assert.match(nurseHtml, /Keluhan dan informasi pasien/);
+    assert.match(nurseHtml, /Tanda vital/);
+    assert.match(nurseHtml, /Kondisi awal dan triase/);
+    assert.doesNotMatch(nurseHtml, /Rincian keluhan<\/h[34]>/);
+    assert.doesNotMatch(nurseHtml, /Pengkajian sistem tubuh<\/h[34]>/);
+    assert.doesNotMatch(nurseHtml, /Ringkasan sistem tubuh/);
+    assert.doesNotMatch(nurseHtml, /Nutrisi dan kebutuhan pasien/);
+    assert.match(nurseHtml, /dicatat langsung pada tahap pemeriksaan dokter/);
+    assert.match(nurseHtml, /Pengkajian awal dikirim ke dokter/);
+    assert.match(nurseHtml, />Tutup<\/span>/);
+
+    // When nutrition is enabled on nurse side, it appears right below Anthropometry and before Triage,
+    // while Catatan pengkajian appears below Kondisi awal dan triase.
+    const nurseWithNutritionHtml = await renderPage('pelayanan/screening/show', {
+        visit: {
+            id: 92,
+            number: 'KNJ-WF-92',
+            status: 'screening',
+            examinationStarted: false,
+            editable: true,
+            submitted: false,
+            clinic: 'Poli Umum',
+            clinicType: 'umum',
+            doctor: 'dr. Umum',
+            patient: { name: 'Pasien Nutrisi', medicalRecordNumber: 'RM-92', gender: 'L', age: 28, bloodType: 'O', allergyHistory: null },
+            screening: {},
+            triage: null,
+            priority: null,
+            printUrl: null,
+            startedAt: '27/11/2026 09:00',
+        },
+        staff: [],
+        canSelectStaff: false,
+        currentStaff: 'Ns. Rina',
+        workflowSettings: { ...doctorWorkflow, umum_anthropometry_mode: 'ringkas', umum_nutrition_needs: 'perawat' },
+    });
+    const idxAnthro = nurseWithNutritionHtml.indexOf('Berat, tinggi, dan lingkar perut');
+    const idxNutrition = nurseWithNutritionHtml.indexOf('Nutrisi dan kebutuhan pasien');
+    const idxTriage = nurseWithNutritionHtml.indexOf('Kondisi awal dan triase');
+    const idxCatatanPengkajian = nurseWithNutritionHtml.indexOf('Catatan pengkajian');
+    assert.ok(idxAnthro > -1 && idxNutrition > idxAnthro && idxTriage > idxNutrition && idxCatatanPengkajian > idxTriage,
+        'Expected order: Anthropometry -> Nutrisi dan kebutuhan pasien -> Kondisi awal dan triase -> Catatan pengkajian');
+
+    const docProps = examinationProps('umum');
+    docProps.initialTab = 'anamnesis';
+    docProps.workflowSettings = doctorWorkflow;
+    const doctorHtml = await renderPage('pelayanan/pemeriksaan/show', docProps);
+    assert.match(doctorHtml, /Rincian keluhan &amp; skala nyeri/);
+    assert.match(doctorHtml, /Pengkajian sistem tubuh \(ROS\)/);
+    assert.match(doctorHtml, /Diisi dokter/);
+    assert.doesNotMatch(doctorHtml, /SOAP langsung/);
+    assert.doesNotMatch(doctorHtml, /Pengukuran ulang tanda vital \(opsional\)/);
 });

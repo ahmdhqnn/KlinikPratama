@@ -319,7 +319,7 @@ input[data-password-toggle]::-ms-reveal {
 @media screen {
     :where(.clinic-app, .bg-surface) .border-neutral-100:is(.border-t, .border-b, .border-l, .border-r, .border-x, .border-y),
     :where(.clinic-app, .bg-surface) .divide-neutral-100 > :not(:last-child) {
-        border-color: var(--clinic-neutral-300);
+        border-color: var(--clinic-neutral-200);
     }
 }
 

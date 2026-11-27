@@ -43,7 +43,7 @@ export default function InformationRelease({ visit, canAuthorize, profileUrl, ne
 
     return <>
         <Head title="Pelepasan informasi medis" />
-        <div className="mx-auto max-w-5xl space-y-6">
+        <div className="space-y-6">
             <PageHeaderWithActions
                 backHref={profileUrl}
                 backLabel="Profil pasien"

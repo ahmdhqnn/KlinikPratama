@@ -56,12 +56,13 @@ class Screening extends Model
         'pemicu_nyeri_gigi', 'durasi_keluhan_gigi', 'risiko_medis_gigi',
         'riwayat_infeksi_gigi', 'catatan_medis_gigi',
         'keluhan_tambahan', 'lama_keluhan', 'riwayat_obat', 'status_alergi',
-        'status_riwayat_penyakit', 'sumber_informasi', 'alasan_pengukuran_tidak_lengkap',
+        'status_riwayat_penyakit', 'konfirmasi_riwayat', 'sumber_informasi', 'alasan_pengukuran_tidak_lengkap',
         'triase_perawat', 'catatan_triase', 'started_at', 'submitted_at', 'satusehat_observation_ids',
     ];
 
     protected $casts = [
         'satusehat_observation_ids' => 'array',
+        'konfirmasi_riwayat' => 'boolean',
         'vitals_unmeasurable' => 'boolean', 'general_assessment' => 'array', 'vitals_measured_at' => 'datetime', 'triaged_at' => 'datetime',
         'mukosa_mulut' => 'array', 'kebiasaan_gigi_opsi' => 'array',
         'dental_vitals_unmeasurable' => 'boolean',

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pelayanan;
 use App\ClinicalAnswer;
 use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
+use App\ClinicalWorkflowSettings;
 use App\ClinicDocumentNumber;
 use App\ClinicDocumentProfile;
 use App\CorrespondenceService;
@@ -914,6 +915,7 @@ class PasienController extends Controller
                         'generalClinicalSummary' => $this->recordedGeneralClinicalSummary($effectiveNote ?? [
                             'supporting_exams' => $visit->pemeriksaan->supporting_exams,
                             'review_of_systems' => $visit->pemeriksaan->review_of_systems,
+                            'clinical_assessment' => $visit->pemeriksaan->clinical_assessment,
                             'riwayat_sosial' => $visit->pemeriksaan->riwayat_sosial,
                             'kondisi_akhir' => $visit->pemeriksaan->kondisi_akhir,
                             'disposisi' => $visit->pemeriksaan->disposisi,
@@ -1021,6 +1023,7 @@ class PasienController extends Controller
         $supportingLabels = ['laboratory' => 'Laboratorium', 'rapid' => 'Pemeriksaan cepat', 'radiology' => 'Radiologi', 'results' => 'Hasil'];
 
         return array_filter([
+            ...ClinicalWorkflowSettings::summarizeDoctorAssessment($note['clinical_assessment'] ?? null),
             ...collect($note['supporting_exams'] ?? [])->mapWithKeys(fn ($value, $key): array => ['Penunjang - '.($supportingLabels[$key] ?? $key) => $value])->all(),
             ...GeneralAssessment::systemSummary($systems, $labels),
             'Riwayat sosial' => $note['riwayat_sosial'] ?? null,

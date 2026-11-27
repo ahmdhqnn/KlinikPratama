@@ -1,6 +1,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Download } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Attachment } from '@/components/ui/attachment';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
@@ -96,7 +97,7 @@ export default function GeneralConsent({ visit, summary, text, textVersion, canW
                         <Field label="Hubungan dengan pasien" htmlFor="consent-relationship" error={form.errors.signer_relationship} required><Select id="consent-relationship" value={form.data.signer_relationship} onChange={(event) => { form.setData('signer_relationship', event.target.value); form.setData('representative_verification', ''); }}><option value="patient">Pasien sendiri</option><option value="parent">Orang tua</option><option value="spouse">Suami / istri</option><option value="guardian">Wali / pengampu</option><option value="other">Wakil lain yang sah</option></Select></Field>
                         {form.data.signer_relationship !== 'patient' && <Field label="Dasar kewenangan dan verifikasi wakil" htmlFor="consent-representative" error={form.errors.representative_verification} required><Textarea id="consent-representative" required minLength={10} maxLength={1000} value={form.data.representative_verification} onChange={(event) => form.setData('representative_verification', event.target.value)} placeholder="Catat dokumen/dasar kewenangan yang diperiksa; hindari menyalin nomor identitas lengkap." /></Field>}
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-4">
                         <Field label="Metode dokumentasi bukti" htmlFor="consent-method" error={form.errors.in_person}>
                             <Select id="consent-method" value={form.data.in_person ? 'in_person' : 'upload'} onChange={(event) => {
                                 const inPerson = event.target.value === 'in_person';
@@ -107,9 +108,20 @@ export default function GeneralConsent({ visit, summary, text, textVersion, canW
                             </Select>
                         </Field>
                         {!form.data.in_person && (
-                            <Field label="Bukti tertulis (PDF, JPG, PNG · maks. 5 MB)" htmlFor="consent-evidence" error={form.errors.evidence} required>
-                                <Input accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" id="consent-evidence" onChange={(event) => form.setData('evidence', event.target.files?.[0] ?? null)} required type="file" />
-                            </Field>
+                            <Attachment
+                                accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                                disabled={form.processing}
+                                error={form.errors.evidence}
+                                fileName={form.data.evidence?.name}
+                                helperText="Format yang didukung: PDF, JPG, atau PNG dengan ukuran maksimal 5 MB."
+                                id="consent-evidence"
+                                label="Bukti tertulis"
+                                onFileChange={(file) => {
+                                    form.clearErrors('evidence');
+                                    form.setData('evidence', file);
+                                }}
+                                required
+                            />
                         )}
                     </div>
                     <Field label="Alasan / catatan keputusan" htmlFor="consent-reason" error={form.errors.reason} required={form.data.decision !== 'accepted'}><Textarea id="consent-reason" required={form.data.decision !== 'accepted'} minLength={10} maxLength={2000} value={form.data.reason} onChange={(event) => form.setData('reason', event.target.value)} /></Field>

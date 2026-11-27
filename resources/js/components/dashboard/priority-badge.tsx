@@ -10,19 +10,19 @@ const triageMap: Record<string, { label: string; subtext: string; pillClass: str
     merah: {
         label: 'Merah',
         subtext: 'perlu respons segera',
-        pillClass: 'border border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/60 dark:text-red-300',
+        pillClass: 'border border-red-200 bg-red-50 text-red-700',
         dotClass: 'bg-red-600 dark:bg-red-400',
     },
     kuning: {
         label: 'Kuning',
         subtext: 'perlu penilaian lanjut',
-        pillClass: 'border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
+        pillClass: 'border border-amber-200 bg-amber-50 text-amber-700',
         dotClass: 'bg-amber-500 dark:bg-amber-400',
     },
     hijau: {
         label: 'Hijau',
         subtext: 'prioritas rutin',
-        pillClass: 'border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+        pillClass: 'border border-emerald-200 bg-emerald-50 text-emerald-700',
         dotClass: 'bg-emerald-600 dark:bg-emerald-400',
     },
 };

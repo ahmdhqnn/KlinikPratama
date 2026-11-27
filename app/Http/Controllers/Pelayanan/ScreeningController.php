@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Pelayanan;
 
 use App\ClinicalAuditRecorder;
 use App\ClinicalSafetyService;
+use App\ClinicalWorkflowSettings;
 use App\ClinicDocumentProfile;
 use App\CorrespondenceService;
 use App\Exports\ScreeningExport;
@@ -442,7 +443,7 @@ class ScreeningController extends Controller
             'riwayat_penyakit_keluarga', 'skala_nyeri', 'lokasi_nyeri_gigi', 'pemicu_nyeri_gigi',
             'durasi_keluhan_gigi', 'risiko_medis_gigi', 'riwayat_infeksi_gigi', 'catatan_medis_gigi',
             'riwayat_perawatan_gigi', 'kebiasaan_gigi', 'keluhan_tambahan', 'lama_keluhan', 'riwayat_obat', 'status_alergi',
-            'status_riwayat_penyakit', 'sumber_informasi', 'alasan_pengukuran_tidak_lengkap',
+            'status_riwayat_penyakit', 'konfirmasi_riwayat', 'sumber_informasi', 'alasan_pengukuran_tidak_lengkap',
             'triase_perawat', 'catatan_triase', 'pemeriksaan_fisik',
         ];
         $screeningValues = array_combine(
@@ -517,6 +518,7 @@ class ScreeningController extends Controller
             ])->values(),
             'canSelectStaff' => ! $isNurse,
             'currentStaff' => $nurse?->nama ?? $kunjungan->screening?->petugas?->nama,
+            'workflowSettings' => ClinicalWorkflowSettings::current(),
         ]);
     }
 
@@ -542,7 +544,8 @@ class ScreeningController extends Controller
         unset($data['request_id']);
         unset($data['screening_revision'], $data['revision_reason']);
         unset($data['general_consent_emergency_reason']);
-        unset($data['tindakan'], $data['konfirmasi_riwayat'], $data['assistance_reason']);
+        unset($data['tindakan'], $data['assistance_reason']);
+        $data['konfirmasi_riwayat'] = $isDraft ? (bool) ($data['konfirmasi_riwayat'] ?? false) : true;
         foreach (Screening::SAFETY_FIELDS as $field) {
             $data[$field] = filled($data[$field] ?? null) ? trim($data[$field]) : null;
         }
@@ -634,6 +637,12 @@ class ScreeningController extends Controller
             // Keep historical entries from the previous form on revision.
             if ($isDental && isset($lockedVisit->screening->general_assessment['systems']) && array_key_exists('general_assessment', $data)) {
                 $data['general_assessment']['systems'] = $lockedVisit->screening->general_assessment['systems'];
+            }
+            if (! $isDental && $lockedVisit->screening && array_key_exists('general_assessment', $data)) {
+                $workflow = ClinicalWorkflowSettings::current();
+                if ($workflow['umum_system_review'] === 'dokter' && isset($lockedVisit->screening->general_assessment['systems']) && empty($data['general_assessment']['systems'])) {
+                    $data['general_assessment']['systems'] = $lockedVisit->screening->general_assessment['systems'];
+                }
             }
             $data['started_at'] = $lockedVisit->screening?->started_at ?? now();
             $data['submitted_at'] = $isDraft ? null : ($lockedVisit->screening?->submitted_at ?? now());

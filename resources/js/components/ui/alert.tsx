@@ -6,11 +6,11 @@ import { cn } from '@/lib/utils';
 const alertVariants = cva('relative w-full rounded-xl border px-4 py-3.5 text-sm [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:size-4 [&>svg~*]:pl-7', {
     variants: {
         variant: {
-            default: 'border-neutral-200 bg-neutral-50 text-neutral-900 [&>svg]:text-neutral-600 [&_[data-alert-content]>svg]:text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-100 dark:[&>svg]:text-neutral-400 dark:[&_[data-alert-content]>svg]:text-neutral-400',
-            info: 'border-blue-200 bg-blue-50 text-blue-950 [&>svg]:text-blue-700 [&_[data-alert-content]>svg]:text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300 dark:[&>svg]:text-blue-400 dark:[&_[data-alert-content]>svg]:text-blue-400',
-            destructive: 'border-red-200 bg-red-50 text-red-950 [&>svg]:text-red-700 [&_[data-alert-content]>svg]:text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300 dark:[&>svg]:text-red-400 dark:[&_[data-alert-content]>svg]:text-red-400',
-            warning: 'border-amber-200 bg-amber-50 text-amber-950 [&>svg]:text-amber-700 [&_[data-alert-content]>svg]:text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300 dark:[&>svg]:text-amber-400 dark:[&_[data-alert-content]>svg]:text-amber-400',
-            success: 'border-emerald-200 bg-emerald-50 text-emerald-950 [&>svg]:text-emerald-700 [&_[data-alert-content]>svg]:text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300 dark:[&>svg]:text-emerald-400 dark:[&_[data-alert-content]>svg]:text-emerald-400',
+            default: 'border-neutral-200 bg-neutral-50 text-neutral-900 [&>svg]:text-neutral-600 [&_[data-alert-content]>svg]:text-neutral-600',
+            info: 'border-blue-200 bg-blue-50 text-blue-950 [&>svg]:text-blue-700 [&_[data-alert-content]>svg]:text-blue-700 dark:[&>svg]:text-blue-400 dark:[&_[data-alert-content]>svg]:text-blue-400',
+            destructive: 'border-red-200 bg-red-50 text-red-950 [&>svg]:text-red-700 [&_[data-alert-content]>svg]:text-red-700 dark:[&>svg]:text-red-400 dark:[&_[data-alert-content]>svg]:text-red-400',
+            warning: 'border-amber-200 bg-amber-50 text-amber-950 [&>svg]:text-amber-700 [&_[data-alert-content]>svg]:text-amber-700 dark:[&>svg]:text-amber-400 dark:[&_[data-alert-content]>svg]:text-amber-400',
+            success: 'border-emerald-200 bg-emerald-50 text-emerald-950 [&>svg]:text-emerald-700 [&_[data-alert-content]>svg]:text-emerald-700 dark:[&>svg]:text-emerald-400 dark:[&_[data-alert-content]>svg]:text-emerald-400',
         },
     },
     defaultVariants: { variant: 'default' },

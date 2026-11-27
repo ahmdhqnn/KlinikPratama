@@ -6,7 +6,9 @@ use App\ClinicalAuditRecorder;
 use App\ClinicalNoteRecorder;
 use App\DateRangeFilter;
 use App\Exports\NursingProcedureExport;
+use App\GeneralConsentService;
 use App\Http\Controllers\Controller;
+use App\Models\InformedConsent;
 use App\Models\Kunjungan;
 use App\Models\TindakanKunjungan;
 use App\NursingProcedureReportQuery;
@@ -18,6 +20,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -145,14 +150,19 @@ class TindakanPerawatController extends Controller
         ]);
     }
 
-    public function show(Request $request, Kunjungan $kunjungan, PerawatClinicResolver $clinics, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit, ProcedureConsentService $consent): Response
+    public function show(Request $request, Kunjungan $kunjungan, PerawatClinicResolver $clinics, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit, ProcedureConsentService $consent, GeneralConsentService $generalConsent): Response
     {
         $this->authorizeVisit($request, $kunjungan, $clinics);
-        $kunjungan->load(['pasien', 'poliklinik', 'dokter', 'pemeriksaan', 'tindakanKunjungan.performedBy', 'tindakanKunjungan.tindakan', 'tindakanKunjungan.informedConsents']);
+        $kunjungan->load([
+            'pasien', 'poliklinik', 'dokter', 'screening', 'pemeriksaan.signedBy',
+            'tindakanKunjungan.performedBy', 'tindakanKunjungan.tindakan', 'tindakanKunjungan.informedConsents.recordedBy',
+        ]);
         abort_unless($kunjungan->tindakanKunjungan->contains('execution_role', 'perawat'), 404);
         abort_unless($kunjungan->pemeriksaan?->signed_at && $notes->verify($kunjungan->pemeriksaan), 422, 'Catatan dokter belum ditandatangani atau integritasnya tidak valid.');
         $payload = $kunjungan->pemeriksaan->clinicalNoteVersions()->latest('version')->firstOrFail()->payload;
         $audit->record($request, 'nursing_procedure.view', $kunjungan->pasien_id, $kunjungan->id);
+        $isNurse = $request->user()->role === 'perawat';
+        $isEmergencyVisit = $kunjungan->screening?->prioritas_layanan === 'darurat';
 
         return Inertia::render('pelayanan/tindakan/show', [
             'visit' => [
@@ -167,15 +177,28 @@ class TindakanPerawatController extends Controller
                 'hasMedication' => $kunjungan->resep?->resepObat()->where('is_resep_luar', false)->exists() ?? false,
                 'recordUrl' => route('pelayanan.pasien.rekam-medis', $kunjungan->pasien_id),
                 'adminAssistance' => $request->user()->isAdmin(),
-                'treatments' => $kunjungan->tindakanKunjungan->where('execution_role', 'perawat')->map(fn (TindakanKunjungan $item): array => [
-                    'id' => $item->id, 'name' => $item->nama_tindakan ?? $item->nama_tindakan_manual ?? $item->tindakan?->nama,
-                    'code' => $item->kode_icd9cm, 'quantity' => $item->jumlah, 'toothFdi' => $item->tooth_fdi,
-                    'instructions' => $item->catatan, 'status' => $item->execution_status,
-                    'result' => $item->execution_result, 'performedBy' => $item->performedBy?->name,
-                    'performedAt' => $item->performed_at?->format('d/m/Y H:i'),
-                    'consent' => $consent->summary($item),
-                    'completeUrl' => route('pelayanan.tindakan.complete', [$kunjungan, $item]),
-                ])->values(),
+                'isEmergencyVisit' => $isEmergencyVisit,
+                'delegation' => [
+                    'doctor' => $kunjungan->dokter?->nama ?? $kunjungan->pemeriksaan->signedBy?->name ?? 'Dokter penanggung jawab',
+                    'signedAt' => $kunjungan->pemeriksaan->signed_at?->format('d/m/Y H:i'),
+                    'verified' => true,
+                ],
+                'generalConsent' => $generalConsent->summary($kunjungan),
+                'treatments' => $kunjungan->tindakanKunjungan->where('execution_role', 'perawat')->map(function (TindakanKunjungan $item) use ($kunjungan, $consent, $isNurse): array {
+                    $item->setRelation('kunjungan', $kunjungan);
+
+                    return [
+                        'id' => $item->id, 'name' => $item->nama_tindakan ?? $item->nama_tindakan_manual ?? $item->tindakan?->nama,
+                        'code' => $item->kode_icd9cm, 'quantity' => $item->jumlah, 'toothFdi' => $item->tooth_fdi,
+                        'instructions' => $item->catatan, 'status' => $item->execution_status,
+                        'result' => $item->execution_result, 'performedBy' => $item->performedBy?->name,
+                        'performedAt' => $item->performed_at?->format('d/m/Y H:i'),
+                        'consent' => $consent->summary($item),
+                        'completeUrl' => route('pelayanan.tindakan.complete', [$kunjungan, $item]),
+                        'refuseUrl' => $isNurse ? route('pelayanan.tindakan.refuse', [$kunjungan, $item]) : null,
+                        'emergencyUrl' => $isNurse ? route('pelayanan.tindakan.emergency', [$kunjungan, $item]) : null,
+                    ];
+                })->values(),
             ],
         ]);
     }
@@ -192,9 +215,26 @@ class TindakanPerawatController extends Controller
             abort_unless($visit->status === 'tindakan', 422, 'Kunjungan tidak berada pada tahap tindakan perawat.');
             $examination = $visit->pemeriksaan()->first();
             abort_unless($examination?->signed_at && $notes->verify($examination), 422, 'Catatan dokter belum ditandatangani atau integritasnya tidak valid.');
-            abort_unless($visit->tindakanKunjungan()->where('execution_role', 'perawat')->where('execution_status', 'pending')->exists(), 422, 'Tidak ada tindakan perawat yang menunggu pelaksanaan.');
-            foreach ($visit->tindakanKunjungan()->where('execution_role', 'perawat')->where('execution_status', 'pending')->orderBy('id')->lockForUpdate()->get() as $procedure) {
-                $consent->ensureCanPerform($procedure);
+            $pendingProcedures = $visit->tindakanKunjungan()->with(['tindakan', 'informedConsents'])->where('execution_role', 'perawat')->where('execution_status', 'pending')->orderBy('id')->lockForUpdate()->get();
+            abort_unless($pendingProcedures->isNotEmpty(), 422, 'Tidak ada tindakan perawat yang menunggu pelaksanaan.');
+
+            $performableCount = 0;
+            $firstBlockedException = null;
+            foreach ($pendingProcedures as $procedure) {
+                $procedure->setRelation('kunjungan', $visit);
+                try {
+                    $consent->ensureCanPerform($procedure);
+                    $performableCount++;
+                } catch (ValidationException $exception) {
+                    $latestDecision = $consent->latest($procedure)?->decision;
+                    if (! in_array($latestDecision, ['refused', 'withdrawn'], true)) {
+                        throw $exception;
+                    }
+                    $firstBlockedException ??= $exception;
+                }
+            }
+            if ($performableCount === 0 && $firstBlockedException !== null) {
+                throw $firstBlockedException;
             }
 
             if ($visit->tindakan_started_at === null) {
@@ -210,6 +250,169 @@ class TindakanPerawatController extends Controller
         });
 
         return redirect()->route('pelayanan.tindakan.show', $kunjungan)->with('success', 'Tindakan perawat dimulai.');
+    }
+
+    public function recordRefusal(Request $request, Kunjungan $kunjungan, TindakanKunjungan $tindakanKunjungan, PerawatClinicResolver $clinics, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit, ProcedureConsentService $consent): RedirectResponse
+    {
+        abort_unless($request->user()->role === 'perawat', 403);
+        $this->authorizeVisit($request, $kunjungan, $clinics);
+        abort_unless($tindakanKunjungan->kunjungan_id === $kunjungan->id, 404);
+
+        foreach (['signer_name', 'representative_verification', 'reason'] as $field) {
+            if (is_string($request->input($field))) {
+                $request->merge([$field => trim($request->input($field))]);
+            }
+        }
+
+        $data = $request->validate([
+            'decision' => ['required', Rule::in(['refused', 'withdrawn'])],
+            'signer_name' => ['required', 'string', 'min:2', 'max:150'],
+            'signer_relationship' => ['required', Rule::in(array_keys(ProcedureConsentService::RELATIONSHIP_LABELS))],
+            'representative_verification' => [Rule::requiredIf($request->input('signer_relationship') !== 'patient'), 'nullable', 'string', 'min:10', 'max:1000'],
+            'reason' => ['required', 'string', 'min:20', 'max:2000'],
+            'confirmed' => ['required', 'accepted'],
+        ], [
+            'reason.min' => 'Catat kronologi penolakan atau pencabutan persetujuan minimal 20 karakter.',
+            'confirmed.accepted' => 'Konfirmasi bahwa penolakan/pencabutan disampaikan pasien atau wakil dan dikoordinasikan kepada dokter.',
+        ]);
+
+        DB::transaction(function () use ($request, $kunjungan, $tindakanKunjungan, $clinics, $notes, $audit, $consent, $data): void {
+            $visit = Kunjungan::with(['dokter', 'poliklinik', 'pasien'])->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeVisit($request, $visit, $clinics);
+            abort_unless($visit->status === 'tindakan', 422, 'Kunjungan tidak berada pada tahap tindakan perawat.');
+            $examination = $visit->pemeriksaan()->lockForUpdate()->first();
+            abort_unless($examination?->signed_at && $notes->verify($examination), 422, 'Catatan dokter belum ditandatangani atau integritasnya tidak valid.');
+            $procedure = $visit->tindakanKunjungan()->with(['tindakan', 'informedConsents'])->whereKey($tindakanKunjungan->id)->lockForUpdate()->firstOrFail();
+            $procedure->setRelation('kunjungan', $visit);
+            abort_unless($procedure->execution_role === 'perawat', 422, 'Tindakan ini tidak ditugaskan kepada perawat.');
+            abort_if($procedure->execution_status === 'completed' || $procedure->performed_at !== null, 409, 'Tindakan sudah dilaksanakan.');
+            if ($consent->hasPendingSignature($procedure)) {
+                throw ValidationException::withMessages(['procedure_consent' => 'Selesaikan atau batalkan sesi QR yang masih terbuka sebelum mencatat penolakan.']);
+            }
+
+            $latest = $consent->latest($procedure);
+            if ($data['decision'] === 'withdrawn' && ! in_array($latest?->decision, ['accepted', 'oral'], true)) {
+                throw ValidationException::withMessages(['decision' => 'Tidak ada persetujuan aktif yang dapat dicabut; gunakan status penolakan tindakan.']);
+            }
+
+            $requestId = (string) Str::uuid();
+            $planHash = $consent->planHash($procedure);
+            $record = InformedConsent::create([
+                'kunjungan_id' => $visit->id,
+                'tindakan_id' => $procedure->tindakan_id,
+                'tindakan_kunjungan_id' => $procedure->id,
+                'supersedes_id' => $latest?->id,
+                'request_id' => $requestId,
+                'request_hash' => hash('sha256', json_encode([...$data, 'procedure_id' => $procedure->id, 'plan_hash' => $planHash], JSON_THROW_ON_ERROR)),
+                'jenis' => $data['decision'],
+                'decision' => $data['decision'],
+                'text_version' => ProcedureConsentService::VERSION,
+                'procedure_snapshot' => [
+                    ...$consent->plan($procedure),
+                    'recorded_by_role' => 'perawat',
+                    'recorded_at_stage' => 'tindakan_perawat',
+                    'doctor_delegator' => $visit->dokter?->nama,
+                ],
+                'plan_hash' => $planHash,
+                'nama_penandatangan' => $data['signer_name'],
+                'hubungan_pasien' => $data['signer_relationship'],
+                'representative_verification' => $data['signer_relationship'] === 'patient' ? null : ($data['representative_verification'] ?? null),
+                'witness_name' => $request->user()->name,
+                'reason' => $data['reason'],
+                'recorded_by' => $request->user()->id,
+                'recorded_at' => now(),
+                'tanggal' => today(),
+            ]);
+
+            $audit->record($request, $data['decision'] === 'withdrawn' ? 'nursing_procedure.consent_withdrawn' : 'nursing_procedure.consent_refused', $visit->pasien_id, $visit->id, [
+                'procedure_id' => $procedure->id,
+                'consent_id' => $record->id,
+                'old_values' => ['decision' => $latest?->decision],
+                'new_values' => ['decision' => $record->decision],
+            ]);
+        });
+
+        return redirect()->route('pelayanan.tindakan.show', $kunjungan)
+            ->with('warning', 'Penolakan / pencabutan persetujuan tercatat. Pelaksanaan tindakan dikunci dan wajib dikoordinasikan kepada dokter penanggung jawab.');
+    }
+
+    public function recordEmergency(Request $request, Kunjungan $kunjungan, TindakanKunjungan $tindakanKunjungan, PerawatClinicResolver $clinics, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit, ProcedureConsentService $consent): RedirectResponse
+    {
+        abort_unless($request->user()->role === 'perawat', 403);
+        $this->authorizeVisit($request, $kunjungan, $clinics);
+        abort_unless($tindakanKunjungan->kunjungan_id === $kunjungan->id, 404);
+
+        if (is_string($request->input('reason'))) {
+            $request->merge(['reason' => trim($request->input('reason'))]);
+        }
+
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'min:20', 'max:2000'],
+            'emergency_without_available_signer' => ['required', 'accepted'],
+        ], [
+            'reason.min' => 'Catat dasar gawat darurat dan rencana kelengkapan penjelasan menyusul minimal 20 karakter.',
+            'emergency_without_available_signer.accepted' => 'Konfirmasi kondisi gawat darurat dan ketiadaan pihak penanda tangan sebelum melanjutkan.',
+        ]);
+
+        DB::transaction(function () use ($request, $kunjungan, $tindakanKunjungan, $clinics, $notes, $audit, $consent, $data): void {
+            $visit = Kunjungan::with(['screening', 'dokter', 'poliklinik', 'pasien'])->whereKey($kunjungan->id)->lockForUpdate()->firstOrFail();
+            $this->authorizeVisit($request, $visit, $clinics);
+            abort_unless($visit->status === 'tindakan', 422, 'Kunjungan tidak berada pada tahap tindakan perawat.');
+            if ($visit->screening?->prioritas_layanan !== 'darurat') {
+                throw ValidationException::withMessages(['procedure_consent' => 'Mode Darurat / Penjelasan Menyusul hanya tersedia untuk kunjungan dengan triase darurat terdokumentasi.']);
+            }
+            $examination = $visit->pemeriksaan()->lockForUpdate()->first();
+            abort_unless($examination?->signed_at && $notes->verify($examination), 422, 'Catatan dokter belum ditandatangani atau integritasnya tidak valid.');
+            $procedure = $visit->tindakanKunjungan()->with(['tindakan', 'informedConsents'])->whereKey($tindakanKunjungan->id)->lockForUpdate()->firstOrFail();
+            $procedure->setRelation('kunjungan', $visit);
+            abort_unless($procedure->execution_role === 'perawat', 422, 'Tindakan ini tidak ditugaskan kepada perawat.');
+            abort_if($procedure->execution_status === 'completed' || $procedure->performed_at !== null, 409, 'Tindakan sudah dilaksanakan.');
+            if ($consent->hasPendingSignature($procedure)) {
+                throw ValidationException::withMessages(['procedure_consent' => 'Selesaikan atau batalkan sesi QR yang masih terbuka sebelum mengaktifkan mode darurat.']);
+            }
+
+            $latest = $consent->latest($procedure);
+            if (in_array($latest?->decision, ['refused', 'withdrawn'], true)) {
+                throw ValidationException::withMessages(['procedure_consent' => 'Penolakan atau pencabutan persetujuan yang tercatat tidak dapat dilewati dengan mode darurat.']);
+            }
+
+            $requestId = (string) Str::uuid();
+            $planHash = $consent->planHash($procedure);
+            $record = InformedConsent::create([
+                'kunjungan_id' => $visit->id,
+                'tindakan_id' => $procedure->tindakan_id,
+                'tindakan_kunjungan_id' => $procedure->id,
+                'supersedes_id' => $latest?->id,
+                'request_id' => $requestId,
+                'request_hash' => hash('sha256', json_encode([...$data, 'procedure_id' => $procedure->id, 'plan_hash' => $planHash], JSON_THROW_ON_ERROR)),
+                'jenis' => 'emergency',
+                'decision' => 'emergency',
+                'text_version' => ProcedureConsentService::VERSION,
+                'procedure_snapshot' => [
+                    ...$consent->plan($procedure),
+                    'emergency_without_available_signer' => true,
+                    'followup_documentation_required' => true,
+                    'recorded_by_role' => 'perawat',
+                    'recorded_at_stage' => 'tindakan_perawat',
+                    'doctor_delegator' => $visit->dokter?->nama,
+                ],
+                'plan_hash' => $planHash,
+                'reason' => $data['reason'],
+                'recorded_by' => $request->user()->id,
+                'recorded_at' => now(),
+                'tanggal' => today(),
+            ]);
+
+            $audit->record($request, 'nursing_procedure.emergency_override', $visit->pasien_id, $visit->id, [
+                'procedure_id' => $procedure->id,
+                'consent_id' => $record->id,
+                'old_values' => ['decision' => $latest?->decision],
+                'new_values' => ['decision' => 'emergency', 'followup_documentation_required' => true],
+            ]);
+        });
+
+        return redirect()->route('pelayanan.tindakan.show', $kunjungan)
+            ->with('warning', 'Mode Darurat / Penjelasan Menyusul aktif. Laksanakan tindakan penyelamatan sesuai SPO dan lengkapi penjelasan serta dokumentasi lanjutan setelah kondisi stabil.');
     }
 
     public function complete(Request $request, Kunjungan $kunjungan, TindakanKunjungan $tindakanKunjungan, PerawatClinicResolver $clinics, VisitCareWorkflow $workflow, ClinicalNoteRecorder $notes, ClinicalAuditRecorder $audit, ProcedureConsentService $consent): RedirectResponse

@@ -103,15 +103,38 @@ class GeneralConsentService
         return false;
     }
 
-    public function summary(Kunjungan $visit): array
+    public function hasActiveConsent(Kunjungan $visit): bool
     {
         $latest = $this->latest($visit);
 
+        return $latest !== null
+            && $latest->decision === 'accepted'
+            && $latest->text_version === self::VERSION
+            && $this->evidenceIsIntact($latest);
+    }
+
+    public function isExplicitlyRefused(Kunjungan $visit): bool
+    {
+        $latest = $this->latest($visit);
+
+        return $latest !== null
+            && in_array($latest->decision, ['refused', 'revoked'], true)
+            && $this->evidenceIsIntact($latest);
+    }
+
+    public function summary(Kunjungan $visit): array
+    {
+        $latest = $this->latest($visit);
+        $intact = $latest !== null && $this->evidenceIsIntact($latest);
+
         return [
-            'status' => $latest && ! $this->evidenceIsIntact($latest) ? 'invalid' : ($latest?->decision ?? 'undocumented'),
+            'status' => $latest && ! $intact ? 'invalid' : ($latest?->decision ?? 'undocumented'),
+            'active' => $intact && $latest->decision === 'accepted' && $latest->text_version === self::VERSION,
             'satusehatSharing' => $latest?->satusehat_sharing_decision ?? 'undocumented',
             'currentId' => $latest?->id,
             'recordedAt' => $latest?->recorded_at->format('d/m/Y H:i'),
+            'signerName' => $latest?->signer_name,
+            'signerRelationship' => $latest?->signer_relationship,
             'versionCurrent' => $latest?->text_version === self::VERSION,
             'required' => (bool) $visit->general_consent_required,
             'url' => route('general-consent.show', $visit),

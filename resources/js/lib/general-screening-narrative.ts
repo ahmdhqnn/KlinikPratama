@@ -56,10 +56,13 @@ export function systemsNarrative(systems: SystemAnswers = {}): string {
     return findings.join(' ');
 }
 
-export function additionalNarrative(data: { status_alergi: string; riwayat_alergi: string; alergi_reaksi: string; status_riwayat_obat: string; riwayat_obat: string; general_assessment: GeneralNursingData }): string {
+export function additionalNarrative(
+    data: { status_alergi: string; riwayat_alergi: string; alergi_reaksi: string; status_riwayat_obat: string; riwayat_obat: string; general_assessment: GeneralNursingData },
+    includeSystems = true,
+): string {
     const allergy = data.status_alergi === 'ada' ? clean(data.riwayat_alergi).slice(0, 250) : '';
     const medicine = data.status_riwayat_obat === 'ada' ? clean(data.riwayat_obat).slice(0, 250) : '';
-    const summary = systemsNarrative(data.general_assessment.systems);
+    const summary = includeSystems ? systemsNarrative(data.general_assessment.systems) : '';
     return [
         allergy ? `Perhatian khusus: pasien melaporkan alergi ${allergy}${clean(data.alergi_reaksi) ? `, reaksi ${clean(data.alergi_reaksi).slice(0, 120)}` : ''}.` : '',
         medicine ? `Riwayat penggunaan obat: ${medicine}.` : '',

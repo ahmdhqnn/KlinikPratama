@@ -10,6 +10,7 @@ import { Download, FileSpreadsheet, Plus, ShieldCheck, UserCheck, UserMinus, Use
 import { useState, type FormEvent } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
+import { Attachment } from '@/components/ui/attachment';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
@@ -94,9 +95,22 @@ export default function MembershipDirectory({ stats, members, search, filterCate
         {errors?.delete && <p role="alert" className="text-sm text-red-700">{errors.delete}</p>}
         {canManage && <Dialog open={importOpen} onOpenChange={setImportOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>Impor data kepesertaan</DialogTitle><DialogDescription>Gunakan template Excel peserta internal. NIP dan NIK harus bertipe teks. Semua baris diperiksa; impor dibatalkan jika ada kesalahan.</DialogDescription></DialogHeader>
             <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); upload.post(urls.import, { forceFormData: true, preserveScroll: true, onSuccess: () => { upload.reset(); setImportOpen(false); } }); }}>
-                <Field label="Berkas Excel (.xlsx)" htmlFor="membership-file" required error={upload.errors.file}><Input id="membership-file" type="file" accept=".xlsx" required onChange={(event) => upload.setData('file', event.target.files?.[0] ?? null)} /></Field>
+                <Attachment
+                    accept=".xlsx"
+                    disabled={upload.processing}
+                    error={upload.errors.file}
+                    fileName={upload.data.file?.name}
+                    helperText="Gunakan template Excel (.xlsx) resmi dengan format NIP dan NIK bertipe teks."
+                    id="membership-file"
+                    label="Berkas Excel (.xlsx)"
+                    onFileChange={(file) => {
+                        upload.clearErrors('file');
+                        upload.setData('file', file);
+                    }}
+                    required
+                />
                 <Field label="Referensi bukti / daftar instansi" htmlFor="import-reference" required error={upload.errors.referensi_bukti}><Input id="import-reference" placeholder={identityPlaceholders.referensi_bukti} required value={upload.data.referensi_bukti} onChange={(event) => upload.setData('referensi_bukti', event.target.value)} /></Field>
-                <div className="flex flex-wrap items-center justify-between gap-3"><Button asChild variant="secondary"><a href={urls.template}><Download className="size-4" />Template & contoh</a></Button><div className="flex justify-end gap-2"><Button onClick={() => setImportOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={upload.processing || !upload.data.file} type="submit">{upload.processing ? 'Memeriksa…' : 'Impor & verifikasi'}</Button></div></div>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-3"><Button asChild variant="secondary"><a href={urls.template}><Download className="size-4" />Template & contoh</a></Button><div className="ml-auto flex justify-end gap-2"><Button onClick={() => setImportOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={upload.processing || !upload.data.file} type="submit">{upload.processing ? 'Memeriksa…' : 'Impor & verifikasi'}</Button></div></div>
             </form><p className="mt-3 text-xs text-neutral-500">Contoh bersifat sintetis; ganti dengan daftar resmi pegawai internal. Gunakan tanggal lahir YYYY-MM-DD, kategori asn/lainnya, serta kolom jenis_lainnya berisi magang, staf, atau nama jenis internal sesuai bukti. Jangan isi kolom itu dengan kata “lainnya” saja. Hak layanan diisi 1/0.</p>
         </DialogContent></Dialog>}
         <FilterPanel actions={canManage && <>

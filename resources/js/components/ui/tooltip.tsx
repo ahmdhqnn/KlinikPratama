@@ -11,7 +11,7 @@ export function TooltipContent({ className, sideOffset = 6, ...props }: Componen
         <TooltipPrimitive.Portal>
             <TooltipPrimitive.Content
                 sideOffset={sideOffset}
-                className={cn('z-50 rounded-md bg-neutral-950 px-3 py-1.5 text-xs text-neutral-50', className)}
+                className={cn('z-50 rounded-md border border-neutral-200 bg-surface px-3 py-1.5 text-xs text-neutral-900 shadow-sm', className)}
                 {...props}
             />
         </TooltipPrimitive.Portal>

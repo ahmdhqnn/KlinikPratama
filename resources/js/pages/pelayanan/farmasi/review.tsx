@@ -19,7 +19,7 @@ export default function PharmacyReview({ visit, maternal = null, safetyFlags = [
         event.preventDefault();
         form.post(`/pelayanan/farmasi/${visit.id}/review`, { preserveScroll: true, onFinish: () => form.setData('signature_password', '') });
     }
-    return <><Head title="Telaah resep klinis" /><div className="mx-auto max-w-3xl space-y-6">
+    return <><Head title="Telaah resep klinis" /><div className="space-y-6">
         {correctionNotice && <Card><CardHeader><CardTitle>Koreksi dokter memerlukan telaah ulang farmasi</CardTitle><CardDescription>Catatan dokter versi {correctionNotice.version} belum ditinjau berdasarkan sumber terbaru. {correctionNotice.afterDispensing ? 'Obat sudah diserahkan; periksa dampak dan catat komunikasi serta tindak lanjut pasien.' : 'Periksa kembali resep dan kondisi pasien sebelum penyerahan.'}</CardDescription></CardHeader></Card>}
         <PageHeaderWithActions
             backHref={`/pelayanan/farmasi/${visit.id}`}

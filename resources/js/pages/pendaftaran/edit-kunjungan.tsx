@@ -32,15 +32,17 @@ export default function EditRegistrationVisit({ visit, clinics, today, doctorsUr
     return (
         <>
             <Head title="Edit kunjungan" />
-            <div className="mx-auto max-w-4xl space-y-5">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                    <div>
+            <div className="space-y-6">
+                <header className="flex flex-wrap items-end justify-between gap-4">
+                    <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-neutral-700">Pendaftaran</p>
                         <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{visit.pendingReservation ? 'Konfirmasi reservasi kontrol' : 'Ubah data kunjungan'}</h2>
-                        <p className="mt-1 text-sm text-neutral-500">Pembaruan poli dan dokter akan diperiksa terhadap jadwal praktik.</p>
+                        <p className="mt-1 max-w-3xl text-sm text-neutral-500">Pembaruan poliklinik tujuan dan dokter terjadwal diperiksa terhadap jadwal praktik aktif.</p>
                     </div>
-                    <Button asChild variant="secondary"><Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}><ArrowLeft className="size-4" />Kembali</Link></Button>
-                </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button asChild size="sm" variant="secondary"><Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}><ArrowLeft className="size-4" />Kembali</Link></Button>
+                    </div>
+                </header>
                 <Card>
                     <CardHeader><CardTitle>Informasi pasien</CardTitle><CardDescription>Identitas pasien untuk kunjungan ini.</CardDescription></CardHeader>
                     <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

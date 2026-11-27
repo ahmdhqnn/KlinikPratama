@@ -7,6 +7,7 @@ export function Attachment({
     label,
     accept,
     fileName,
+    helperText,
     disabled = false,
     required = false,
     inputKey,
@@ -17,6 +18,7 @@ export function Attachment({
     label: string;
     accept?: string;
     fileName?: string;
+    helperText?: string;
     disabled?: boolean;
     required?: boolean;
     inputKey?: number;
@@ -25,7 +27,10 @@ export function Attachment({
 }) {
     return (
         <div className="min-w-0 space-y-2">
-            <Label className="block" htmlFor={id}>{label}</Label>
+            <Label className="block" htmlFor={id}>
+                {label}
+                {required && <span aria-hidden="true" className="ml-1 text-red-600">*</span>}
+            </Label>
             <div className={cn('relative flex min-h-20 min-w-0 items-center gap-3 rounded-xl border border-dashed bg-surface px-4 py-3 transition-colors focus-within:ring-2 focus-within:ring-neutral-400', error ? 'border-red-300 bg-red-50/40' : 'border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50/30', disabled && 'cursor-not-allowed opacity-60')}>
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-700">
                     {fileName ? <Paperclip aria-hidden="true" className="size-5" /> : <Upload aria-hidden="true" className="size-5" />}
@@ -47,7 +52,8 @@ export function Attachment({
                     type="file"
                 />
             </div>
-            {error && <p className="text-xs font-medium text-red-600" id={`${id}-error`}>{error}</p>}
+            {helperText && <p className="text-xs leading-5 text-neutral-500">{helperText}</p>}
+            {error && <p className="text-xs font-medium text-red-600" id={`${id}-error`} role="alert">{error}</p>}
         </div>
     );
 }

@@ -7,6 +7,7 @@ use App\GeneralConsentService;
 use App\HakLayananVerifier;
 use App\MedicalDocumentVerificationService;
 use App\MedicalLetterData;
+use App\Models\ClinicalTerminology;
 use App\Models\CorrespondenceTemplate;
 use App\Models\DepoObat;
 use App\Models\Diagnosa;
@@ -14,6 +15,7 @@ use App\Models\Farmasi;
 use App\Models\FarmasiItem;
 use App\Models\GeneralConsent;
 use App\Models\Icd10;
+use App\Models\InformedConsent;
 use App\Models\JadwalDokter;
 use App\Models\Kepesertaan;
 use App\Models\KlinikSetting;
@@ -26,6 +28,7 @@ use App\Models\PatientAllergy;
 use App\Models\Pemeriksaan;
 use App\Models\PharmacyStaffCredential;
 use App\Models\Poliklinik;
+use App\Models\ProcedureConsentTemplate;
 use App\Models\Resep;
 use App\Models\ResepObat;
 use App\Models\RuangPoli;
@@ -35,6 +38,7 @@ use App\Models\Tindakan;
 use App\Models\TindakanKunjungan;
 use App\Models\User;
 use App\PersediaanRecorder;
+use App\ProcedureConsentService;
 use Illuminate\Database\Seeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -406,20 +410,105 @@ class KemenparPreReleaseSeeder extends Seeder
         // 6. Master Tindakan & ICD-10 Dasar + Template Persuratan Resmi Kemenpar
         $tindakanNebul = Tindakan::query()->updateOrCreate(
             ['kode' => 'TDK-KP-01'],
-            ['kode_icd9' => '93.94', 'nama' => 'Terapi Inhalasi / Nebulisasi Bronkodilator', 'kategori' => 'medis', 'can_delegate_to_nurse' => true, 'poliklinik_id' => $poliUmum->id, 'is_active' => true]
+            ['kode_icd9' => '93.94', 'nama' => 'Terapi Inhalasi / Nebulisasi Bronkodilator', 'kategori' => 'medis', 'can_delegate_to_nurse' => true, 'consent_mode' => 'oral', 'poliklinik_id' => $poliUmum->id, 'is_active' => true]
         );
         Tindakan::query()->updateOrCreate(
             ['kode' => 'TDK-KP-02'],
-            ['kode_icd9' => '93.57', 'nama' => 'Perawatan Luka Steril (Wound Toilet)', 'kategori' => 'medis', 'can_delegate_to_nurse' => true, 'poliklinik_id' => $poliUmum->id, 'is_active' => true]
+            ['kode_icd9' => '93.57', 'nama' => 'Perawatan Luka Steril (Wound Toilet)', 'kategori' => 'medis', 'can_delegate_to_nurse' => true, 'consent_mode' => 'written', 'poliklinik_id' => $poliUmum->id, 'is_active' => true]
         );
         Tindakan::query()->updateOrCreate(
             ['kode' => 'TDK-KP-03'],
-            ['kode_icd9' => '96.54', 'nama' => 'Scaling Supra & Subgingiva', 'kategori' => 'medis', 'can_delegate_to_nurse' => true, 'poliklinik_id' => $poliGigi->id, 'is_active' => true]
+            ['kode_icd9' => '96.54', 'nama' => 'Scaling Supra & Subgingiva', 'kategori' => 'medis', 'can_delegate_to_nurse' => true, 'consent_mode' => 'oral', 'poliklinik_id' => $poliGigi->id, 'is_active' => true]
         );
         Tindakan::query()->updateOrCreate(
             ['kode' => 'TDK-KP-04'],
-            ['kode_icd9' => '23.2', 'nama' => 'Restorasi Komposit Sinar (Light-Cured)', 'kategori' => 'medis', 'can_delegate_to_nurse' => false, 'poliklinik_id' => $poliGigi->id, 'is_active' => true]
+            ['kode_icd9' => '23.2', 'nama' => 'Restorasi Komposit Sinar (Light-Cured)', 'kategori' => 'medis', 'can_delegate_to_nurse' => false, 'consent_mode' => 'written', 'poliklinik_id' => $poliGigi->id, 'is_active' => true]
         );
+
+        // 6b. SOP Persetujuan Tindakan Standar Klinik Pratama (terpadu dengan Master Tindakan & ICD-9-CM)
+        $sopSpecs = [
+            [
+                'code' => '93.94', 'clinic_type' => 'umum', 'version' => 'KP-2026-v1', 'mode' => 'oral',
+                'sop_reference' => 'SPO/KP-KEMENPAR/IC-01 · Terapi Inhalasi / Nebulisasi',
+                'trigger_condition' => null,
+                'explanation' => [
+                    'indication' => 'Bronkospasme ringan-sedang, asma intermiten, atau mengi akut sesuai penilaian dokter.',
+                    'method' => 'Pemberian bronkodilator inhalasi melalui masker nebulizer selama 10–15 menit oleh perawat atas delegasi dokter.',
+                    'benefits' => 'Membantu melegakan saluran napas dan menurunkan sesak/mengi.',
+                    'risks' => 'Jantung berdebar ringan (takikardia), tremor halus sementara, tenggorokan kering, atau iritasi ringan.',
+                    'alternatives' => 'Inhaler dosis terukur (MDI) dengan spacer atau terapi oral sesuai indikasi dokter.',
+                    'without_procedure' => 'Keluhan sesak/mengi dapat menetap atau memburuk.',
+                    'prognosis' => 'Umumnya membaik segera setelah inhalasi dengan pemantauan SpO₂ pasca tindakan.',
+                ],
+            ],
+            [
+                'code' => '93.57', 'clinic_type' => 'umum', 'version' => 'KP-2026-v1', 'mode' => 'written',
+                'sop_reference' => 'SPO/KP-KEMENPAR/IC-02 · Perawatan Luka Steril & Debridemen Ringan',
+                'trigger_condition' => null,
+                'explanation' => [
+                    'indication' => 'Luka terbuka, luka pasca trauma ringan, atau luka terinfeksi yang memerlukan pembersihan steril dan balutan.',
+                    'method' => 'Pembersihan luka aseptik dengan NaCl 0,9%, pengangkatan jaringan mati/kotoran bila perlu, aplikasi antiseptik, dan penutupan kasa steril.',
+                    'benefits' => 'Menurunkan risiko infeksi sekunder dan mempercepat penyembuhan luka.',
+                    'risks' => 'Nyeri/perih sementara saat pembersihan, perdarahan kapiler ringan, reaksi alergi plester/antiseptik.',
+                    'alternatives' => 'Rujukan ke fasilitas kesehatan lanjutan bila luka dalam atau luas.',
+                    'without_procedure' => 'Risiko infeksi luka meningkat dan penyembuhan tertunda.',
+                    'prognosis' => 'Baik bila balutan dijaga kering/bersih dan dilakukan kontrol sesuai jadwal.',
+                ],
+            ],
+            [
+                'code' => '96.54', 'clinic_type' => 'gigi', 'version' => 'KP-2026-v1', 'mode' => 'oral',
+                'sop_reference' => 'SPO/KP-KEMENPAR/IC-03 · Scaling Supra & Subgingiva',
+                'trigger_condition' => null,
+                'explanation' => [
+                    'indication' => 'Kalkulus supragingiva/subgingiva atau gingivitis sesuai hasil pemeriksaan klinis gigi.',
+                    'method' => 'Pembersihan karang gigi menggunakan ultrasonic scaler dan pemolesan permukaan gigi.',
+                    'benefits' => 'Menghilangkan karang gigi, mengurangi peradangan gusi, dan menjaga kesehatan jaringan periodontal.',
+                    'risks' => 'Gusi berdarah ringan sementara dan gigi sensitif/ngilu beberapa hari pasca tindakan.',
+                    'alternatives' => 'Pembersihan manual bertahap atau penundaan bila ada kontraindikasi sistemik.',
+                    'without_procedure' => 'Peradangan gusi dapat berlanjut menjadi periodontitis dan kegoyangan gigi.',
+                    'prognosis' => 'Baik dengan menjaga kebersihan mulut dan kontrol berkala setiap 6 bulan.',
+                ],
+            ],
+            [
+                'code' => '23.2', 'clinic_type' => 'gigi', 'version' => 'KP-2026-v1', 'mode' => 'written',
+                'sop_reference' => 'SPO/KP-KEMENPAR/IC-04 · Restorasi Komposit Sinar',
+                'trigger_condition' => null,
+                'explanation' => [
+                    'indication' => 'Karies dentin atau kerusakan struktur mahkota gigi yang dapat direstorasi langsung.',
+                    'method' => 'Pembersihan jaringan karies, persiapan kavitas, aplikasi etsa/bonding, dan penambalan resin komposit dengan sinar.',
+                    'benefits' => 'Mengembalikan bentuk, fungsi kunyah, dan melindungi jaringan pulpa gigi.',
+                    'risks' => 'Ngilu pasca tambal sementara, tambalan lepas/retak, atau kebutuhan perawatan saluran akar bila karies sangat dalam.',
+                    'alternatives' => 'Tambalan sementara, restorasi indirek, atau rujukan dokter gigi spesialis konservasi.',
+                    'without_procedure' => 'Karies meluas mencapai pulpa sehingga menimbulkan nyeri hebat atau infeksi.',
+                    'prognosis' => 'Baik dengan pemeliharaan kebersihan gigi dan kontrol sesuai anjuran dokter gigi.',
+                ],
+            ],
+        ];
+        foreach ($sopSpecs as $sop) {
+            $term = ClinicalTerminology::query()
+                ->where('code_system', 'icd9cm_procedure')
+                ->where('code', $sop['code'])
+                ->where('is_active', true)
+                ->latest('id')
+                ->first();
+            if ($term && filled($term->release)) {
+                $tpl = ProcedureConsentTemplate::withTrashed()->firstOrCreate(
+                    ['code' => $sop['code'], 'release' => $term->release, 'clinic_type' => $sop['clinic_type'], 'version' => $sop['version']],
+                    [
+                        'mode' => $sop['mode'],
+                        'trigger_condition' => $sop['trigger_condition'],
+                        'sop_reference' => $sop['sop_reference'],
+                        'explanation' => $sop['explanation'],
+                    ]
+                );
+                if ($tpl->trashed()) {
+                    $tpl->restore();
+                }
+                if ($tpl->published_at === null) {
+                    $tpl->forceFill(['published_by' => $users['admin']->id, 'published_at' => now()])->save();
+                }
+            }
+        }
 
         foreach ([
             ['kode' => 'J06.9', 'nama' => 'Infeksi saluran napas atas akut, tidak spesifik'],
@@ -845,18 +934,66 @@ class KemenparPreReleaseSeeder extends Seeder
                 'nama_diagnosa' => 'Asma bronkial, tidak spesifik',
                 'jenis' => 'utama',
             ]);
-            TindakanKunjungan::query()->create([
+            $nebulTerm = ClinicalTerminology::query()
+                ->where('code_system', 'icd9cm_procedure')
+                ->where('code', '93.94')
+                ->where('is_active', true)
+                ->latest('id')
+                ->first();
+            $seededProcedure = TindakanKunjungan::query()->create([
                 'kunjungan_id' => $visitNurseProc->id,
                 'tindakan_id' => $tindakanNebul->id,
                 'dokter_id' => $dokterUmum->id,
                 'kode_icd9cm' => '93.94',
                 'code_system' => 'icd9cm_procedure',
+                'code_release' => $nebulTerm?->release,
                 'coding_status' => 'verified',
+                'coding_display' => $nebulTerm?->display,
                 'nama_tindakan' => $tindakanNebul->nama,
                 'jumlah' => 1,
                 'execution_role' => 'perawat',
                 'execution_status' => 'pending',
+                'consent_review_required' => true,
                 'catatan' => 'Nebulisasi bronkodilator selama 10-15 menit, evaluasi SpO2 dan wheezing pasca tindakan.',
+            ]);
+            $consentService = app(ProcedureConsentService::class);
+            $nebulTemplate = $consentService->publishedTemplate($visitNurseProc, $seededProcedure);
+            $nebulPlanHash = $consentService->planHash($seededProcedure);
+            InformedConsent::query()->create([
+                'kunjungan_id' => $visitNurseProc->id,
+                'tindakan_id' => $tindakanNebul->id,
+                'tindakan_kunjungan_id' => $seededProcedure->id,
+                'request_id' => (string) Str::uuid(),
+                'request_hash' => hash('sha256', 'seed-nebulisasi-'.$seededProcedure->id),
+                'jenis' => 'oral',
+                'decision' => 'oral',
+                'text_version' => ProcedureConsentService::VERSION,
+                'procedure_snapshot' => [
+                    ...$consentService->plan($seededProcedure),
+                    'recorded_by_role' => 'dokter',
+                    'master_consent_mode' => 'oral',
+                    ...($nebulTemplate ? ['consent_template' => [
+                        ...$nebulTemplate->only(['id', 'version', 'mode', 'sop_reference', 'trigger_condition']),
+                        'revision' => $nebulTemplate->revision(),
+                    ]] : []),
+                ],
+                'plan_hash' => $nebulPlanHash,
+                'explanation' => $nebulTemplate?->explanation ?? [
+                    'indication' => 'Asma bronkial dengan wheezing ekspirasi minimal.',
+                    'method' => 'Terapi inhalasi bronkodilator melalui masker nebulizer selama 10-15 menit.',
+                    'benefits' => 'Melegakan saluran napas dan menurunkan mengi.',
+                    'risks' => 'Berdebar ringan atau tremor halus sementara.',
+                    'alternatives' => 'Inhaler MDI dengan spacer.',
+                    'without_procedure' => 'Keluhan sesak/mengi dapat menetap.',
+                    'prognosis' => 'Baik dengan evaluasi SpO2 pasca tindakan.',
+                ],
+                'nama_penandatangan' => $visitNurseProc->pasien->nama,
+                'hubungan_pasien' => 'patient',
+                'witness_name' => $perawatUmum->nama,
+                'reason' => 'Pasien memahami penjelasan dokter dan menyetujui tindakan nebulisasi secara lisan.',
+                'recorded_by' => $users['dokter_umum']->id,
+                'recorded_at' => now()->subMinutes(31),
+                'tanggal' => today(),
             ]);
             app(ClinicalNoteRecorder::class)->recordFinal($examProc, app(ClinicalNoteRecorder::class)->snapshot($visitNurseProc->fresh(), $examProc), $users['dokter_umum']->id);
         }
