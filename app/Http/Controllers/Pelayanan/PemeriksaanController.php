@@ -293,7 +293,6 @@ class PemeriksaanController extends Controller
                 'screening' => $kunjungan->screening ? [
                     'summary' => $kunjungan->screening->handoverSummary(),
                     'systemAssessment' => $nurseGeneral['systems'] ?? [],
-                    'versions' => $kunjungan->screening->versionSummaries(),
                     'systolic' => $kunjungan->screening->td_sistole,
                     'diastolic' => $kunjungan->screening->td_diastole,
                     'pulse' => $kunjungan->screening->nadi,

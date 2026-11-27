@@ -187,13 +187,14 @@ test('general doctor uses nurse continuity and one anatomy workspace through tre
     props.visit.screening = { ...props.visit.screening, systemAssessment: props.visit.examinationFormDefaults.reviewOfSystems, summary: { 'Pengkajian sistem - Respirasi': 'Positif / abnormal — Batuk berdahak', 'Masalah / kebutuhan teridentifikasi': 'Perlu pemantauan' } };
     const html = await renderPage('pelayanan/pemeriksaan/show', props);
     const anamnesis = html.slice(html.indexOf('id="tab-anamnesis"'), html.indexOf('id="tab-diagnosa"'));
+    const physical = examinationPanel(html, 'pemeriksaan');
+    const treatment = examinationPanel(html, 'tindakan');
     assert.doesNotMatch(anamnesis, /Verifikasi pengkajian sistem perawat/);
     assert.doesNotMatch(html, /name="review_of_systems-respiratory"/);
-    assert.match(html, /Tutup acuan pemeriksaan dari perawat/);
-    assert.ok(html.indexOf('aria-label="Acuan pemeriksaan dari perawat"') < html.indexOf('Diagram anatomi dan lokasi keluhan'));
+    assert.match(physical, /Tampilkan acuan perawat/);
+    assert.doesNotMatch(physical, /aria-label="Acuan pemeriksaan dari perawat"/, 'nurse physical reference starts hidden by default');
     assert.match(html, /Diagram anatomi dan lokasi keluhan/);
-    assert.match(html, /Konteks klinis untuk tindakan/);
-    assert.match(html, /id="general-treatment-examination-summary"/);
+    assert.doesNotMatch(treatment, /Konteks klinis untuk tindakan|id="general-treatment-examination-summary"|id="general-diagnosis-summary"/);
     assert.doesNotMatch(html, /id="supporting-laboratory"|id="supporting-radiology"|Pemeriksaan penunjang/);
     assert.match(html, /Perlu pemantauan/);
     assert.doesNotMatch(html, /id="social-history"|Review of Systems \(ROS\)|id="physical-system-/);
@@ -346,15 +347,13 @@ for (const service of ['umum', 'gigi']) {
         props.initialTab = service === 'gigi' ? 'odontogram' : 'pemeriksaan';
         props.visit.screening = { dentalPainTriggers: [], dentalMedicalRisks: [], dentalInfectionHistory: [], ...props.visit.screening, summary: { 'Masalah / kebutuhan teridentifikasi': 'Perlu evaluasi nyeri', 'Tindakan awal sesuai kewenangan': 'Posisi pasien dibuat nyaman' } };
         const html = await renderPage('pelayanan/pemeriksaan/show', props);
-        assert.match(html, /Tutup acuan pemeriksaan dari perawat/);
+        assert.match(html, /Tampilkan acuan perawat/);
         assert.match(html, /Perlu evaluasi nyeri/);
         assert.match(html, /<textarea[^>]*id="catatan"/);
         assert.ok(html.indexOf('id="kontrol_berikutnya"') < html.indexOf('id="catatan"'));
         assert.equal((html.match(/id="catatan"/g) ?? []).length, 1);
         assert.ok(html.indexOf('id="catatan"') < html.indexOf('id="final-condition"'));
-        if (service === 'gigi') {
-            assert.match(html, /id="dental-treatment-examination-summary"/);
-        }
+        assert.doesNotMatch(html, /id="dental-treatment-examination-summary"|id="general-treatment-examination-summary"/);
     });
 }
 
@@ -1933,17 +1932,19 @@ for (const clinicType of ['gigi', 'umum']) {
         assert.match(diagnosis, /Simpan diagnosis banding/);
         assert.ok(diagnosis.indexOf('Diagnosis tercatat') < diagnosis.indexOf('id="diagnosis-banding"'), 'differential diagnosis follows recorded diagnoses');
         assert.doesNotMatch(diagnosis, /id="kontrol_berikutnya"|id="anamnesis"/);
-        const followUp = html.slice(html.indexOf('id="rencana-tindak-lanjut"'));
+        const followUp = examinationPanel(html, 'rencana');
         const disclosure = followUp.match(/<details\b[^>]*id="rencana-details"[^>]*>/)?.[0];
         assert.ok(disclosure, 'follow-up section can expand without unmounting its form');
         assert.match(disclosure, /\sopen(?:=|\s|>)/, 'non-drug care is visible without opening a disclosure');
+        assert.match(followUp, /id="rencana-tindak-lanjut"/);
         assert.match(followUp, /id="non-farmakologis"/);
         assert.match(followUp, /<details\b[^>]*id="education-details"/);
         assert.match(followUp, /id="kontrol_berikutnya"/);
         assert.match(followUp, /id="edukasi"/);
         assert.match(followUp, /id="catatan"/);
         assert.match(followUp, /Simpan perawatan &amp; tindak lanjut/);
-        assert.ok(html.indexOf('id="rencana-tindak-lanjut"') > html.indexOf('-panel-rujukan'));
+        assert.ok(html.indexOf('-panel-resep"') < html.indexOf('-panel-rencana"'));
+        assert.ok(html.indexOf('-panel-rencana"') < html.indexOf('-panel-rujukan"'));
         assert.doesNotMatch(html, /id="ohis"|Indeks kebersihan mulut|Saran diagnosis dari keluhan|Hasil katalog terminologi/);
         if (clinicType === 'gigi') {
             assert.match(physical, /id="extraoral"/);
@@ -2125,7 +2126,8 @@ test('intraoral draft updates generated values and preserves an existing clinica
     assert.doesNotMatch(html, /Draf naratif dari odontogram|Pratinjau naratif intraoral/);
 });
 
-test('dental diagnosis starts with saved examination findings and counts distinct teeth across surfaces', async () => {
+test('dental diagnosis opens examination summary via modal action button and summary component counts distinct teeth across surfaces', async () => {
+    const { DentalExaminationSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
     const props = examinationProps('gigi');
     props.initialTab = 'diagnosa';
     props.visit.examination.extraoralExam = 'Tidak tampak pembengkakan';
@@ -2136,9 +2138,19 @@ test('dental diagnosis starts with saved examination findings and counts distinc
 
     const html = await renderPage('pelayanan/pemeriksaan/show', props);
     const panel = examinationPanel(html, 'diagnosa');
-    const summary = panel.slice(0, panel.indexOf('id="tab-diagnosa"')).replace(/<!--.*?-->/g, '');
-
     assert.match(html, /aria-selected="true"[^>]*data-value="diagnosa"/);
+    assert.doesNotMatch(panel, /id="dental-examination-summary"/, 'inline summary card should not clutter Diagnosis tab');
+    assert.match(panel, /Ringkasan pemeriksaan &amp; odontogram/);
+
+    const summary = renderToString(createElement(DentalExaminationSummary, {
+        anamnesis: props.visit.examination.anamnesis,
+        intraoralExam: props.visit.examination.physicalExam,
+        extraoralExam: props.visit.examination.extraoralExam,
+        findings: props.visit.odontogram,
+        options: props.dentalOptions,
+        hasUnsavedChanges: false,
+        onReview() {},
+    })).replace(/<!--.*?-->/g, '');
     assert.match(summary, /Ringkasan pemeriksaan &amp; odontogram/);
     assert.match(summary, /aria-controls="dental-examination-summary-content"[^>]*aria-expanded="true"/);
     assert.match(summary, />2 gigi</);
@@ -2153,7 +2165,8 @@ test('dental diagnosis starts with saved examination findings and counts distinc
     assert.doesNotMatch(summary, /Ada perubahan belum disimpan/);
 });
 
-test('dental treatment starts with the primary diagnosis, coding system and saved differential diagnosis', async () => {
+test('dental treatment tab stays focused without inline summary cards while DiagnosisSummary component orders primary diagnosis first', async () => {
+    const { DiagnosisSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
     const props = examinationProps('gigi');
     props.initialTab = 'tindakan';
     props.visit.diagnoses = [
@@ -2164,9 +2177,16 @@ test('dental treatment starts with the primary diagnosis, coding system and save
 
     const html = await renderPage('pelayanan/pemeriksaan/show', props);
     const panel = examinationPanel(html, 'tindakan');
-    const summary = panel.slice(0, panel.indexOf('id="tab-tindakan"'));
-
     assert.match(html, /aria-selected="true"[^>]*data-value="tindakan"/);
+    assert.doesNotMatch(panel, /id="dental-diagnosis-summary"|id="dental-treatment-examination-summary"|Ringkasan diagnosis|Ringkasan pemeriksaan/);
+
+    const summary = renderToString(createElement(DiagnosisSummary, {
+        diagnoses: props.visit.diagnoses,
+        differentialDiagnosis: props.visit.examination.differentialDiagnosis,
+        codeSystems: props.diagnosisCodeSystems,
+        hasUnsavedChanges: false,
+        onReview() {},
+    }));
     assert.match(summary, /Ringkasan diagnosis/);
     assert.match(summary, /aria-label="Ringkasan diagnosis tercatat"/);
     const table = summary.match(/<table[^>]*aria-label="Ringkasan diagnosis tercatat"[\s\S]*?<\/table>/)?.[0];
@@ -2186,18 +2206,21 @@ test('dental treatment starts with the primary diagnosis, coding system and save
 });
 
 test('dental workflow summaries preserve unknown assessments and explain missing diagnoses without inventing normal results', async () => {
-    const props = examinationProps('gigi', { examination: null, diagnoses: [], odontogram: [] });
+    const { DentalExaminationSummary, DiagnosisSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
+    const examSummary = renderToString(createElement(DentalExaminationSummary, {
+        anamnesis: null, intraoralExam: null, extraoralExam: null, findings: [],
+        options: { surfaces: {}, findings: {} }, hasUnsavedChanges: false, onReview() {},
+    }));
+    const diagSummary = renderToString(createElement(DiagnosisSummary, {
+        diagnoses: [], differentialDiagnosis: null, codeSystems: [], hasUnsavedChanges: false, onReview() {},
+    }));
 
-    const html = await renderPage('pelayanan/pemeriksaan/show', props);
-    const diagnosis = examinationPanel(html, 'diagnosa');
-    const treatment = examinationPanel(html, 'tindakan');
-
-    assert.match(diagnosis, /Belum ada temuan odontogram tersimpan/);
-    assert.doesNotMatch(diagnosis, /Pemeriksaan intraoral<\/dt>|Pemeriksaan ekstraoral<\/dt>/);
-    assert.doesNotMatch(diagnosis.slice(0, diagnosis.indexOf('id="tab-diagnosa"')), /Nyeri sejak kemarin|Normal|Tidak ada kelainan/);
-    assert.match(treatment, /Belum ada diagnosis tersimpan/);
-    assert.match(treatment, /Catat diagnosis pada tab Diagnosis sebelum melanjutkan/);
-    assert.match(treatment, /Diagnosis banding<\/dt><dd[^>]*>Belum dicatat/);
+    assert.match(examSummary, /Belum ada temuan odontogram tersimpan/);
+    assert.doesNotMatch(examSummary, /Pemeriksaan intraoral<\/dt>|Pemeriksaan ekstraoral<\/dt>/);
+    assert.doesNotMatch(examSummary, /Nyeri sejak kemarin|Normal|Tidak ada kelainan/);
+    assert.match(diagSummary, /Belum ada diagnosis tersimpan/);
+    assert.match(diagSummary, /Catat diagnosis pada tab Diagnosis sebelum melanjutkan/);
+    assert.match(diagSummary, /Diagnosis banding<\/dt><dd[^>]*>Belum dicatat/);
 
     const general = await renderPage('pelayanan/pemeriksaan/show', examinationProps('umum'));
     assert.doesNotMatch(general, /id="dental-examination-summary"|id="dental-diagnosis-summary"/);
@@ -2237,7 +2260,7 @@ test('dental workflow summaries escape clinical text in findings and diagnoses',
     props.visit.diagnoses[0].name = unsafe;
 
     const html = await renderPage('pelayanan/pemeriksaan/show', props);
-    for (const tab of ['diagnosa', 'tindakan']) {
+    for (const tab of ['odontogram', 'diagnosa']) {
         const panel = examinationPanel(html, tab);
         assert.match(panel, /&lt;img src=x onerror=alert\(1\)&gt;/);
         assert.doesNotMatch(panel, /<img src=x onerror=alert\(1\)>/);
@@ -2245,7 +2268,8 @@ test('dental workflow summaries escape clinical text in findings and diagnoses',
 });
 
 
-test('general diagnosis starts with saved physical findings and omits unanswered systems', async () => {
+test('general diagnosis exposes physical summary button on suggestions card and GeneralExaminationSummary omits unanswered systems', async () => {
+    const { GeneralExaminationSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
     const props = examinationProps('umum');
     props.initialTab = 'diagnosa';
     props.visit.examination.anamnesis = 'Batuk sejak tiga hari';
@@ -2254,9 +2278,19 @@ test('general diagnosis starts with saved physical findings and omits unanswered
 
     const html = await renderPage('pelayanan/pemeriksaan/show', props);
     const diagnosis = examinationPanel(html, 'diagnosa');
-    const summary = diagnosis.slice(0, diagnosis.indexOf('id="tab-diagnosa"')).replace(/<!--.*?-->/g, '');
-
     assert.match(html, /aria-selected="true"[^>]*data-value="diagnosa"/);
+    assert.doesNotMatch(diagnosis, /id="general-examination-summary"/);
+    assert.match(diagnosis, /Usulan kode berdasarkan temuan[\s\S]*Ringkasan pemeriksaan fisik/);
+    assert.match(diagnosis, /role="combobox"[^>]*id="general-diagnosis-source"|id="general-diagnosis-source"[^>]*role="combobox"/);
+
+    const summary = renderToString(createElement(GeneralExaminationSummary, {
+        anamnesis: props.visit.examination.anamnesis,
+        physicalExam: props.visit.examination.physicalExam,
+        physicalSystems: props.visit.examination.physicalSystems,
+        bodyMap: props.visit.examination.bodyMap,
+        hasUnsavedChanges: false,
+        onReview() {},
+    })).replace(/<!--.*?-->/g, '');
     assert.match(summary, /id="general-examination-summary"/);
     assert.match(summary, /Batuk sejak tiga hari/);
     assert.match(summary, /Ronki basal kanan/);
@@ -2267,7 +2301,8 @@ test('general diagnosis starts with saved physical findings and omits unanswered
     assert.match(summary, /aria-label="Tinjau pemeriksaan fisik"/);
 });
 
-test('general treatment starts with recorded primary and additional diagnoses and differential diagnosis', async () => {
+test('general treatment tab omits inline summaries while DiagnosisSummary displays ICD-10 WHO and differential diagnosis', async () => {
+    const { DiagnosisSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
     const props = examinationProps('umum');
     props.initialTab = 'tindakan';
     props.visit.diagnoses = [
@@ -2278,9 +2313,17 @@ test('general treatment starts with recorded primary and additional diagnoses an
 
     const html = await renderPage('pelayanan/pemeriksaan/show', props);
     const treatment = examinationPanel(html, 'tindakan');
-    const summary = treatment.slice(0, treatment.indexOf('id="tab-tindakan"'));
-
     assert.match(html, /aria-selected="true"[^>]*data-value="tindakan"/);
+    assert.doesNotMatch(treatment, /id="general-diagnosis-summary"|id="general-treatment-examination-summary"|Konteks klinis untuk tindakan/);
+
+    const summary = renderToString(createElement(DiagnosisSummary, {
+        id: 'general-diagnosis-summary',
+        diagnoses: props.visit.diagnoses,
+        differentialDiagnosis: props.visit.examination.differentialDiagnosis,
+        codeSystems: props.diagnosisCodeSystems,
+        hasUnsavedChanges: false,
+        onReview() {},
+    }));
     assert.match(summary, /id="general-diagnosis-summary"/);
     assert.match(summary, /ICD-10 WHO/);
     assert.ok(summary.indexOf('Infeksi saluran napas atas') < summary.indexOf('Batuk'));
@@ -2290,15 +2333,17 @@ test('general treatment starts with recorded primary and additional diagnoses an
 });
 
 test('general summaries keep unknown results neutral, flag unsaved changes and escape recorded clinical text', async () => {
-    const { GeneralExaminationSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
-    const empty = examinationProps('umum', { examination: null, diagnoses: [] });
-
-    const html = await renderPage('pelayanan/pemeriksaan/show', empty);
-    const diagnosis = examinationPanel(html, 'diagnosa');
-    assert.match(diagnosis, /Belum ada temuan fisik tersimpan/);
-    assert.doesNotMatch(diagnosis, /Ringkasan pemeriksaan fisik<\/dt>/);
-    assert.doesNotMatch(diagnosis.slice(0, diagnosis.indexOf('id="tab-diagnosa"')), /Nyeri sejak kemarin|Normal|Tidak ada kelainan/);
-    assert.match(examinationPanel(html, 'tindakan'), /Belum ada diagnosis tersimpan/);
+    const { GeneralExaminationSummary, DiagnosisSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
+    const emptyExam = renderToString(createElement(GeneralExaminationSummary, {
+        anamnesis: null, physicalExam: null, physicalSystems: {}, bodyMap: null, hasUnsavedChanges: false, onReview() {},
+    }));
+    const emptyDiag = renderToString(createElement(DiagnosisSummary, {
+        diagnoses: [], differentialDiagnosis: null, codeSystems: [], hasUnsavedChanges: false, onReview() {},
+    }));
+    assert.match(emptyExam, /Belum ada temuan fisik tersimpan/);
+    assert.doesNotMatch(emptyExam, /Ringkasan pemeriksaan fisik<\/dt>/);
+    assert.doesNotMatch(emptyExam, /Nyeri sejak kemarin|Normal|Tidak ada kelainan/);
+    assert.match(emptyDiag, /Belum ada diagnosis tersimpan/);
 
     const unsafe = '<script>alert(1)</script>';
     const pending = renderToString(createElement(GeneralExaminationSummary, {
@@ -2464,7 +2509,7 @@ test('busy clinical forms do not open another save confirmation or send another 
 
 
 for (const clinicType of ['gigi', 'umum']) {
-    test(clinicType + ' main workflow ends at clinic prescription and each optional tab can finish independently', async () => {
+    test(clinicType + ' main workflow flows through follow-up & education and each optional tab can finish independently', async () => {
         const props = examinationProps(clinicType);
         props.initialTab = 'resep';
 
@@ -2472,8 +2517,8 @@ for (const clinicType of ['gigi', 'umum']) {
 
         assert.match(html, /aria-selected="true"[^>]*data-value="resep"/);
         assert.doesNotMatch(html, /Pilihan tambahan/);
-        for (const tab of ['resep-luar', 'surat', 'rujukan']) {
-            assert.ok(html.includes('data-value="' + tab + '"'), 'optional services remain available as ordinary tabs');
+        for (const tab of ['rencana', 'resep-luar', 'surat', 'rujukan']) {
+            assert.ok(html.includes('data-value="' + tab + '"'), 'follow-up and optional services remain available as ordinary tabs');
         }
         for (const tab of ['anamnesis', clinicType === 'gigi' ? 'odontogram' : 'pemeriksaan', 'diagnosa']) {
             assert.doesNotMatch(examinationPanel(html, tab), />Selesai periksa<|Selesai periksa<\/button>/);
@@ -2484,10 +2529,14 @@ for (const clinicType of ['gigi', 'umum']) {
         const prescription = examinationPanel(html, 'resep');
         assert.match(prescription, /Kembali ke Tindakan/);
         assert.match(prescription, /Selesai periksa<\/button>/);
-        assert.doesNotMatch(prescription, /Lanjut ke/);
+        assert.match(prescription, /Lanjut ke tindak lanjut &amp; edukasi/);
+        const followUp = examinationPanel(html, 'rencana');
+        assert.match(followUp, /Kembali ke Resep klinik/);
+        assert.match(followUp, /Selesai periksa<\/button>/);
+        assert.doesNotMatch(followUp, /Lanjut ke/);
         for (const tab of ['resep-luar', 'surat', 'rujukan']) {
             const panel = examinationPanel(html, tab);
-            assert.match(panel, /Kembali ke Resep klinik/);
+            assert.match(panel, /Kembali ke Tindak lanjut &amp; edukasi/);
             assert.match(panel, /Selesai periksa<\/button>/);
             assert.doesNotMatch(panel, /Lanjut ke/, 'an optional service must not force the next optional service');
         }
@@ -2502,7 +2551,7 @@ for (const clinicType of ['gigi', 'umum']) {
         const html = (await renderPage('pelayanan/pemeriksaan/show', props)).replace(/<!--.*?-->/g, '');
 
         assert.match(html, /aria-selected="true"[^>]*data-value="rujukan"/);
-        for (const tab of ['tindakan', 'resep', 'resep-luar', 'surat', 'rujukan']) {
+        for (const tab of ['tindakan', 'resep', 'rencana', 'resep-luar', 'surat', 'rujukan']) {
             const panel = examinationPanel(html, tab);
             const buttons = [...panel.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(([button]) => button);
             const finish = buttons.filter((button) => button.includes('Selesai periksa'));
@@ -2770,17 +2819,23 @@ test('general diagnosis handoff includes recorded clinical detail and keeps sear
 });
 
 test('general diagnosis lookup offers saved map, narrative and system findings as catalog search sources', async () => {
-    const { GeneralDiagnosisSuggestions } = await server.ssrLoadModule('/resources/js/components/kunjungan/general-diagnosis-suggestions.tsx');
+    const { GeneralDiagnosisSuggestions, generalDiagnosisSources } = await server.ssrLoadModule('/resources/js/components/kunjungan/general-diagnosis-suggestions.tsx');
+    const sources = generalDiagnosisSources({
+        bodyMap: recordedBodyMap(),
+        physicalExam: 'Temuan naratif tersimpan',
+        physicalSystems: { Thorax: 'Temuan sistem tersimpan', Kulit: '' },
+    });
+    assert.deepEqual(sources.map(source => source.id), ['map-head-1', 'system-Thorax', 'summary']);
     const html = renderToString(createElement(GeneralDiagnosisSuggestions, {
         bodyMap: recordedBodyMap(), physicalExam: 'Temuan naratif tersimpan',
         physicalSystems: { Thorax: 'Temuan sistem tersimpan', Kulit: '' },
+        headerAction: createElement('button', { type: 'button' }, 'Ringkasan pemeriksaan fisik'),
         disabled: false, onSearch() {},
     }));
     assert.match(html, /Usulan kode berdasarkan temuan/);
-    assert.match(html, /value="map-head-1"/);
-    assert.match(html, /value="system-Thorax"/);
-    assert.match(html, /value="summary"/);
-    assert.doesNotMatch(html, /value="system-Kulit"/);
+    assert.match(html, /Ringkasan pemeriksaan fisik/);
+    assert.match(html, /<button[^>]*role="combobox"[^>]*id="general-diagnosis-source"/);
+    assert.doesNotMatch(html, /<select[^>]*id="general-diagnosis-source"/);
 });
 
 test('diagnosis summary switches between manual and interactive findings without nested vertical scrolling', async () => {
@@ -2954,15 +3009,20 @@ test('interactive body selection toggles off without clearing clinical text and 
 });
 
 for (const clinicType of ['umum', 'gigi']) {
-    test(clinicType + ' examination shares manual diagnosis and treatment switches and keeps nurse summary cards aligned', async () => {
+    test(clinicType + ' examination shares manual diagnosis and treatment switches and keeps clinical tabs streamlined', async () => {
         const props = examinationProps(clinicType);
         props.visit.diagnoses = [{ id: 1, code: null, codeSystem: 'manual', name: 'Diagnosis naratif dokter', type: 'utama' }];
         const html = await renderPage('pelayanan/pemeriksaan/show', props);
-        assert.match(examinationPanel(html, 'diagnosa'), /id="diagnosis-manual"/);
-        assert.match(examinationPanel(html, 'tindakan'), /id="treatment-manual"/);
-        assert.match(examinationPanel(html, 'diagnosa'), />Manual</);
-        assert.match(examinationPanel(html, 'tindakan'), /Diagnosis naratif dokter/);
-        assert.doesNotMatch(examinationPanel(html, 'tindakan'), /<option value="manual">/);
+        const diagnosisPanel = examinationPanel(html, 'diagnosa');
+        const treatmentPanel = examinationPanel(html, 'tindakan');
+        assert.match(diagnosisPanel, /id="diagnosis-manual"/);
+        assert.match(treatmentPanel, /id="treatment-manual"/);
+        assert.match(diagnosisPanel, />Manual</);
+        assert.match(diagnosisPanel, /Diagnosis naratif dokter/);
+        assert.match(diagnosisPanel, /Ringkasan pemeriksaan/);
+        assert.doesNotMatch(diagnosisPanel, /aria-label="Temuan pemeriksaan per sistem"|id="dental-examination-summary"|id="general-examination-summary"/);
+        assert.doesNotMatch(treatmentPanel, /Ringkasan pemeriksaan|Ringkasan diagnosis|Temuan &amp; tindak lanjut awal dari perawat/);
+        assert.doesNotMatch(treatmentPanel, /<option value="manual">/);
         if (clinicType === 'gigi') assert.doesNotMatch(html, /data-value="quick"|body-location/);
     });
 }
@@ -3049,10 +3109,12 @@ for (const tab of ['interactive', 'manual']) {
         }
 
         assert.match(html, /id="body-objective-finding"/);
+        assert.match(html, /id="body-annotation-note"/);
+        assert.ok(html.indexOf('id="body-annotation-note"') < html.indexOf('Tambahkan hasil (+) atau (−) setelah dinilai'));
         assert.match(html, /aria-checked="true"[^>]*id="body-compact"/);
         assert.match(html, /Isian ringkas<\/label><button[^>]*type="button"[^>]*>[\s\S]*?Tambahkan temuan/);
-        assert.doesNotMatch(html, /id="body-location"|id="body-side"|id="body-pain"|id="body-location-detail"|id="body-finding-method"|id="body-local-complaint"|annotation-note|data-value="quick"/);
-        assert.equal((html.match(/<textarea/g) ?? []).length, 1);
+        assert.doesNotMatch(html, /id="body-location"|id="body-side"|id="body-pain"|id="body-location-detail"|id="body-finding-method"|id="body-local-complaint"|data-value="quick"/);
+        assert.equal((html.match(/<textarea/g) ?? []).length, 2);
         const { finding, error } = createRecordedFinding(draft, 'organs', 'front', 'male', 'compact-1', 'quick');
         assert.equal(error, undefined);
         assert.equal(finding.locationId, 'general');
@@ -3251,7 +3313,7 @@ test('read-only physical examination can switch views without changing draft con
     assert.equal(mutations.length, 0);
 });
 
-test('compact annotation examination keeps existing drawing and note visible without introducing another input', async () => {
+test('compact annotation examination keeps existing drawing and note visible and exposes Keterangan anotasi above signs', async () => {
     const { PhysicalExaminationWorkspace } = await server.ssrLoadModule('/resources/js/components/anatomy/physical-examination-workspace.tsx');
     const { emptyBodyFinding } = await server.ssrLoadModule('/resources/js/lib/body-examination.ts');
     const bodyMap = { version: 1, findings: [], annotation: { strokes: [{ id: 'stored-mark', tool: 'pen', color: '#dc2626', width: 2, points: [{ x: 10, y: 20 }] }], note: 'Tanda pada gambar yang sudah dicatat' } };
@@ -3259,8 +3321,8 @@ test('compact annotation examination keeps existing drawing and note visible wit
     assert.match(html, /src="\/body-model-reference.jpg"/);
     assert.match(html, /data-annotation-id="stored-mark"/);
     assert.match(html, /Tanda pada gambar yang sudah dicatat/);
-    assert.equal((html.match(/<textarea/g) ?? []).length, 1);
-    assert.doesNotMatch(html, /id="body-annotation-note"/);
+    assert.match(html, /id="body-annotation-note"/);
+    assert.ok(html.indexOf('id="body-annotation-note"') < html.indexOf('Tambahkan hasil (+) atau (−) setelah dinilai'));
 });
 
 
@@ -3855,7 +3917,7 @@ test('physician sections use the dental examination title and shared centered ta
     assert.match(dental, /Pemeriksaan fisik &amp; intraoral dokter/);
     const { DentalExaminationSummary, GeneralExaminationSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
     const summary = renderToString(createElement(DentalExaminationSummary, { anamnesis: '', findings: [{ toothFdi: '46', surface: 'O', findingCode: 'caries', notes: 'Kavitas' }], options: { surfaces: { O: 'Oklusal' }, findings: { caries: 'Karies' } }, hasUnsavedChanges: false, onReview() {} }));
-    assert.match(summary, /px-5 py-4 text-center align-middle/);
+    assert.match(summary, /px-4 py-3\.5 text-center align-top/);
     const general = renderToString(createElement(GeneralExaminationSummary, { anamnesis: '', physicalExam: '', physicalSystems: { Thorax: 'Vesikuler' }, hasUnsavedChanges: false, onReview() {} }));
     assert.match(general, /aria-label="Temuan pemeriksaan per sistem"/);
     assert.match(general, /<table/);
@@ -3980,6 +4042,7 @@ test('recorded diagnoses and treatments wrap notes with the same disclosure as o
 });
 
 test('general examination summaries and prescriptions share the recorded-table note controls', async () => {
+    const { GeneralExaminationSummary, DiagnosisSummary } = await server.ssrLoadModule('/resources/js/components/kunjungan/clinical-workflow-summary.tsx');
     const props = examinationProps('umum');
     props.visit.examination.physicalSystems = { Abdomen: 'Temuan pemeriksaan pertama.\nLanjutan temuan.' };
     props.visit.diagnoses[0].note = 'Pertimbangan diagnosis tercatat.';
@@ -3987,14 +4050,12 @@ test('general examination summaries and prescriptions share the recorded-table n
         { id: 1, name: 'Resep klinik uji', type: 'jadi', quantity: 2, unit: 'tablet', instructions: 'Instruksi resep klinik uji.', external: false },
         { id: 2, name: 'Resep luar uji', type: 'jadi', quantity: 1, unit: 'tablet', instructions: 'Instruksi resep luar uji.', external: true },
     ];
-    for (const [tab, label, value] of [
-        ['diagnosa', 'Temuan pemeriksaan per sistem', props.visit.examination.physicalSystems.Abdomen],
-        ['tindakan', 'Ringkasan diagnosis tercatat', props.visit.diagnoses[0].note],
-        ['resep', 'Tabel resep tercatat', 'Instruksi resep klinik uji.'],
-        ['resep-luar', 'Tabel resep tercatat', 'Instruksi resep luar uji.'],
+    for (const [html, label, value] of [
+        [renderToString(createElement(GeneralExaminationSummary, { anamnesis: null, physicalExam: null, physicalSystems: props.visit.examination.physicalSystems, hasUnsavedChanges: false, onReview() {} })), 'Temuan pemeriksaan per sistem', props.visit.examination.physicalSystems.Abdomen],
+        [renderToString(createElement(DiagnosisSummary, { diagnoses: props.visit.diagnoses, codeSystems: props.diagnosisCodeSystems ?? [], hasUnsavedChanges: false, onReview() {} })), 'Ringkasan diagnosis tercatat', props.visit.diagnoses[0].note],
+        [examinationPanel(await renderPage('pelayanan/pemeriksaan/show', { ...props, initialTab: 'resep' }), 'resep'), 'Tabel resep tercatat', 'Instruksi resep klinik uji.'],
+        [examinationPanel(await renderPage('pelayanan/pemeriksaan/show', { ...props, initialTab: 'resep-luar' }), 'resep-luar'), 'Tabel resep tercatat', 'Instruksi resep luar uji.'],
     ]) {
-        props.initialTab = tab;
-        const html = examinationPanel(await renderPage('pelayanan/pemeriksaan/show', props), tab);
         const table = [...html.matchAll(/<table\b[^>]*>[\s\S]*?<\/table>/g)].find(([markup]) => markup.includes('aria-label="' + label + '"'))?.[0];
         assert.ok(table?.includes('table-fixed'), label);
         assert.doesNotMatch(table, /Lihat catatan lengkap|Tutup catatan/);
@@ -4232,7 +4293,7 @@ for (const service of ['umum', 'gigi']) {
     });
 }
 
-test('dental handover highlights non-normal mucosa and shows dismissible nurse notes only when present', async () => {
+test('dental handover exposes toggleable nurse reference button and shows auto-dismissing nurse notes only when present', async () => {
     const props = examinationProps('gigi');
     props.initialTab = 'odontogram';
     props.visit.screening = { dentalPainTriggers: [], dentalMedicalRisks: [], dentalInfectionHistory: [], ...props.visit.screening, dentalNotes: 'Konfirmasi pembengkakan gusi', summary: {
@@ -4240,17 +4301,15 @@ test('dental handover highlights non-normal mucosa and shows dismissible nurse n
         'Kelainan mukosa yang ditemukan': 'Gusi bengkak',
     } };
     const html = await renderPage('pelayanan/pemeriksaan/show', props);
-    const panel = html.match(/<section aria-label="Observasi mukosa dari perawat"[\s\S]*?<\/section>/)?.[0];
-    assert.ok(panel);
-    assert.match(panel, /Observasi mukosa - Gusi/);
-    assert.match(panel, /Abnormal/);
-    assert.match(panel, /Gusi bengkak/);
-    assert.doesNotMatch(panel, /Observasi mukosa - Lidah/);
+    assert.match(html, /Tampilkan acuan perawat/);
+    assert.doesNotMatch(html, /aria-label="Acuan pemeriksaan dari perawat"/);
+    assert.match(html, /aria-label="Catatan penting dari perawat"/);
     assert.match(html, /Tutup catatan penting dari perawat/);
+    assert.match(html, /Konfirmasi pembengkakan gusi/);
     props.visit.screening = { ...props.visit.screening, dentalNotes: '', summary: {} };
     const empty = await renderPage('pelayanan/pemeriksaan/show', props);
     assert.doesNotMatch(empty, /aria-label="Catatan penting dari perawat"/);
-    assert.doesNotMatch(empty, /aria-label="Observasi mukosa dari perawat"/);
+    assert.doesNotMatch(empty, /Tampilkan acuan perawat/);
 });
 
 
@@ -4607,14 +4666,14 @@ test('clinic settings renders tabbed profile and clinical workflow configuration
             logoUrl: null,
         },
         clinicalWorkflow: {
-            umum_complaint_details: 'dokter',
+            umum_complaint_details: 'nonaktif',
             umum_system_review: 'dokter',
             umum_nutrition_needs: 'perawat',
             umum_anthropometry_mode: 'ringkas',
-            gigi_pain_details: 'perawat',
+            gigi_pain_details: 'nonaktif',
             gigi_mucosa_observation: 'perawat',
             gigi_additional_assessment: 'perawat',
-            dokter_soap_tab: true,
+            dokter_soap_tab: false,
             dokter_repeat_vitals: true,
         },
     });
@@ -4625,15 +4684,16 @@ test('clinic settings renders tabbed profile and clinical workflow configuration
     assert.match(html, /Poli Gigi &amp; Mulut — Distribusi bagian pengkajian &amp; pemeriksaan/);
     assert.match(html, /Batasan keselamatan &amp; kepatuhan regulasi/);
     assert.match(html, /PMK No\. 24 Tahun 2022/);
+    assert.match(html, /Default: Nonaktif/);
 });
 
-test('clinical workflow settings dynamically move general complaint details and ROS from nurse to doctor', async () => {
+test('clinical workflow settings streamline nurse screening and remove redundant doctor complaint forms while preserving read-only nurse reference', async () => {
     const doctorWorkflow = {
-        umum_complaint_details: 'dokter',
+        umum_complaint_details: 'nonaktif',
         umum_system_review: 'dokter',
         umum_nutrition_needs: 'nonaktif',
         umum_anthropometry_mode: 'lengkap',
-        gigi_pain_details: 'dokter',
+        gigi_pain_details: 'nonaktif',
         gigi_mucosa_observation: 'dokter',
         gigi_additional_assessment: 'nonaktif',
         dokter_soap_tab: false,
@@ -4711,13 +4771,113 @@ test('clinical workflow settings dynamically move general complaint details and 
     assert.ok(idxAnthro > -1 && idxNutrition > idxAnthro && idxTriage > idxNutrition && idxCatatanPengkajian > idxTriage,
         'Expected order: Anthropometry -> Nutrisi dan kebutuhan pasien -> Kondisi awal dan triase -> Catatan pengkajian');
 
-    const docProps = examinationProps('umum');
+    // Doctor Anamnesis removes the redundant 9-field complaint input form by default,
+    // keeps ROS collapsed by default, and surfaces nurse complaint/pain notes as read-only reference when present.
+    const docProps = examinationProps('umum', {
+        screening: {
+            summary: { 'Lokasi keluhan': 'Epigastrium', 'Skala nyeri': '5 / 10', 'Faktor pemicu': 'Telat makan' },
+            systolic: 120, diastolic: 80, pulse: 82, temperature: 36.8, oxygenSaturation: 99,
+            weight: 65, height: 170, bmi: 22.5, waistCircumference: 80, respiration: 18,
+            complaint: 'Nyeri ulu hati', medicalHistory: null, familyHistory: null, allergyHistory: null,
+            painScale: 5, fallRisk: null, triage: 'hijau', priority: null,
+            dentalPainLocation: null, dentalPainTriggers: [], dentalPainDuration: null,
+            dentalMedicalRisks: [], dentalInfectionHistory: [], dentalNotes: null,
+        },
+    });
     docProps.initialTab = 'anamnesis';
     docProps.workflowSettings = doctorWorkflow;
     const doctorHtml = await renderPage('pelayanan/pemeriksaan/show', docProps);
-    assert.match(doctorHtml, /Rincian keluhan &amp; skala nyeri/);
-    assert.match(doctorHtml, /Pengkajian sistem tubuh \(ROS\)/);
-    assert.match(doctorHtml, /Diisi dokter/);
+    const anamnesisPanel = examinationPanel(doctorHtml, 'anamnesis');
+    assert.doesNotMatch(anamnesisPanel, /id="doctor-complaint-location"/, 'doctor anamnesis must not render redundant editable 9-field complaint form');
+    assert.match(anamnesisPanel, /Acuan rincian keluhan &amp; skala nyeri dari perawat/);
+    assert.match(anamnesisPanel, /Epigastrium/);
+    assert.match(anamnesisPanel, /5 \/ 10/);
+    assert.match(anamnesisPanel, /Pengkajian sistem tubuh \(ROS\)/);
+    assert.match(anamnesisPanel, /Diisi dokter/);
     assert.doesNotMatch(doctorHtml, /SOAP langsung/);
     assert.doesNotMatch(doctorHtml, /Pengukuran ulang tanda vital \(opsional\)/);
+    assert.doesNotMatch(anamnesisPanel, /<dt[^>]*>Dokter pemeriksa<\/dt>/);
+});
+
+test('doctor examination defaults procedures to clinic master list, syncs server consent canPerform, and unifies supporting files label', async () => {
+    const props = examinationProps('umum', {
+        attachments: [{ id: 1, name: 'Lab.pdf', url: '/lampiran/1', mimeType: 'application/pdf', sizeLabel: '120 KB', uploadedAt: '27/11/2026', uploader: 'Ns. Rina' }],
+        treatments: [
+            {
+                id: 11, name: 'Jahit luka', code: '86.59', quantity: 1, executionRole: 'dokter',
+                consent: {
+                    decision: 'unreviewed', currentId: null, recordedAt: null, planMatches: false, requiredReview: true,
+                    effectiveMode: 'written', effectiveModeLabel: 'Informed Consent Tertulis Wajib',
+                    canPerform: false, blockReason: 'Informed consent tertulis wajib ditandatangani sebelum tindakan.',
+                    url: '/persetujuan-tindakan/1/11',
+                },
+            },
+            {
+                id: 12, name: 'Nebulisasi', code: '93.94', quantity: 1, executionRole: 'perawat',
+                consent: {
+                    decision: 'not_required', currentId: 2, recordedAt: '27/11/2026 09:30', planMatches: true, requiredReview: false,
+                    effectiveMode: 'general_consent', effectiveModeLabel: 'Cukup General Consent',
+                    canPerform: true, blockReason: null,
+                    url: '/persetujuan-tindakan/1/12',
+                },
+            },
+        ],
+    });
+    props.treatments = [
+        { id: 5, name: 'Nebulisasi', icd9Code: '93.94', canDelegateToNurse: true, consentMode: 'general_consent', consentModeLabel: 'Cukup General Consent' },
+        { id: 6, name: 'Ekstraksi benda asing', icd9Code: '98.20', canDelegateToNurse: false, consentMode: 'written', consentModeLabel: 'Informed Consent Tertulis Wajib' },
+    ];
+    props.initialTab = 'tindakan';
+    const html = await renderPage('pelayanan/pemeriksaan/show', props);
+    const tindakanPanel = examinationPanel(html, 'tindakan');
+
+    assert.match(html, /Berkas pendukung/);
+    assert.doesNotMatch(html, /Lampiran pasien/);
+    assert.match(tindakanPanel, /id="tindakan_id"/, 'clinic master procedure select should be active by default when clinic treatments exist');
+    assert.match(tindakanPanel, /Tindakan klinik/);
+    assert.match(tindakanPanel, /Informed consent tertulis wajib ditandatangani sebelum tindakan\./);
+    assert.match(tindakanPanel, /Cukup General Consent/);
+    assert.doesNotMatch(html, /1 bagian belum disimpan/, 'fresh unmodified examination must not show false unsaved badge');
+    assert.doesNotMatch(html, /Riwayat versi pengkajian perawat/, 'doctor view must omit nurse screening version history card');
+    const contextAside = html.match(/<aside[^>]*aria-label="Konteks klinis pasien"[^>]*>/)?.[0] ?? '';
+    assert.ok(contextAside, 'patient context bar should render');
+    assert.doesNotMatch(contextAside, /shadow-sm|shadow-md|shadow-lg/, 'patient context bar must not apply card drop shadow');
+});
+
+test('workflow setting nonaktif hides ROS and dental mucosa from both nurse and doctor views', async () => {
+    const disabledWorkflow = {
+        umum_complaint_details: 'nonaktif',
+        umum_system_review: 'nonaktif',
+        umum_nutrition_needs: 'nonaktif',
+        umum_anthropometry_mode: 'ringkas',
+        gigi_pain_details: 'nonaktif',
+        gigi_mucosa_observation: 'nonaktif',
+        gigi_additional_assessment: 'nonaktif',
+        dokter_soap_tab: false,
+        dokter_repeat_vitals: false,
+    };
+
+    const generalNurse = await renderPage('pelayanan/screening/show', {
+        visit: {
+            id: 95, number: 'KNJ-OFF-95', status: 'screening', examinationStarted: false, editable: true, submitted: false,
+            clinic: 'Poli Umum', clinicType: 'umum', doctor: 'dr. Umum',
+            patient: { name: 'Pasien Nonaktif', medicalRecordNumber: 'RM-95', gender: 'L', age: 30, bloodType: 'A', allergyHistory: null },
+            screening: {}, triage: null, priority: null, printUrl: null, startedAt: '28/11/2026 09:00',
+        },
+        staff: [], canSelectStaff: false, currentStaff: 'Ns. Rina', workflowSettings: disabledWorkflow,
+    });
+    assert.doesNotMatch(generalNurse, /Pengkajian sistem tubuh<\/h[34]>/);
+    assert.match(generalNurse.replace(/<!--.*?-->/g, ''), /Bagian Pengkajian sistem tubuh dinonaktifkan sesuai pengaturan alur klinik\./);
+
+    const generalDoctorProps = examinationProps('umum');
+    generalDoctorProps.initialTab = 'anamnesis';
+    generalDoctorProps.workflowSettings = disabledWorkflow;
+    const generalDoctor = await renderPage('pelayanan/pemeriksaan/show', generalDoctorProps);
+    assert.doesNotMatch(examinationPanel(generalDoctor, 'anamnesis'), /Pengkajian sistem tubuh \(ROS\)/);
+
+    const dentalDoctorProps = examinationProps('gigi');
+    dentalDoctorProps.initialTab = 'odontogram';
+    dentalDoctorProps.workflowSettings = disabledWorkflow;
+    const dentalDoctor = await renderPage('pelayanan/pemeriksaan/show', dentalDoctorProps);
+    assert.doesNotMatch(examinationPanel(dentalDoctor, 'odontogram'), /Observasi mukosa mulut/);
 });

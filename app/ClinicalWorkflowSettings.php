@@ -10,7 +10,9 @@ class ClinicalWorkflowSettings
 {
     /**
      * Default clinical workflow configuration for Klinik Pratama.
-     * Poli Umum Rincian keluhan & Pengkajian sistem tubuh default to Dokter per clinical request,
+     * Complaint/pain breakdown forms default to nonaktif (doctor documents via RPS, physical exam,
+     * and odontogram; clinic may enable them on Nurse as read-only helper info for doctors).
+     * ROS defaults to Doctor (collapsed unless needed), SOAP 1-screen tab defaults to off,
      * while all regulatory safety cores (TTV, Alergi, Triase, Diagnosis, Tindakan, Resep) remain locked.
      *
      * @return array<string, string|bool>
@@ -18,14 +20,14 @@ class ClinicalWorkflowSettings
     public static function defaults(): array
     {
         return [
-            'umum_complaint_details' => 'dokter',
+            'umum_complaint_details' => 'nonaktif',
             'umum_system_review' => 'dokter',
             'umum_nutrition_needs' => 'perawat',
             'umum_anthropometry_mode' => 'ringkas',
-            'gigi_pain_details' => 'perawat',
+            'gigi_pain_details' => 'nonaktif',
             'gigi_mucosa_observation' => 'perawat',
             'gigi_additional_assessment' => 'perawat',
-            'dokter_soap_tab' => true,
+            'dokter_soap_tab' => false,
             'dokter_repeat_vitals' => true,
         ];
     }
@@ -38,12 +40,12 @@ class ClinicalWorkflowSettings
     public static function allowedValues(): array
     {
         return [
-            'umum_complaint_details' => ['dokter', 'perawat', 'keduanya'],
-            'umum_system_review' => ['dokter', 'perawat', 'keduanya'],
+            'umum_complaint_details' => ['nonaktif', 'perawat'],
+            'umum_system_review' => ['dokter', 'perawat', 'keduanya', 'nonaktif'],
             'umum_nutrition_needs' => ['perawat', 'nonaktif'],
             'umum_anthropometry_mode' => ['ringkas', 'lengkap'],
-            'gigi_pain_details' => ['perawat', 'dokter', 'keduanya'],
-            'gigi_mucosa_observation' => ['perawat', 'dokter', 'keduanya'],
+            'gigi_pain_details' => ['nonaktif', 'perawat'],
+            'gigi_mucosa_observation' => ['perawat', 'dokter', 'keduanya', 'nonaktif'],
             'gigi_additional_assessment' => ['perawat', 'nonaktif'],
         ];
     }
@@ -61,8 +63,16 @@ class ClinicalWorkflowSettings
             return $resolved;
         }
 
+        $legacyNurseHelperMap = [
+            'dokter' => 'nonaktif',
+            'keduanya' => 'perawat',
+        ];
+
         foreach (self::allowedValues() as $key => $allowed) {
             $value = $stored[$key] ?? null;
+            if (is_string($value) && in_array($key, ['umum_complaint_details', 'gigi_pain_details'], true) && isset($legacyNurseHelperMap[$value])) {
+                $value = $legacyNurseHelperMap[$value];
+            }
             if (is_string($value) && in_array($value, $allowed, true)) {
                 $resolved[$key] = $value;
             }

@@ -212,6 +212,7 @@ class BodyMapExaminationTest extends TestCase
             'entryMode' => 'quick', 'locationId' => 'general', 'category' => 'Lainnya',
             'detail' => '', 'method' => '', 'symptom' => '', 'pain' => null,
             'finding' => 'Temuan pemeriksaan naratif dokter',
+            'annotationNote' => 'Tanda panah pada area keluhan utama',
         ]);
         $this->post(route('pelayanan.pemeriksaan.store', $visit), [
             'section' => 'pemeriksaan', 'body_map' => $map, 'pemeriksaan_fisik' => 'Ringkasan pemeriksaan fisik dokter',
@@ -221,6 +222,7 @@ class BodyMapExaminationTest extends TestCase
         $this->get(route('pelayanan.pasien.rekam-medis', $visit->pasien_id))->assertInertia(fn (Assert $page) => $page
             ->where('visits.0.examination.bodyMap.findings.0.locationId', 'general')
             ->where('visits.0.examination.bodyMap.findings.0.finding', 'Temuan pemeriksaan naratif dokter')
+            ->where('visits.0.examination.bodyMap.findings.0.annotationNote', 'Tanda panah pada area keluhan utama')
             ->where('visits.0.examination.physicalExamination', 'Ringkasan pemeriksaan fisik dokter'));
         foreach (['entryMode' => 'interactive', 'category' => 'Thorax', 'locationLabel' => 'Lokasi tersembunyi', 'side' => 'kanan'] as $field => $value) {
             $invalid = $map;

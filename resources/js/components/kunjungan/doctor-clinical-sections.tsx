@@ -86,6 +86,41 @@ function NurseReferenceBlock({ items }: { items?: Array<[string, string]> }) {
     );
 }
 
+export function NurseReferenceCallout({
+    title,
+    description,
+    items,
+}: {
+    title: string;
+    description?: string;
+    items: Array<[string, string]>;
+}) {
+    if (items.length === 0) return null;
+
+    return (
+        <section
+            aria-label={title}
+            className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50/80 p-4"
+        >
+            <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-sm font-semibold text-neutral-900">{title}</h4>
+                    <Badge variant="default">Acuan perawat</Badge>
+                </div>
+                {description && <p className="mt-0.5 text-xs text-neutral-500">{description}</p>}
+            </div>
+            <dl className="grid gap-x-5 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                {items.map(([label, val]) => (
+                    <div className="min-w-0" key={label}>
+                        <dt className="text-xs font-medium text-neutral-500">{label}</dt>
+                        <dd className="mt-0.5 whitespace-pre-wrap break-words text-sm text-neutral-800">{val}</dd>
+                    </div>
+                ))}
+            </dl>
+        </section>
+    );
+}
+
 export function DoctorComplaintDetailsSection({
     value,
     onChange,

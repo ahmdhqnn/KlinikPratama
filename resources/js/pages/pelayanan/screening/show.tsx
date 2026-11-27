@@ -270,14 +270,14 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
         Boolean(form.data.skrining_gizi || form.data.riwayat_penyakit_keluarga.trim() || form.data.pemeriksaan_fisik.trim())
         || ['skrining_gizi', 'riwayat_penyakit_keluarga', 'pemeriksaan_fisik'].some((key) => Boolean(formErrors[key]))
     );
-    const showGeneralComplaintDetails = !isDental && (['perawat', 'keduanya'].includes(workflow.umum_complaint_details) || hasGeneralComplaintDetails);
+    const showGeneralComplaintDetails = !isDental && (workflow.umum_complaint_details === 'perawat' || hasGeneralComplaintDetails);
     const showGeneralSystems = !isDental && (['perawat', 'keduanya'].includes(workflow.umum_system_review) || hasGeneralSystems);
     const showGeneralNutrition = !isDental && (workflow.umum_nutrition_needs === 'perawat' || hasGeneralNutrition);
     const showAnthropometry = isDental || workflow.umum_anthropometry_mode === 'ringkas' || mode === 'lengkap' || Boolean(
         form.data.berat_badan || form.data.tinggi_badan || form.data.lingkar_perut || form.data.alasan_pengukuran_tidak_lengkap
         || form.errors.berat_badan || form.errors.tinggi_badan || form.errors.lingkar_perut || form.errors.alasan_pengukuran_tidak_lengkap,
     );
-    const showDentalPainDetails = isDental && (['perawat', 'keduanya'].includes(workflow.gigi_pain_details) || hasDentalPainDetails);
+    const showDentalPainDetails = isDental && (workflow.gigi_pain_details === 'perawat' || hasDentalPainDetails);
     const showDentalMucosa = isDental && (['perawat', 'keduanya'].includes(workflow.gigi_mucosa_observation) || hasDentalMucosa);
     const showDentalAdditional = isDental && (workflow.gigi_additional_assessment === 'perawat' || hasDentalAdditional);
     const narratives = assessmentNarratives(form.data, isDental, showGeneralSystems);
@@ -791,7 +791,7 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                 </CardContent>
             </Card>
             {visit.submitted && <div className="rounded-xl bg-surface p-4 text-sm"><strong>{visit.reviewedAt ? 'Telah ditinjau dokter' : 'Menunggu evaluasi dokter'}</strong><p>Dikirim: {visit.submittedAt ?? 'Waktu tidak tercatat'} · {visit.submittedBy ?? currentStaff ?? 'Petugas pengkajian'} · Penerima: {visit.doctor}</p>{visit.reviewedAt && <p>Ditinjau dan ditandatangani dokter: {visit.reviewedAt}</p>}</div>}
-            {visit.submitted && <Alert dismissLabel="Tutup pesan pengkajian" key={visit.id}><AlertDescription><strong>Pengkajian sudah dikirim.</strong> {editable ? 'Anda dapat memperbarui catatan sebelum dokter mulai.' : 'Pengkajian tersedia untuk dibaca dan dicetak.'}</AlertDescription></Alert>}
+            {visit.submitted && <Alert autoDismissMs={10000} dismissLabel="Tutup pesan pengkajian" key={visit.id}><AlertDescription><strong>Pengkajian sudah dikirim.</strong> {editable ? 'Anda dapat memperbarui catatan sebelum dokter mulai.' : 'Pengkajian tersedia untuk dibaca dan dicetak.'}</AlertDescription></Alert>}
             {visit.patient.allergyHistory && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><strong>Riwayat alergi tersimpan:</strong> {visit.patient.allergyHistory}<p className="mt-1 text-xs">Konfirmasi kembali dengan pasien. Riwayat sebelumnya tetap tersedia untuk membantu pengkajian.</p></div>}
             {Object.keys(form.errors).length > 0 && <div data-validation-summary tabIndex={-1} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><strong>Pengkajian belum dapat disimpan.</strong><ul className="mt-2 list-inside list-disc">{Object.entries(form.errors).map(([name, error]) => <li key={name}>{error}</li>)}</ul></div>}
             <ScreeningVersionHistory versions={visit.versions} />
@@ -829,16 +829,31 @@ export default function ScreeningForm({ visit, staff, canSelectStaff, currentSta
                     </TabsList>
                     <p className="px-4 py-3 text-xs leading-5 text-neutral-500 sm:px-5">
                         {mode === 'ringkas' ? 'Isian utama untuk pengkajian pada kunjungan ini.' : 'Seluruh bagian pengkajian dapat dibuka sesuai kebutuhan pasien.'}
-                        {((!isDental && (!showGeneralComplaintDetails || !showGeneralSystems)) || (isDental && (!showDentalPainDetails || !showDentalMucosa))) && (
-                            <span className="mt-1 block text-neutral-600">
-                                Sesuai pengaturan alur klinik, bagian lanjutan ({[
-                                    ...(!isDental && !showGeneralComplaintDetails ? ['Rincian keluhan'] : []),
-                                    ...(!isDental && !showGeneralSystems ? ['Pengkajian sistem tubuh'] : []),
-                                    ...(isDental && !showDentalPainDetails ? ['Rincian nyeri gigi'] : []),
-                                    ...(isDental && !showDentalMucosa ? ['Observasi mukosa mulut'] : []),
-                                ].join(' dan ')}) dicatat langsung pada tahap pemeriksaan dokter.
-                            </span>
-                        )}
+                        {(() => {
+                            const doctorHandled = [
+                                ...(!isDental && !showGeneralComplaintDetails ? ['Rincian keluhan'] : []),
+                                ...(!isDental && !showGeneralSystems && workflow.umum_system_review === 'dokter' ? ['Pengkajian sistem tubuh'] : []),
+                                ...(isDental && !showDentalPainDetails ? ['Rincian nyeri gigi'] : []),
+                                ...(isDental && !showDentalMucosa && workflow.gigi_mucosa_observation === 'dokter' ? ['Observasi mukosa mulut'] : []),
+                            ];
+                            const disabledSections = [
+                                ...(!isDental && !showGeneralSystems && workflow.umum_system_review === 'nonaktif' ? ['Pengkajian sistem tubuh'] : []),
+                                ...(isDental && !showDentalMucosa && workflow.gigi_mucosa_observation === 'nonaktif' ? ['Observasi mukosa mulut'] : []),
+                            ];
+
+                            return <>
+                                {doctorHandled.length > 0 && (
+                                    <span className="mt-1 block text-neutral-600">
+                                        Sesuai pengaturan alur klinik, bagian lanjutan ({doctorHandled.join(' dan ')}) dicatat langsung pada tahap pemeriksaan dokter.
+                                    </span>
+                                )}
+                                {disabledSections.length > 0 && (
+                                    <span className="mt-1 block text-neutral-600">
+                                        Bagian {disabledSections.join(' dan ')} dinonaktifkan sesuai pengaturan alur klinik.
+                                    </span>
+                                )}
+                            </>;
+                        })()}
                     </p>
                 </div>
                 <TabsContent id="screening-assessment" value={mode} className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400">

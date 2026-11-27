@@ -60,16 +60,16 @@ export function DentalExaminationSummary({ id = 'dental-examination-summary', an
                 <OdontogramRecord compact findings={findings}><div className="overflow-x-auto rounded-xl border border-neutral-100">
                     <Table aria-label="Ringkasan temuan odontogram" className="min-w-[26rem] table-fixed">
                         <TableHeader><TableRow>
-                            <TableHead className="w-24 px-5 py-4 text-center">Gigi FDI</TableHead>
-                            <TableHead className="w-36 px-5 py-4 text-center">Permukaan</TableHead>
-                            <TableHead className="w-40 px-5 py-4 text-center">Temuan</TableHead>
-                            <TableHead className="px-5 py-4 text-center">Catatan</TableHead>
+                            <TableHead className="w-[14%] px-4 py-3.5 text-center">Gigi FDI</TableHead>
+                            <TableHead className="w-[20%] px-4 py-3.5 text-center">Permukaan</TableHead>
+                            <TableHead className="w-[24%] px-4 py-3.5 text-left">Temuan</TableHead>
+                            <TableHead className="w-[42%] px-4 py-3.5 text-left">Catatan</TableHead>
                         </TableRow></TableHeader>
                         <TableBody>{findings.map((finding) => (
                             <TableRow key={finding.toothFdi + '-' + finding.surface}>
-                                <TableCell className="px-5 py-4 text-center align-middle font-sans tabular-nums font-semibold">{finding.toothFdi}</TableCell>
-                                <TableCell className="break-words px-5 py-4 text-center align-middle">{options.surfaces[finding.surface] ?? finding.surface}</TableCell>
-                                <TableCell className="break-words px-5 py-4 text-center align-middle">{options.findings[finding.findingCode] ?? finding.findingCode}</TableCell>
+                                <TableCell className="px-4 py-3.5 text-center align-top font-sans tabular-nums font-semibold">{finding.toothFdi}</TableCell>
+                                <TableCell className="break-words px-4 py-3.5 text-center align-top">{options.surfaces[finding.surface] ?? finding.surface}</TableCell>
+                                <TableCell className="break-words px-4 py-3.5 text-left align-top">{options.findings[finding.findingCode] ?? finding.findingCode}</TableCell>
                                 <TableCell className="align-top text-left"><RecordedTableNote parts={[finding.detailSummary, normalizeClinicalAnswer(finding.notes)]} /></TableCell>
                             </TableRow>
                         ))}</TableBody>
@@ -150,10 +150,10 @@ export function DiagnosisSummary({ id = 'diagnosis-summary', diagnoses, differen
                 <div className="overflow-x-auto rounded-xl border border-neutral-200">
                     <Table aria-label="Ringkasan diagnosis tercatat" className="min-w-[42rem] table-fixed">
                         <TableHeader><TableRow>
-                            <TableHead className="w-32">Kode / sistem</TableHead>
-                            <TableHead className="w-48 text-left">Diagnosis</TableHead>
-                            <TableHead className="w-28">Kategori</TableHead>
-                            <TableHead className="text-left">Catatan</TableHead>
+                            <TableHead className="w-[18%] text-center">Kode / sistem</TableHead>
+                            <TableHead className="w-[36%] text-left">Diagnosis</TableHead>
+                            <TableHead className="w-[14%] text-center">Kategori</TableHead>
+                            <TableHead className="w-[32%] text-left">Catatan</TableHead>
                         </TableRow></TableHeader>
                         <TableBody>{orderedDiagnoses.map((diagnosis) => (
                             <TableRow key={diagnosis.id}>
