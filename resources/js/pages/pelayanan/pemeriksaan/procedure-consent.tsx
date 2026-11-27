@@ -68,9 +68,11 @@ export interface ProcedureConsentProps {
         relationship: string | null;
         witness: string | null;
         actor: string | null;
+        actorRole?: string | null;
         at: string | null;
         reason: string | null;
         explanation: Explanation | null;
+        followupRequired?: boolean;
         evidenceUrl: string | null;
     }[];
     textVersion: string;
@@ -81,6 +83,15 @@ export interface ProcedureConsentProps {
     passwordVerified?: boolean;
     template?: { id: number; revision: string; version: string; mode: string; sop_reference: string; trigger_condition: string | null; explanation: Explanation } | null;
     templateArchived?: boolean;
+    effectiveRequirement?: {
+        mode: string;
+        source: string;
+        label: string;
+        allowsNotRequired: boolean;
+        allowsOral: boolean;
+        masterMode: string | null;
+    };
+    generalConsentActive?: boolean;
     signatureAvailable?: boolean;
     emergencyAvailable?: boolean;
     signatureSessionUrl?: string | null;
@@ -94,7 +105,7 @@ const labels: Record<Decision, string> = {
     oral: "Disetujui secara lisan",
     refused: "Ditolak pasien",
     withdrawn: "Persetujuan dicabut",
-    not_required: "Tidak memerlukan informed consent",
+    not_required: "Cukup General Consent (tindakan rutin)",
     emergency: "Pengecualian kondisi darurat",
     unreviewed: "Belum ditinjau",
 };
@@ -164,10 +175,18 @@ export default function ProcedureConsent({
     passwordVerified = false,
     template,
     templateArchived = false,
+    effectiveRequirement,
+    generalConsentActive = true,
     signatureAvailable = false,
     emergencyAvailable = false,
     signatureSessionUrl,
 }: ProcedureConsentProps) {
+    const allowsNotRequired = effectiveRequirement
+        ? effectiveRequirement.allowsNotRequired
+        : (!template && !templateArchived);
+    const allowsOral = effectiveRequirement
+        ? effectiveRequirement.allowsOral
+        : ["oral", "conditional"].includes(template?.mode ?? "");
     const [useQr, setUseQr] = useState(signatureAvailable);
     const form = useForm({
         request_id: requestId,
@@ -246,26 +265,28 @@ export default function ProcedureConsent({
     return (
         <>
             {!onSaved && <Head title="Persetujuan tindakan" />}
-            <div className="mx-auto max-w-5xl space-y-6">
-                {!onSaved && <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                    <div>
+            <div className="space-y-6">
+                {!onSaved && <header className="flex flex-wrap items-end justify-between gap-4">
+                    <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-neutral-700">
                             Dokumentasi klinis
                         </p>
                         <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">
                             Persetujuan tindakan
                         </h2>
-                        <p className="mt-1 text-sm text-neutral-500">
+                        <p className="mt-1 max-w-3xl text-sm text-neutral-500">
                             {visit.patient} · No. RM {visit.medicalRecordNumber}
                         </p>
                     </div>
-                    <Button asChild variant="secondary">
-                        <Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}>
-                            <ArrowLeft className="size-4" />
-                            Kembali ke pelayanan
-                        </Link>
-                    </Button>
-                </div>}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button asChild size="sm" variant="secondary">
+                            <Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}>
+                                <ArrowLeft className="size-4" />
+                                Kembali ke pelayanan
+                            </Link>
+                        </Button>
+                    </div>
+                </header>}
 
                 <Alert
                     dismissible={false}
@@ -434,15 +455,19 @@ export default function ProcedureConsent({
                                                     persetujuan
                                                 </option>
                                             )}
-                                            {["oral", "conditional"].includes(template?.mode ?? "") && !["accepted", "refused", "withdrawn"].includes(summary.decision) && <option value="oral">Pasien / wakil menyetujui secara lisan</option>}
-                                            {!template && !templateArchived && !["accepted", "oral", "refused", "withdrawn"].includes(summary.decision) && <option value="not_required">
-                                                Dokter menetapkan informed
-                                                consent tidak diperlukan
+                                            {allowsOral && !["accepted", "refused", "withdrawn"].includes(summary.decision) && <option value="oral">Pasien / wakil menyetujui secara lisan</option>}
+                                            {allowsNotRequired && !["accepted", "oral", "refused", "withdrawn"].includes(summary.decision) && <option value="not_required">
+                                                Cukup General Consent (tindakan rutin non-invasif)
                                             </option>}
                                             {emergencyAvailable && !["refused", "withdrawn"].includes(summary.decision) && <option value="emergency">
                                                 Pengecualian tindakan darurat
                                             </option>}
                                         </Select>
+                                        {effectiveRequirement && effectiveRequirement.mode !== "general_consent" && (
+                                            <p className="mt-1 text-xs text-neutral-600">
+                                                Klasifikasi tindakan: <strong>{effectiveRequirement.label}</strong> ({effectiveRequirement.source === "sop" ? "SOP Persetujuan Tindakan" : "Master Tindakan"}).
+                                            </p>
+                                        )}
                                     </Field>
                                     <Field
                                         label="Alasan keputusan / klasifikasi"
@@ -479,19 +504,17 @@ export default function ProcedureConsent({
                                     </Alert>
                                 )}
                                 {form.data.decision === "not_required" && (
-                                    <Alert dismissible={false} variant="default">
+                                    <Alert dismissible={false} variant={generalConsentActive ? "default" : "destructive"}>
                                         <FileCheck2 className="size-4" />
                                         <AlertTitle>
-                                            Klasifikasi klinis, bukan
-                                            persetujuan pasien
+                                            {generalConsentActive
+                                                ? "Cukup General Consent (tindakan rutin non-invasif)"
+                                                : "General Consent belum aktif"}
                                         </AlertTitle>
                                         <AlertDescription>
-                                            Gunakan hanya bila dokter menilai
-                                            tindakan tidak termasuk tindakan
-                                            yang memerlukan informed consent.
-                                            Penolakan atau pencabutan yang sudah
-                                            tercatat tidak dapat dilewati dengan
-                                            pilihan ini.
+                                            {generalConsentActive
+                                                ? "Gunakan hanya bila dokter menilai tindakan bersifat rutin non-invasif dan mengacu pada General Consent aktif. Tindakan invasif atau berisiko wajib memiliki Informed Consent tersendiri."
+                                                : "Persetujuan Umum (General Consent) belum aktif atau ditolak pasien. Dokumentasikan Persetujuan Umum terlebih dahulu sebelum menetapkan klasifikasi tindakan rutin."}
                                         </AlertDescription>
                                     </Alert>
                                 )}
@@ -876,11 +899,21 @@ export default function ProcedureConsent({
                                                         {item.at ||
                                                             "Waktu tidak tersedia"}
                                                     </Badge>
+                                                    {item.followupRequired && (
+                                                        <Badge variant="warning">
+                                                            Perlu kelengkapan penjelasan menyusul
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                                 <p className="mt-1 text-xs text-neutral-500">
                                                     Dicatat oleh{" "}
                                                     {item.actor ||
                                                         "akun tidak tersedia"}
+                                                    {item.actorRole === "perawat"
+                                                        ? " (Perawat)"
+                                                        : item.actorRole === "dokter"
+                                                          ? " (Dokter)"
+                                                          : ""}
                                                     {item.signer
                                                         ? ` · Penandatangan ${item.signer}${item.relationship ? ` (${item.relationship})` : ""}`
                                                         : ""}

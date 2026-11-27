@@ -236,6 +236,8 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
         Route::resource('poliklinik', PoliklinikController::class)->only(['index', 'show']);
         Route::post('poliklinik/{poliklinik}/ruang', [PoliklinikController::class, 'storeRuang'])->name('poliklinik.ruang.store');
         Route::put('poliklinik/ruang/{ruang}', [PoliklinikController::class, 'updateRuang'])->name('poliklinik.ruang.update');
+        Route::post('poliklinik/{poliklinik}/tindakan', [PoliklinikController::class, 'storeTindakan'])->name('poliklinik.tindakan.store');
+        Route::put('poliklinik/tindakan/{tindakan}', [PoliklinikController::class, 'updateTindakan'])->name('poliklinik.tindakan.update');
 
         Route::resource('nakes', NakesController::class)->except(['create', 'show', 'edit']);
         Route::get('nakes/{nakes}/kualifikasi-farmasi', [PharmacyCredentialController::class, 'show'])->name('nakes.pharmacy-credential.show');
@@ -356,6 +358,10 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
             Route::get('tindakan-perawat/{kunjungan}', [TindakanPerawatController::class, 'show'])->name('tindakan.show');
             Route::post('tindakan-perawat/{kunjungan}/mulai', [TindakanPerawatController::class, 'start'])->name('tindakan.start');
             Route::post('tindakan-perawat/{kunjungan}/{tindakanKunjungan}/selesai', [TindakanPerawatController::class, 'complete'])->name('tindakan.complete');
+            Route::post('tindakan-perawat/{kunjungan}/{tindakanKunjungan}/tolak', [TindakanPerawatController::class, 'recordRefusal'])
+                ->middleware(EnsureRole::class.':perawat')->name('tindakan.refuse');
+            Route::post('tindakan-perawat/{kunjungan}/{tindakanKunjungan}/darurat', [TindakanPerawatController::class, 'recordEmergency'])
+                ->middleware(EnsureRole::class.':perawat')->name('tindakan.emergency');
         });
 
         Route::middleware([AuditAdminAssistanceFailures::class, EnsureRole::class.':admin,farmasi'])->group(function (): void {
@@ -384,6 +390,7 @@ Route::middleware(['auth', EnsureRole::class.':admin,dokter,perawat,farmasi,pend
     Route::middleware(EnsureAdminRole::class)->group(function (): void {
         Route::get('setting', [SettingController::class, 'index'])->name('setting.index');
         Route::put('setting', [SettingController::class, 'update'])->name('setting.update');
+        Route::put('setting/alur-klinis', [SettingController::class, 'updateClinicalWorkflow'])->name('setting.clinical-workflow.update');
         Route::post('setting/logo', [SettingController::class, 'uploadLogo'])->name('setting.logo');
     });
 

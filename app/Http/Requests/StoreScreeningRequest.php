@@ -59,9 +59,10 @@ class StoreScreeningRequest extends FormRequest
     {
         $isDental = $this->route('kunjungan')->poliklinik?->jenis === 'gigi';
         $wasSubmitted = $this->route('kunjungan')->screening?->submitted_at !== null;
-        $required = $wasSubmitted || $this->input('tindakan', 'kirim') === 'kirim' ? 'required' : 'nullable';
+        $isDraft = ! $wasSubmitted && $this->input('tindakan', 'kirim') === 'draf';
+        $required = $isDraft ? 'nullable' : 'required';
         $rules = [
-            ...GeneralAssessment::nursingRules(! $isDental),
+            ...GeneralAssessment::nursingRules(! $isDental, $isDraft),
             'request_id' => ['nullable', 'uuid'],
             'vitals_unmeasurable' => [Rule::excludeIf($isDental), 'sometimes', 'boolean'],
             'revision_reason' => ['nullable', 'string', 'min:10', 'max:2000'],
@@ -80,7 +81,7 @@ class StoreScreeningRequest extends FormRequest
             'riwayat_obat' => ['nullable', 'string', 'max:5000'],
             'status_alergi' => [$required, 'in:ada,tidak_ada,belum_diketahui,belum_dikonfirmasi'],
             'status_riwayat_penyakit' => [$required, 'in:ada,tidak_ada,belum_diketahui'],
-            'konfirmasi_riwayat' => [Rule::excludeIf($required === 'nullable'), 'required', 'accepted'],
+            'konfirmasi_riwayat' => $isDraft ? ['sometimes', 'boolean'] : ['required', 'accepted'],
             'riwayat_alergi' => ['nullable', 'string', 'max:5000'],
             'riwayat_penyakit' => ['nullable', 'string', 'max:5000'],
             'riwayat_penyakit_keluarga' => ['nullable', 'string', 'max:5000'],
@@ -99,7 +100,7 @@ class StoreScreeningRequest extends FormRequest
             'status_menyusui' => ['nullable', 'in:tidak,ya,belum_diketahui,tidak_relevan'],
             'pemeriksaan_fisik' => ['nullable', 'string', 'max:5000'],
             'dental_vitals_unmeasurable' => [Rule::excludeIf(! $isDental), 'sometimes', 'boolean'],
-            'alasan_pengukuran_tidak_lengkap' => ['nullable', 'string', 'min:5', 'max:2000'],
+            'alasan_pengukuran_tidak_lengkap' => $isDraft ? ['nullable', 'string', 'max:2000'] : ['nullable', 'string', 'min:5', 'max:2000'],
             'triase_perawat' => ['nullable', 'in:merah,kuning,hijau'],
             'catatan_triase' => ['nullable', 'string', 'max:2000'],
             'nyeri_dada' => ['nullable', 'in:ya,tidak'],

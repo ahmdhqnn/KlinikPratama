@@ -136,6 +136,12 @@ const generalHandoverOptions = [
     ['Pengkajian dikirim ke dokter', 'pengkajian awal lengkap dikirim ke dokter'],
     ['Pemeriksaan fisik', 'pemeriksaan fisik oleh dokter'],
 ] as const;
+const generalStreamlinedHandoverOptions = [
+    ['Posisi di ruang pemeriksaan', 'Pasien sudah berada di ruang pemeriksaan'],
+    ['TTV stabil', 'TTV stabil'],
+    ['Pengkajian awal dikirim ke dokter', 'pengkajian awal telah diserahkan kepada dokter'],
+    ['Anamnesis lanjutan & pemeriksaan dokter', 'anamnesis lanjutan dan pemeriksaan fisik oleh dokter'],
+] as const;
 
 function handoverSentence(selected: number[], options: ReadonlyArray<readonly [string, string]>) {
     const actions = selected.filter(index => index >= 3).map(index => options[index][1]).join(' dan ');
@@ -161,8 +167,8 @@ const legacyFields: Partial<Record<NursingSection, Array<[string, string]>>> = {
     conclusion: [['summary', 'Ringkasan sebelumnya'], ['doctor_notes', 'Catatan dokter sebelumnya']],
 };
 
-export function GeneralNursingAssessment({ value, onChange, complaint, errors = {}, section, informationSource, nutritionField, dental = false, complaintNarrative = '', systemsNarrative = '', includeComplaintNote = true, otherHandoverOpen = false, onOtherHandoverOpenChange }: {
-    value: GeneralNursingData; onChange: (value: GeneralNursingData) => void; complaint: string; errors?: Record<string, string>; section?: NursingSection; informationSource?: string; nutritionField?: ReactNode; dental?: boolean; complaintNarrative?: string; systemsNarrative?: string; includeComplaintNote?: boolean; otherHandoverOpen?: boolean; onOtherHandoverOpenChange?: (open: boolean) => void;
+export function GeneralNursingAssessment({ value, onChange, complaint, errors = {}, section, informationSource, nutritionField, dental = false, complaintNarrative = '', systemsNarrative = '', includeComplaintNote = true, showSystemSummary = true, delegatedToDoctor = false, otherHandoverOpen = false, onOtherHandoverOpenChange }: {
+    value: GeneralNursingData; onChange: (value: GeneralNursingData) => void; complaint: string; errors?: Record<string, string>; section?: NursingSection; informationSource?: string; nutritionField?: ReactNode; dental?: boolean; complaintNarrative?: string; systemsNarrative?: string; includeComplaintNote?: boolean; showSystemSummary?: boolean; delegatedToDoctor?: boolean; otherHandoverOpen?: boolean; onOtherHandoverOpenChange?: (open: boolean) => void;
 }) {
     const parts: NursingSection[] = section ? [section] : ['visit', 'triage', 'complaint', 'history', 'systems', 'additional', 'conclusion'];
     const symptom = complaint.toLocaleLowerCase('id');
@@ -184,11 +190,17 @@ export function GeneralNursingAssessment({ value, onChange, complaint, errors = 
         if (key === 'handover_follow_up') {
             const note = read(key);
             const [firstLine, ...rest] = note.split(/\r?\n/);
-            const options = dental ? dentalHandoverOptions : generalHandoverOptions;
+            const options = dental ? dentalHandoverOptions : (delegatedToDoctor ? generalStreamlinedHandoverOptions : generalHandoverOptions);
+            const alternateOptions = dental ? null : (delegatedToDoctor ? generalHandoverOptions : generalStreamlinedHandoverOptions);
             const legacy = dental ? dentalHandoverPhrases : generalHandoverPhrases;
-            const candidates = options.flatMap(([, phrase], index) =>
+            const matchCandidates = (opts: ReadonlyArray<readonly [string, string]>) => opts.flatMap(([, phrase], index) =>
                 firstLine.toLocaleLowerCase('id').includes(phrase.toLocaleLowerCase('id')) ? [index] : []);
-            const generated = Boolean(firstLine && firstLine === handoverSentence(candidates, options));
+            const primaryCandidates = matchCandidates(options);
+            const primaryGenerated = Boolean(firstLine && firstLine === handoverSentence(primaryCandidates, options));
+            const alternateCandidates = alternateOptions ? matchCandidates(alternateOptions) : [];
+            const alternateGenerated = Boolean(alternateOptions && firstLine && firstLine === handoverSentence(alternateCandidates, alternateOptions));
+            const candidates = primaryGenerated ? primaryCandidates : (alternateGenerated ? alternateCandidates : []);
+            const generated = primaryGenerated || alternateGenerated;
             const remaining = generated ? rest : [firstLine, ...rest];
             const selected = options.flatMap((_, index) =>
                 (generated && candidates.includes(index)) || remaining.includes(legacy[index]) ? [index] : []);
@@ -245,7 +257,7 @@ export function GeneralNursingAssessment({ value, onChange, complaint, errors = 
     };
     return <div className="space-y-4" aria-label={dental ? "Rincian pengkajian gigi dan mulut" : "Rincian pengkajian Poli Umum"}>{parts.map(part => <div key={part} className="space-y-4">
         {part === 'complaint' && relevant.length > 0 && <aside aria-label="Pertanyaan lanjutan sesuai keluhan" className="space-y-1 rounded-lg border border-neutral-200 p-3"><p className="text-sm font-medium">Pertanyaan lanjutan sesuai keluhan</p>{relevant.map(([, prompt]) => <p className="text-xs leading-5 text-neutral-600" key={prompt}>{prompt}</p>)}</aside>}
-        {part === 'conclusion' && !dental && <SystemSummary value={value.systems ?? {}} notes={read('systems_notes')} />}
+        {part === 'conclusion' && !dental && showSystemSummary && <SystemSummary value={value.systems ?? {}} notes={read('systems_notes')} />}
         {part === 'systems' ? <>
             <SystemAssessment prefix="general_assessment.systems" value={value.systems ?? {}} errors={errors} onChange={systems => onChange({ ...value, systems })} />
             {!dental && <GeneralAssessmentNarrativeField field="systems_notes" label="Catatan pengkajian sistem tubuh" generated={systemsNarrative} value={read('systems_notes')} onChange={text => set('systems_notes', text)} error={errors['general_assessment.systems_notes']} />}

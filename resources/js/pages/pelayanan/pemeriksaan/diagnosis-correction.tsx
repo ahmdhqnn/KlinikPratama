@@ -53,8 +53,8 @@ export default function DiagnosisCorrection({ visit, diagnoses, history, baseHas
 
     return <>
         <Head title="Koreksi coding diagnosis" />
-        <div className="mx-auto max-w-4xl space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold text-neutral-950">Koreksi coding diagnosis</h2><p className="mt-1 text-sm text-neutral-500">{visit.patient} · {visit.number}</p></div><Button asChild variant="secondary"><Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}><ArrowLeft className="size-4" />Kembali ke pemeriksaan</Link></Button></div>
+        <div className="space-y-6">
+            <header className="flex flex-wrap items-end justify-between gap-4"><div className="min-w-0 flex-1"><p className="text-sm font-medium text-neutral-700">Dokumentasi klinis</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Koreksi coding diagnosis</h2><p className="mt-1 max-w-3xl text-sm text-neutral-500">{visit.patient} · {visit.number}</p></div><div className="flex flex-wrap items-center gap-2"><Button asChild size="sm" variant="secondary"><Link href={backUrl} onClick={(event) => handleBackNavigation(event, backUrl)}><ArrowLeft className="size-4" />Kembali ke pemeriksaan</Link></Button></div></header>
             <Alert dismissible={false} variant="default"><ShieldCheck aria-hidden="true" className="size-4" /><AlertTitle>Addendum coding</AlertTitle><AlertDescription>Tinjau kesesuaian diagnosis dengan pelayanan yang sudah diberikan. Koreksi ini menyimpan versi baru beserta alasan; resep, pelaksanaan tindakan, dan stok tetap mengikuti catatan layanan masing-masing.</AlertDescription></Alert>
             <Card><CardHeader><CardTitle>Pemetaan ICD-10 WHO</CardTitle><CardDescription>Pilih diagnosis dari catatan final, lalu kode dan rilis katalog yang sesuai.</CardDescription></CardHeader><CardContent>
                 <form className="space-y-5" onSubmit={submit}><fieldset className="space-y-5" disabled={form.processing}>

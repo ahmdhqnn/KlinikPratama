@@ -8,6 +8,7 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { SummaryStatGrid } from '@/components/dashboard/summary-stat-grid';
+import { Attachment } from '@/components/ui/attachment';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -90,10 +91,22 @@ export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props
                                 <Field error={form.errors.code_system} htmlFor="terminology-system" label="Sistem kode" required><Select id="terminology-system" onChange={(event) => form.setData('code_system', event.target.value)} value={form.data.code_system}>{codeSystems.map((system) => <option key={system.value} value={system.value}>{system.label}</option>)}<option value="other">Terminologi lain</option></Select></Field>
                                 {form.data.code_system === 'other' && <Field error={form.errors.custom_system} htmlFor="terminology-custom-system" label="Nama sistem kode" required><Input id="terminology-custom-system" maxLength={100} onChange={(event) => form.setData('custom_system', event.target.value)} placeholder="Contoh: SNOMED CT" value={form.data.custom_system} /></Field>}
                                 <Field error={form.errors.release} htmlFor="terminology-release" label="Versi / rilis"><Input id="terminology-release" maxLength={100} onChange={(event) => form.setData('release', event.target.value)} placeholder="Contoh: WHO 2016 atau FY 2015" value={form.data.release} /></Field>
-                                <Field error={form.errors.file} htmlFor="terminology-file" label="Berkas CSV / Excel / ZIP ICD-9-CM" required><Input accept=".csv,.xls,.xlsx,.zip" id="terminology-file" onChange={(event) => form.setData('file', event.target.files?.[0] ?? null)} required type="file" /></Field>
                             </div>
-                            <p className="text-xs text-neutral-500">Berkas CSV/Excel dideteksi dari header kode dan uraian. Arsip ZIP ICD-9-CM CMS dibaca langsung dari file uraian panjang DX/SG. Katalog versi berbeda disimpan terpisah. Maksimum 20 MB.</p>
-                            <div className="flex flex-wrap items-center justify-between gap-3"><MasterExportButton href="/master/terminologi-klinis/template" label="Unduh template" /><div className="ml-auto flex flex-wrap justify-end gap-2"><Button disabled={form.processing} onClick={() => setImportOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={form.processing || !form.data.file} type="submit"><FileSpreadsheet className="size-4" />{form.processing ? 'Memproses…' : 'Validasi dan impor'}</Button></div></div>
+                            <Attachment
+                                accept=".csv,.xls,.xlsx,.zip"
+                                disabled={form.processing}
+                                error={form.errors.file}
+                                fileName={form.data.file?.name}
+                                helperText="Berkas CSV/Excel dideteksi dari header kode dan uraian. Arsip ZIP ICD-9-CM CMS dibaca langsung dari file uraian panjang DX/SG. Katalog versi berbeda disimpan terpisah. Maksimum 20 MB."
+                                id="terminology-file"
+                                label="Berkas CSV / Excel / ZIP ICD-9-CM"
+                                onFileChange={(file) => {
+                                    form.clearErrors('file');
+                                    form.setData('file', file);
+                                }}
+                                required
+                            />
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-3"><MasterExportButton href="/master/terminologi-klinis/template" label="Unduh template" /><div className="ml-auto flex flex-wrap justify-end gap-2"><Button disabled={form.processing} onClick={() => setImportOpen(false)} type="button" variant="secondary">Batal</Button><Button disabled={form.processing || !form.data.file} type="submit"><FileSpreadsheet className="size-4" />{form.processing ? 'Memproses…' : 'Validasi dan impor'}</Button></div></div>
                         </form>
                 </DialogContent></Dialog>
                 <Card className="overflow-hidden">

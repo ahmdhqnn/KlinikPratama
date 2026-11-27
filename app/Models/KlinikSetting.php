@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use App\ClinicalWorkflowSettings;
 use Illuminate\Database\Eloquent\Model;
 
 class KlinikSetting extends Model
 {
     protected $table = 'klinik_settings';
+
+    protected $casts = [
+        'clinical_workflow' => 'array',
+    ];
 
     protected $fillable = [
         'nama_klinik',
@@ -27,6 +32,7 @@ class KlinikSetting extends Model
         'tagline',
         'website',
         'pelaksana_ttv',
+        'clinical_workflow',
     ];
 
     protected $attributes = [
@@ -36,5 +42,13 @@ class KlinikSetting extends Model
     public static function pelaksanaTtv(): string
     {
         return static::query()->value('pelaksana_ttv') ?? 'perawat';
+    }
+
+    /**
+     * @return array<string, string|bool>
+     */
+    public static function clinicalWorkflow(): array
+    {
+        return ClinicalWorkflowSettings::current();
     }
 }

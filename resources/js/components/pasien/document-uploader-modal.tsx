@@ -1,4 +1,5 @@
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Attachment } from '@/components/ui/attachment';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -252,15 +253,20 @@ export function DocumentUploadModal({ open, onOpenChange, permissions, defaultCa
                             />
                         </Field>
                     )}
-                    <Field error={form.errors.file} htmlFor={`${idPrefix}-file`} label="Berkas (PDF, JPG, PNG · maks. 10 MB)" required>
-                        <Input
-                            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                            id={`${idPrefix}-file`}
-                            onChange={(event) => form.setData('file', event.target.files?.[0] ?? null)}
-                            required
-                            type="file"
-                        />
-                    </Field>
+                    <Attachment
+                        accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                        disabled={form.processing}
+                        error={form.errors.file}
+                        fileName={form.data.file?.name}
+                        helperText="Format yang didukung: PDF, JPG, atau PNG dengan ukuran maksimal 10 MB."
+                        id={`${idPrefix}-file`}
+                        label="Berkas dokumen"
+                        onFileChange={(file) => {
+                            form.clearErrors('file');
+                            form.setData('file', file);
+                        }}
+                        required
+                    />
                     <Field error={form.errors.notes} htmlFor={`${idPrefix}-notes`} label={copy.notesLabel}>
                         <Textarea
                             id={`${idPrefix}-notes`}

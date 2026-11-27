@@ -28,10 +28,10 @@ export default function IssueLetter({ visit, templates, today, replaceableLetter
 
     return <>
         <Head title="Terbitkan dokumen" />
-        <div className="mx-auto max-w-5xl space-y-6">
-            <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                <div><p className="text-sm font-medium text-neutral-700">Persuratan dokter</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Terbitkan dokumen</h2><p className="mt-1 text-sm text-neutral-500">Pilih jenis surat dan lengkapi keterangan untuk kunjungan ini.</p></div>
-                <div className="flex flex-wrap gap-2"><Button asChild variant="secondary"><Link href={`/pelepasan-informasi/${visit.id}`}>Register pelepasan</Link></Button><Button asChild variant="secondary"><Link href="/persuratan" onClick={(event) => handleBackNavigation(event, '/persuratan')}><ArrowLeft className="size-4" />Kembali</Link></Button></div>
+        <div className="space-y-6">
+            <header className="flex flex-wrap items-end justify-between gap-4">
+                <div className="min-w-0 flex-1"><p className="text-sm font-medium text-neutral-700">Persuratan dokter</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Terbitkan dokumen</h2><p className="mt-1 max-w-3xl text-sm text-neutral-500">Pilih jenis surat dan lengkapi keterangan klinis untuk kunjungan ini.</p></div>
+                <div className="flex flex-wrap items-center gap-2"><Button asChild size="sm" variant="secondary"><Link href="/persuratan" onClick={(event) => handleBackNavigation(event, '/persuratan')}><ArrowLeft className="size-4" />Kembali</Link></Button><Button asChild size="sm" variant="secondary"><Link href={`/pelepasan-informasi/${visit.id}`}>Register pelepasan</Link></Button></div>
             </header>
 
             <Card>

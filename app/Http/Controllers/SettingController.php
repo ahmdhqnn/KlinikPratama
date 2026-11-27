@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\ClinicalAuditRecorder;
+use App\ClinicalWorkflowSettings;
 use App\Models\KlinikSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -11,11 +13,14 @@ use Inertia\Response;
 
 class SettingController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $setting = KlinikSetting::first() ?? new KlinikSetting;
+        $requestedTab = $request->query('tab');
+        $initialTab = in_array($requestedTab, ['profil', 'alur-klinis'], true) ? $requestedTab : 'profil';
 
         return Inertia::render('setting/index', [
+            'initialTab' => $initialTab,
             'setting' => [
                 'namaKlinik' => $setting->nama_klinik ?? '',
                 'kodeFasyankes' => $setting->kode_fasyankes ?? '',
@@ -36,6 +41,7 @@ class SettingController extends Controller
                 'pelaksanaTtv' => $setting->pelaksana_ttv ?? 'perawat',
                 'logoUrl' => $setting->logo ? Storage::disk('public')->url($setting->logo) : null,
             ],
+            'clinicalWorkflow' => ClinicalWorkflowSettings::resolve($setting->clinical_workflow),
         ]);
     }
 
@@ -58,17 +64,52 @@ class SettingController extends Controller
             'nip_kepala' => ['nullable', 'string', 'max:50'],
             'tagline' => ['nullable', 'string', 'max:200'],
             'website' => ['nullable', 'string', 'max:100'],
-            'pelaksana_ttv' => ['required', 'in:perawat,pendaftaran'],
+            'pelaksana_ttv' => ['sometimes', 'required', 'in:perawat,pendaftaran'],
         ]);
 
         $setting = KlinikSetting::first();
         if ($setting) {
             $setting->update($data);
         } else {
-            KlinikSetting::create($data);
+            KlinikSetting::create([
+                'pelaksana_ttv' => 'perawat',
+                ...$data,
+            ]);
         }
 
-        return back()->with('success', 'Pengaturan klinik berhasil disimpan.');
+        return back()->with('success', 'Profil klinik berhasil disimpan.');
+    }
+
+    public function updateClinicalWorkflow(Request $request, ClinicalAuditRecorder $auditRecorder): RedirectResponse
+    {
+        $validated = $request->validate(ClinicalWorkflowSettings::validationRules());
+        $resolvedWorkflow = ClinicalWorkflowSettings::resolve($validated['clinical_workflow']);
+
+        $setting = KlinikSetting::first();
+        $previousWorkflow = ClinicalWorkflowSettings::resolve($setting?->clinical_workflow);
+        $previousPelaksana = $setting?->pelaksana_ttv ?? 'perawat';
+
+        if ($setting) {
+            $setting->update([
+                'pelaksana_ttv' => $validated['pelaksana_ttv'],
+                'clinical_workflow' => $resolvedWorkflow,
+            ]);
+        } else {
+            KlinikSetting::create([
+                'nama_klinik' => 'Klinik Pratama Kementerian Pariwisata',
+                'pelaksana_ttv' => $validated['pelaksana_ttv'],
+                'clinical_workflow' => $resolvedWorkflow,
+            ]);
+        }
+
+        $auditRecorder->record($request, 'clinic_setting.clinical_workflow_updated', null, null, [
+            'previous_pelaksana_ttv' => $previousPelaksana,
+            'pelaksana_ttv' => $validated['pelaksana_ttv'],
+            'previous_workflow' => $previousWorkflow,
+            'clinical_workflow' => $resolvedWorkflow,
+        ]);
+
+        return back()->with('success', 'Pengaturan alur pengkajian dan pemeriksaan berhasil disimpan.');
     }
 
     public function uploadLogo(Request $request): RedirectResponse

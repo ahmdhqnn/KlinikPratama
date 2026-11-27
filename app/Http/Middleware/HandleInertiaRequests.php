@@ -10,6 +10,7 @@ use App\NurseQueueCounts;
 use App\PerawatClinicResolver;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -77,6 +78,7 @@ class HandleInertiaRequests extends Middleware
                 ] : null,
             ],
             'flash' => [
+                'nonce' => fn (): ?string => ($request->session()->has('success') || $request->session()->has('error') || $request->session()->has('warning') || $request->session()->has('info')) ? (string) Str::uuid() : null,
                 'success' => fn (): ?string => $request->session()->get('success'),
                 'error' => fn (): ?string => $request->session()->get('error'),
                 'warning' => fn (): ?string => $request->session()->get('warning'),

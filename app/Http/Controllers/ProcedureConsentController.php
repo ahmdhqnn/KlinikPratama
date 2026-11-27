@@ -42,6 +42,7 @@ class ProcedureConsentController extends Controller
             && $procedure->execution_status !== 'completed' && $procedure->performed_at === null;
         $latestTemplate = $canWrite ? $service->publishedTemplate($kunjungan, $procedure, includeArchived: true) : null;
         $template = $latestTemplate?->trashed() ? null : $latestTemplate;
+        $requirement = $service->effectiveRequirement($kunjungan, $procedure, includeArchived: true);
         $signatureSession = ProcedureSignatureSession::where('procedure_id', $procedure->id)->pending()->latest()->first();
 
         $props = [
@@ -54,6 +55,15 @@ class ProcedureConsentController extends Controller
             'passwordVerified' => $canWrite && $this->hasRecentVerification($request, $kunjungan),
             'template' => $template ? [...$template->only(['id', 'version', 'mode', 'sop_reference', 'trigger_condition', 'explanation']), 'revision' => $template->revision()] : null,
             'templateArchived' => $latestTemplate?->trashed() ?? false,
+            'effectiveRequirement' => [
+                'mode' => $requirement['mode'],
+                'source' => $requirement['source'],
+                'label' => $requirement['label'],
+                'allowsNotRequired' => $requirement['allowsNotRequired'],
+                'allowsOral' => $requirement['allowsOral'],
+                'masterMode' => $requirement['masterMode'],
+            ],
+            'generalConsentActive' => $service->generalConsentPermitsRoutine($kunjungan),
             'signatureSessionUrl' => $signatureSession ? route('procedure-signature.show', $signatureSession) : null,
             'signatureAvailable' => $canWrite && ($request->isSecure() || app()->environment('local', 'testing')),
             'emergencyAvailable' => $canWrite && $kunjungan->screening?->prioritas_layanan === 'darurat',
@@ -66,9 +76,13 @@ class ProcedureConsentController extends Controller
                 default => route('pelayanan.pasien.rekam-medis', [$kunjungan->pasien_id, 'kunjungan_id' => $kunjungan->id]),
             },
             'history' => InformedConsent::with('recordedBy')->where('tindakan_kunjungan_id', $procedure->id)->latest('id')->get()->map(fn (InformedConsent $item): array => [
-                'id' => $item->id, 'decision' => $item->decision, 'signer' => $item->nama_penandatangan, 'relationship' => $item->hubungan_pasien,
-                'witness' => $item->witness_name, 'actor' => $item->recordedBy?->name, 'at' => $item->recorded_at?->format('d/m/Y H:i'),
+                'id' => $item->id, 'decision' => $item->decision, 'signer' => $item->nama_penandatangan,
+                'relationship' => $item->hubungan_pasien ? (ProcedureConsentService::RELATIONSHIP_LABELS[$item->hubungan_pasien] ?? $item->hubungan_pasien) : null,
+                'witness' => $item->witness_name, 'actor' => $item->recordedBy?->name,
+                'actorRole' => $item->procedure_snapshot['recorded_by_role'] ?? $item->recordedBy?->role,
+                'at' => $item->recorded_at?->format('d/m/Y H:i'),
                 'reason' => $item->reason, 'explanation' => $item->explanation,
+                'followupRequired' => $item->decision === 'emergency' && (($item->procedure_snapshot['followup_documentation_required'] ?? true) === true),
                 'evidenceUrl' => $item->evidence_path ? route('procedure-consent.evidence', [$kunjungan, $procedure, $item]) : null,
             ]),
         ];
@@ -142,19 +156,27 @@ class ProcedureConsentController extends Controller
                 }
                 $latestTemplate = $service->publishedTemplate($visit, $procedure, includeArchived: true);
                 $template = $latestTemplate?->trashed() ? null : $latestTemplate;
+                $requirement = $service->effectiveRequirement($visit, $procedure, includeArchived: true);
                 if ($template?->id !== (isset($data['template_id']) ? (int) $data['template_id'] : null)
                     || $template?->revision() !== ($data['template_revision'] ?? null)) {
                     throw ValidationException::withMessages(['template_id' => 'Versi SOP tindakan berubah. Buka ulang dialog sebelum mencatat keputusan.']);
                 }
-                if ($data['decision'] === 'not_required' && $latestTemplate) {
-                    throw ValidationException::withMessages(['decision' => 'Catat keputusan pasien sesuai bentuk persetujuan pada SOP.']);
+                if ($data['decision'] === 'not_required' && ! $requirement['allowsNotRequired']) {
+                    throw ValidationException::withMessages(['decision' => 'Catat keputusan pasien sesuai bentuk persetujuan pada Master Tindakan atau SOP.']);
+                }
+                if ($data['decision'] === 'not_required' && ! $service->generalConsentPermitsRoutine($visit)) {
+                    throw ValidationException::withMessages(['decision' => 'Persetujuan Umum (General Consent) belum aktif atau ditolak pasien. Dokumentasikan Persetujuan Umum terlebih dahulu sebelum menetapkan klasifikasi tindakan rutin.']);
                 }
                 $latest = $service->latest($procedure);
                 if ($data['decision'] === 'oral') {
+                    if ($requirement['mode'] === 'written') {
+                        throw ValidationException::withMessages(['decision' => 'Master Tindakan atau SOP mewajibkan persetujuan tertulis bertanda tangan untuk tindakan ini.']);
+                    }
                     $permitsOral = $template?->mode === 'oral'
-                        || ($template?->mode === 'conditional' && ! empty($data['written_trigger_absent']));
+                        || ($template?->mode === 'conditional' && ! empty($data['written_trigger_absent']))
+                        || ($template === null && $requirement['masterMode'] === 'oral');
                     if (! $permitsOral || in_array($latest?->decision, ['accepted', 'refused', 'withdrawn'], true)) {
-                        throw ValidationException::withMessages(['decision' => 'Pastikan SOP mengizinkan persetujuan lisan dan tidak ada keputusan tertulis sebelumnya.']);
+                        throw ValidationException::withMessages(['decision' => 'Pastikan SOP atau Master Tindakan mengizinkan persetujuan lisan dan tidak ada keputusan tertulis sebelumnya.']);
                     }
                 }
                 if (($latest?->id ?? null) !== (isset($data['current_id']) ? (int) $data['current_id'] : null)) {
@@ -190,6 +212,7 @@ class ProcedureConsentController extends Controller
                             'signer_name' => $data['signer_relationship'] === 'patient' ? $visit->pasien->nama : $data['signer_name'],
                             'doctor' => $request->user()->name, 'plan' => $service->plan($procedure),
                             'consent_template' => $template?->only(['id', 'version', 'mode', 'sop_reference', 'trigger_condition']),
+                            'recorded_by_role' => 'dokter',
                         ],
                     ])->save();
                     $audit->record($request, 'procedure_signature.opened', $visit->pasien_id, $visit->id, ['session_id' => $signing->id]);
@@ -207,12 +230,14 @@ class ProcedureConsentController extends Controller
                     'jenis' => $data['decision'], 'decision' => $data['decision'], 'text_version' => ProcedureConsentService::VERSION,
                     'procedure_snapshot' => [
                         ...$service->plan($procedure),
+                        'recorded_by_role' => 'dokter',
+                        ...($requirement['masterMode'] ? ['master_consent_mode' => $requirement['masterMode']] : []),
                         ...($template ? ['consent_template' => [
                             ...$template->only(['id', 'version', 'mode', 'sop_reference', 'trigger_condition']),
                             'revision' => $template->revision(),
                         ]] : []),
                         ...($data['decision'] === 'oral' && $template?->mode === 'conditional' ? ['written_trigger_absent' => true] : []),
-                        ...($data['decision'] === 'emergency' ? ['emergency_without_available_signer' => true] : []),
+                        ...($data['decision'] === 'emergency' ? ['emergency_without_available_signer' => true, 'followup_documentation_required' => true] : []),
                     ], 'plan_hash' => $data['plan_hash'],
                     'explanation' => $data['explanation'] ?? null, 'nama_penandatangan' => $data['signer_name'] ?? null,
                     'hubungan_pasien' => $data['signer_relationship'] ?? null, 'representative_verification' => $data['representative_verification'] ?? null,

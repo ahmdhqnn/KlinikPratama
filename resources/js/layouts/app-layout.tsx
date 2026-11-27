@@ -63,7 +63,7 @@ interface SharedPageProps extends PageProps {
     pharmacyQueues?: { handovers: number } | null;
     breadcrumbs?: BreadcrumbItem[];
     auth: { user: AppUser | null };
-    flash: { success?: string | null; error?: string | null; warning?: string | null; info?: string | null };
+    flash: { nonce?: string | null; success?: string | null; error?: string | null; warning?: string | null; info?: string | null };
 }
 
 interface NavigationGroup {
@@ -526,21 +526,21 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (flash.success) {
-            toast.success(flash.success);
+            toast.success(flash.success, flash.nonce ? { id: `flash-success-${flash.nonce}` } : undefined);
         }
 
         if (flash.error) {
-            toast.error(flash.error);
+            toast.error(flash.error, flash.nonce ? { id: `flash-error-${flash.nonce}` } : undefined);
         }
 
         if (flash.warning) {
-            toast.warning(flash.warning);
+            toast.warning(flash.warning, flash.nonce ? { id: `flash-warning-${flash.nonce}` } : undefined);
         }
 
         if (flash.info) {
-            toast.info(flash.info);
+            toast.info(flash.info, flash.nonce ? { id: `flash-info-${flash.nonce}` } : undefined);
         }
-    }, [flash.error, flash.info, flash.success, flash.warning]);
+    }, [flash.error, flash.info, flash.nonce, flash.success, flash.warning]);
 
     return (
         <div className="clinic-app min-h-screen bg-canvas text-neutral-900">
@@ -559,7 +559,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
             <div className={`min-h-screen transition-[padding] duration-200 print:min-h-0 print:!pl-0 ${sidebarCollapsed ? 'lg:pl-[6.5rem]' : 'lg:pl-[19rem]'}`}>
                 <header className="sticky top-0 z-30 flex min-h-16 flex-wrap items-center gap-2 bg-canvas px-3 py-3 print:hidden sm:h-16 sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-0 lg:top-4 lg:mt-4 lg:h-[4.5rem] lg:px-8 lg:before:pointer-events-none lg:before:absolute lg:before:inset-x-0 lg:before:-top-4 lg:before:h-4 lg:before:bg-canvas lg:before:content-['']">
-                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full -z-10 h-4 bg-linear-to-b from-canvas to-transparent sm:h-6 lg:h-8" />
+                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-full -z-10 h-2 bg-linear-to-b from-canvas to-transparent sm:h-2.5 lg:h-3" />
                     <Button
                         aria-label="Buka navigasi"
                         className="lg:hidden"

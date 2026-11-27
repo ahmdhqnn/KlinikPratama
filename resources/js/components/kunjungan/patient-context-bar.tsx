@@ -61,23 +61,23 @@ export function PatientContextBar({
         <aside
             aria-label="Konteks klinis pasien"
             className={cn(
-                'no-print sticky top-16 z-20 rounded-xl border border-neutral-200 bg-surface/95 px-4 py-2.5 shadow-xs backdrop-blur-xs',
+                'no-print sticky top-[4.25rem] z-20 rounded-xl border border-neutral-200 bg-surface px-5 py-3.5 shadow-sm sm:top-[4.5rem] lg:top-[5.75rem]',
                 className,
             )}
         >
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs">
-                <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-                    <span className="truncate text-sm font-semibold text-neutral-950">{patientName}</span>
-                    <span className="rounded-md bg-neutral-100 px-2 py-0.5 font-sans font-semibold tabular-nums text-neutral-800">
+            <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2.5 text-sm">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <span className="truncate text-base font-semibold text-neutral-950">{patientName}</span>
+                    <span className="rounded-md bg-neutral-100 px-2.5 py-1 font-sans text-xs font-semibold tabular-nums text-neutral-800">
                         {medicalRecordNumber}
                     </span>
-                    {visitNumber && <span className="font-sans tabular-nums text-neutral-500">{visitNumber}</span>}
-                    {demographics && <span className="text-neutral-600">{demographics}</span>}
+                    {visitNumber && <span className="font-sans text-xs font-medium tabular-nums text-neutral-500">{visitNumber}</span>}
+                    {demographics && <span className="text-xs font-medium text-neutral-600">{demographics}</span>}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                     {vitals.length > 0 && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-0.5 font-sans font-medium tabular-nums text-neutral-700">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 font-sans font-medium tabular-nums text-neutral-700">
                             <HeartPulse aria-hidden="true" className="size-3.5 text-neutral-500" />
                             {vitals.join(' · ')}
                         </span>
@@ -86,12 +86,12 @@ export function PatientContextBar({
                     {triage && ['merah', 'kuning', 'hijau'].includes(triage) && (
                         <span
                             className={cn(
-                                'inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold capitalize',
+                                'inline-flex items-center rounded-full border px-3 py-1 font-semibold capitalize',
                                 triage === 'merah'
-                                    ? 'border-red-300 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300'
+                                    ? 'border-red-200 bg-red-50 text-red-900'
                                     : triage === 'kuning'
-                                        ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
-                                        : 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+                                        ? 'border-amber-200 bg-amber-50 text-amber-900'
+                                        : 'border-emerald-200 bg-emerald-50 text-emerald-900',
                             )}
                         >
                             Triase {triage}
@@ -99,30 +99,30 @@ export function PatientContextBar({
                     )}
 
                     {hasAllergy ? (
-                        <span className="inline-flex max-w-xs items-center gap-1 truncate rounded-full border border-red-300 bg-red-50 px-2.5 py-0.5 font-semibold text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300" title={`Alergi: ${normalizedAllergy}`}>
+                        <span className="inline-flex max-w-xs items-center gap-1.5 truncate rounded-full border border-red-200 bg-red-50 px-3 py-1 font-semibold text-red-900" title={`Alergi: ${normalizedAllergy}`}>
                             <ShieldAlert aria-hidden="true" className="size-3.5 shrink-0" />
                             <span className="truncate">Alergi: {normalizedAllergy}</span>
                         </span>
                     ) : (
-                        <span className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-0.5 text-neutral-600">
+                        <span className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 font-medium text-neutral-600">
                             Alergi: {normalizedAllergy ? normalizedAllergy : 'Belum ada laporan'}
                         </span>
                     )}
 
                     {maternalSummary && maternalRisk && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-semibold text-amber-900">
                             <Baby aria-hidden="true" className="size-3.5 shrink-0" />
                             {maternalSummary}
                         </span>
                     )}
 
                     {unsavedCount > 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                            <AlertTriangle aria-hidden="true" className="size-3 shrink-0" />
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-medium text-amber-900">
+                            <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
                             {unsavedCount} bagian belum disimpan
                         </span>
                     ) : draftStatus ? (
-                        <span className="text-neutral-500">{draftStatus}</span>
+                        <span className="font-medium text-neutral-500">{draftStatus}</span>
                     ) : null}
                 </div>
             </div>

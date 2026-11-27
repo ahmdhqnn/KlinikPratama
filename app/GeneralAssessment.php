@@ -70,7 +70,7 @@ class GeneralAssessment
         return $sentences ? implode(' ', $sentences) : null;
     }
 
-    public static function nursingRules(bool $general): array
+    public static function nursingRules(bool $general, bool $draft = false): array
     {
         $fields = $general ? self::FIELDS : array_intersect_key(self::FIELDS, array_flip([...self::HANDOVER_FIELDS, ...self::DENTAL_FIELDS]));
         $rules = ['general_assessment' => ['nullable', 'array:'.implode(',', [...array_keys($fields), ...($general ? ['systems'] : [])])]];
@@ -83,13 +83,15 @@ class GeneralAssessment
                 $rules['general_assessment.'.$field] = ['nullable', Rule::in(['ada', 'tidak_ada', 'belum_diketahui'])];
             }
         }
-        foreach (['special_needs' => 'special_needs_status', 'needs' => 'needs_status', 'initial_actions' => 'initial_actions_status'] as $detail => $status) {
-            if (array_key_exists($detail, $fields)) {
-                $rules['general_assessment.'.$detail][] = 'required_if:general_assessment.'.$status.',ada';
+        if (! $draft) {
+            foreach (['special_needs' => 'special_needs_status', 'needs' => 'needs_status', 'initial_actions' => 'initial_actions_status'] as $detail => $status) {
+                if (array_key_exists($detail, $fields)) {
+                    $rules['general_assessment.'.$detail][] = 'required_if:general_assessment.'.$status.',ada';
+                }
             }
         }
 
-        return [...$rules, ...($general ? self::systemRules('general_assessment.systems', self::SYSTEMS) : [])];
+        return [...$rules, ...($general ? self::systemRules('general_assessment.systems', self::SYSTEMS, $draft) : [])];
     }
 
     public static function handoverSummary(?array $values): array
@@ -99,13 +101,18 @@ class GeneralAssessment
         return array_intersect_key(self::nursingSummary($values), array_flip($labels));
     }
 
-    public static function systemRules(string $prefix, array $systems): array
+    public static function systemRules(string $prefix, array $systems, bool $draft = false): array
     {
+        $noteRules = ['nullable', 'string', 'max:3000'];
+        if (! $draft) {
+            $noteRules[] = 'required_if:'.$prefix.'.*.status,positive';
+        }
+
         return [
             $prefix => ['nullable', 'array:'.implode(',', array_keys($systems))],
             $prefix.'.*' => ['array:status,notes'],
             $prefix.'.*.status' => ['required', Rule::in(['positive', 'negative', 'not_assessed', 'not_relevant'])],
-            $prefix.'.*.notes' => ['nullable', 'string', 'max:3000', 'required_if:'.$prefix.'.*.status,positive'],
+            $prefix.'.*.notes' => $noteRules,
         ];
     }
 

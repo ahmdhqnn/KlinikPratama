@@ -21,7 +21,7 @@ void createInertiaApp({
             <TooltipProvider delayDuration={0}>
                 <RequestFeedback />
                 <ConfirmDialogProvider>{app}</ConfirmDialogProvider>
-                <Toaster position="top-right" richColors />
+                <Toaster position="top-right" />
             </TooltipProvider>
         );
     },

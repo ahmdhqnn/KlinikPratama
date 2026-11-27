@@ -20,6 +20,7 @@ class ClinicalNoteRecorder
         return [
             'supporting_exams' => $examination->supporting_exams,
             'review_of_systems' => $examination->review_of_systems,
+            'clinical_assessment' => $examination->clinical_assessment,
             'riwayat_sosial' => $examination->riwayat_sosial,
             'kondisi_akhir' => $examination->kondisi_akhir,
             'disposisi' => $examination->disposisi,

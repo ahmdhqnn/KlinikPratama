@@ -119,7 +119,7 @@ export function ConsentDialogSkeleton({ label = 'Memuat persetujuan…' }: { lab
     return (
         <div className="space-y-5" role="status">
             <span className="sr-only">{label}</span>
-            <div className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3.5 dark:border-neutral-800 dark:bg-neutral-900/60">
+            <div className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3.5">
                 <Skeleton className="mt-0.5 size-4 shrink-0 rounded" />
                 <div className="min-w-0 flex-1 space-y-2">
                     <Skeleton className="h-4 w-44" />
@@ -539,10 +539,7 @@ export function PageSkeleton({ pathname }: { pathname: string }) {
     if (variant === 'clinical-workspace') {
         return (
             <div className="space-y-6" data-page-skeleton={variant}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Skeleton className="h-9 w-28 rounded-lg" />
-                    <Skeleton className="h-9 w-36 rounded-lg" />
-                </div>
+                <PageHeaderSkeleton actionCount={1} />
                 <HeroPatientCardSkeleton />
                 <TabsBarSkeleton count={5} />
                 <FormCardSkeleton columns={2} fields={6} />
