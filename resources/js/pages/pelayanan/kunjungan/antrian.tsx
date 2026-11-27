@@ -108,7 +108,7 @@ export default function VisitQueue({ visits, todayVisits, today, queueUrl, servi
             <Head title="Monitoring kunjungan & antrean" />
             <div className="space-y-6">
                 <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div><p className="text-sm font-medium text-neutral-700">Operasional pelayanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Monitoring kunjungan & antrean</h2><p className="mt-1 text-sm text-neutral-500">Pusat pelayanan setelah pendaftaran: pengkajian, pemeriksaan, tindakan, persuratan, dan penyerahan obat.</p></div>
+                    <div><p className="text-sm font-medium text-neutral-700">Operasional pelayanan</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Monitoring kunjungan & antrean</h2><p className="mt-1 text-sm text-neutral-500">Pantau antrean pelayanan harian setelah pendaftaran mulai dari pengkajian awal perawat, pemeriksaan dokter, tindakan, hingga penyerahan obat farmasi.</p></div>
                     <Button size="sm" onClick={() => router.reload()} variant="secondary"><RefreshCw className="size-4" />Perbarui antrean</Button>
                 </div>
                 <SummaryStatGrid ariaLabel="Ringkasan monitoring kunjungan dan antrean" columns={4}>

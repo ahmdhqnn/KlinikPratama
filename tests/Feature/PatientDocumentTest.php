@@ -214,4 +214,70 @@ class PatientDocumentTest extends TestCase
                 ->where('documentPermissions.canUpload', true)
             );
     }
+
+    public function test_profile_documents_and_categories_are_scoped_by_role_and_clinic_context(): void
+    {
+        Storage::fake('local');
+
+        $pendaftaran = User::factory()->create(['role' => 'pendaftaran', 'is_active' => true]);
+        $dokterUmum = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+        $dokterGigi = User::factory()->create(['role' => 'dokter', 'is_active' => true]);
+
+        $poliUmum = Poliklinik::create(['kode' => 'PU-CTX', 'nama' => 'Poli Umum', 'jenis' => 'umum', 'is_active' => true]);
+        $poliGigi = Poliklinik::create(['kode' => 'PG-CTX', 'nama' => 'Poli Gigi', 'jenis' => 'gigi', 'is_active' => true]);
+
+        $nakesUmum = Nakes::create(['kode' => 'DR-UM-CTX', 'nama' => 'dr. Umum', 'kategori' => 'medis', 'jabatan' => 'dokter', 'user_id' => $dokterUmum->id, 'poliklinik_id' => $poliUmum->id, 'is_active' => true]);
+        $nakesGigi = Nakes::create(['kode' => 'DRG-CTX', 'nama' => 'drg. Gigi', 'kategori' => 'medis', 'jabatan' => 'dokter', 'user_id' => $dokterGigi->id, 'poliklinik_id' => $poliGigi->id, 'is_active' => true]);
+
+        $patient = Pasien::create(['no_rm' => 'RM-CTX-01', 'nama' => 'Pasien Konteks']);
+        Kunjungan::create(['no_kunjungan' => 'KNJ-UM-1', 'pasien_id' => $patient->id, 'poliklinik_id' => $poliUmum->id, 'dokter_id' => $nakesUmum->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
+        Kunjungan::create(['no_kunjungan' => 'KNJ-GG-1', 'pasien_id' => $patient->id, 'poliklinik_id' => $poliGigi->id, 'dokter_id' => $nakesGigi->id, 'tanggal' => today(), 'status' => 'pemeriksaan']);
+
+        $this->actingAs($pendaftaran)->post(route('pelayanan.pasien.documents.store', $patient), [
+            'title' => 'Salinan KTP',
+            'category' => PatientDocument::CATEGORY_DOKUMEN_IDENTITAS,
+            'document_date' => today()->toDateString(),
+            'file' => $this->samplePdf('ktp.pdf'),
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($dokterUmum)->post(route('pelayanan.pasien.documents.store', $patient), [
+            'title' => 'Hasil Lab Rahasia',
+            'category' => PatientDocument::CATEGORY_HASIL_LAB,
+            'document_date' => today()->toDateString(),
+            'file' => $this->samplePdf('lab.pdf'),
+        ])->assertSessionHasNoErrors();
+
+        // Pendaftaran only sees administrative documents and administrative category options
+        $this->actingAs($pendaftaran)->get(route('pelayanan.pasien.show', [$patient, 'bagian' => 'dokumen']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('pelayanan/pasien/show')
+                ->has('documents', 1)
+                ->where('documents.0.title', 'Salinan KTP')
+                ->where('documentPermissions.role', 'pendaftaran')
+                ->has('documentPermissions.allowedCategories', 1)
+                ->where('documentPermissions.allowedCategories.0.value', PatientDocument::CATEGORY_DOKUMEN_IDENTITAS)
+                ->has('documentPermissions.allCategories', 1)
+            );
+
+        // Poli Umum doctor sees both docs, upload categories exclude dental-only radiologi_gigi
+        $this->actingAs($dokterUmum)->get(route('pelayanan.pasien.show', [$patient, 'bagian' => 'dokumen']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('pelayanan/pasien/show')
+                ->has('documents', 2)
+                ->where('documentPermissions.clinicType', 'umum')
+                ->where('documentPermissions.allowedCategories', fn ($cats) => ! collect($cats)->pluck('value')->contains(PatientDocument::CATEGORY_RADIOLOGI_GIGI))
+            );
+
+        // Poli Gigi doctor gets radiologi_gigi prioritized first in upload categories
+        $this->actingAs($dokterGigi)->get(route('pelayanan.pasien.show', [$patient, 'bagian' => 'dokumen']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('pelayanan/pasien/show')
+                ->has('documents', 2)
+                ->where('documentPermissions.clinicType', 'gigi')
+                ->where('documentPermissions.allowedCategories.0.value', PatientDocument::CATEGORY_RADIOLOGI_GIGI)
+            );
+    }
 }

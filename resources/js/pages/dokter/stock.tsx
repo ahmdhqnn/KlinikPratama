@@ -48,8 +48,8 @@ export default function DoctorStock({ stats, filters: initialFilters, medicines 
             <div className="space-y-6">
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Informasi farmasi</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Ketersediaan obat</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Stok dari batch layak pakai untuk membantu pertimbangan terapi dan peresepan. Batch kedaluwarsa dan karantina dikecualikan.</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Stok obat</h2>
+                    <p className="mt-1 text-sm text-neutral-500">Ketersediaan stok layak pakai per batch aktif pada unit poliklinik sebagai acuan peresepan dokter. Batch kedaluwarsa dan karantina dikecualikan.</p>
                 </div>
                 <SummaryStatGrid ariaLabel="Ringkasan ketersediaan obat" columns={4}>
                     <StatCard label="Total obat aktif" value={stats?.total ?? medicines.total} description="Formularium aktif depo poli" icon={<Pill className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />

@@ -132,7 +132,7 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
                         {clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}
                     </Select>
                 </Field>
-                <Field error={doctorLoadError ? 'Jadwal dokter gagal dimuat. Silakan muat ulang halaman.' : errors.dokter_id} htmlFor="dokter_id" label="Dokter terjadwal" required>
+                <Field error={doctorLoadError ? 'Jadwal dokter gagal dimuat. Muat ulang halaman untuk mencoba kembali.' : errors.dokter_id} htmlFor="dokter_id" label="Dokter terjadwal" required>
                     <LoadingField label="Memuat jadwal dokter…" loading={loadingDoctors}>
                         <Select aria-describedby={(errors.dokter_id || doctorLoadError) ? 'dokter_id-error' : undefined} disabled={loadingDoctors || doctorLoadError || displayedDoctors.length === 0} id="dokter_id" required onChange={(event) => selectDoctor(event.target.value)} value={selectedDoctor}>
                             <option value="">{doctorLoadError ? 'Jadwal dokter tidak tersedia' : displayedDoctors.length ? 'Pilih dokter' : 'Tidak ada dokter terjadwal'}</option>
@@ -149,12 +149,12 @@ export function VisitFields({ clinics, today, doctorsUrl, values, errors, onChan
                 </Field>
                 <Field error={errors.tanggal} htmlFor="reservation-date" label={isDental ? 'Tanggal kunjungan Poli Gigi' : 'Tanggal kunjungan'} required>
                     <DatePicker id="reservation-date" min={today} required value={values.tanggal} onChange={(event) => onChange({ tanggal: event.target.value, dokter_id: plannedDoctor ? values.dokter_id || String(plannedDoctor.id) : '' })} />
-                    <p className="text-xs leading-5 text-neutral-500">{plannedDoctor ? 'Gunakan tanggal pilihan dokter. Jika perlu dijadwalkan ulang, pilih tanggal sesuai jadwal praktik.' : isDental ? 'Poli Gigi dapat didaftarkan hari ini atau tanggal berikutnya sesuai jadwal dokter.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
+                    <p className="text-xs leading-5 text-neutral-500">{plannedDoctor ? 'Gunakan tanggal pilihan dokter. Jika perlu dijadwalkan ulang, pilih tanggal sesuai jadwal praktik.' : isDental ? 'Poli Gigi tersedia untuk kunjungan hari ini atau tanggal berikutnya sesuai jadwal praktik.' : 'Poli Umum tersedia untuk kunjungan hari ini sesuai jadwal praktik.'}</p>
                 </Field>
-                <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Fasilitas klinik internal</p><p className="mt-1 text-xs text-neutral-500">Pasien baru dapat langsung didaftarkan untuk kunjungan. Verifikasi kepesertaan dilakukan oleh admin.</p></div>
+                <div className="rounded-xl bg-neutral-50 p-4 md:col-span-2"><p className="text-sm font-medium">Fasilitas klinik internal</p><p className="mt-1 text-xs text-neutral-500">Kunjungan dapat langsung didaftarkan sesuai jadwal praktik. Verifikasi kepesertaan internal dilakukan oleh admin.</p></div>
             </div>
             <Field error={errors.catatan} htmlFor="catatan" label="Catatan kunjungan">
-                <Textarea aria-describedby={errors.catatan ? 'catatan-error' : undefined} id="catatan" onChange={(event) => onChange({ catatan: event.target.value })} placeholder="Catatan khusus atau informasi rujukan awal" value={values.catatan} />
+                <Textarea aria-describedby={errors.catatan ? 'catatan-error' : undefined} id="catatan" onChange={(event) => onChange({ catatan: event.target.value })} placeholder="Catat informasi rujukan awal atau keterangan administratif secara ringkas dan objektif" value={values.catatan} />
             </Field>
         </div>
     );

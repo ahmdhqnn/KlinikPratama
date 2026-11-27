@@ -85,7 +85,7 @@ const navigationByRole: Record<string, NavigationGroup[]> = {
                 { label: 'Data pasien', href: '/pelayanan/pasien', activePaths: ['/pendaftaran/database-pasien'], icon: UsersRound },
                 { label: 'Kepesertaan internal', href: '/kepesertaan', icon: ShieldCheck },
                 { label: 'Poliklinik & ruang', href: '/master/poliklinik', icon: Boxes },
-                { label: 'Referensi medis', href: '/master/terminologi-klinis', icon: ClipboardList },
+                { label: 'Terminologi klinis', href: '/master/terminologi-klinis', icon: ClipboardList },
                 { label: 'SOP persetujuan tindakan', href: '/master/template-persetujuan', icon: FileText },
                 { label: 'Template surat', href: '/persuratan', icon: FileText },
                 { label: 'Master obat & BHP', href: '/master/obat', icon: Pill },
@@ -272,11 +272,11 @@ function getPageTitle(component: string): string {
         'master/terminologi/index': 'Terminologi klinis',
         'master/terminologi/show': 'Detail terminologi klinis',
         'master/terminologi/consent-templates': 'SOP persetujuan tindakan',
-        'master/poliklinik/index': 'Poliklinik',
+        'master/poliklinik/index': 'Poliklinik & ruang periksa',
         'master/poliklinik/show': 'Ruang poliklinik',
-        'master/nakes/index': 'Nakes & karyawan',
+        'master/nakes/index': 'Tenaga kesehatan & karyawan',
         'master/nakes/kualifikasi-farmasi': 'Kualifikasi tenaga farmasi',
-        'master/obat/index': 'Obat & BHP',
+        'master/obat/index': 'Master obat & BHP',
         'master/obat/stok': 'Kartu stok obat',
     };
 

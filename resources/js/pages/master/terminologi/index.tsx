@@ -66,7 +66,7 @@ export default function ClinicalTerminologyIndex({ systems, codeSystems }: Props
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Data klinis terstandar</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Terminologi klinis</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Impor katalog resmi untuk pencarian kode dan uraian saat pencatatan klinis.</p>
+                    <p className="mt-1 text-sm text-neutral-500">Kelola katalog referensi klinis terstandar (ICD-10, ICD-9-CM, dan katalog terkait) untuk pencatatan diagnosis, tindakan, dan kesiapan interoperabilitas SATUSEHAT.</p>
                 </div>
                 <SummaryStatGrid ariaLabel="Ringkasan katalog terminologi klinis" columns={3}>
                     <StatCard label="Katalog terpasang" value={systems.length} description="Total rilis terminologi aktif" icon={<FileSpreadsheet className="size-5" />} iconClassName="bg-neutral-100 text-neutral-700" />

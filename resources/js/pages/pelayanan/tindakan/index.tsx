@@ -65,7 +65,7 @@ export default function NursingProcedureQueue({ stats, filters: initialFilters, 
                 <div>
                     <p className="text-sm font-medium text-neutral-700">Pelayanan keperawatan</p>
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Tindakan perawat</h2>
-                    <p className="mt-1 text-sm text-neutral-500">Pantau tindakan yang disiapkan dokter dan hasil pelaksanaannya sesuai akses poliklinik.</p>
+                    <p className="mt-1 text-sm text-neutral-500">Laksanakan tindakan sesuai instruksi dokter penanggung jawab dan dokumentasikan hasil serta respons pasien pada rekam medis kunjungan.</p>
                 </div>
                 <ServiceReportLinks kind="procedures" />
             </div>
