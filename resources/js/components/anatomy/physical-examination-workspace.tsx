@@ -175,7 +175,7 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
                 <Field htmlFor={inputId('body-local-complaint')} label="Keluhan lokal pasien"><Input id={inputId('body-local-complaint')} disabled={disabled} maxLength={500} value={draft.symptom} onChange={(event) => update('symptom', event.target.value)} placeholder="Contoh: nyeri saat digerakkan" /></Field>
                 <ClinicalFindingSigns label="Opsi gejala lokal" value={draft.symptom} onChange={value => update('symptom', value)} suggestions={draft.category === 'Abdomen' ? ['Mual', 'Muntah', 'Kembung'] : ['Nyeri', 'Kesemutan', 'Gatal']} disabled={disabled} />
             </>}
-            {((!compact && tab === 'manual') || draft.annotationNote || existingFinding?.annotationNote) && <Field htmlFor={inputId('body-annotation-note')} label="Keterangan anotasi"><Textarea id={inputId('body-annotation-note')} rows={3} maxLength={2000} disabled={disabled} value={annotationNote} onChange={(event) => update('annotationNote', event.target.value)} placeholder="Jelaskan tanda pada gambar untuk temuan ini" /></Field>}
+            {(compact || tab === 'manual' || draft.annotationNote || existingFinding?.annotationNote) && <Field htmlFor={inputId('body-annotation-note')} label="Keterangan anotasi"><Textarea id={inputId('body-annotation-note')} rows={3} maxLength={2000} disabled={disabled} value={annotationNote} onChange={(event) => update('annotationNote', event.target.value)} placeholder="Jelaskan tanda pada gambar atau catatan tambahan untuk temuan ini" /></Field>}
             <ClinicalFindingSigns label="Opsi temuan pemeriksaan" value={draft.finding} onChange={value => update('finding', value)} suggestions={draft.category === 'Abdomen' ? ['Nyeri tekan', 'Defensif muskular', 'Organomegali', 'Massa abnormal'] : draft.category === 'Thorax' ? ['Wheezing', 'Ronki', 'Retraksi', 'Nyeri tekan'] : ['Nyeri tekan', 'Pembengkakan', 'Kemerahan', 'Keterbatasan gerak']} disabled={disabled} />
             <Field htmlFor={inputId('body-objective-finding')} label="Temuan pemeriksaan" error={error || (pending ? preview.error : undefined)}><Textarea id={inputId('body-objective-finding')} disabled={disabled} maxLength={3000} rows={compact ? 5 : 4} value={draft.finding} onChange={(event) => update('finding', event.target.value)} placeholder="Tuliskan hasil pemeriksaan yang dinilai" /></Field>
             <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3 border-t border-neutral-200 pt-4">
@@ -218,12 +218,12 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
             {bodyMap.findings.length > 0 && <section className="space-y-3 rounded-xl border border-neutral-200 p-4 sm:p-5" aria-label="Temuan lokasi tercatat">
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-neutral-950"><MapPin aria-hidden="true" className="size-4 shrink-0" />Temuan pemeriksaan ({bodyMap.findings.length})</h3>
                 <div className="overflow-x-auto">
-                    <Table aria-label="Tabel temuan pemeriksaan fisik" className="min-w-[38rem] table-fixed">
+                    <Table aria-label="Tabel temuan pemeriksaan fisik" className="min-w-[42rem] table-fixed">
                         <TableHeader><TableRow>
-                            <TableHead className="w-[24%] text-left">Lokasi</TableHead>
-                            <TableHead className="text-left">Temuan pemeriksaan</TableHead>
-                            <TableHead className="w-36">Cara pencatatan</TableHead>
-                            {!disabled && <TableHead className={onPrepareDiagnosis ? 'w-48' : 'w-28'}>Aksi</TableHead>}
+                            <TableHead className={disabled ? 'w-[24%] text-left' : 'w-[20%] text-left'}>Lokasi</TableHead>
+                            <TableHead className={disabled ? 'w-[56%] text-left' : 'w-[42%] text-left'}>Temuan pemeriksaan</TableHead>
+                            <TableHead className={disabled ? 'w-[20%] text-center' : 'w-[16%] text-center'}>Cara pencatatan</TableHead>
+                            {!disabled && <TableHead className={onPrepareDiagnosis ? 'w-[22%] text-center' : 'w-[14%] text-center'}>Aksi</TableHead>}
                         </TableRow></TableHeader>
                         <TableBody>{bodyMap.findings.map((finding) => <TableRow key={finding.id}>
                             <TableCell className="whitespace-normal text-left font-semibold [overflow-wrap:anywhere]">{findingLocation(finding)?.label ?? finding.locationLabel ?? 'Pemeriksaan fisik'}</TableCell>

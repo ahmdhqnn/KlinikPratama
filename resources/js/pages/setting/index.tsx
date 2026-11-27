@@ -61,6 +61,12 @@ const roleOptions: Array<[RoleAssignment, string]> = [
     ['dokter', 'Dokter saja'],
     ['perawat', 'Perawat saja'],
     ['keduanya', 'Perawat & Dokter (verifikasi lanjutan)'],
+    ['nonaktif', 'Nonaktif (tidak digunakan di Perawat maupun Dokter)'],
+];
+
+const nurseHelperOptions: Array<[NurseOptionalAssignment, string]> = [
+    ['nonaktif', 'Nonaktif (dokter catat di RPS / Pemeriksaan)'],
+    ['perawat', 'Perawat (informasi tambahan bagi dokter)'],
 ];
 
 const nurseOptionalOptions: Array<[NurseOptionalAssignment, string]> = [
@@ -339,32 +345,32 @@ export default function ClinicSettings({ initialTab = 'profil', setting, clinica
                                 <CardHeader className="border-b border-neutral-100">
                                     <div className="flex items-start gap-3">
                                         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Stethoscope className="size-5" /></span>
-                                        <div>
+                                    <div>
                                             <CardTitle>Poli Umum — Distribusi bagian pengkajian & pemeriksaan</CardTitle>
-                                            <CardDescription className="mt-1">Atur bagian pengkajian lanjutan yang diisi oleh Perawat, Dokter, atau keduanya. Bagian yang dialihkan ke Dokter otomatis tampil rapi di tab Anamnesis.</CardDescription>
+                                            <CardDescription className="mt-1">Atur bagian pengkajian pendukung antara Perawat dan Dokter agar tidak terjadi pencatatan berulang. Dokter selalu memiliki RPS dan pemeriksaan fisik terstruktur.</CardDescription>
                                         </div>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="divide-y divide-neutral-100 p-5 sm:p-6">
                                     <WorkflowSettingRow
-                                        badge="Default: Dokter"
-                                        description="Lokasi keluhan, karakteristik, pola/frekuensi, pemicu, pereda, perkembangan keluhan, dan skala nyeri."
+                                        badge="Default: Nonaktif"
+                                        description="Lokasi keluhan, karakteristik, pola/frekuensi, pemicu, pereda, perkembangan, dan skala nyeri. Dokter mencatat langsung pada RPS & Pemeriksaan fisik; aktifkan di Perawat bila ingin menjadi acuan awal read-only bagi dokter."
                                         error={wfErrors['clinical_workflow.umum_complaint_details']}
                                         htmlFor="wf-umum-complaint-details"
                                         title="Rincian keluhan & skala nyeri"
                                     >
                                         <Select
                                             id="wf-umum-complaint-details"
-                                            onChange={(event) => updateWorkflowKey('umum_complaint_details', event.target.value as RoleAssignment)}
+                                            onChange={(event) => updateWorkflowKey('umum_complaint_details', event.target.value as NurseOptionalAssignment)}
                                             value={workflowForm.data.clinical_workflow.umum_complaint_details}
                                         >
-                                            {roleOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                                            {nurseHelperOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                         </Select>
                                     </WorkflowSettingRow>
 
                                     <WorkflowSettingRow
                                         badge="Default: Dokter"
-                                        description="Review of Systems (ROS): kardiovaskular, respirasi, pencernaan, neurologis, muskuloskeletal, genitourinaria, integumen, dan psikologis."
+                                        description="Review of Systems (ROS): kardiovaskular, respirasi, pencernaan, neurologis, muskuloskeletal, genitourinaria, integumen, dan psikologis. Dapat dialihkan ke Perawat, Dokter, keduanya, atau dinonaktifkan."
                                         error={wfErrors['clinical_workflow.umum_system_review']}
                                         htmlFor="wf-umum-system-review"
                                         title="Pengkajian sistem tubuh (ROS)"
@@ -422,22 +428,23 @@ export default function ClinicSettings({ initialTab = 'profil', setting, clinica
                                 </CardHeader>
                                 <CardContent className="divide-y divide-neutral-100 p-5 sm:p-6">
                                     <WorkflowSettingRow
-                                        description="Lokasi nyeri gigi/gusi, skala nyeri, pola durasi, faktor pemicu, karakter, pereda, dan dampak aktivitas. Jika dialihkan ke Dokter, tampil di tab Anamnesis."
+                                        badge="Default: Nonaktif"
+                                        description="Lokasi nyeri gigi/gusi, skala nyeri, pola durasi, pemicu, karakter, pereda, dan dampak aktivitas. Dokter gigi mencatat langsung pada RPS & Odontogram; aktifkan di Perawat bila ingin menjadi acuan awal read-only bagi dokter gigi."
                                         error={wfErrors['clinical_workflow.gigi_pain_details']}
                                         htmlFor="wf-gigi-pain-details"
                                         title="Rincian nyeri gigi & perkembangan keluhan"
                                     >
                                         <Select
                                             id="wf-gigi-pain-details"
-                                            onChange={(event) => updateWorkflowKey('gigi_pain_details', event.target.value as RoleAssignment)}
+                                            onChange={(event) => updateWorkflowKey('gigi_pain_details', event.target.value as NurseOptionalAssignment)}
                                             value={workflowForm.data.clinical_workflow.gigi_pain_details}
                                         >
-                                            {roleOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                                            {nurseHelperOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                         </Select>
                                     </WorkflowSettingRow>
 
                                     <WorkflowSettingRow
-                                        description="Observasi lidah, pipi, bibir, palatum, gusi, dan catatan mukosa. Jika dialihkan ke Dokter, tampil di tab Pemeriksaan & Odontogram."
+                                        description="Observasi lidah, pipi, bibir, palatum, gusi, dan catatan mukosa. Dapat diatur di Perawat, Dokter, keduanya, atau dinonaktifkan."
                                         error={wfErrors['clinical_workflow.gigi_mucosa_observation']}
                                         htmlFor="wf-gigi-mucosa"
                                         title="Observasi mukosa mulut awal"
@@ -480,7 +487,8 @@ export default function ClinicSettings({ initialTab = 'profil', setting, clinica
                                 </CardHeader>
                                 <CardContent className="divide-y divide-neutral-100 p-5 sm:p-6">
                                     <WorkflowSettingRow
-                                        description="Menyediakan tab SOAP 1-layar di samping tab terstruktur (Anamnesis, Pemeriksaan fisik, Diagnosis, Tindakan, Resep)."
+                                        badge="Default: Nonaktif"
+                                        description="Menyediakan tab SOAP 1-layar tambahan di samping tab terstruktur (Anamnesis, Pemeriksaan fisik, Diagnosis, Tindakan, Resep klinik, Tindak lanjut & edukasi)."
                                         error={wfErrors['clinical_workflow.dokter_soap_tab']}
                                         htmlFor="wf-dokter-soap-tab"
                                         title="Tab SOAP langsung"
@@ -496,7 +504,8 @@ export default function ClinicSettings({ initialTab = 'profil', setting, clinica
                                     </WorkflowSettingRow>
 
                                     <WorkflowSettingRow
-                                        description="Menampilkan panel input pengukuran ulang tekanan darah, nadi, dan suhu pada tab Pemeriksaan fisik dokter."
+                                        badge="Default: Aktif"
+                                        description="Menampilkan panel lipat pengukuran ulang tekanan darah, nadi, dan suhu pada tab Pemeriksaan fisik dokter."
                                         error={wfErrors['clinical_workflow.dokter_repeat_vitals']}
                                         htmlFor="wf-dokter-repeat-vitals"
                                         title="Pengukuran ulang tanda vital dokter"

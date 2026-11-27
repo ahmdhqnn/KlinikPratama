@@ -1,9 +1,10 @@
 import { describeGeneralFinding, generalFindingSearch, generalFindingSearches } from '@/lib/general-diagnosis';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ClipboardPlus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { findingLocation, type BodyMapData } from '@/lib/body-map';
 import { normalizeClinicalAnswer } from '@/lib/clinical-answer';
 
@@ -14,11 +15,16 @@ interface Props {
     disabled: boolean;
     adult?: boolean;
     codeSystem?: string;
+    headerAction?: ReactNode;
     onSearch: (term: string, source: string) => void;
 }
 
-export function GeneralDiagnosisSuggestions({ bodyMap, physicalExam, physicalSystems = {}, disabled, adult, codeSystem, onSearch }: Props) {
-    const findings = [
+export function generalDiagnosisSources({
+    bodyMap,
+    physicalExam,
+    physicalSystems = {},
+}: Pick<Props, 'bodyMap' | 'physicalExam' | 'physicalSystems'>) {
+    return [
         ...bodyMap?.findings.map(finding => ({
             id: 'map-' + finding.id,
             label: findingLocation(finding)?.label ?? finding.locationLabel ?? 'Pemeriksaan fisik',
@@ -31,30 +37,37 @@ export function GeneralDiagnosisSuggestions({ bodyMap, physicalExam, physicalSys
         const value = normalizeClinicalAnswer(finding.value);
         return value ? [{ ...finding, value }] : [];
     });
+}
+
+export function GeneralDiagnosisSuggestions({ bodyMap, physicalExam, physicalSystems = {}, disabled, adult, codeSystem, headerAction, onSearch }: Props) {
+    const findings = generalDiagnosisSources({ bodyMap, physicalExam, physicalSystems });
     const [selection, setSelection] = useState<{ id: string; term: string } | null>(null);
     const selected = findings.find(finding => finding.id === selection?.id);
     const context = selected && ('context' in selected ? selected.context : `${selected.label}: ${selected.value}`);
     const term = selected ? selection?.term ?? '' : '';
 
     return <section aria-labelledby="general-diagnosis-suggestions-title" className="min-w-0 space-y-3 rounded-xl border border-neutral-200 p-4">
-        <h4 id="general-diagnosis-suggestions-title" className="flex items-center gap-2 text-sm font-semibold"><ClipboardPlus aria-hidden="true" className="size-4 shrink-0" />Usulan kode berdasarkan temuan</h4>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+            <h4 id="general-diagnosis-suggestions-title" className="flex items-center gap-2 text-sm font-semibold"><ClipboardPlus aria-hidden="true" className="size-4 shrink-0" />Usulan kode berdasarkan temuan</h4>
+            {headerAction}
+        </div>
         {findings.length === 0 ? <p className="text-sm text-neutral-600">Simpan temuan pemeriksaan fisik untuk memulai pencarian dari temuan.</p> : <>
             <p className="text-sm text-neutral-600">Pilih temuan tersimpan, lalu gunakan istilah yang sesuai dengan hasil pemeriksaan. Tinjau konteks dan hasil katalog sebelum memilih kode.</p>
             <Field htmlFor="general-diagnosis-source" label="Temuan pemeriksaan">
-                <select id="general-diagnosis-source" className="clinic-canvas-control h-10 w-full min-w-0 truncate rounded-lg border border-neutral-200 bg-surface px-3.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 disabled:opacity-50" value={selected?.id ?? ''} disabled={disabled} onChange={event => {
+                <Select id="general-diagnosis-source" value={selected?.id ?? ''} disabled={disabled} onChange={event => {
                     const finding = findings.find(item => item.id === event.target.value);
                     setSelection(finding ? { id: finding.id, term: generalFindingSearch(finding.value) } : null);
                 }}>
                     <option value="">Pilih temuan tersimpan</option>
                     {findings.map(finding => <option key={finding.id} value={finding.id}>{finding.label} · {finding.value.replace(/\s+/g, ' ').slice(0, 100)}</option>)}
-                </select>
+                </Select>
             </Field>
             {selected && <>
                 <p className="whitespace-pre-wrap rounded-lg bg-neutral-50 p-3 text-sm [overflow-wrap:anywhere]">{context}</p>
                 <div className="flex flex-wrap gap-2">{generalFindingSearches(selected.value).map(query => <Button key={query} type="button" size="sm" variant="secondary" disabled={disabled} onClick={() => setSelection({ id: selected.id, term: query })}>{query}</Button>)}</div>
-                <div className="flex flex-wrap items-end gap-3">
-                    <Field className="min-w-0 flex-1 basis-52" htmlFor="general-diagnosis-term" label="Istilah pencarian kode"><Input id="general-diagnosis-term" maxLength={100} value={term} disabled={disabled} onChange={event => setSelection({ id: selected.id, term: event.target.value })} /></Field>
-                    <Button size="sm" type="button" variant="secondary" disabled={disabled || term.trim().length < 2} onClick={() => onSearch(term.trim(), context ?? '')}><Search className="size-4" />Cari usulan kode</Button>
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <Field className="min-w-0" htmlFor="general-diagnosis-term" label="Istilah pencarian kode"><Input id="general-diagnosis-term" maxLength={100} value={term} disabled={disabled} onChange={event => setSelection({ id: selected.id, term: event.target.value })} /></Field>
+                    <Button className="h-10" type="button" variant="secondary" disabled={disabled || term.trim().length < 2} onClick={() => onSearch(term.trim(), context ?? '')}><Search className="size-4" />Cari usulan kode</Button>
                 </div>
             </>}
         </>}

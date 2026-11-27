@@ -61,7 +61,7 @@ export function PatientContextBar({
         <aside
             aria-label="Konteks klinis pasien"
             className={cn(
-                'no-print sticky top-[4.25rem] z-20 rounded-xl border border-neutral-200 bg-surface px-5 py-3.5 shadow-sm sm:top-[4.5rem] lg:top-[5.75rem]',
+                'no-print sticky top-[4.25rem] z-20 rounded-xl border border-neutral-200 bg-surface px-5 py-3.5 sm:top-[4.5rem] lg:top-[5.75rem]',
                 className,
             )}
         >

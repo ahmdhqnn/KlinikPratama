@@ -78,18 +78,26 @@ class ClinicalWorkflowSettingsTest extends TestCase
         return compact('admin', 'poli', 'nurseUser', 'nurse', 'doctorUser', 'doctor', 'patient', 'visit');
     }
 
-    public function test_default_workflow_places_general_complaint_details_and_system_review_on_doctor(): void
+    public function test_default_workflow_removes_redundant_doctor_complaint_forms_and_keeps_ros_on_doctor(): void
     {
         $defaults = ClinicalWorkflowSettings::current();
 
-        $this->assertSame('dokter', $defaults['umum_complaint_details']);
+        $this->assertSame('nonaktif', $defaults['umum_complaint_details']);
         $this->assertSame('dokter', $defaults['umum_system_review']);
         $this->assertSame('perawat', $defaults['umum_nutrition_needs']);
         $this->assertSame('ringkas', $defaults['umum_anthropometry_mode']);
-        $this->assertSame('perawat', $defaults['gigi_pain_details']);
+        $this->assertSame('nonaktif', $defaults['gigi_pain_details']);
         $this->assertSame('perawat', $defaults['gigi_mucosa_observation']);
-        $this->assertTrue($defaults['dokter_soap_tab']);
+        $this->assertFalse($defaults['dokter_soap_tab']);
         $this->assertTrue($defaults['dokter_repeat_vitals']);
+
+        // Legacy stored values safely map to the streamlined options
+        $legacyResolved = ClinicalWorkflowSettings::resolve([
+            'umum_complaint_details' => 'dokter',
+            'gigi_pain_details' => 'keduanya',
+        ]);
+        $this->assertSame('nonaktif', $legacyResolved['umum_complaint_details']);
+        $this->assertSame('perawat', $legacyResolved['gigi_pain_details']);
     }
 
     public function test_admin_can_view_and_update_clinical_workflow_with_audit_trail(): void
@@ -102,21 +110,23 @@ class ClinicalWorkflowSettingsTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('setting/index')
                 ->where('initialTab', 'alur-klinis')
-                ->where('clinicalWorkflow.umum_complaint_details', 'dokter')
+                ->where('clinicalWorkflow.umum_complaint_details', 'nonaktif')
                 ->where('clinicalWorkflow.umum_system_review', 'dokter')
+                ->where('clinicalWorkflow.gigi_pain_details', 'nonaktif')
+                ->where('clinicalWorkflow.dokter_soap_tab', false)
             );
 
         $payload = [
             'pelaksana_ttv' => 'perawat',
             'clinical_workflow' => [
-                'umum_complaint_details' => 'keduanya',
+                'umum_complaint_details' => 'perawat',
                 'umum_system_review' => 'dokter',
                 'umum_nutrition_needs' => 'nonaktif',
                 'umum_anthropometry_mode' => 'lengkap',
-                'gigi_pain_details' => 'dokter',
+                'gigi_pain_details' => 'perawat',
                 'gigi_mucosa_observation' => 'dokter',
                 'gigi_additional_assessment' => 'nonaktif',
-                'dokter_soap_tab' => false,
+                'dokter_soap_tab' => true,
                 'dokter_repeat_vitals' => false,
             ],
         ];
@@ -128,12 +138,25 @@ class ClinicalWorkflowSettingsTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $saved = KlinikSetting::clinicalWorkflow();
-        $this->assertSame('keduanya', $saved['umum_complaint_details']);
+        $this->assertSame('perawat', $saved['umum_complaint_details']);
         $this->assertSame('nonaktif', $saved['umum_nutrition_needs']);
         $this->assertSame('lengkap', $saved['umum_anthropometry_mode']);
+        $this->assertSame('perawat', $saved['gigi_pain_details']);
         $this->assertSame('dokter', $saved['gigi_mucosa_observation']);
-        $this->assertFalse($saved['dokter_soap_tab']);
+        $this->assertTrue($saved['dokter_soap_tab']);
         $this->assertFalse($saved['dokter_repeat_vitals']);
+
+        // Admin can also disable ROS and dental mucosa observation for both nurse and doctor
+        $disablePayload = $payload;
+        $disablePayload['clinical_workflow']['umum_system_review'] = 'nonaktif';
+        $disablePayload['clinical_workflow']['gigi_mucosa_observation'] = 'nonaktif';
+        $this->actingAs($admin)->put(route('setting.clinical-workflow.update'), $disablePayload)
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $disabled = KlinikSetting::clinicalWorkflow();
+        $this->assertSame('nonaktif', $disabled['umum_system_review']);
+        $this->assertSame('nonaktif', $disabled['gigi_mucosa_observation']);
 
         $this->assertDatabaseHas('clinical_audit_events', [
             'actor_id' => $admin->id,
@@ -149,7 +172,7 @@ class ClinicalWorkflowSettingsTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('pelayanan/screening/show')
-                ->where('workflowSettings.umum_complaint_details', 'dokter')
+                ->where('workflowSettings.umum_complaint_details', 'nonaktif')
                 ->where('workflowSettings.umum_system_review', 'dokter')
             );
 

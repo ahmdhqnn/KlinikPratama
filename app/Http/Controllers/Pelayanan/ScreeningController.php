@@ -640,7 +640,7 @@ class ScreeningController extends Controller
             }
             if (! $isDental && $lockedVisit->screening && array_key_exists('general_assessment', $data)) {
                 $workflow = ClinicalWorkflowSettings::current();
-                if ($workflow['umum_system_review'] === 'dokter' && isset($lockedVisit->screening->general_assessment['systems']) && empty($data['general_assessment']['systems'])) {
+                if (in_array($workflow['umum_system_review'], ['dokter', 'nonaktif'], true) && isset($lockedVisit->screening->general_assessment['systems']) && empty($data['general_assessment']['systems'])) {
                     $data['general_assessment']['systems'] = $lockedVisit->screening->general_assessment['systems'];
                 }
             }
