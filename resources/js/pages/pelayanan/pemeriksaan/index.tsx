@@ -10,7 +10,7 @@ import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { Head, router, usePoll } from '@inertiajs/react';
 import { Activity, CalendarDays, ClipboardCheck, Clock3, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
@@ -138,7 +138,7 @@ function VisitList({ title, description, icon, visits, emptyTitle, emptyDescript
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                <TableScroll className="overflow-x-auto">
                     <Table className="min-w-[980px]">
                         <TableHeader><TableRow>
                             <TableHead className="text-center">No. kunjungan</TableHead>
@@ -168,7 +168,7 @@ function VisitList({ title, description, icon, visits, emptyTitle, emptyDescript
                             )) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={8}><Empty description={emptyDescription} size="compact" title={emptyTitle} /></TableCell></TableRow>}
                         </TableBody>
                     </Table>
-                </div>
+                </TableScroll>
                 <Pagination pagination={visits} />
             </CardContent>
         </Card>

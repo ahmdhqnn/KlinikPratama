@@ -16,7 +16,7 @@ import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 
 interface QueueAction {
     action: ComponentProps<typeof ActionButton>['action'];
@@ -67,7 +67,7 @@ function QueueTable({ title, description, icon, visits }: { title: string; descr
         <Card className="overflow-hidden">
             <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700">{icon}</span><div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description} · {visits.total} kunjungan</CardDescription></div></div></CardHeader>
             <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                <TableScroll className="overflow-x-auto">
                     <Table className="min-w-[1100px]">
                         <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi operasional</TableHead></TableRow></TableHeader>
                         <TableBody>
@@ -86,7 +86,7 @@ function QueueTable({ title, description, icon, visits }: { title: string; descr
                             )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada kunjungan pada filter yang dipilih." /></TableCell></TableRow>}
                         </TableBody>
                     </Table>
-                </div>
+                </TableScroll>
                 <Pagination pagination={visits} />
             </CardContent>
         </Card>

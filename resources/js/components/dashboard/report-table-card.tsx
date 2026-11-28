@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { TableScroll } from '@/components/ui/table';
 
 export function ReportTableCard({ title, description, icon, pagination, children }: {
     title: string;
@@ -21,7 +22,7 @@ export function ReportTableCard({ title, description, icon, pagination, children
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                <div className="overflow-x-auto">{children}</div>
+                <TableScroll>{children}</TableScroll>
             </CardContent>
             {pagination && <Pagination pagination={pagination} />}
         </Card>

@@ -13,7 +13,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 
 interface Clinic {
@@ -136,7 +136,7 @@ export default function ScreeningQueue({ filters: initialFilters, clinics, canSe
 function VisitList({ title, description, icon, visits }: { title: string; description: string; icon: ReactNode; visits: Props['visits'] }) {
     return <Card className="overflow-hidden">
         <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700">{icon}</span><div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div></div></CardHeader>
-        <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[1040px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Status pengkajian</TableHead><TableHead>Status kunjungan</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
+        <CardContent className="p-0"><TableScroll className="overflow-x-auto"><Table className="min-w-[1040px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Status pengkajian</TableHead><TableHead>Status kunjungan</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
             {visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}>
                 <TableCell className="font-sans tabular-nums text-xs text-neutral-600">{visit.number}</TableCell>
                 <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
@@ -146,6 +146,6 @@ function VisitList({ title, description, icon, visits }: { title: string; descri
                 <TableCell><StatusBadge context="nurse" examinationStarted={visit.examinationStarted} status={visit.status} /></TableCell>
                 <TableCell><div className="flex justify-center gap-2"><ActionButton asChild action="detail" label="Detail kunjungan"><Link href={visit.visitUrl} /></ActionButton><ActionButton asChild action="screening" disabled={!visit.canUpdateScreening} disabledReason={visit.status === 'batal' ? 'Kunjungan telah dibatalkan.' : 'Pengkajian tersedia mulai tanggal kunjungan dan sebelum dokter mulai memeriksa.'} label={visit.actionLabel.includes('pengkajian') ? visit.actionLabel : 'Perbarui pengkajian'}><Link href={visit.screeningUrl} /></ActionButton><ActionButton asChild action="rme" disabled={!visit.recordUrl} disabledReason="Rekam medis pasien tidak tersedia." label="Lihat RME"><Link href={visit.recordUrl ?? ''} /></ActionButton><ActionButton disabledReason="Dokumen belum tersedia untuk dicetak." disabled={!visit.printUrl} asChild action="print" label={`Cetak pengkajian ${visit.number}`}><a href={visit.printUrl ?? ''} /></ActionButton></div></TableCell>
             </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada kunjungan" description="Kunjungan pada poli dan filter ini akan tampil di sini." /></TableCell></TableRow>}
-        </TableBody></Table></div></CardContent><Pagination pagination={visits} />
+        </TableBody></Table></TableScroll></CardContent><Pagination pagination={visits} />
     </Card>;
 }

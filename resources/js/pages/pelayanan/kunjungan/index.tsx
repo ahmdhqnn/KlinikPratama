@@ -12,7 +12,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { confirmReason } from '@/components/ui/confirm-dialog';
 import { DatePicker } from '@/components/ui/date-picker';
 
@@ -91,8 +91,8 @@ export default function VisitsIndex({ visits, todayVisits, stats, filters: initi
 function VisitList({ title, description, icon, visits, canManageVisits, onCancel }: { title: string; description: string; icon: ReactNode; visits: VisitPagination; canManageVisits: boolean; onCancel: (id: number) => void }) {
     return <Card className="overflow-hidden">
         <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700">{icon}</span><div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div></div></CardHeader>
-        <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[1100px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
+        <CardContent className="p-0"><TableScroll className="overflow-x-auto"><Table className="min-w-[1100px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
             {visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}><TableCell className="font-sans tabular-nums text-xs text-neutral-600"><Link className="font-semibold hover:underline" href={`/pelayanan/kunjungan/${visit.id}`}>{visit.number}</Link></TableCell><TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell><TableCell><p className="font-medium text-neutral-900">{visit.patient}</p><p className="mt-0.5 text-xs text-neutral-500">{visit.medicalRecordNumber}</p></TableCell><TableCell className="text-neutral-600">{visit.clinic}</TableCell><TableCell className="text-neutral-600">{visit.doctor ?? 'Belum ditentukan'}</TableCell><TableCell><StatusBadge examinationStarted={visit.examinationStarted} reservation={visit.isReservation} pendingReservation={visit.pendingReservation} status={visit.status} /></TableCell><TableCell><div className="flex justify-center gap-2"><ActionButton asChild action="detail" label="Detail"><Link href={`/pelayanan/kunjungan/${visit.id}`} /></ActionButton><ActionButton disabledReason={!canManageVisits ? 'Akun Anda tidak memiliki akses pengelolaan kunjungan.' : 'Hanya kunjungan yang belum dilayani yang dapat dibatalkan.'} disabled={!(canManageVisits && visit.status === 'menunggu')} onClick={() => onCancel(visit.id)} action="cancel" label="Batalkan" /></div></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada kunjungan pada filter yang dipilih." /></TableCell></TableRow>}
-        </TableBody></Table></div><Pagination pagination={visits} /></CardContent>
+        </TableBody></Table></TableScroll><Pagination pagination={visits} /></CardContent>
     </Card>;
 }

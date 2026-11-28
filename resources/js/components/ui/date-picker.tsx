@@ -1,5 +1,5 @@
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { fieldControlInvalidClassName, useFieldControl } from '@/components/ui/field';
+import { fieldControlInvalidClassName, useFieldControl, useFieldRequired } from '@/components/ui/field';
 import { calendarNavigationDate, clampDate, fromDateKey, isDateWithinBounds, isMonthWithinBounds, toDateKey } from '@/lib/calendar';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -43,7 +43,10 @@ export function DatePicker({
     'aria-describedby'?: string;
     'aria-invalid'?: boolean | 'true' | 'false' | 'grammar' | 'spelling';
 }) {
-    const accessibility = useFieldControl({ 'aria-describedby': ariaDescribedBy, 'aria-invalid': ariaInvalid, 'aria-required': required || undefined });
+    // aria-required is invalid on the role=button trigger, so the hidden native date input
+    // carries `required` for assistive tech and native validation instead.
+    const accessibility = useFieldControl({ 'aria-describedby': ariaDescribedBy, 'aria-invalid': ariaInvalid }, { omitRequired: true });
+    const fieldRequired = useFieldRequired({ required });
     const [open, setOpen] = useState(false);
     const calendarId = useId();
     const calendarRef = useRef<HTMLDivElement>(null);
@@ -138,13 +141,14 @@ export function DatePicker({
                 {name && <input disabled={disabled || readOnly} name={name} type="hidden" value={value} />}
                 <input
                     aria-hidden="true"
+                    aria-required={fieldRequired || undefined}
                     data-validation-target={id ?? calendarId + "-trigger"}
                     disabled={disabled || readOnly}
                     className="pointer-events-none absolute size-px opacity-0"
                     max={effectiveMax}
                     min={min}
                     onChange={() => undefined}
-                    required={required}
+                    required={fieldRequired}
                     tabIndex={-1}
                     type="date"
                     value={value}

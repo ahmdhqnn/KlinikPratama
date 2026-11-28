@@ -5,6 +5,9 @@ interface TabsContextValue {
     value: string;
     onValueChange: (value: string) => void;
     baseId: string;
+    // Filter bars reuse the tab visuals without rendering panels; they must not
+    // advertise aria-controls ids that do not exist (axe aria-valid-attr-value).
+    panels: boolean;
 }
 
 const TabsContext = createContext<TabsContextValue | null>(null);
@@ -19,15 +22,16 @@ function useTabs(): TabsContextValue {
     return context;
 }
 
-export function Tabs({ value, onValueChange, className, children, ...props }: Omit<ComponentProps<'div'>, 'onChange'> & {
+export function Tabs({ value, onValueChange, panels = true, className, children, ...props }: Omit<ComponentProps<'div'>, 'onChange'> & {
     value: string;
     onValueChange: (value: string) => void;
     children: ReactNode;
+    panels?: boolean;
 }) {
     const baseId = useId();
 
     return (
-        <TabsContext.Provider value={{ value, onValueChange, baseId }}>
+        <TabsContext.Provider value={{ value, onValueChange, baseId, panels }}>
             <div className={className} {...props}>{children}</div>
         </TabsContext.Provider>
     );
@@ -64,7 +68,7 @@ export function TabsTrigger({ value, className, onKeyDown, ...props }: Component
 
     return (
         <button
-            aria-controls={`${tabs.baseId}-panel-${value}`}
+            aria-controls={tabs.panels ? `${tabs.baseId}-panel-${value}` : undefined}
             aria-selected={selected}
             className={cn('inline-flex min-h-11 shrink-0 items-center justify-center gap-2 border-b-2 px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-500', selected ? 'border-neutral-600 text-neutral-800' : 'border-transparent text-neutral-500 hover:text-neutral-900', className)}
             data-value={value}

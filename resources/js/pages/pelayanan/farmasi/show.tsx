@@ -12,7 +12,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PageHeaderWithActions } from '@/components/ui/page-header';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { getAllergyStatus } from '@/lib/allergy-status';
 import { Head, Link, router, useForm } from '@inertiajs/react';
@@ -241,7 +241,7 @@ export default function PharmacyDispensing({
                 </Card>
                 <Card className="overflow-hidden"><CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Pill className="size-5" /></span><div><CardTitle>{alreadyComplete ? 'Rincian penyerahan resep' : 'Verifikasi dan penyiapan obat'}</CardTitle><CardDescription className="mt-1">{alreadyComplete ? 'Jumlah dan aturan pakai yang tercatat pada kunjungan ini.' : 'Periksa jumlah dan aturan pakai. Stok keluar saat obat diserahkan. Catat alasan dan tindak lanjut jika resep belum terpenuhi seluruhnya.'}</CardDescription></div></div></CardHeader>
                     {adminAssistance && !alreadyComplete && <CardContent className="space-y-4 pt-5 sm:pt-6"><p className="text-sm text-neutral-600">Bantuan farmasi admin. Akun Anda dicatat sebagai pelaku penyerahan; alasan bantuan dipisahkan dari catatan tindak lanjut resep.</p><AssistanceReasonField error={form.errors.assistance_reason} id="pharmacy-assistance" value={form.data.assistance_reason} onChange={(value) => form.setData('assistance_reason', value)} disabled={form.processing} /></CardContent>}
-                    <form onSubmit={saveDispensing}><CardContent className="p-0"><div className="overflow-x-auto"><Table className={alreadyComplete ? 'min-w-[640px]' : 'min-w-[980px]'}><TableHeader><TableRow><TableHead className="text-center">Obat</TableHead><TableHead className="text-center">Permintaan resep</TableHead>{!alreadyComplete && <TableHead className="text-center">Stok layak pakai</TableHead>}<TableHead className="text-center">Jumlah diserahkan</TableHead><TableHead className="text-center">Aturan pakai</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
+                    <form onSubmit={saveDispensing}><CardContent className="p-0"><TableScroll className="overflow-x-auto"><Table className={alreadyComplete ? 'min-w-[640px]' : 'min-w-[980px]'}><TableHeader><TableRow><TableHead className="text-center">Obat</TableHead><TableHead className="text-center">Permintaan resep</TableHead>{!alreadyComplete && <TableHead className="text-center">Stok layak pakai</TableHead>}<TableHead className="text-center">Jumlah diserahkan</TableHead><TableHead className="text-center">Aturan pakai</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
                         {visit.prescriptionItems.length ? visit.prescriptionItems.map((item, index) => {
                             const current = form.data.items[index];
                             const quantity = alreadyComplete ? item.dispensedQuantity : Number(current?.jumlah_diberikan ?? 0);
@@ -266,7 +266,7 @@ export default function PharmacyDispensing({
                                 </div></TableCell>
                             </TableRow>;
                         }) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={alreadyComplete ? 5 : 6}><Empty size="compact" title="Tidak ada item resep." /></TableCell></TableRow>}
-                    </TableBody></Table></div></CardContent>
+                    </TableBody></Table></TableScroll></CardContent>
                     {!alreadyComplete && <CardContent className="space-y-4 border-t border-neutral-100 pt-5 sm:pt-6">
                         <Button asChild variant="secondary"><Link href={`/pelayanan/farmasi/${visit.id}/review`}>Telaah resep klinis oleh apoteker</Link></Button>
                         <p className="text-sm text-neutral-500">Simpan rencana penyerahan sebelum telaah resep. Perubahan resep atau rencana penyerahan memerlukan telaah ulang.</p>

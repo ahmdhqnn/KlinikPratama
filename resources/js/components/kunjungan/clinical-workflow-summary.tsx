@@ -10,7 +10,7 @@ import { ActionButton } from '@/components/ui/action-button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { normalizeClinicalAnswer } from '@/lib/clinical-answer';
 import { optionalAnswers } from '@/lib/optional-answers';
 
@@ -57,7 +57,7 @@ export function DentalExaminationSummary({ id = 'dental-examination-summary', an
                 {normalizeClinicalAnswer(extraoralExam) && <SummaryValue label="Pemeriksaan ekstraoral" value={extraoralExam} />}
             </dl>}
             {findings.length > 0 ? (
-                <OdontogramRecord compact findings={findings}><div className="overflow-x-auto rounded-xl border border-neutral-100">
+                <OdontogramRecord compact findings={findings}><TableScroll className="overflow-x-auto rounded-xl border border-neutral-100">
                     <Table aria-label="Ringkasan temuan odontogram" className="min-w-[26rem] table-fixed">
                         <TableHeader><TableRow>
                             <TableHead className="w-[14%] px-4 py-3.5 text-center">Gigi FDI</TableHead>
@@ -74,7 +74,7 @@ export function DentalExaminationSummary({ id = 'dental-examination-summary', an
                             </TableRow>
                         ))}</TableBody>
                     </Table>
-                </div></OdontogramRecord>
+                </TableScroll></OdontogramRecord>
             ) : <Empty size="compact" title="Belum ada temuan odontogram tersimpan" description="Lengkapi temuan pada tab Pemeriksaan & odontogram sebagai acuan diagnosis." />}
         </WorkflowSummary>
     );
@@ -115,7 +115,7 @@ export function GeneralExaminationSummary({ id = 'general-examination-summary', 
             {hasBodyMapContent(bodyMap) && <BodyExaminationRecord data={bodyMap} diagnosisSummary />}
             {recordedSystems.length > 0 && <div className="space-y-3 border-t border-neutral-100 pt-4">
                 <h3 className="text-sm font-semibold text-neutral-900">Temuan per sistem</h3>
-                <div className="overflow-x-auto rounded-xl border border-neutral-200">
+                <TableScroll className="rounded-xl border border-neutral-200">
                     <Table aria-label="Temuan pemeriksaan per sistem" className="min-w-[27rem] table-fixed">
                         <TableHeader><TableRow><TableHead className="w-40 text-left">Sistem</TableHead><TableHead className="text-left">Temuan</TableHead></TableRow></TableHeader>
                         <TableBody>{recordedSystems.map(({ system, value }) => <TableRow key={system}>
@@ -123,7 +123,7 @@ export function GeneralExaminationSummary({ id = 'general-examination-summary', 
                             <TableCell className="align-top text-left"><RecordedTableNote parts={[value]} /></TableCell>
                         </TableRow>)}</TableBody>
                     </Table>
-                </div>
+                </TableScroll>
             </div>}
             {!normalizeClinicalAnswer(physicalExam) && !hasBodyMapContent(bodyMap) && recordedSystems.length === 0 && <Empty size="compact" title="Belum ada temuan fisik tersimpan" description="Catat temuan pada tab Pemeriksaan fisik." />}
         </WorkflowSummary>
@@ -147,7 +147,7 @@ export function DiagnosisSummary({ id = 'diagnosis-summary', diagnoses, differen
             unsavedMessage="Ada isian diagnosis yang belum disimpan. Simpan di tab Diagnosis agar masuk ke ringkasan ini."
         >
             {orderedDiagnoses.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-neutral-200">
+                <TableScroll className="rounded-xl border border-neutral-200">
                     <Table aria-label="Ringkasan diagnosis tercatat" className="min-w-[42rem] table-fixed">
                         <TableHeader><TableRow>
                             <TableHead className="w-[18%] text-center">Kode / sistem</TableHead>
@@ -170,7 +170,7 @@ export function DiagnosisSummary({ id = 'diagnosis-summary', diagnoses, differen
                             </TableRow>
                         ))}</TableBody>
                     </Table>
-                </div>
+                </TableScroll>
             ) : <Empty size="compact" title="Belum ada diagnosis tersimpan" description="Catat diagnosis pada tab Diagnosis sebelum melanjutkan pencatatan tindakan." />}
             {primaryCount !== 1 && diagnoses.length > 0 && <p className="text-sm text-amber-700" role="status">Pastikan tepat satu diagnosis utama tercatat sebelum finalisasi pemeriksaan.</p>}
             <dl><SummaryValue label="Diagnosis banding" value={differentialDiagnosis} /></dl>

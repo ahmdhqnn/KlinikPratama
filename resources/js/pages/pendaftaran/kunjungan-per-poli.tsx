@@ -10,7 +10,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { DatePicker } from '@/components/ui/date-picker';
 import { confirmReason } from '@/components/ui/confirm-dialog';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
@@ -126,7 +126,7 @@ export default function ClinicVisits({
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
+                        <TableScroll className="overflow-x-auto">
                             <Table className="min-w-[1120px]">
                                 <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                                 <TableBody>
@@ -142,7 +142,7 @@ export default function ClinicVisits({
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty description="Belum ada kunjungan terbaru untuk poliklinik ini." size="compact" title="Belum ada data kunjungan." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                        </div>
+                        </TableScroll>
                         <Pagination pagination={recentVisits} />
                     </CardContent>
                 </Card>
@@ -178,7 +178,7 @@ export default function ClinicVisits({
                                 </div>
                             </CardHeader>
                             <CardContent className="p-0">
-                                <div className="overflow-x-auto">
+                                <TableScroll className="overflow-x-auto">
                                     <Table className="min-w-[720px]">
                                         <TableHeader><TableRow><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik dan dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                                         <TableBody>
@@ -192,7 +192,7 @@ export default function ClinicVisits({
                                             {!reservations.data.length && <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada reservasi yang sesuai dalam tujuh hari ke depan." /></TableCell></TableRow>}
                                         </TableBody>
                                     </Table>
-                                </div>
+                                </TableScroll>
                                 <Pagination pagination={reservations} />
                             </CardContent>
                         </Card>
@@ -233,7 +233,7 @@ export default function ClinicVisits({
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
+                        <TableScroll className="overflow-x-auto">
                             <Table className="min-w-[1120px]">
                                 <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                                 <TableBody>
@@ -249,7 +249,7 @@ export default function ClinicVisits({
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty description={clinics.length ? 'Coba sesuaikan filter tanggal untuk melihat kunjungan.' : 'Aktifkan poliklinik agar daftar kunjungan dapat ditampilkan.'} size="compact" title={clinics.length ? 'Tidak ada kunjungan pada filter ini.' : 'Belum ada poliklinik aktif.'} /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                        </div>
+                        </TableScroll>
                         <Pagination pagination={visits} />
                     </CardContent>
                 </Card>

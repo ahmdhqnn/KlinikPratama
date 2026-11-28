@@ -21,7 +21,7 @@ import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { PageHeaderWithActions } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { Head, Link, router } from '@inertiajs/react';
@@ -518,6 +518,7 @@ export default function PatientDetail({
                                     <Tabs
                                         className="w-full"
                                         onValueChange={(value) => applyVisitQuery({ visit_tab: value })}
+                                        panels={false}
                                         value={visitTab}
                                     >
                                         <TabsList aria-label="Filter tab kunjungan" className="h-auto w-full flex-wrap">
@@ -1053,7 +1054,7 @@ function DocumentsSectionCard({
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                    <div className="overflow-x-auto">
+                    <TableScroll className="overflow-x-auto">
                         <Table className="min-w-[760px]">
                             <TableHeader>
                                 <TableRow>
@@ -1128,7 +1129,7 @@ function DocumentsSectionCard({
                                 )}
                             </TableBody>
                         </Table>
-                    </div>
+                    </TableScroll>
                     {pagination && <Pagination pagination={pagination} />}
                 </CardContent>
             </Card>
@@ -1138,7 +1139,7 @@ function DocumentsSectionCard({
 
 function VisitHistory({ visits, canSeeClinical }: { visits: Visit[]; canSeeClinical: boolean }) {
     return (
-        <div className="overflow-x-auto">
+        <TableScroll className="overflow-x-auto">
             <Table className="min-w-[820px]">
                 <TableHeader>
                     <TableRow>
@@ -1187,7 +1188,7 @@ function VisitHistory({ visits, canSeeClinical }: { visits: Visit[]; canSeeClini
                     )}
                 </TableBody>
             </Table>
-        </div>
+        </TableScroll>
     );
 }
 

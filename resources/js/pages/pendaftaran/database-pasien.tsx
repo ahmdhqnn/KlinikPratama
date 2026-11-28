@@ -11,7 +11,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 
 interface Patient {
     id: number;
@@ -95,7 +95,7 @@ export default function PatientDatabase({ stats, categories = {}, filters: initi
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
+                        <TableScroll className="overflow-x-auto">
                             <Table className="min-w-[980px]">
                                 <TableHeader><TableRow><TableHead>No. RM</TableHead><TableHead>Nama</TableHead><TableHead>JK</TableHead><TableHead>Tanggal lahir</TableHead><TableHead>Telepon</TableHead><TableHead>Kepesertaan</TableHead><TableHead>Terdaftar</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader>
                                 <TableBody>
@@ -113,7 +113,7 @@ export default function PatientDatabase({ stats, categories = {}, filters: initi
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={8}><Empty size="compact" title="Tidak ada data pasien yang cocok." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                        </div>
+                        </TableScroll>
                         <Pagination pagination={patients} />
                     </CardContent>
                 </Card>

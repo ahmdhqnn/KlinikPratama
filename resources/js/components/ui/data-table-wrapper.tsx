@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
+import { TableScroll } from '@/components/ui/table';
 
 export function DataTableWrapper({
     title,
@@ -36,7 +37,7 @@ export function DataTableWrapper({
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                <div className="overflow-x-auto">{children}</div>
+                <TableScroll>{children}</TableScroll>
                 {pagination && <Pagination pagination={pagination} />}
             </CardContent>
         </Card>

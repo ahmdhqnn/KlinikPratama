@@ -4,7 +4,7 @@ import { Link } from '@inertiajs/react';
 import { PriorityBadge } from '@/components/dashboard/priority-badge';
 import { StatusBadge } from '@/components/dashboard/status-badge';
 import { Empty } from '@/components/ui/empty';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 
 export interface DashboardVisit {
     id: number;
@@ -32,7 +32,7 @@ export interface DashboardVisit {
 
 export function VisitTable({ visits, nursing = false }: { visits: DashboardVisit[]; nursing?: boolean }) {
     return (
-        <div className="overflow-x-auto">
+        <TableScroll className="overflow-x-auto">
             <Table className="min-w-[760px]">
                 <TableHeader><TableRow>
                     <TableHead className="text-center">No. kunjungan</TableHead>
@@ -81,7 +81,7 @@ export function VisitTable({ visits, nursing = false }: { visits: DashboardVisit
                     )}
                 </TableBody>
             </Table>
-        </div>
+        </TableScroll>
     );
 }
 

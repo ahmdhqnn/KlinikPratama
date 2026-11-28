@@ -1,4 +1,4 @@
-import { fieldControlInvalidClassName, useFieldControl } from '@/components/ui/field';
+import { fieldControlInvalidClassName, useFieldControl, useFieldRequired } from '@/components/ui/field';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Children, isValidElement, useId, type ComponentProps, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
@@ -40,7 +40,8 @@ function optionText(children: ReactNode): string {
 }
 
 export function Select({ className, children, value, defaultValue, onChange, id, name, disabled, required, ...props }: SelectProps) {
-    const accessibility = useFieldControl(props);
+    const accessibility = useFieldControl(props, { omitRequired: true });
+    const fieldRequired = useFieldRequired({ required });
     const options = Children.toArray(children).flatMap((child) => {
         if (!isValidElement<OptionProps>(child) || child.type !== 'option') {
             return [];
@@ -68,8 +69,8 @@ export function Select({ className, children, value, defaultValue, onChange, id,
             required={required}
             value={selectedValue === undefined ? undefined : selectedValue === '' ? EMPTY_VALUE : selectedValue}
         >
-            {required && selectedValue === '' && !disabled && <input
-                aria-hidden="true"
+            {fieldRequired && selectedValue === '' && !disabled && <input
+                aria-required={fieldRequired || undefined}
                 className="pointer-events-none absolute size-px opacity-0"
                 data-validation-target={triggerId}
                 required

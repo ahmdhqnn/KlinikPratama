@@ -6,15 +6,23 @@ const FieldContext = createContext<{ errorId?: string; required?: boolean }>({})
 
 export const fieldControlInvalidClassName = 'aria-invalid:border-red-500 aria-invalid:focus-visible:ring-red-500/10';
 
-export function useFieldControl(props: AriaAttributes): AriaAttributes {
+export function useFieldControl(props: AriaAttributes, options: { omitRequired?: boolean } = {}): AriaAttributes {
     const field = useContext(FieldContext);
     const descriptionIds = [...new Set([props['aria-describedby'], field.errorId].filter(Boolean).join(' ').split(' ').filter(Boolean))].join(' ');
 
     return {
         'aria-describedby': descriptionIds || undefined,
         'aria-invalid': field.errorId ? true : props['aria-invalid'],
-        'aria-required': field.required || props['aria-required'] || undefined,
+        // Roles such as combobox reject aria-required; those controls move the state
+        // to a hidden native input instead (see Select).
+        'aria-required': options.omitRequired ? undefined : (field.required || props['aria-required'] || undefined),
     };
+}
+
+export function useFieldRequired(props?: { required?: boolean }): boolean {
+    const field = useContext(FieldContext);
+
+    return Boolean(field.required || props?.required);
 }
 
 export function Field({

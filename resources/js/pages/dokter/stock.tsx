@@ -11,7 +11,7 @@ import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 
 interface Medicine {
     id: number;
@@ -80,7 +80,7 @@ export default function DoctorStock({ stats, filters: initialFilters, medicines 
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
+                        <TableScroll className="overflow-x-auto">
                             <Table className="min-w-[680px]">
                                 <TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Nama obat</TableHead><TableHead>Satuan</TableHead><TableHead className="text-center">Stok tersedia</TableHead><TableHead className="text-center">Stok minimum</TableHead></TableRow></TableHeader>
                                 <TableBody>
@@ -95,7 +95,7 @@ export default function DoctorStock({ stats, filters: initialFilters, medicines 
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada obat yang cocok dengan filter." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                        </div>
+                        </TableScroll>
                         <Pagination pagination={medicines} />
                     </CardContent>
                 </Card>
