@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 
@@ -115,7 +115,7 @@ export default function DoctorAppointments({ filters, clinics = [], visits, isRe
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
+                        <TableScroll className="overflow-x-auto">
                             <Table className="min-w-[850px]">
                                 <TableHeader>
                                     <TableRow>
@@ -144,7 +144,7 @@ export default function DoctorAppointments({ filters, clinics = [], visits, isRe
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={isAdmin ? 8 : 7}><Empty size="compact" title="Belum ada kunjungan pada rentang tanggal ini." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                        </div>
+                        </TableScroll>
                         <Pagination pagination={visits} />
                     </CardContent>
                 </Card>

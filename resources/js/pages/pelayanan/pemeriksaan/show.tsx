@@ -36,7 +36,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { isReportedAllergy } from '@/lib/allergy-status';
@@ -1387,7 +1387,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                                     </div>)}
                                 </dl>
                                 {!isDental && <BodyExaminationRecord data={version.bodyMap} diagnosisSummary />}
-                                {isDental && version.odontogram.length > 0 && <div className="overflow-x-auto rounded-xl bg-surface">
+                                {isDental && version.odontogram.length > 0 && <TableScroll className="overflow-x-auto rounded-xl bg-surface">
                                     <Table aria-label={`Temuan odontogram versi ${version.version}`} className="min-w-[36rem] table-fixed">
                                         <TableHeader><TableRow><TableHead className="w-[14%] text-center">Gigi FDI</TableHead><TableHead className="w-[20%] text-center">Permukaan</TableHead><TableHead className="w-[24%] text-left">Temuan</TableHead><TableHead className="w-[42%] text-left">Catatan</TableHead></TableRow></TableHeader>
                                         <TableBody>{version.odontogram.map(finding => <TableRow key={`${finding.toothFdi}-${finding.surface}`}>
@@ -1397,7 +1397,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                                             <TableCell className="align-top text-left"><RecordedTableNote parts={[finding.detailSummary, finding.notes]} /></TableCell>
                                         </TableRow>)}</TableBody>
                                     </Table>
-                                </div>}
+                                </TableScroll>}
                             </div>
                         </details>)}
                     </div>
@@ -1837,7 +1837,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                                     treatmentForm.setData('tooth_fdis', selectedOdontogramTeeth(nextFindings, nextFindings.map((finding) => `${finding.toothFdi}-${finding.surface}`)));
                                 }} size="sm" type="button" variant="secondary">{selectedDentalFindingKeys.length === visit.odontogram.length ? 'Batal pilih semua' : 'Pilih semua temuan'}</Button>}{(canEdit || canCorrect) && visit.odontogram.length > 0 && <Button disabled={saving || selectedDentalFindingKeys.length === 0} onClick={() => { odontogramUndoForm.setData({ tooth_fdi: '', surface: '', reason: '', findings: visit.odontogram.filter((finding) => selectedDentalFindingKeys.includes(`${finding.toothFdi}-${finding.surface}`)).map((finding) => ({ tooth_fdi: finding.toothFdi, surface: finding.surface })), confirmed: true }); setUndoFinding(null); }} size="sm" type="button" variant="destructiveOutline">Hapus temuan terpilih{selectedDentalFindingKeys.length > 0 ? ` (${selectedDentalFindingKeys.length})` : ''}</Button>}</div>
                             </div>
-                            <div className="overflow-x-auto"><Table aria-label="Tabel temuan odontogram" className="min-w-[48rem] table-fixed"><TableHeader><TableRow><TableHead className="w-[7%] px-2 text-center">Pilih</TableHead><TableHead className="w-[10%] px-2 text-center">Gigi FDI</TableHead><TableHead className="w-[14%] px-2 text-center">Permukaan</TableHead><TableHead className="w-[18%] text-left">Temuan</TableHead><TableHead className="w-[31%] text-left">Catatan</TableHead><TableHead className="w-[20%] text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
+                            <TableScroll className="overflow-x-auto"><Table aria-label="Tabel temuan odontogram" className="min-w-[48rem] table-fixed"><TableHeader><TableRow><TableHead className="w-[7%] px-2 text-center">Pilih</TableHead><TableHead className="w-[10%] px-2 text-center">Gigi FDI</TableHead><TableHead className="w-[14%] px-2 text-center">Permukaan</TableHead><TableHead className="w-[18%] text-left">Temuan</TableHead><TableHead className="w-[31%] text-left">Catatan</TableHead><TableHead className="w-[20%] text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
                                 {visit.odontogram.length ? odontogramPagination.items.map((finding) => <TableRow key={`${finding.toothFdi}-${finding.surface}`}>
                                     <TableCell><Checkbox aria-label={`Pilih temuan gigi ${finding.toothFdi} permukaan ${finding.surface}`} checked={selectedDentalFindingKeys.includes(`${finding.toothFdi}-${finding.surface}`)} disabled={(!canEdit && !canCorrect) || saving} onCheckedChange={(checked) => setDentalFindingSelection(finding, checked === true)} /></TableCell>
                                     <TableCell className="font-sans tabular-nums font-semibold">{finding.toothFdi}</TableCell>
@@ -1860,7 +1860,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                                         <ActionButton action="delete" disabled={(!canEdit && !canCorrect) || saving} label={`Batalkan temuan gigi ${finding.toothFdi} permukaan ${finding.surface}`} onClick={() => { odontogramUndoForm.setData({ tooth_fdi: finding.toothFdi, surface: finding.surface, reason: '', findings: [] as Array<{ tooth_fdi: string; surface: string }>, confirmed: true }); setUndoFinding(finding); }} type="button" />
                                     </div></TableCell>
                                 </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty size="compact" title="Belum ada temuan odontogram" description="Catat temuan melalui input FDI di atas sebelum menyelesaikan pemeriksaan." /></TableCell></TableRow>}
-                            </TableBody></Table></div>
+                            </TableBody></Table></TableScroll>
                             <Pagination pagination={odontogramPagination} onPageChange={setOdontogramPage} />
                             {selectedDentalFindingKeys.length > 0 && <div className="space-y-1"><p className="text-sm font-medium text-neutral-700">{selectedDentalFindingKeys.length} temuan dari {treatmentForm.data.tooth_fdis.length} gigi dipilih.</p><p className="text-sm text-neutral-600">Pilihan gigi tetap tersimpan untuk pencatatan tindakan setelah diagnosis.</p></div>}
                         </section>
@@ -2053,7 +2053,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                                 <h4 className="flex items-center gap-2 text-sm font-semibold text-neutral-900" id="recorded-diagnoses-title"><ClipboardPlus className="size-4" />Diagnosis tercatat</h4>
                                 {canCorrect && <Button asChild size="sm" variant="secondary"><Link href={`/pelayanan/pemeriksaan/${visit.id}/diagnosa/koreksi`}>Koreksi coding diagnosis</Link></Button>}
                             </div>
-                            <div className="overflow-x-auto rounded-xl border border-neutral-200">
+                            <TableScroll className="overflow-x-auto rounded-xl border border-neutral-200">
                                 <Table aria-label="Tabel diagnosis tercatat" className={`table-fixed ${isDental ? 'min-w-[56rem]' : 'min-w-[48rem]'}`}>
                                     <TableHeader><TableRow>
                                         <TableHead className={isDental ? 'w-[15%] text-center' : 'w-[16%] text-center'}>Kode / sistem</TableHead>
@@ -2082,7 +2082,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                                         <TableCell className="align-top"><div className="flex flex-wrap items-center justify-center gap-1.5">{!isDental && <ActionButton disabled={!canEdit || saving} onClick={() => useGeneralDiagnosisForTreatment(diagnosis)} type="button" action="procedure" label={`Siapkan tindakan dari diagnosis ${diagnosis.name}`} />}{isDental && diagnosis.toothFdi && <ActionButton disabled={!canEdit || saving} onClick={() => useDentalDiagnosisForTreatment(diagnosis)} type="button" action="procedure" label={`Siapkan tindakan dari diagnosis ${diagnosis.name} gigi ${diagnosis.toothFdi}`} />}{diagnosis.type !== 'utama' && <ActionButton disabled={!canEdit || saving} onClick={() => confirmAction('Jadikan diagnosis ini sebagai diagnosis utama kunjungan? Diagnosis utama sebelumnya menjadi tambahan.', () => primaryDiagnosisForm.patch(`/pelayanan/pemeriksaan/diagnosa/${diagnosis.id}/utama`, { preserveScroll: true }), 'Jadikan utama')} type="button" action="primary" label={`Jadikan diagnosis ${diagnosis.name} sebagai utama`} />}<ActionButton disabled={!canEdit || saving} onClick={() => deleteItem(`/pelayanan/pemeriksaan/diagnosa/${diagnosis.id}`, 'Hapus diagnosis ini?')} type="button" action="delete" label={`Hapus diagnosis ${diagnosis.name}${diagnosis.toothFdi ? ` gigi ${diagnosis.toothFdi}` : ''}`} /></div></TableCell>
                                     </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={isDental ? 6 : 5}><Empty size="compact" description="Diagnosis yang sudah disimpan akan tampil di sini." title="Belum ada diagnosis" /></TableCell></TableRow>}</TableBody>
                                 </Table>
-                            </div>
+                            </TableScroll>
                         </section>
                         <fieldset className="min-w-0" disabled={saving}><form className="space-y-4 rounded-xl border border-neutral-200 p-4" onSubmit={(event) => submitClinicalSection(event, 'diagnosis')}>
                             <ConfirmedHistoryField previousValues={previousHistoryValues.current} error={differentialForm.errors.diagnosis_banding} id="diagnosis-banding" label="Diagnosis banding" kind="differential" placeholder="Diagnosis alternatif yang dipertimbangkan berdasarkan pemeriksaan" value={differentialForm.data.diagnosis_banding} onChange={value => differentialForm.setData('diagnosis_banding', value)} />
@@ -2241,7 +2241,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                                 </Button>
                             </div>
                         </form></fieldset>
-                        <div className="overflow-x-auto rounded-xl border border-neutral-200">
+                        <TableScroll className="overflow-x-auto rounded-xl border border-neutral-200">
                             <Table aria-label="Tabel tindakan tercatat" className="min-w-[46rem] table-fixed">
                                 <TableHeader><TableRow>
                                     <TableHead className="w-[15%] text-center">Kode ICD-9-CM</TableHead>
@@ -2290,7 +2290,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                                     </TableCell>
                                 </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada tindakan medis." /></TableCell></TableRow>}</TableBody>
                             </Table>
-                        </div>
+                        </TableScroll>
                         {renderTabNavigation('tindakan', 'resep', 'Lanjut ke resep klinik')}
                     </TabsContent>
 
@@ -2397,7 +2397,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                         <fieldset className="min-w-0" disabled={!canEdit || saving}><form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={(event) => submitForm(event, referralForm, `/pelayanan/pemeriksaan/${visit.id}/rujukan`)}><div className="grid items-end gap-4 md:grid-cols-2"><Field error={referralForm.errors.ke_poli_id} htmlFor="ke_poli_id" label="Poliklinik tujuan" required><Select id="ke_poli_id" onChange={(event) => referralForm.setData('ke_poli_id', event.target.value)} required value={referralForm.data.ke_poli_id}><option value="">Pilih poliklinik</option>{clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</Select></Field><Field error={referralForm.errors.surat_template_id} htmlFor="referral-template" label="Template rujukan"><Select id="referral-template" onChange={(event) => referralForm.setData('surat_template_id', event.target.value)} value={referralForm.data.surat_template_id}><option value="">Format standar klinik</option>{correspondenceTemplates.filter((template) => template.type === 'rujukan_internal').map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</Select></Field></div><Field error={referralForm.errors.konten_surat} htmlFor="referral-content" label="Isi surat rujukan"><Textarea id="referral-content" onChange={(event) => referralForm.setData('konten_surat', event.target.value)} placeholder="Kosongkan untuk menggunakan isi template" rows={4} value={referralForm.data.konten_surat} /></Field><Field error={referralForm.errors.catatan} htmlFor="catatan-rujukan" label="Catatan konsultasi"><Textarea id="catatan-rujukan" placeholder="Keterangan tambahan untuk konsultasi" onChange={(event) => referralForm.setData('catatan', event.target.value)} rows={3} value={referralForm.data.catatan} /></Field><div className="flex justify-end"><Button disabled={!canSubmitEntry(referralForm)} type="submit"><Plus className="size-4" />Kirim rujukan</Button></div></form></fieldset>
                         <section className="space-y-3" aria-labelledby="referral-history-title">
                             <h4 className="text-sm font-semibold text-neutral-900" id="referral-history-title">Riwayat rujukan</h4>
-                            <div className="overflow-x-auto rounded-xl border border-neutral-200">
+                            <TableScroll className="overflow-x-auto rounded-xl border border-neutral-200">
                                 <Table aria-label="Rujukan dari kunjungan ini" className="min-w-[46rem] table-fixed">
                                     <TableHeader><TableRow><TableHead className="w-[18%] text-center">Nomor</TableHead><TableHead className="w-[20%] text-left">Poli tujuan</TableHead><TableHead className="w-[34%] text-left">Catatan konsultasi</TableHead><TableHead className="w-[18%] text-center">Status</TableHead><TableHead className="w-[10%] text-center">Aksi</TableHead></TableRow></TableHeader>
                                     <TableBody>{visit.referrals.length ? visit.referrals.map(referral => <TableRow key={referral.id}>
@@ -2408,7 +2408,7 @@ export default function ExaminationDetail({ assistanceReview, assistance, visit,
                                         <TableCell className="px-2 align-top"><ActionButton asChild action="print" label="Cetak rujukan internal"><a href={referral.printUrl} /></ActionButton></TableCell>
                                     </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada rujukan internal." /></TableCell></TableRow>}</TableBody>
                                 </Table>
-                            </div>
+                            </TableScroll>
                         </section>
                         {renderTabNavigation('rujukan')}
                     </TabsContent>
@@ -2547,7 +2547,7 @@ function ConfirmedHistoryField({ id, kind, label, placeholder, value, onChange, 
 }
 
 function renderPrescriptionItems(items: PrescriptionItem[], editable: boolean, onDelete: (url: string, confirmation: string) => void) {
-    return <div className="overflow-x-auto rounded-xl border border-neutral-200">
+    return <TableScroll className="overflow-x-auto rounded-xl border border-neutral-200">
         <Table aria-label="Tabel resep tercatat" className="min-w-[40rem] table-fixed">
             <TableHeader><TableRow>
                 <TableHead className="w-[30%] text-left">Nama obat</TableHead>
@@ -2566,7 +2566,7 @@ function renderPrescriptionItems(items: PrescriptionItem[], editable: boolean, o
                 </TableCell>
             </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Belum ada obat dalam resep." /></TableCell></TableRow>}</TableBody>
         </Table>
-    </div>;
+    </TableScroll>;
 }
 
 function formatMeasurement(value: number | string | null, unit: string): string | null {

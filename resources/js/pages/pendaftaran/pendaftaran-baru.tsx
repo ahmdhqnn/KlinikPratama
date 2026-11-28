@@ -8,6 +8,7 @@ import { ClipboardPlus, UserRoundPlus } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { VisitFields, type VisitFormValues } from '@/components/pendaftaran/visit-fields';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -204,7 +205,7 @@ export default function NewPatientRegistration({ clinics, today, doctorsUrl, ini
                             </Field>
                         </>}
                         <label className="flex items-start gap-3 text-sm leading-6">
-                            <input className="mt-1 size-4 shrink-0" type="checkbox" checked={Boolean(form.data.general_consent_confirmed)} onChange={(event) => updateField('general_consent_confirmed', event.target.checked ? '1' : '')} />
+                            <Checkbox aria-label="Persetujuan umum telah dijelaskan dan diterima" checked={Boolean(form.data.general_consent_confirmed)} className="mt-1" onCheckedChange={(checked) => updateField('general_consent_confirmed', checked === true ? '1' : '')} />
                             <span>Saya telah memberi penjelasan, memeriksa identitas, dan menerima persetujuan langsung dari pasien atau wakil yang sah.</span>
                         </label>
                         {(form.errors.general_consent_confirmed || form.errors.general_consent_version) && <p role="alert" className="text-sm text-red-600">{form.errors.general_consent_confirmed ?? form.errors.general_consent_version}</p>}

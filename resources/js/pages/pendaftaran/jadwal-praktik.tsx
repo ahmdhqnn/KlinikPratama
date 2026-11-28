@@ -15,7 +15,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { Pagination, type PaginationData } from '@/components/dashboard/pagination';
 
@@ -270,7 +270,7 @@ export default function DoctorSchedule({
                         <div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span><div><CardTitle>Jadwal terdaftar</CardTitle><CardDescription className="mt-1">{schedules.total} jadwal praktik.</CardDescription></div></div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
+                        <TableScroll className="overflow-x-auto">
                             <Table className="min-w-[720px]">
                                 <TableHeader><TableRow><TableHead>Dokter</TableHead><TableHead>Poliklinik</TableHead><TableHead>Hari</TableHead><TableHead>Jam praktik</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                                 <TableBody>
@@ -286,7 +286,7 @@ export default function DoctorSchedule({
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty size="compact" title="Tidak ada jadwal praktik sesuai filter." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                        </div>
+                        </TableScroll>
                     </CardContent>
                     <Pagination pagination={schedules} />
                 </Card>
@@ -341,7 +341,7 @@ export default function DoctorSchedule({
                                 <div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><CalendarDays className="size-5" /></span><div className="min-w-0"><CardTitle>{canManageHolidays ? 'Libur praktik terdaftar' : 'Kalender libur praktik'}</CardTitle><CardDescription className="mt-1">{holidays.total} libur nasional, cuti bersama, dan libur instansi sesuai filter.</CardDescription></div></div>
                             </CardHeader>
                             <CardContent className="p-0">
-                                <div className="overflow-x-auto">
+                                <TableScroll className="overflow-x-auto">
                                     <Table className="min-w-[760px]">
                                         <TableHeader><TableRow><TableHead>Tanggal</TableHead><TableHead>Nama libur</TableHead><TableHead>Jenis</TableHead><TableHead>Dasar / surat</TableHead>{canManageHolidays && <TableHead className="text-center">Aksi</TableHead>}</TableRow></TableHeader>
                                         <TableBody>{holidays.data.length ? holidays.data.map((holiday) => <TableRow key={holiday.id}>
@@ -352,7 +352,7 @@ export default function DoctorSchedule({
                                             {canManageHolidays && <TableCell><div className="flex justify-center"><ActionButton type="button" onClick={() => confirmAction('Hapus libur '+holiday.tanggal+'?', () => router.delete('/pendaftaran/jadwal-praktik/libur/'+holiday.id, { preserveScroll: true }), 'Hapus')} action="delete" label={'Hapus libur '+holiday.tanggal} /></div></TableCell>}
                                         </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={canManageHolidays ? 5 : 4}><Empty size="compact" title="Tidak ada hari libur sesuai filter." /></TableCell></TableRow>}</TableBody>
                                     </Table>
-                                </div>
+                                </TableScroll>
                             </CardContent>
                             <Pagination pagination={holidays} />
                         </Card>
@@ -424,7 +424,7 @@ export default function DoctorSchedule({
                                         <FilterSubmit />
                                     </form>
                                 </FilterPanel>
-                                <div className="overflow-x-auto">
+                                <TableScroll className="overflow-x-auto">
                                     <Table className="min-w-[700px]">
                                         <TableHeader><TableRow><TableHead>Tanggal</TableHead><TableHead>Dokter</TableHead><TableHead>Poliklinik</TableHead><TableHead>Keputusan / alasan</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                                         <TableBody>{exceptions.length ? exceptions.map((exception) => <TableRow key={exception.id}>
@@ -435,7 +435,7 @@ export default function DoctorSchedule({
                                             <TableCell><div className="flex justify-center"><ActionButton type="button" onClick={() => confirmAction(`Hapus pengecualian ${exception.tanggal}?`, () => router.delete(`/pendaftaran/jadwal-praktik/pengecualian/${exception.id}`, { preserveScroll: true }), 'Hapus')} action="delete" label={`Hapus pengecualian ${exception.tanggal}`} /></div></TableCell>
                                         </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5}><Empty size="compact" title="Tidak ada pengecualian jadwal sesuai filter." /></TableCell></TableRow>}</TableBody>
                                     </Table>
-                                </div>
+                                </TableScroll>
                             </div>
                         </CardContent>
                         <Pagination pagination={exceptionPagination} />

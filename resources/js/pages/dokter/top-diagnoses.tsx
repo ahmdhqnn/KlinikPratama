@@ -7,7 +7,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { Head, router } from '@inertiajs/react';
 import { Activity, BarChart3, ClipboardList } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -64,7 +64,7 @@ export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
+                        <TableScroll className="overflow-x-auto">
                             <Table className="min-w-[620px]">
                                 <TableHeader><TableRow><TableHead className="w-24">Peringkat</TableHead><TableHead>ICD-10</TableHead><TableHead>Diagnosis</TableHead><TableHead className="text-center">Jumlah kasus</TableHead></TableRow></TableHeader>
                                 <TableBody>
@@ -78,7 +78,7 @@ export default function DoctorTopDiagnoses({ filters, diagnoses }: Props) {
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={4}><Empty size="compact" title="Belum ada diagnosis pada periode ini." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                        </div>
+                        </TableScroll>
                         <Pagination pagination={diagnoses} />
                     </CardContent>
                 </Card>

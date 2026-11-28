@@ -13,7 +13,7 @@ import { Empty } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 
 interface Catalog {
@@ -73,12 +73,12 @@ export default function ClinicalTerminologyShow({ catalog, codes, search: initia
 
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
+                        <TableScroll className="overflow-x-auto">
                             <Table className="min-w-[760px]">
                                 <TableHeader><TableRow><TableHead>Kode</TableHead><TableHead>Uraian</TableHead><TableHead>Jenis</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                                 <TableBody>{codes.data.length ? codes.data.map((code) => <TableRow key={code.code}><TableCell className="font-sans tabular-nums text-xs font-semibold text-neutral-900">{code.code}</TableCell><TableCell className="max-w-3xl whitespace-normal">{code.display}</TableCell><TableCell className="capitalize">{code.type ?? 'Belum diisi'}</TableCell><TableCell><Badge variant={code.active ? 'complete' : 'default'}>{code.active ? 'Aktif' : 'Nonaktif'}</Badge></TableCell></TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={4}><Empty description="Coba kata kunci lain atau periksa katalog terpilih." size="compact" title="Kode tidak ditemukan" /></TableCell></TableRow>}</TableBody>
                             </Table>
-                        </div>
+                        </TableScroll>
                         <Pagination pagination={codes} />
                     </CardContent>
                 </Card>

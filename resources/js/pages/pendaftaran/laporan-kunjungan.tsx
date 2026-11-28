@@ -13,7 +13,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { DatePicker } from '@/components/ui/date-picker';
 
@@ -126,7 +126,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
+                        <TableScroll className="overflow-x-auto">
                             <Table className="min-w-[1100px]">
                                 <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Poliklinik</TableHead><TableHead>Dokter</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                                 <TableBody>
@@ -151,7 +151,7 @@ export default function RegistrationVisitReport({ filters: initialFilters, clini
                                     )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Tidak ada kunjungan yang sesuai filter." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                        </div>
+                        </TableScroll>
                         <Pagination pagination={visits} />
                     </CardContent>
                 </Card>

@@ -28,3 +28,11 @@ export function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCel
 export function TableCell({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
     return <td className={cn('px-5 py-4 text-center align-middle', className)} {...props} />;
 }
+
+/**
+ * Scroll container for tables wider than the viewport. Focusable so keyboard
+ * users can pan a table that overflows (axe `scrollable-region-focusable`).
+ */
+export function TableScroll({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+    return <div className={cn('overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500', className)} tabIndex={0} {...props} />;
+}

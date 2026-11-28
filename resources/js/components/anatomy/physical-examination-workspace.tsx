@@ -1,5 +1,5 @@
 import { ClinicalFindingSigns } from './clinical-finding-signs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { useEffect, useState } from 'react';
 import { MapPin, Pencil, Plus, RotateCcw, Wind, ZoomIn } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -217,7 +217,7 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
             </Tabs>
             {bodyMap.findings.length > 0 && <section className="space-y-3 rounded-xl border border-neutral-200 p-4 sm:p-5" aria-label="Temuan lokasi tercatat">
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-neutral-950"><MapPin aria-hidden="true" className="size-4 shrink-0" />Temuan pemeriksaan ({bodyMap.findings.length})</h3>
-                <div className="overflow-x-auto">
+                <TableScroll className="overflow-x-auto">
                     <Table aria-label="Tabel temuan pemeriksaan fisik" className="min-w-[42rem] table-fixed">
                         <TableHeader><TableRow>
                             <TableHead className={disabled ? 'w-[24%] text-left' : 'w-[20%] text-left'}>Lokasi</TableHead>
@@ -248,7 +248,7 @@ export function PhysicalExaminationWorkspace({ systems, onChange, bodyMap = empt
                             </div></TableCell>}
                         </TableRow>)}</TableBody>
                     </Table>
-                </div>
+                </TableScroll>
             </section>}
             {legacyAnnotationNote && <section className="space-y-2 rounded-lg border border-neutral-200 p-4" aria-label="Keterangan anotasi">
                 <h3 className="text-sm font-semibold">Keterangan anotasi</h3>

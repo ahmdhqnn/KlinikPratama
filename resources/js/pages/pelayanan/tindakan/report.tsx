@@ -11,7 +11,7 @@ import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { Head, Link, router } from '@inertiajs/react';
 import { Activity, ArrowLeft, CalendarDays, Check, ClipboardCheck, Download, Printer } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -95,7 +95,7 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
                     </div>
                 </CardHeader>
                 <CardContent className="p-0 print:px-0">
-                    <div className="overflow-x-auto print:overflow-visible">
+                    <TableScroll className="overflow-x-auto print:overflow-visible">
                         <Table className={printMode ? 'min-w-[1120px] print:min-w-0' : 'min-w-[980px]'}>
                             <TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Tindakan</TableHead>{printMode && <TableHead>Instruksi dan hasil</TableHead>}<TableHead>Pelaksana</TableHead><TableHead>Status</TableHead>{!printMode && <TableHead className="text-center print:hidden">Aksi</TableHead>}</TableRow></TableHeader>
                             <TableBody>{procedures.data.length ? procedures.data.map((procedure) => <TableRow className="align-top" key={procedure.id}>
@@ -109,7 +109,7 @@ export default function NursingProcedureReport({ title, clinicName, baseUrl = '/
                                 {!printMode && <TableCell className="print:hidden"><div className="flex justify-center"><ActionButton disabledReason="Detail kunjungan belum tersedia." disabled={!procedure.visitUrl} asChild action="detail" label="Lihat pelaksanaan"><Link href={procedure.visitUrl ?? ''} /></ActionButton></div></TableCell>}
                             </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={printMode ? 7 : 8}><Empty size="compact" title="Belum ada tindakan sesuai filter." description="Ubah periode atau kata pencarian untuk melihat catatan tindakan lainnya." /></TableCell></TableRow>}</TableBody>
                         </Table>
-                    </div>
+                    </TableScroll>
                     {!printMode && <Pagination pagination={procedures} />}
                 </CardContent>
             </Card>

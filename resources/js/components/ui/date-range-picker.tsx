@@ -1,5 +1,5 @@
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { fieldControlInvalidClassName, useFieldControl } from '@/components/ui/field';
+import { fieldControlInvalidClassName, useFieldControl, useFieldRequired } from '@/components/ui/field';
 import { calendarNavigationDate, clampDate, fromDateKey, isDateWithinBounds, isMonthWithinBounds, toDateKey } from '@/lib/calendar';
 import { cn } from '@/lib/utils';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -45,7 +45,10 @@ export function DateRangePicker({
     'aria-describedby'?: string;
     'aria-invalid'?: boolean | 'true' | 'false' | 'grammar' | 'spelling';
 }) {
-    const accessibility = useFieldControl({ 'aria-describedby': ariaDescribedBy, 'aria-invalid': ariaInvalid, 'aria-required': required || undefined });
+    // aria-required is invalid on the role=button trigger, so the hidden native date input
+    // carries `required` for assistive tech and native validation instead.
+    const accessibility = useFieldControl({ 'aria-describedby': ariaDescribedBy, 'aria-invalid': ariaInvalid }, { omitRequired: true });
+    const fieldRequired = useFieldRequired({ required });
     const [open, setOpen] = useState(false);
     const calendarId = useId();
     const calendarRef = useRef<HTMLDivElement>(null);
@@ -134,8 +137,8 @@ export function DateRangePicker({
     return (
         <PopoverPrimitive.Root modal open={open} onOpenChange={setOpen}>
             <div className="relative min-w-0 w-full">
-                <input disabled={disabled || readOnly} aria-hidden="true" className="pointer-events-none absolute size-px opacity-0" max={max} min={min} onChange={() => undefined} data-validation-target={id ?? calendarId + "-trigger"} required={required} tabIndex={-1} type="date" value={from} />
-                <input disabled={disabled || readOnly} aria-hidden="true" className="pointer-events-none absolute size-px opacity-0" max={max} min={from || min} onChange={() => undefined} data-validation-target={id ?? calendarId + "-trigger"} required={required} tabIndex={-1} type="date" value={to} />
+                <input disabled={disabled || readOnly} aria-hidden="true" aria-required={fieldRequired || undefined} className="pointer-events-none absolute size-px opacity-0" max={max} min={min} onChange={() => undefined} data-validation-target={id ?? calendarId + "-trigger"} required={fieldRequired} tabIndex={-1} type="date" value={from} />
+                <input disabled={disabled || readOnly} aria-hidden="true" aria-required={fieldRequired || undefined} className="pointer-events-none absolute size-px opacity-0" max={max} min={from || min} onChange={() => undefined} data-validation-target={id ?? calendarId + "-trigger"} required={fieldRequired} tabIndex={-1} type="date" value={to} />
                 <PopoverPrimitive.Trigger asChild>
                     <button
                         {...accessibility}

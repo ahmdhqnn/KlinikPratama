@@ -10,7 +10,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { Head, Link, router } from '@inertiajs/react';
 import { Activity, CalendarDays, ClipboardCheck, Clock3 } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
@@ -90,7 +90,7 @@ export default function NursingProcedureQueue({ stats, filters: initialFilters, 
 function VisitList({ title, description, icon, visits }: { title: string; description: string; icon: ReactNode; visits: Props['visits'] }) {
     return <Card className="overflow-hidden">
         <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700">{icon}</span><div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div></div></CardHeader>
-        <CardContent className="p-0"><div className="overflow-x-auto"><Table className="min-w-[1060px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter / poli</TableHead><TableHead>Tindakan</TableHead><TableHead>Status kunjungan</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
+        <CardContent className="p-0"><TableScroll className="overflow-x-auto"><Table className="min-w-[1060px]"><TableHeader><TableRow><TableHead>No. kunjungan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pasien</TableHead><TableHead>Dokter / poli</TableHead><TableHead>Tindakan</TableHead><TableHead>Status kunjungan</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader><TableBody>
             {visits.data.length ? visits.data.map((visit) => <TableRow key={visit.id}>
                 <TableCell className="font-sans tabular-nums text-xs text-neutral-600">{visit.number}</TableCell>
                 <TableCell className="whitespace-nowrap text-neutral-600">{visit.date}</TableCell>
@@ -100,6 +100,6 @@ function VisitList({ title, description, icon, visits }: { title: string; descri
                 <TableCell><StatusBadge context="nurse" examinationStarted={visit.examinationStarted} status={visit.status} treatmentStarted={visit.treatmentStarted} /></TableCell>
                 <TableCell className="text-center"><div className="flex justify-center gap-2"><ActionButton asChild action="detail" disabled={!visit.url} disabledReason="Instruksi tindakan perawat belum tersedia." label="Lihat pelaksanaan"><Link href={visit.url ?? ''} /></ActionButton><ActionButton asChild action="procedure" disabled={!visit.url || visit.pendingCount === 0 || visit.status !== 'tindakan'} disabledReason="Tindakan hanya dapat diproses saat ada instruksi tertunda pada tahap tindakan." label={visit.treatmentStarted ? 'Lanjutkan tindakan' : 'Mulai tindakan'}><Link href={visit.url ? `${visit.url}#pelaksanaan-tindakan` : ''} /></ActionButton></div></TableCell>
             </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty size="compact" title="Belum ada tindakan pada daftar ini" description="Pasien akan muncul saat dokter menyiapkan tindakan perawat." /></TableCell></TableRow>}
-        </TableBody></Table></div></CardContent><Pagination pagination={visits} />
+        </TableBody></Table></TableScroll></CardContent><Pagination pagination={visits} />
     </Card>;
 }

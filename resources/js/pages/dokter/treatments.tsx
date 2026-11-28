@@ -9,7 +9,7 @@ import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { Head, router } from '@inertiajs/react';
 import { CalendarDays, Check, ClipboardCheck, Stethoscope } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -97,7 +97,7 @@ export default function DoctorTreatments({ filters, stats, actions }: Props) {
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
+                        <TableScroll className="overflow-x-auto">
                             <Table className="min-w-[1050px]">
                                 <TableHeader><TableRow>
                                     <TableHead className="text-center">Tanggal</TableHead>
@@ -138,7 +138,7 @@ export default function DoctorTreatments({ filters, stats, actions }: Props) {
                                     )) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={9}><Empty size="compact" title="Belum ada tindakan pada pilihan ini." description="Tindakan akan tampil setelah dicatat pada pemeriksaan." /></TableCell></TableRow>}
                                 </TableBody>
                             </Table>
-                        </div>
+                        </TableScroll>
                         <Pagination pagination={actions} />
                     </CardContent>
                 </Card>

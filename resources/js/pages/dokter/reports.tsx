@@ -10,7 +10,7 @@ import { Field } from '@/components/ui/field';
 import { FilterPanel, FilterSubmit } from '@/components/ui/filter-panel';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { Head, router } from '@inertiajs/react';
 import { ClipboardCheck, Download, FileText, Pill, UsersRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -118,7 +118,7 @@ export default function DoctorReports({ type, baseUrl = `/dokter/laporan/${type}
                         <div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><Icon className="size-5" /></span><div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{rows.total.toLocaleString('id-ID')} data sesuai pilihan.</CardDescription></div></div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto"><Table className="min-w-[1000px]">
+                        <TableScroll className="overflow-x-auto"><Table className="min-w-[1000px]">
                             <TableHeader><TableRow>
                                 <TableHead className="text-center">Tanggal</TableHead><TableHead className="text-center">No. kunjungan</TableHead><TableHead className="text-center">Pasien</TableHead><TableHead className="text-center">Poliklinik</TableHead>
                                 <TableHead className="text-center">{type === 'tindakan' ? 'Tindakan' : 'Obat'}</TableHead><TableHead className="text-center">Jumlah</TableHead>{type === 'tindakan' ? <><TableHead className="text-center">Pelaksana</TableHead><TableHead className="text-center">Status</TableHead></> : <><TableHead className="text-center">Aturan pakai</TableHead><TableHead className="text-center">Status resep</TableHead></>}
@@ -131,7 +131,7 @@ export default function DoctorReports({ type, baseUrl = `/dokter/laporan/${type}
                                     <TableCell className="text-center"><VisitActionButtons letterUrl={row.letterUrl} patient={row.patient} primary={row.detailUrl ? { href: row.detailUrl, label: `Lihat pemeriksaan ${row.number}`, type: 'detail' } : undefined} recordUrl={row.recordUrl} showLetterAction={!isAdmin} /></TableCell>
                                 </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell className="text-center" colSpan={9}><Empty size="compact" title={detail.empty} /></TableCell></TableRow>}
                             </TableBody>
-                        </Table></div>
+                        </Table></TableScroll>
                         <Pagination pagination={rows} />
                     </CardContent>
                 </Card>

@@ -3,7 +3,7 @@ import { InternalReferralStatus } from '@/components/kunjungan/internal-referral
 import { ActionButton } from '@/components/ui/action-button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { Link } from '@inertiajs/react';
 import { ArrowRightLeft } from 'lucide-react';
 
@@ -45,7 +45,7 @@ export function InternalReferralTable({ referrals, canManage, registration = fal
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                <TableScroll className="overflow-x-auto">
                     <Table aria-label="Daftar rujukan internal" className="min-w-[56rem] table-fixed">
                         <TableHeader>
                             <TableRow>
@@ -95,7 +95,7 @@ export function InternalReferralTable({ referrals, canManage, registration = fal
                             )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={6}><Empty size="compact" title="Tidak ada rujukan internal yang ditemukan." /></TableCell></TableRow>}
                         </TableBody>
                     </Table>
-                </div>
+                </TableScroll>
                 <Pagination pagination={referrals} />
             </CardContent>
         </Card>

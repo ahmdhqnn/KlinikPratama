@@ -40,7 +40,7 @@ export function PriorityBadge({ triage, priority, className }: PriorityBadgeProp
     const config = triageMap[key] ?? {
         label: triage,
         subtext: priority ? `Prioritas: ${priority}` : 'Prioritas awal',
-        pillClass: 'border border-neutral-300 bg-neutral-100 text-neutral-700',
+        pillClass: 'border border-neutral-300 bg-neutral-100 text-neutral-800',
         dotClass: 'bg-neutral-500',
     };
 

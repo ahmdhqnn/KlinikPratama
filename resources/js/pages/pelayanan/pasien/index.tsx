@@ -14,7 +14,7 @@ import { Empty } from '@/components/ui/empty';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableScroll } from '@/components/ui/table';
 import { confirmAction } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DateOfBirthPicker } from '@/components/ui/date-picker';
@@ -161,7 +161,7 @@ export default function PatientsIndex({ stats, filters: initialFilters, patients
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b border-neutral-100"><div className="flex items-start gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700"><UsersRound className="size-5" /></span><div><CardTitle>Pasien terdaftar</CardTitle><CardDescription className="mt-1">{new Intl.NumberFormat('id-ID').format(patients.total)} pasien ditemukan.</CardDescription></div></div></CardHeader>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto"><Table className="min-w-[1120px]"><TableHeader><TableRow><TableHead>No. RM</TableHead><TableHead>Pasien</TableHead><TableHead>JK / Umur</TableHead><TableHead>Kontak</TableHead><TableHead>Alamat</TableHead><TableHead>Kepesertaan</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
+                        <TableScroll className="overflow-x-auto"><Table className="min-w-[1120px]"><TableHeader><TableRow><TableHead>No. RM</TableHead><TableHead>Pasien</TableHead><TableHead>JK / Umur</TableHead><TableHead>Kontak</TableHead><TableHead>Alamat</TableHead><TableHead>Kepesertaan</TableHead><TableHead className="text-center">Aksi</TableHead></TableRow></TableHeader>
                             <TableBody>{patients.data.length ? patients.data.map((patient) => <TableRow key={patient.id}>
                                 <TableCell><Link className="font-sans tabular-nums text-xs font-semibold text-neutral-700 hover:underline" href={`/pelayanan/pasien/${patient.id}`}>{patient.medicalRecordNumber}</Link></TableCell>
                                 <TableCell><div className="font-medium text-neutral-900">{patient.name}</div>{patient.nip && <div className="font-sans tabular-nums text-xs text-neutral-500">NIP: {patient.nip}</div>}{patient.nik && <div className="font-sans tabular-nums text-xs text-neutral-500">NIK: {patient.nik}</div>}</TableCell>
@@ -171,7 +171,7 @@ export default function PatientsIndex({ stats, filters: initialFilters, patients
                                 <TableCell><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700">{patient.membership}</span></TableCell>
                                 <TableCell><div className="flex justify-center gap-2"><ActionButton disabledReason={!permissions.managePatients ? 'Akun Anda tidak memiliki akses verifikasi pasien.' : 'Hak layanan pasien ini tidak memerlukan verifikasi tambahan.'} disabled={!(permissions.managePatients && patient.canVerify)} onClick={() => openVerification(patient)} action="verify" label="Verifikasi" /><ActionButton asChild action="detail" label="Detail"><Link href={`/pelayanan/pasien/${patient.id}`} /></ActionButton><ActionButton disabledReason="Aksi ini memerlukan hak akses pengelolaan yang sesuai." disabled={!permissions.viewRme} asChild action="rme" label="Lihat RME"><Link href={`/pelayanan/pasien/${patient.id}/rekam-medis`} /></ActionButton></div></TableCell>
                             </TableRow>) : <TableRow className="hover:bg-transparent"><TableCell colSpan={7}><Empty description="Ubah kata kunci atau kategori, lalu coba lagi." size="compact" title="Tidak ada pasien yang cocok" /></TableCell></TableRow>}</TableBody>
-                        </Table></div>
+                        </Table></TableScroll>
                         <Pagination pagination={patients} />
                     </CardContent>
                 </Card>
