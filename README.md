@@ -92,8 +92,11 @@ Setelah memperbarui dependensi frontend, jalankan ulang proses `composer run dev
 
 Produksi berjalan sebagai tiga container: `app` (PHP-FPM 8.4 Alpine dengan GD/ZIP/Intl), `scheduler` (`schedule:work`), dan `caddy` (TLS otomatis Let's Encrypt, gzip/zstd). `app` dan `scheduler` memakai source yang sama lewat bind mount; data klinis tetap di `database/database.sqlite`.
 
+`public/build` di-ignore Git, jadi aset harus dibangun di host sebelum container dijalankan — tanpa langkah ini halaman terkirim tanpa CSS/JS:
+
 ```bash
 cp .env.example .env          # lalu isi APP_KEY, APP_URL=https://<domain>, DB_CONNECTION=sqlite, APP_ENV=production, APP_DEBUG=false
+npm ci --ignore-scripts && npm run build
 docker compose build
 docker compose up -d
 ```
