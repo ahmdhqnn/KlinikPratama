@@ -1,0 +1,41 @@
+name: klinik-pratama
+
+x-app: &app
+  build:
+    context: .
+  image: klinik-pratama-app:latest
+  restart: unless-stopped
+  # .env dibaca Laravel dari bind mount; jangan pakai env_file agar `artisan test`
+  # tidak mewarisi DB produksi lewat $_SERVER.
+  volumes:
+    - ./:/var/www/html
+
+services:
+  app:
+    <<: *app
+    command: sh /var/www/html/docker/entrypoint.sh
+
+  scheduler:
+    <<: *app
+    depends_on:
+      - app
+    command: sh -c "sleep 10 && exec php artisan schedule:work"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./:/var/www/html:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,20 @@
+{
+	email admin@rmeklinikpratama.web.id
+}
+
+rmeklinikpratama.web.id {
+	encode zstd gzip
+
+	root * /var/www/html/public
+	php_fastcgi app:9000
+	file_server
+
+	header {
+		-Server
+	}
+}
+
+# Aktifkan blok ini setelah record A www dibuat di DNS.
+http://www.rmeklinikpratama.web.id {
+	redir https://rmeklinikpratama.web.id{uri} permanent
+}

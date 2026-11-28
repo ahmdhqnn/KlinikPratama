@@ -88,6 +88,32 @@ Setelah memperbarui dependensi frontend, jalankan ulang proses `composer run dev
 
 `php artisan db:seed --no-interaction` bersifat opsional untuk database pengembangan kosong. `DatabaseSeeder` berisi akun dan data contoh, serta dibatasi ke lingkungan `local`/`testing`. Jangan gunakan akun contoh untuk instalasi operasional. Jangan menjalankan `migrate:fresh` atau seeding contoh terhadap data klinis yang harus dipertahankan.
 
+## Deploy produksi (Docker + Caddy)
+
+Produksi berjalan sebagai tiga container: `app` (PHP-FPM 8.4 Alpine dengan GD/ZIP/Intl), `scheduler` (`schedule:work`), dan `caddy` (TLS otomatis Let's Encrypt, gzip/zstd). `app` dan `scheduler` memakai source yang sama lewat bind mount; data klinis tetap di `database/database.sqlite`.
+
+```bash
+cp .env.example .env          # lalu isi APP_KEY, APP_URL=https://<domain>, DB_CONNECTION=sqlite, APP_ENV=production, APP_DEBUG=false
+docker compose build
+docker compose up -d
+```
+
+`docker/entrypoint.sh` menjalankan `optimize:clear`, `migrate --force`, `storage:link`, lalu `optimize` sebelum PHP-FPM menerima trafik. Domain diatur di `Caddyfile`; ganti kedua kemunculan `rmeklinikpratama.web.id` bila memakai domain lain. Caddy menyimpan sertifikat di volume `caddy_data`, jadi jangan jalankan `docker compose down -v`.
+
+`bootstrap/app.php` menaruh Caddy di daftar `trustProxies` (`172.16.0.0/12`) agar `X-Forwarded-Proto` dibaca dan `$request->isSecure()` bernilai benar untuk tanda tangan tindakan, cookie `secure`, dan HSTS. `public/hot` harus tidak ada saat produksi, jika tidak Vite mengarahkan aset ke server dev.
+
+Backup terjadwal masih mati: `CLINIC_BACKUP_ENABLED=false` dan `CLINIC_BACKUP_KEY_FILE` belum diisi, sehingga `clinic:security-check --production` melaporkan tiga kontrol backup belum terpenuhi.
+
+### Akun demo
+
+`KemenparPreReleaseSeeder` menolak berjalan di `APP_ENV=production`. Karena config di-cache, variabel `APP_ENV=staging` perintah biasa tidak berpengaruh — cache harus dibersihkan lebih dulu, lalu dipulihkan:
+
+```bash
+docker compose exec -T app sh -c 'php artisan config:clear && APP_ENV=staging php artisan db:seed --class="Database\\Seeders\\KemenparPreReleaseSeeder" --force && php artisan optimize'
+```
+
+Sandi semua akun demo `Kemenpar2026!`, PIN tanda tangan klinis `123456`. Seeder memakai `firstOrNew`/`updateOrCreate`, jadi aman diulang dan tidak menghapus pasien/kunjungan/terminologi yang sudah ada.
+
 ## Database dan integritas
 
 Kelompok tabel utama mencakup identitas/kepesertaan, kunjungan/pengkajian/pemeriksaan, diagnosis/odontogram/tindakan, resep/farmasi, obat/batch/mutasi, persuratan, jadwal praktik, dan audit/versioning catatan klinis.
